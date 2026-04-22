@@ -122,6 +122,7 @@ pub struct ListPoQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub vendor_id: Option<Uuid>,
+    pub indent_requisition_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -610,37 +611,51 @@ pub async fn list_purchase_orders(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (count_sql, data_sql, has_status, has_vendor) = match (&params.status, &params.vendor_id) {
-        (Some(_), Some(_)) => (
-            "SELECT COUNT(*) FROM purchase_orders WHERE tenant_id = $1 AND status = $2::po_status AND vendor_id = $3".to_owned(),
-            "SELECT * FROM purchase_orders WHERE tenant_id = $1 AND status = $2::po_status AND vendor_id = $3 ORDER BY created_at DESC LIMIT $4 OFFSET $5".to_owned(),
-            true, true,
-        ),
-        (Some(_), None) => (
-            "SELECT COUNT(*) FROM purchase_orders WHERE tenant_id = $1 AND status = $2::po_status".to_owned(),
-            "SELECT * FROM purchase_orders WHERE tenant_id = $1 AND status = $2::po_status ORDER BY created_at DESC LIMIT $3 OFFSET $4".to_owned(),
-            true, false,
-        ),
-        (None, Some(_)) => (
-            "SELECT COUNT(*) FROM purchase_orders WHERE tenant_id = $1 AND vendor_id = $2".to_owned(),
-            "SELECT * FROM purchase_orders WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4".to_owned(),
-            false, true,
-        ),
-        (None, None) => (
-            "SELECT COUNT(*) FROM purchase_orders WHERE tenant_id = $1".to_owned(),
-            "SELECT * FROM purchase_orders WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3".to_owned(),
-            false, false,
-        ),
-    };
+    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut bind_idx = 2;
+
+    if params.status.is_some() {
+        conditions.push(format!("status = ${bind_idx}::po_status"));
+        bind_idx += 1;
+    }
+    if params.vendor_id.is_some() {
+        conditions.push(format!("vendor_id = ${bind_idx}"));
+        bind_idx += 1;
+    }
+    if params.indent_requisition_id.is_some() {
+        conditions.push(format!("indent_requisition_id = ${bind_idx}"));
+        bind_idx += 1;
+    }
+
+    let where_sql = conditions.join(" AND ");
+    let count_sql = format!("SELECT COUNT(*) FROM purchase_orders WHERE {where_sql}");
+    let data_sql = format!(
+        "SELECT * FROM purchase_orders WHERE {where_sql} ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
+        bind_idx + 1,
+    );
 
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
-    if has_status { cq = cq.bind(params.status.as_deref().unwrap_or("")); }
-    if has_vendor { cq = cq.bind(params.vendor_id); }
+    if let Some(status) = params.status.as_deref() {
+        cq = cq.bind(status);
+    }
+    if let Some(vendor_id) = params.vendor_id {
+        cq = cq.bind(vendor_id);
+    }
+    if let Some(indent_requisition_id) = params.indent_requisition_id {
+        cq = cq.bind(indent_requisition_id);
+    }
     let total = cq.fetch_one(&mut *tx).await?;
 
     let mut dq = sqlx::query_as::<_, PurchaseOrder>(&data_sql).bind(claims.tenant_id);
-    if has_status { dq = dq.bind(params.status.as_deref().unwrap_or("")); }
-    if has_vendor { dq = dq.bind(params.vendor_id); }
+    if let Some(status) = params.status.as_deref() {
+        dq = dq.bind(status);
+    }
+    if let Some(vendor_id) = params.vendor_id {
+        dq = dq.bind(vendor_id);
+    }
+    if let Some(indent_requisition_id) = params.indent_requisition_id {
+        dq = dq.bind(indent_requisition_id);
+    }
     let purchase_orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;

@@ -114,6 +114,29 @@ const outbreakStatusColors: Record<string, string> = {
   closed: "success",
 };
 
+// Dropdown options for categorical fields
+const DEVICE_TYPES = [
+  { value: "central_line", label: "Central Line" },
+  { value: "urinary_catheter", label: "Urinary Catheter" },
+  { value: "ventilator", label: "Ventilator" },
+  { value: "peripheral_iv", label: "Peripheral IV" },
+  { value: "feeding_tube", label: "Feeding Tube" },
+  { value: "tracheostomy", label: "Tracheostomy" },
+  { value: "drain", label: "Drain" },
+  { value: "other", label: "Other" },
+];
+
+const STAFF_CATEGORIES = [
+  { value: "doctor", label: "Doctor" },
+  { value: "nurse", label: "Nurse" },
+  { value: "technician", label: "Technician" },
+  { value: "housekeeping", label: "Housekeeping" },
+  { value: "paramedic", label: "Paramedic" },
+  { value: "admin", label: "Administrative" },
+  { value: "security", label: "Security" },
+  { value: "other", label: "Other" },
+];
+
 // ── HAI Surveillance Tab ────────────────────────────────
 
 function SurveillanceTab() {
@@ -219,7 +242,7 @@ function SurveillanceTab() {
           <Select label="HAI Type" required data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]} value={form.hai_type} onChange={(v) => setForm({ ...form, hai_type: (v ?? "other") as HaiType })} />
           <TextInput label="Infection Date" type="date" required value={form.infection_date} onChange={(e) => setForm({ ...form, infection_date: e.currentTarget.value })} />
           <TextInput label="Organism" value={form.organism} onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })} />
-          <TextInput label="Device Type" value={form.device_type} onChange={(e) => setForm({ ...form, device_type: e.currentTarget.value })} />
+          <Select label="Device Type" data={DEVICE_TYPES} value={form.device_type || null} onChange={(v) => setForm({ ...form, device_type: v ?? "" })} clearable searchable />
           <Textarea label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>Save</Button>
         </Stack>
@@ -759,7 +782,7 @@ function HygieneTab() {
           <NumberInput label="Total Observations" required value={form.observations} onChange={(v) => setForm({ ...form, observations: Number(v) })} />
           <NumberInput label="Compliant" required value={form.compliant} onChange={(v) => setForm({ ...form, compliant: Number(v) })} />
           <NumberInput label="Non-Compliant" required value={form.non_compliant} onChange={(v) => setForm({ ...form, non_compliant: Number(v) })} />
-          <TextInput label="Staff Category" value={form.staff_category ?? ""} onChange={(e) => setForm({ ...form, staff_category: e.currentTarget.value || undefined })} />
+          <Select label="Staff Category" data={STAFF_CATEGORIES} value={form.staff_category ?? null} onChange={(v) => setForm({ ...form, staff_category: v || undefined })} clearable searchable />
           <Textarea label="Findings" value={form.findings ?? ""} onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
         </Stack>

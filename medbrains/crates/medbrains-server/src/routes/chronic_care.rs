@@ -14,6 +14,7 @@ use crate::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::require_permission,
+    middleware::client_ip::ClientIp,
     state::AppState,
 };
 
@@ -438,12 +439,14 @@ pub async fn list_programs(
 pub async fn create_program(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    client_ip: Option<Extension<ClientIp>>,
     Json(body): Json<CreateProgramRequest>,
 ) -> Result<Json<ChronicProgramRow>, AppError> {
     require_permission(&claims, permissions::chronic::programs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let ip_str = client_ip.map(|ip| ip.0.as_str());
+    medbrains_db::pool::set_audit_context(&mut tx, &claims.tenant_id, &claims.sub, ip_str.as_deref()).await?;
 
     let row = sqlx::query_as::<_, ChronicProgramRow>(
         "INSERT INTO chronic_programs \

@@ -2,6 +2,11 @@ import { z } from "zod";
 
 export * from "./onboarding.js";
 export { buildFormSchema, evaluateCondition } from "./dynamic-form.js";
+// primitives.ts is re-exported through guards.ts
+export * from "./guards.js";
+
+// Note: Zod schemas below are kept for form validation (buildFormSchema).
+// For runtime type guards, use the native guards from ./guards.js
 
 export const healthResponseSchema = z.object({
   status: z.string(),

@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@medbrains/schemas": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/utils": "workspace:*"
   },

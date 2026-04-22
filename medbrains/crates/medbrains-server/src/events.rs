@@ -707,7 +707,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             let result: String = s
                 .split(|c: char| !c.is_alphanumeric())
                 .filter(|p| !p.is_empty())
-                .map(|w| w.to_lowercase())
+                .map(str::to_lowercase)
                 .collect::<Vec<_>>()
                 .join("_");
             Value::String(result)
@@ -717,7 +717,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             let result: String = s
                 .split(|c: char| !c.is_alphanumeric())
                 .filter(|p| !p.is_empty())
-                .map(|w| w.to_lowercase())
+                .map(str::to_lowercase)
                 .collect::<Vec<_>>()
                 .join("-");
             Value::String(result)
@@ -960,7 +960,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             Value::Array(arr) => {
                 let total: f64 = arr
                     .iter()
-                    .filter_map(|v| v.as_f64())
+                    .filter_map(Value::as_f64)
                     .sum();
                 serde_json::json!(total)
             }
@@ -968,7 +968,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         },
         "avg" => match &value {
             Value::Array(arr) => {
-                let nums: Vec<f64> = arr.iter().filter_map(|v| v.as_f64()).collect();
+                let nums: Vec<f64> = arr.iter().filter_map(Value::as_f64).collect();
                 if nums.is_empty() {
                     serde_json::json!(0)
                 } else {
@@ -980,7 +980,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         "array_min" => match &value {
             Value::Array(arr) => {
                 arr.iter()
-                    .filter_map(|v| v.as_f64())
+                    .filter_map(Value::as_f64)
                     .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .map_or(Value::Null, |n| serde_json::json!(n))
             }
@@ -989,7 +989,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         "array_max" => match &value {
             Value::Array(arr) => {
                 arr.iter()
-                    .filter_map(|v| v.as_f64())
+                    .filter_map(Value::as_f64)
                     .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .map_or(Value::Null, |n| serde_json::json!(n))
             }

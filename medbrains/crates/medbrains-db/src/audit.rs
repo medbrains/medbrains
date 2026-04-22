@@ -30,6 +30,7 @@ impl AuditLogger {
         // Get the previous hash for the chain
         let prev_hash: Option<String> = sqlx::query_scalar(
             "SELECT hash FROM audit_log WHERE tenant_id = $1 \
+             AND hash IS NOT NULL \
              ORDER BY created_at DESC LIMIT 1",
         )
         .bind(entry.tenant_id)

@@ -120,7 +120,7 @@ function PlatformBadge({ web, mobile, tv }: { web: string; mobile: string; tv: s
         <Badge size="xs" variant="dot" color="primary">W</Badge>
       )}
       {mobile === "Y" && (
-        <Badge size="xs" variant="dot" color="medbrainsTeal">M</Badge>
+        <Badge size="xs" variant="dot" color="teal">M</Badge>
       )}
       {tv === "Y" && (
         <Badge size="xs" variant="dot" color="slate">TV</Badge>
@@ -318,7 +318,7 @@ export function LandingPage() {
             Open Source HMS
           </div>
           <h1 className={classes.heroTitle}>
-            The Hospital Management System Built for Everyone
+            The Hospital Management System Built for <em>Everyone</em>
           </h1>
           <p className={classes.heroSubtitle}>
             2,189 features across 67+ modules. Zero license fees. From OPD to IPD,

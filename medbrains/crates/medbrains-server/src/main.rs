@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::{
     Router,
@@ -75,6 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         jwt_encoding_key: encoding_key,
         jwt_decoding_key: decoding_key,
         cookie_config,
+        queue_broadcaster: routes::ws::QueueBroadcaster::new(),
+        trusted_proxies: Arc::new(config.trusted_proxies.clone()),
     };
 
     // Run seed (insert default tenant + super_admin if not exists)

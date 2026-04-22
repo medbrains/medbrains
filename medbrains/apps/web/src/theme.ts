@@ -12,153 +12,156 @@ import {
 import { EcgLoader } from "./components/EcgLoader";
 
 // ═══════════════════════════════════════════════════════════════════
-// ── MedBrains Design System: Healthcare-Optimized Palette ────────
+// ── MedBrains Design System: Forest + Copper (LOCKED)
 // ═══════════════════════════════════════════════════════════════════
 //
-// Inspired by: IBM Carbon (authority, accessibility), Stripe (polish),
-//              Apple (clarity), clinical UI best practices
+// Brand: deep institutional forest green (#1F4332)
+// Accent: copper (#B8924A) — RESERVED for changed values, unread
+// Canvas: white-first institutional (#ffffff)
+// Ink: graphite (#0F1412) — never #000000
 //
-// Philosophy: trust, calm, clarity — designed for 12-hour clinical shifts
-//
-// COLOR ROLES:
-//   primary   — brand / interactive (healthcare blue — trust, calm)
-//   success   — positive states, healthy, normal vitals, completed
-//   warning   — attention needed, pending, abnormal values
-//   danger    — critical alerts, emergencies, destructive actions
-//   info      — informational, neutral-cool for data display
-//   violet    — premium features, AI/smart actions
-//   orange    — warm accent, billing, revenue, highlights
-//   teal      — clinical accent, healthcare-specific, calm trust
-//   slate     — elevated neutral for subtle UI elements
+// Peers: Mayo Clinic, Roche, Patagonia-medical, Hermes
+// Fonts: Fraunces (display), Inter Tight (UI), JetBrains Mono (code)
 // ═══════════════════════════════════════════════════════════════════
 
-// Brand — Healthcare Blue (trustworthy, calm, clinical)
+// Brand — Forest Green (institutional, grown, timeless)
 const primary: MantineColorsTuple = [
-  "#eff6ff", // 0  ghost
-  "#dbeafe", // 1  dimmed / selection
-  "#bfdbfe", // 2  subtle
-  "#93c5fd", // 3  medium
-  "#60a5fa", // 4  strong
-  "#2563eb", // 5  accent      ← PRIMARY (clinical blue)
-  "#1d4ed8", // 6  hover
-  "#1e40af", // 7  pressed
-  "#1e3a8a", // 8  deep
-  "#172554", // 9  abyss
+  "#f3f7f5", // 0  ghost
+  "#e4ede9", // 1  dimmed / selection / tint
+  "#c4d5cc", // 2  subtle / tint-2
+  "#8aa89a", // 3  medium
+  "#567a69", // 4  strong
+  "#1F4332", // 5  accent      <- BRAND (forest)
+  "#153325", // 6  hover
+  "#0d2417", // 7  pressed / deep
+  "#061610", // 8  deep
+  "#020806", // 9  abyss
 ];
 
-// Success — Clinical Green (normal vitals, healthy, completed, active)
-// Higher saturation for unambiguous "all clear" in clinical context
+// Success — Clinical Green (normal vitals, healthy, completed)
 const success: MantineColorsTuple = [
-  "#ecfdf5", // 0
-  "#d1fae5", // 1
-  "#a7f3d0", // 2
-  "#6ee7b7", // 3
-  "#34d399", // 4
-  "#16a34a", // 5  ← success (stronger green, IBM-inspired)
-  "#15803d", // 6
-  "#166534", // 7
-  "#14532d", // 8
-  "#052e16", // 9
+  "#ecfdf5",
+  "#d1fae5",
+  "#a7f3d0",
+  "#6ee7b7",
+  "#34d399",
+  "#10b981", // emerald
+  "#059669",
+  "#047857",
+  "#065f46",
+  "#064e3b",
 ];
 
-// Warning — Clinical Amber (abnormal values, pending, requires attention)
-// Must be clearly distinct from danger red — amber/gold tone
+// Warning — Clinical Amber (abnormal values, pending)
 const warning: MantineColorsTuple = [
-  "#fffbeb", // 0
-  "#fef3c7", // 1
-  "#fde68a", // 2
-  "#fcd34d", // 3
-  "#fbbf24", // 4
-  "#eab308", // 5  ← warning (purer gold, less orange)
-  "#ca8a04", // 6
-  "#a16207", // 7
-  "#854d0e", // 8
-  "#713f12", // 9
+  "#fffbeb",
+  "#fef3c7",
+  "#fde68a",
+  "#fcd34d",
+  "#fbbf24",
+  "#f59e0b", // amber
+  "#d97706",
+  "#b45309",
+  "#92400e",
+  "#78350f",
 ];
 
-// Danger — Clinical Red (critical alerts, emergencies, destructive)
-// True red, not rose — must signal urgency unambiguously
+// Danger — Clinical Rose (critical alerts, emergencies)
 const danger: MantineColorsTuple = [
-  "#fef2f2", // 0
-  "#fee2e2", // 1
-  "#fecaca", // 2
-  "#fca5a5", // 3
-  "#f87171", // 4
-  "#dc2626", // 5  ← danger (true red, IBM-inspired)
-  "#b91c1c", // 6
-  "#991b1b", // 7
-  "#7f1d1d", // 8
-  "#450a0a", // 9
+  "#fff1f2",
+  "#ffe4e6",
+  "#fecdd3",
+  "#fda4af",
+  "#fb7185",
+  "#f43f5e", // rose
+  "#e11d48",
+  "#be123c",
+  "#9f1239",
+  "#881337",
 ];
 
 // Info — Sky Blue (informational, data, neutral-cool)
 const info: MantineColorsTuple = [
-  "#f0f9ff", // 0
-  "#e0f2fe", // 1
-  "#bae6fd", // 2
-  "#7dd3fc", // 3
-  "#38bdf8", // 4
-  "#0ea5e9", // 5  ← info
-  "#0284c7", // 6
-  "#0369a1", // 7
-  "#075985", // 8
-  "#0c4a6e", // 9
+  "#f0f9ff",
+  "#e0f2fe",
+  "#bae6fd",
+  "#7dd3fc",
+  "#38bdf8",
+  "#0ea5e9",
+  "#0284c7",
+  "#0369a1",
+  "#075985",
+  "#0c4a6e",
 ];
 
 // Violet — Purple (premium, AI, smart features)
 const violet: MantineColorsTuple = [
-  "#f5f3ff", // 0
-  "#ede9fe", // 1
-  "#ddd6fe", // 2
-  "#c4b5fd", // 3
-  "#a78bfa", // 4
-  "#8b5cf6", // 5  ← violet
-  "#7c3aed", // 6
-  "#6d28d9", // 7
-  "#5b21b6", // 8
-  "#4c1d95", // 9
+  "#f5f3ff",
+  "#ede9fe",
+  "#ddd6fe",
+  "#c4b5fd",
+  "#a78bfa",
+  "#8b5cf6",
+  "#7c3aed",
+  "#6d28d9",
+  "#5b21b6",
+  "#4c1d95",
 ];
 
 // Orange — Warm (billing, revenue, engagement)
 const orange: MantineColorsTuple = [
-  "#fff7ed", // 0
-  "#ffedd5", // 1
-  "#fed7aa", // 2
-  "#fdba74", // 3
-  "#fb923c", // 4
-  "#f97316", // 5  ← orange
-  "#ea580c", // 6
-  "#c2410c", // 7
-  "#9a3412", // 8
-  "#7c2d12", // 9
+  "#fff7ed",
+  "#ffedd5",
+  "#fed7aa",
+  "#fdba74",
+  "#fb923c",
+  "#f97316",
+  "#ea580c",
+  "#c2410c",
+  "#9a3412",
+  "#7c2d12",
 ];
 
 // Teal — Healthcare (clinical, calm, trust)
 const teal: MantineColorsTuple = [
-  "#f0fdfa", // 0
-  "#ccfbf1", // 1
-  "#99f6e4", // 2
-  "#5eead4", // 3
-  "#2dd4bf", // 4
-  "#14b8a6", // 5  ← teal
-  "#0d9488", // 6
-  "#0f766e", // 7
-  "#115e59", // 8
-  "#134e4a", // 9
+  "#f0fdfa",
+  "#ccfbf1",
+  "#99f6e4",
+  "#5eead4",
+  "#2dd4bf",
+  "#14b8a6",
+  "#0d9488",
+  "#0f766e",
+  "#115e59",
+  "#134e4a",
 ];
 
 // Slate — Elevated Neutral (subtle UI, backgrounds, borders)
 const slate: MantineColorsTuple = [
-  "#f8fafc", // 0
-  "#f1f5f9", // 1
-  "#e2e8f0", // 2
-  "#cbd5e1", // 3
-  "#94a3b8", // 4
-  "#64748b", // 5  ← slate
-  "#475569", // 6
-  "#334155", // 7
-  "#1e293b", // 8
-  "#0f172a", // 9
+  "#f8fafc",
+  "#f1f5f9",
+  "#e2e8f0",
+  "#cbd5e1",
+  "#94a3b8",
+  "#64748b",
+  "#475569",
+  "#334155",
+  "#1e293b",
+  "#0f172a",
+];
+
+// Copper — Reserved accent (changed values, unread, hero moment)
+const copper: MantineColorsTuple = [
+  "#faf6ef",
+  "#f1e4c8",
+  "#e5cf9e",
+  "#d4b574",
+  "#c9a35a",
+  "#B8924A", // 5 <- copper accent
+  "#9a7a3d",
+  "#7d5f22",
+  "#604716",
+  "#3d2d0c",
 ];
 
 // ── Container Sizes ────────────────────────────────────────────
@@ -172,6 +175,14 @@ const CONTAINER_SIZES: Record<string, string> = {
   xl: rem("1400px"),
   xxl: rem("1600px"),
 };
+
+// ── Font stacks ────────────────────────────────────────────────
+
+const FONT_SANS =
+  "'Inter Tight Variable', 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+const FONT_DISPLAY =
+  "'Fraunces Variable', 'Fraunces', 'Source Serif Pro', Georgia, serif";
 
 // ── Theme ──────────────────────────────────────────────────────
 
@@ -187,10 +198,10 @@ export const theme = createTheme({
     orange,
     teal,
     slate,
+    copper,
   },
 
-  fontFamily:
-    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  fontFamily: FONT_SANS,
   fontSmoothing: true,
 
   fontSizes: {
@@ -224,24 +235,23 @@ export const theme = createTheme({
   },
 
   headings: {
-    fontFamily:
-      "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontFamily: FONT_SANS,
     fontWeight: "600",
     sizes: {
-      h1: { fontSize: rem("28px"), lineHeight: "1.2", fontWeight: "700" },
+      h1: { fontSize: rem("28px"), lineHeight: "1.2", fontWeight: "600" },
       h2: { fontSize: rem("22px"), lineHeight: "1.25" },
       h3: { fontSize: rem("18px"), lineHeight: "1.3" },
       h4: { fontSize: rem("15px"), lineHeight: "1.35", fontWeight: "500" },
     },
   },
 
-  // Stripe-inspired blue-tinted layered shadows for refined depth
+  // Dual-layer shadows (design system spec)
   shadows: {
-    xs: "0 1px 2px rgba(50, 50, 93, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03)",
-    sm: "0 1px 3px rgba(50, 50, 93, 0.06), 0 4px 8px rgba(0, 0, 0, 0.04)",
-    md: "0 2px 8px rgba(50, 50, 93, 0.08), 0 6px 20px rgba(0, 0, 0, 0.05)",
-    lg: "0 4px 12px rgba(50, 50, 93, 0.1), 0 12px 32px rgba(0, 0, 0, 0.06)",
-    xl: "0 8px 20px rgba(50, 50, 93, 0.12), 0 20px 48px rgba(0, 0, 0, 0.08)",
+    xs: "0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.04)",
+    sm: "0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 8px rgba(0, 0, 0, 0.04)",
+    md: "0 2px 4px rgba(0, 0, 0, 0.03), 0 8px 20px rgba(0, 0, 0, 0.06)",
+    lg: "0 4px 8px rgba(0, 0, 0, 0.03), 0 12px 32px rgba(0, 0, 0, 0.08)",
+    xl: "0 8px 16px rgba(0, 0, 0, 0.04), 0 20px 48px rgba(0, 0, 0, 0.1)",
   },
 
   components: {
@@ -448,11 +458,12 @@ export const theme = createTheme({
 
   other: {
     style: "soft-modern",
+    fontDisplay: FONT_DISPLAY,
   },
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// ── CSS Variables Resolver: Semantic Token Layer ──────────────────
+// ── CSS Variables Resolver: Forest + Copper Semantic Tokens
 // ═══════════════════════════════════════════════════════════════════
 
 export const cssVariableResolver: CSSVariablesResolver = (t) => {
@@ -461,29 +472,41 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   const w = t.colors.warning ?? warning;
   const d = t.colors.danger ?? danger;
   const i = t.colors.info ?? info;
+  const cop = t.colors.copper ?? copper;
 
   return {
     variables: {
       "--mb-radius": t.radius?.xl ?? rem("16px"),
+      // Forest + Copper brand aliases
+      "--fc-brand": p[5],
+      "--fc-brand-hover": p[6],
+      "--fc-brand-deep": p[7],
+      "--fc-copper": cop[5],
+      "--fc-copper-tint": cop[1],
+      "--fc-copper-deep": cop[7],
+      // Font stacks
+      "--font-display": FONT_DISPLAY,
+      "--font-sans": FONT_SANS,
+      "--font-mono": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
     },
     light: {
-      // ── Surfaces ──
-      "--mantine-color-body": "#fafbfc",
-      "--mb-bg-content": "#f4f5f7",
+      // ── Surfaces (white-first institutional) ──
+      "--mantine-color-body": "#ffffff",
+      "--mb-bg-content": "#f7f8f6",      // fog panel
       "--mb-sidebar-bg": "#ffffff",
-      "--mb-header-bg": "rgba(255, 255, 255, 0.82)",
+      "--mb-header-bg": "rgba(255, 255, 255, 0.92)",
       "--mb-card-bg": "#ffffff",
       "--mb-input-bg": "#ffffff",
 
-      // ── Borders (blue-tinted, Stripe-inspired) ──
-      "--mb-border": "#e3e8ef",
-      "--mb-border-subtle": "#eef1f6",
+      // ── Borders (cool hairline) ──
+      "--mb-border": "#e7ebe8",
+      "--mb-border-subtle": "#eef2f0",
 
-      // ── Text hierarchy (4 levels) ──
-      "--mb-text-primary": "#0a0d14",
-      "--mb-text-secondary": "#4b5563",
-      "--mb-text-muted": "#9ca3af",
-      "--mb-text-faint": "#d1d5db",
+      // ── Text hierarchy (graphite ink, never #000) ──
+      "--mb-text-primary": "#0F1412",
+      "--mb-text-secondary": "#3e4a44",
+      "--mb-text-muted": "#8a938f",
+      "--mb-text-faint": "#c7ccc9",
 
       // ── Interactive ──
       "--mb-selection-bg": p[1],
@@ -506,49 +529,50 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-info-accent": i[5],
 
       // ── Table ──
-      "--mb-table-header-bg": "#f8f9fb",
-      "--mb-table-hover": "#f4f5f7",
-      "--mb-table-border": "#e3e8ef",
+      "--mb-table-header-bg": "#f7f8f6",
+      "--mb-table-hover": "#e4ede9",
+      "--mb-table-border": "#e7ebe8",
 
       // ── Shimmer ──
-      "--mb-shimmer-from": "#f4f5f7",
-      "--mb-shimmer-mid": "#e3e8ef",
+      "--mb-shimmer-from": "#f7f8f6",
+      "--mb-shimmer-mid": "#e7ebe8",
 
-      // ── Shadows (blue-tinted) ──
+      // ── Shadows ──
       "--mb-float-shadow":
-        "0 1px 3px rgba(50,50,93,0.06), 0 4px 8px rgba(0,0,0,0.04)",
+        "0 1px 3px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.04)",
 
       // ── Clinical status (high-visibility for patient safety) ──
-      "--mb-critical-bg": "#fef2f2",
-      "--mb-critical-text": "#991b1b",
-      "--mb-critical-border": "#fecaca",
+      "--mb-critical-bg": "#fff1f2",
+      "--mb-critical-text": "#be123c",
+      "--mb-critical-border": "#fecdd3",
       "--mb-abnormal-bg": "#fffbeb",
-      "--mb-abnormal-text": "#854d0e",
+      "--mb-abnormal-text": "#b45309",
       "--mb-abnormal-border": "#fde68a",
       "--mb-normal-bg": "#ecfdf5",
-      "--mb-normal-text": "#14532d",
+      "--mb-normal-text": "#047857",
       "--mb-normal-border": "#a7f3d0",
     },
     dark: {
-      "--mantine-color-body": "#0a0a0c",
-      "--mb-bg-content": "#111114",
-      "--mb-sidebar-bg": "#111114",
-      "--mb-header-bg": "rgba(17, 17, 20, 0.82)",
-      "--mb-card-bg": "#191a1e",
-      "--mb-input-bg": "#191a1e",
+      // ── Dark theme (forest-black) ──
+      "--mantine-color-body": "#0a0f0c",
+      "--mb-bg-content": "#101613",
+      "--mb-sidebar-bg": "#101613",
+      "--mb-header-bg": "rgba(16, 22, 19, 0.9)",
+      "--mb-card-bg": "#141c18",
+      "--mb-input-bg": "#141c18",
 
-      "--mb-border": "#28292e",
-      "--mb-border-subtle": "#1e1f24",
+      "--mb-border": "#1e2823",
+      "--mb-border-subtle": "#172019",
 
-      "--mb-text-primary": "#f0f1f3",
-      "--mb-text-secondary": "#a0a4ab",
-      "--mb-text-muted": "#6b7078",
-      "--mb-text-faint": "#3a3d44",
+      "--mb-text-primary": "#f3f7f5",
+      "--mb-text-secondary": "#9aa8a1",
+      "--mb-text-muted": "#6b7a72",
+      "--mb-text-faint": "#3a4540",
 
       "--mb-selection-bg": p[8],
       "--mb-focus-ring": p[4],
-      "--mb-link": p[4],
-      "--mb-link-hover": p[3],
+      "--mb-link": p[3],
+      "--mb-link-hover": p[2],
 
       "--mb-success-bg": "#052e16",
       "--mb-success-text": s[2],
@@ -563,26 +587,25 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-info-text": i[2],
       "--mb-info-accent": i[4],
 
-      "--mb-table-header-bg": "#15161a",
-      "--mb-table-hover": "#1e1f24",
-      "--mb-table-border": "#28292e",
+      "--mb-table-header-bg": "#141c18",
+      "--mb-table-hover": "#1e2823",
+      "--mb-table-border": "#1e2823",
 
-      "--mb-shimmer-from": "#1e1f24",
-      "--mb-shimmer-mid": "#28292e",
+      "--mb-shimmer-from": "#1e2823",
+      "--mb-shimmer-mid": "#172019",
 
       "--mb-float-shadow":
         "0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.25)",
 
-      // ── Clinical status (dark mode — high-visibility) ──
       "--mb-critical-bg": "#450a0a",
-      "--mb-critical-text": "#fecaca",
-      "--mb-critical-border": "#7f1d1d",
+      "--mb-critical-text": "#fecdd3",
+      "--mb-critical-border": "#9f1239",
       "--mb-abnormal-bg": "#422006",
       "--mb-abnormal-text": "#fde68a",
-      "--mb-abnormal-border": "#854d0e",
+      "--mb-abnormal-border": "#92400e",
       "--mb-normal-bg": "#052e16",
       "--mb-normal-text": "#a7f3d0",
-      "--mb-normal-border": "#14532d",
+      "--mb-normal-border": "#065f46",
     },
   };
 };

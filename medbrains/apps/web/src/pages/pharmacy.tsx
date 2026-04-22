@@ -91,6 +91,26 @@ const dispensingTypeLabels: Record<string, string> = {
   emergency: "Emergency",
 };
 
+// Dropdown options for categorical fields - aligned with ATC classification
+const DRUG_CATEGORIES = [
+  { value: "alimentary", label: "Alimentary Tract & Metabolism" },
+  { value: "blood", label: "Blood & Blood-Forming Organs" },
+  { value: "cardiovascular", label: "Cardiovascular System" },
+  { value: "dermatologicals", label: "Dermatologicals" },
+  { value: "genitourinary", label: "Genitourinary & Sex Hormones" },
+  { value: "hormones", label: "Systemic Hormones" },
+  { value: "antiinfectives", label: "Antiinfectives for Systemic Use" },
+  { value: "antineoplastic", label: "Antineoplastic & Immunomodulating" },
+  { value: "musculoskeletal", label: "Musculoskeletal System" },
+  { value: "nervous", label: "Nervous System" },
+  { value: "antiparasitic", label: "Antiparasitic Products" },
+  { value: "respiratory", label: "Respiratory System" },
+  { value: "sensory", label: "Sensory Organs" },
+  { value: "various", label: "Various" },
+  { value: "consumables", label: "Medical Consumables" },
+  { value: "other", label: "Other" },
+];
+
 export function PharmacyPage() {
   useRequirePermission(P.PHARMACY.PRESCRIPTIONS_LIST);
 
@@ -834,7 +854,7 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
           </Group>
           <Group grow>
             <TextInput label="Generic Name" onChange={(e) => setForm({ ...form, generic_name: e.currentTarget.value || undefined })} />
-            <TextInput label="Category" onChange={(e) => setForm({ ...form, category: e.currentTarget.value || undefined })} />
+            <Select label="Category" data={DRUG_CATEGORIES} onChange={(v) => setForm({ ...form, category: v || undefined })} clearable searchable />
           </Group>
           <Group grow>
             <TextInput label="Manufacturer" onChange={(e) => setForm({ ...form, manufacturer: e.currentTarget.value || undefined })} />

@@ -1612,9 +1612,7 @@ pub async fn create_ic_meeting(
         .or_else(|_| {
             NaiveDate::parse_from_str(&body.scheduled_date, "%Y-%m-%d")
                 .map(|d| {
-                    d.and_hms_opt(0, 0, 0)
-                        .map(|ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
-                        .unwrap_or_else(chrono::Utc::now)
+                    d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
                 })
         })
         .map_err(|_| AppError::BadRequest("Invalid scheduled_date format".into()))?;

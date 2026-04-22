@@ -96,7 +96,7 @@ pub struct Appointment {
 
 // ── Slot (computed, not stored) ───────────────────────────
 
-/// A computed time slot for display — derived from DoctorSchedule.
+/// A computed time slot for display — derived from `DoctorSchedule`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvailableSlot {
     pub start_time: NaiveTime,

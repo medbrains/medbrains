@@ -135,6 +135,37 @@ const statusColors: Record<string, string> = {
   refunded: "orange",
 };
 
+// Dropdown options for categorical fields
+const SERVICE_CATEGORIES = [
+  { value: "consultation", label: "Consultation" },
+  { value: "procedure", label: "Procedure" },
+  { value: "laboratory", label: "Laboratory" },
+  { value: "radiology", label: "Radiology" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "nursing", label: "Nursing Services" },
+  { value: "room_rent", label: "Room Rent" },
+  { value: "ot", label: "Operation Theatre" },
+  { value: "icu", label: "ICU Charges" },
+  { value: "physiotherapy", label: "Physiotherapy" },
+  { value: "ambulance", label: "Ambulance" },
+  { value: "consumables", label: "Consumables" },
+  { value: "equipment", label: "Equipment" },
+  { value: "miscellaneous", label: "Miscellaneous" },
+];
+
+const INSURANCE_SCHEME_TYPES = [
+  { value: "tpa", label: "TPA (Third Party Administrator)" },
+  { value: "cghs", label: "CGHS (Central Government Health Scheme)" },
+  { value: "echs", label: "ECHS (Ex-Servicemen Health Scheme)" },
+  { value: "esic", label: "ESIC (Employee State Insurance)" },
+  { value: "ayushman_bharat", label: "Ayushman Bharat (PMJAY)" },
+  { value: "state_scheme", label: "State Government Scheme" },
+  { value: "corporate", label: "Corporate Insurance" },
+  { value: "cashless", label: "Cashless" },
+  { value: "reimbursement", label: "Reimbursement" },
+  { value: "other", label: "Other" },
+];
+
 export function BillingPage() {
   useRequirePermission(P.BILLING.INVOICES_LIST);
 
@@ -835,7 +866,7 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
             <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
             <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           </Group>
-          <TextInput label="Category" required onChange={(e) => setForm({ ...form, category: e.currentTarget.value })} />
+          <Select label="Category" required data={SERVICE_CATEGORIES} onChange={(v) => setForm({ ...form, category: v ?? "" })} searchable />
           <Group grow>
             <NumberInput label="Base Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, base_price: Number(v) })} />
             <NumberInput label="Tax %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, tax_percent: Number(v) })} />
@@ -1523,7 +1554,7 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
                 <TextInput label="Insurance Provider" required onChange={(e) => setTpaForm({ ...tpaForm, insurance_provider: e.currentTarget.value })} />
               </Group>
               <Group grow>
-                <TextInput label="Scheme Type" onChange={(e) => setTpaForm({ ...tpaForm, scheme_type: e.currentTarget.value || undefined })} />
+                <Select label="Scheme Type" data={INSURANCE_SCHEME_TYPES} onChange={(v) => setTpaForm({ ...tpaForm, scheme_type: v || undefined })} clearable searchable />
                 <TextInput label="Rate Plan ID" onChange={(e) => setTpaForm({ ...tpaForm, rate_plan_id: e.currentTarget.value || undefined })} />
               </Group>
               <Group grow>

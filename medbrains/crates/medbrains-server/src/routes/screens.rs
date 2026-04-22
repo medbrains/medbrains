@@ -749,7 +749,7 @@ pub async fn resolve_screen(
     .ok_or(AppError::NotFound)?;
 
     // Fetch tenant override if one exists
-    let override_row = sqlx::query_as::<_, crate::routes::screens::OverrideRow>(
+    let override_row = sqlx::query_as::<_, OverrideRow>(
         "SELECT layout_patch, config_patch, hidden_zones, extra_actions \
          FROM tenant_screen_overrides \
          WHERE tenant_id = $1 AND screen_id = $2 AND is_active",

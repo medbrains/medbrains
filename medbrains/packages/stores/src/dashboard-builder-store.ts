@@ -8,6 +8,7 @@ import type {
   WidgetTemplate,
   WidgetType,
 } from "@medbrains/types";
+import { deepClone } from "@medbrains/utils";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function takeSnapshot(state: DashboardBuilderState): HistoryEntry {
-  return { widgets: structuredClone(state.widgets) };
+  return { widgets: deepClone(state.widgets) };
 }
 
 function widgetFromServer(w: DashboardWidget): WidgetNode {
@@ -496,7 +497,7 @@ export const useDashboardBuilderStore = create<DashboardBuilderStore>()(
       );
 
       const clone: WidgetNode = {
-        ...structuredClone(widget),
+        ...deepClone(widget),
         id: "",
         clientId,
         title: `${widget.title} (copy)`,
@@ -523,7 +524,7 @@ export const useDashboardBuilderStore = create<DashboardBuilderStore>()(
       const state = get();
       const widget = state.widgets[id];
       if (!widget) return;
-      set({ clipboard: structuredClone(widget) });
+      set({ clipboard: deepClone(widget) });
     },
 
     pasteWidget: () => {
@@ -539,7 +540,7 @@ export const useDashboardBuilderStore = create<DashboardBuilderStore>()(
       );
 
       const node: WidgetNode = {
-        ...structuredClone(state.clipboard),
+        ...deepClone(state.clipboard),
         id: "",
         clientId,
         title: `${state.clipboard.title} (copy)`,

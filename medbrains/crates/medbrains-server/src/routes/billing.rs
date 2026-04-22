@@ -2,14 +2,14 @@
 
 use axum::{Extension, Json, extract::{Path, Query, State}};
 use medbrains_core::billing::{
-    AdvanceAdjustment, AdvancePurpose, AdvanceStatus, AuditAction, BadDebtWriteOff,
+    AdvanceAdjustment, AuditAction, BadDebtWriteOff,
     BankTransaction, BillingAuditEntry, BillingPackage, BillingPackageItem, ChargeMaster,
     CorporateClient, CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus,
-    CurrencyCode, DayEndClose, ErpExportLog, ErpExportStatus, ExchangeRate, GlAccount,
-    GstReturnSummary, GstType, InsuranceClaim, InsuranceSchemeType, Invoice, InvoiceDiscount,
-    InvoiceItem, JournalEntry, JournalEntryLine, JournalEntryStatus, JournalEntryType,
-    PatientAdvance, Payment, RatePlan, RatePlanItem, Receipt, ReconStatus, Refund,
-    TdsDeduction, TdsStatus, TpaRateCard,
+    CurrencyCode, DayEndClose, ErpExportLog, ExchangeRate, GlAccount,
+    GstReturnSummary, InsuranceClaim, Invoice, InvoiceDiscount,
+    InvoiceItem, JournalEntry, JournalEntryLine,
+    PatientAdvance, Payment, RatePlan, RatePlanItem, Receipt, Refund,
+    TdsDeduction, TpaRateCard,
 };
 use chrono::NaiveDate;
 use medbrains_core::permissions;
@@ -42,7 +42,9 @@ pub(crate) struct AutoChargeInput {
 
 pub(crate) struct AutoChargeResult {
     pub invoice_id: Uuid,
+    #[allow(dead_code)]
     pub item_id: Uuid,
+    #[allow(dead_code)]
     pub was_new_invoice: bool,
     pub skipped_duplicate: bool,
 }
@@ -76,7 +78,7 @@ pub(crate) async fn is_auto_billing_enabled(
     }
 }
 
-/// Resolve price from charge_master + rate_plan overrides.
+/// Resolve price from `charge_master` + `rate_plan` overrides.
 async fn resolve_price(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -208,25 +210,22 @@ pub(crate) async fn auto_charge(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let (invoice_id, was_new) = match draft_invoice {
-        Some(id) => (id, false),
-        None => {
-            let inv_number = generate_invoice_number(tx, tenant_id).await?;
-            let id = sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO invoices \
-                 (tenant_id, invoice_number, patient_id, encounter_id, status, \
-                  subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes) \
-                 VALUES ($1, $2, $3, $4, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated') \
-                 RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(&inv_number)
-            .bind(input.patient_id)
-            .bind(input.encounter_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            (id, true)
-        }
+    let (invoice_id, was_new) = if let Some(id) = draft_invoice { (id, false) } else {
+        let inv_number = generate_invoice_number(tx, tenant_id).await?;
+        let id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO invoices \
+             (tenant_id, invoice_number, patient_id, encounter_id, status, \
+              subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes) \
+             VALUES ($1, $2, $3, $4, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated') \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(&inv_number)
+        .bind(input.patient_id)
+        .bind(input.encounter_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        (id, true)
     };
 
     // 3. Resolve price
@@ -1540,21 +1539,18 @@ async fn generate_refund_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match seq {
-        Some(s) => {
-            let pad = usize::try_from(s.pad_width).unwrap_or(6);
-            Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-        }
-        None => {
-            // Fallback: use count-based number
-            let count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM refunds WHERE tenant_id = $1",
-            )
-            .bind(tenant_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            Ok(format!("RFD{:0>6}", count + 1))
-        }
+    if let Some(s) = seq {
+        let pad = usize::try_from(s.pad_width).unwrap_or(6);
+        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
+    } else {
+        // Fallback: use count-based number
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM refunds WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(format!("RFD{:0>6}", count + 1))
     }
 }
 
@@ -1659,20 +1655,17 @@ async fn generate_credit_note_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match seq {
-        Some(s) => {
-            let pad = usize::try_from(s.pad_width).unwrap_or(6);
-            Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-        }
-        None => {
-            let count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1",
-            )
-            .bind(tenant_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            Ok(format!("CN{:0>6}", count + 1))
-        }
+    if let Some(s) = seq {
+        let pad = usize::try_from(s.pad_width).unwrap_or(6);
+        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
+    } else {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(format!("CN{:0>6}", count + 1))
     }
 }
 
@@ -1796,20 +1789,17 @@ async fn generate_receipt_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match seq {
-        Some(s) => {
-            let pad = usize::try_from(s.pad_width).unwrap_or(6);
-            Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-        }
-        None => {
-            let count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM receipts WHERE tenant_id = $1",
-            )
-            .bind(tenant_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            Ok(format!("RCT{:0>6}", count + 1))
-        }
+    if let Some(s) = seq {
+        let pad = usize::try_from(s.pad_width).unwrap_or(6);
+        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
+    } else {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM receipts WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(format!("RCT{:0>6}", count + 1))
     }
 }
 
@@ -2225,9 +2215,7 @@ pub async fn trigger_auto_charge(
                     .fetch_optional(&mut *tx)
                     .await?;
 
-                    let charge_code = modality_code
-                        .map(|c| format!("RAD-{c}"))
-                        .unwrap_or_else(|| "RAD-EXAM".to_owned());
+                    let charge_code = modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
 
                     match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
                         patient_id: o.patient_id,
@@ -2330,87 +2318,6 @@ pub async fn trigger_auto_charge(
 }
 
 // ══════════════════════════════════════════════════════════
-//  GST Helpers
-// ══════════════════════════════════════════════════════════
-
-async fn resolve_gst_type_for_patient(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    patient_id: &Uuid,
-) -> Result<GstType, AppError> {
-    // Get tenant state code
-    let tenant_state = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value->>'state_code' FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'billing' AND key = 'gst_state_code'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-
-    // Get patient primary address state
-    let patient_state = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT state FROM patient_addresses \
-         WHERE patient_id = $1 AND tenant_id = $2 AND is_primary = true \
-         LIMIT 1",
-    )
-    .bind(patient_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-
-    // If either is missing, fall back to tenant default_gst_type setting
-    let (Some(t_state), Some(p_state)) = (tenant_state, patient_state) else {
-        return resolve_default_gst_type(tx, tenant_id).await;
-    };
-
-    if t_state == p_state {
-        Ok(GstType::CgstSgst)
-    } else {
-        Ok(GstType::Igst)
-    }
-}
-
-async fn resolve_default_gst_type(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<GstType, AppError> {
-    let val = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value::text FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'billing' AND key = 'default_gst_type'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
-
-    match val.as_deref() {
-        Some(v) if v.contains("cgst") => Ok(GstType::CgstSgst),
-        Some(v) if v.contains("igst") => Ok(GstType::Igst),
-        _ => Ok(GstType::Exempt),
-    }
-}
-
-struct GstSplit {
-    cgst: Decimal,
-    sgst: Decimal,
-    igst: Decimal,
-}
-
-fn calculate_gst_split(base_amount: Decimal, gst_rate: Decimal, gst_type: GstType) -> GstSplit {
-    let total_gst = base_amount * gst_rate / Decimal::from(100);
-    match gst_type {
-        GstType::CgstSgst => {
-            let half = total_gst / Decimal::from(2);
-            GstSplit { cgst: half, sgst: half, igst: Decimal::ZERO }
-        }
-        GstType::Igst => GstSplit { cgst: Decimal::ZERO, sgst: Decimal::ZERO, igst: total_gst },
-        GstType::Exempt => GstSplit { cgst: Decimal::ZERO, sgst: Decimal::ZERO, igst: Decimal::ZERO },
-    }
-}
-
-// ══════════════════════════════════════════════════════════
 //  Advance number generation
 // ══════════════════════════════════════════════════════════
 
@@ -2427,20 +2334,17 @@ async fn generate_advance_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match seq {
-        Some(s) => {
-            let pad = usize::try_from(s.pad_width).unwrap_or(6);
-            Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-        }
-        None => {
-            let count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM patient_advances WHERE tenant_id = $1",
-            )
-            .bind(tenant_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            Ok(format!("ADV{:0>6}", count + 1))
-        }
+    if let Some(s) = seq {
+        let pad = usize::try_from(s.pad_width).unwrap_or(6);
+        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
+    } else {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM patient_advances WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(format!("ADV{:0>6}", count + 1))
     }
 }
 
@@ -3707,20 +3611,17 @@ async fn generate_write_off_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match seq {
-        Some(s) => {
-            let pad = usize::try_from(s.pad_width).unwrap_or(6);
-            Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-        }
-        None => {
-            let count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1",
-            )
-            .bind(tenant_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            Ok(format!("WO{:0>6}", count + 1))
-        }
+    if let Some(s) = seq {
+        let pad = usize::try_from(s.pad_width).unwrap_or(6);
+        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
+    } else {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(format!("WO{:0>6}", count + 1))
     }
 }
 
@@ -4860,7 +4761,7 @@ pub async fn coordinate_dual_insurance(
     let remaining = invoice.total_amount - primary_settled;
     let patient_responsibility;
     let mut secondary_claim: Option<InsuranceClaim> = None;
-    let mut coordination_notes = String::new();
+    let coordination_notes;
 
     if remaining > Decimal::ZERO {
         // Check for secondary insurance on patient

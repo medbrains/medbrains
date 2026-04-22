@@ -1119,7 +1119,7 @@ pub async fn create_sharp_replacement(
     let notes = body.get("notes").and_then(|v| v.as_str()).unwrap_or("");
     let container_count = body
         .get("container_count")
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(1);
 
     let row = sqlx::query_scalar::<_, serde_json::Value>(

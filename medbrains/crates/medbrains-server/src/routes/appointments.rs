@@ -104,7 +104,7 @@ pub struct AppointmentWithPatient {
 //  Doctor Schedules
 // ══════════════════════════════════════════════════════════
 
-/// GET /api/opd/schedules?doctor_id=&department_id=
+/// GET /`api/opd/schedules?doctor_id=&department_id`=
 #[derive(Debug, Deserialize)]
 pub struct ListSchedulesQuery {
     pub doctor_id: Option<Uuid>,
@@ -336,7 +336,7 @@ pub async fn delete_exception(
 //  Available Slots
 // ══════════════════════════════════════════════════════════
 
-/// GET /api/opd/doctors/{doctor_id}/slots?date=
+/// GET /`api/opd/doctors/{doctor_id}/slots?date`=
 ///
 /// Computes available slots for a doctor on a given date by:
 /// 1. Checking schedule exceptions (holiday → no slots)
@@ -461,7 +461,7 @@ pub async fn get_available_slots(
 //  Appointments
 // ══════════════════════════════════════════════════════════
 
-/// GET /api/opd/appointments?date=&doctor_id=&department_id=&patient_id=&status=
+/// GET /`api/opd/appointments?date=&doctor_id=&department_id=&patient_id=&status`=
 pub async fn list_appointments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

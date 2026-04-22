@@ -132,6 +132,76 @@ const phlebotomyStatusColors: Record<string, string> = {
   skipped: "slate",
 };
 
+// Dropdown options for categorical fields
+const SAMPLE_TYPES = [
+  { value: "blood", label: "Blood" },
+  { value: "serum", label: "Serum" },
+  { value: "plasma", label: "Plasma" },
+  { value: "urine", label: "Urine" },
+  { value: "stool", label: "Stool" },
+  { value: "swab", label: "Swab" },
+  { value: "csf", label: "CSF (Cerebrospinal Fluid)" },
+  { value: "sputum", label: "Sputum" },
+  { value: "tissue", label: "Tissue" },
+  { value: "aspirate", label: "Aspirate" },
+  { value: "other", label: "Other" },
+];
+
+const LAB_METHODS = [
+  { value: "photometry", label: "Photometry" },
+  { value: "elisa", label: "ELISA" },
+  { value: "pcr", label: "PCR" },
+  { value: "rt_pcr", label: "RT-PCR" },
+  { value: "chromatography", label: "Chromatography" },
+  { value: "immunoassay", label: "Immunoassay" },
+  { value: "spectrophotometry", label: "Spectrophotometry" },
+  { value: "electrophoresis", label: "Electrophoresis" },
+  { value: "microscopy", label: "Microscopy" },
+  { value: "culture", label: "Culture" },
+  { value: "flow_cytometry", label: "Flow Cytometry" },
+  { value: "sequencing", label: "Sequencing" },
+  { value: "other", label: "Other" },
+];
+
+const DOCUMENT_TYPES = [
+  { value: "sop", label: "SOP" },
+  { value: "manual", label: "Manual" },
+  { value: "form", label: "Form" },
+  { value: "policy", label: "Policy" },
+  { value: "work_instruction", label: "Work Instruction" },
+  { value: "record", label: "Record" },
+  { value: "other", label: "Other" },
+];
+
+const B2B_CLIENT_TYPES = [
+  { value: "clinic", label: "Clinic" },
+  { value: "laboratory", label: "Laboratory" },
+  { value: "hospital", label: "Hospital" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "diagnostic_center", label: "Diagnostic Center" },
+  { value: "other", label: "Other" },
+];
+
+const MOLECULAR_TEST_METHODS = [
+  { value: "rt_pcr", label: "RT-PCR" },
+  { value: "pcr", label: "PCR" },
+  { value: "sequencing", label: "Sequencing (NGS)" },
+  { value: "microarray", label: "Microarray" },
+  { value: "fish", label: "FISH" },
+  { value: "western_blot", label: "Western Blot" },
+  { value: "southern_blot", label: "Southern Blot" },
+  { value: "other", label: "Other" },
+];
+
+const RESULT_INTERPRETATIONS = [
+  { value: "positive", label: "Positive" },
+  { value: "negative", label: "Negative" },
+  { value: "indeterminate", label: "Indeterminate" },
+  { value: "invalid", label: "Invalid" },
+  { value: "detected", label: "Detected" },
+  { value: "not_detected", label: "Not Detected" },
+];
+
 export function LabPage() {
   useRequirePermission(P.LAB.ORDERS_LIST);
 
@@ -917,7 +987,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
             <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <TextInput label="Sample Type" onChange={(e) => setForm({ ...form, sample_type: e.currentTarget.value || undefined })} />
+            <Select label="Sample Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, sample_type: v || undefined })} clearable searchable />
             <TextInput label="Normal Range" placeholder="e.g. 70-100" onChange={(e) => setForm({ ...form, normal_range: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
@@ -927,7 +997,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
           </Group>
           <Group grow>
             <TextInput label="LOINC Code" placeholder="e.g. 2345-7" onChange={(e) => setForm({ ...form, loinc_code: e.currentTarget.value || undefined })} />
-            <TextInput label="Method" onChange={(e) => setForm({ ...form, method: e.currentTarget.value || undefined })} />
+            <Select label="Method" data={LAB_METHODS} onChange={(v) => setForm({ ...form, method: v || undefined })} clearable searchable />
             <TextInput label="Specimen Volume" placeholder="e.g. 5 mL" onChange={(e) => setForm({ ...form, specimen_volume: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
@@ -1959,7 +2029,7 @@ function NablDocumentsSection() {
           <Group grow>
             <TextInput label="Document Number" required onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })} />
             <TextInput label="Title" required onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
-            <TextInput label="Type" placeholder="e.g. SOP, Manual, Form" onChange={(e) => setForm({ ...form, document_type: e.currentTarget.value || undefined })} />
+            <Select label="Type" data={DOCUMENT_TYPES} placeholder="Select type" onChange={(v) => setForm({ ...form, document_type: v || undefined })} clearable />
           </Group>
           <Group grow>
             <TextInput label="Version" onChange={(e) => setForm({ ...form, version: e.currentTarget.value || undefined })} />
@@ -2130,7 +2200,7 @@ function HistopathSection() {
           <Group grow>
             <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
             <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <TextInput label="Specimen Type" onChange={(e) => setForm({ ...form, specimen_type: e.currentTarget.value || undefined })} />
+            <Select label="Specimen Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
           </Group>
           <Textarea label="Clinical History" autosize minRows={2} onChange={(e) => setForm({ ...form, clinical_history: e.currentTarget.value || undefined })} />
           <Textarea label="Gross Description" autosize minRows={2} onChange={(e) => setForm({ ...form, gross_description: e.currentTarget.value || undefined })} />
@@ -2196,7 +2266,7 @@ function CytologySection() {
           <Group grow>
             <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
             <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <TextInput label="Specimen Type" onChange={(e) => setForm({ ...form, specimen_type: e.currentTarget.value || undefined })} />
+            <Select label="Specimen Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
           </Group>
           <TextInput label="Clinical Indication" onChange={(e) => setForm({ ...form, clinical_indication: e.currentTarget.value || undefined })} />
           <Group grow>
@@ -2278,12 +2348,12 @@ function MolecularSection() {
           <Group grow>
             <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
             <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <TextInput label="Test Method" placeholder="e.g. RT-PCR" onChange={(e) => setForm({ ...form, test_method: e.currentTarget.value || undefined })} />
+            <Select label="Test Method" data={MOLECULAR_TEST_METHODS} placeholder="Select method" onChange={(v) => setForm({ ...form, test_method: v || undefined })} clearable searchable />
           </Group>
           <Group grow>
             <TextInput label="Target Gene" onChange={(e) => setForm({ ...form, target_gene: e.currentTarget.value || undefined })} />
             <NumberInput label="Ct Value" decimalScale={2} onChange={(v) => setForm({ ...form, ct_value: Number(v) || undefined })} />
-            <TextInput label="Interpretation" onChange={(e) => setForm({ ...form, result_interpretation: e.currentTarget.value || undefined })} />
+            <Select label="Interpretation" data={RESULT_INTERPRETATIONS} onChange={(v) => setForm({ ...form, result_interpretation: v || undefined })} clearable />
           </Group>
           <Group grow>
             <TextInput label="Kit Name" onChange={(e) => setForm({ ...form, kit_name: e.currentTarget.value || undefined })} />
@@ -2361,7 +2431,7 @@ function B2bClientsSection() {
           <Group grow>
             <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
             <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-            <TextInput label="Type" placeholder="e.g. clinic, lab, hospital" onChange={(e) => setForm({ ...form, client_type: e.currentTarget.value || undefined })} />
+            <Select label="Type" data={B2B_CLIENT_TYPES} placeholder="Select type" onChange={(v) => setForm({ ...form, client_type: v || undefined })} clearable />
           </Group>
           <Group grow>
             <TextInput label="City" onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />

@@ -2451,7 +2451,7 @@ pub struct CreateDocumentRequest {
     pub notes: Option<String>,
 }
 
-/// GET /api/patients/{patient_id}/documents
+/// GET /`api/patients/{patient_id}/documents`
 pub async fn list_patient_documents(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -2473,7 +2473,7 @@ pub async fn list_patient_documents(
     Ok(Json(rows))
 }
 
-/// POST /api/patients/{patient_id}/documents
+/// POST /`api/patients/{patient_id}/documents`
 pub async fn create_patient_document(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -2506,7 +2506,7 @@ pub async fn create_patient_document(
     Ok(Json(doc))
 }
 
-/// DELETE /api/patients/{patient_id}/documents/{id}
+/// DELETE /`api/patients/{patient_id}/documents/{id`}
 pub async fn delete_patient_document(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,

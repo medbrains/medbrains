@@ -7,6 +7,7 @@ import type {
   ScreenZoneType,
   SidecarTrigger,
 } from "@medbrains/types";
+import { deepClone } from "@medbrains/utils";
 import { create } from "zustand";
 
 // ── ID Generation ────────────────────────────────────────
@@ -34,14 +35,14 @@ interface HistoryEntry {
 
 function takeSnapshot(state: ScreenBuilderStoreState): HistoryEntry {
   return {
-    zones: structuredClone(state.zones),
+    zones: deepClone(state.zones),
     zoneOrder: [...state.zoneOrder],
-    actions: structuredClone(state.actions),
+    actions: deepClone(state.actions),
     actionOrder: [...state.actionOrder],
-    sidecars: structuredClone(state.sidecars),
+    sidecars: deepClone(state.sidecars),
     sidecarOrder: [...state.sidecarOrder],
-    header: structuredClone(state.header),
-    breadcrumbs: structuredClone(state.breadcrumbs),
+    header: deepClone(state.header),
+    breadcrumbs: deepClone(state.breadcrumbs),
   };
 }
 
@@ -342,7 +343,7 @@ export const useScreenBuilderStore = create<ScreenBuilderStoreState>()((set, get
     const snapshot = takeSnapshot(state);
     const newClientId = generateId("zone");
     const clone: ZoneNode = {
-      ...structuredClone(existing),
+      ...deepClone(existing),
       clientId: newClientId,
       serverId: null,
       key: `${existing.key}_copy`,

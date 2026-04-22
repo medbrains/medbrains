@@ -602,34 +602,25 @@ pub async fn create_transfusion(
     {
         let compatible = match (patient_bg.as_str(), component_bg.as_str()) {
             (p, c) if p == c => true,
-            ("AB+", _) | ("ab_positive", _) => true,
-            ("AB-", c) | ("ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => {
+            ("AB+" | "ab_positive", _) => true,
+            ("AB-" | "ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => {
                 true
             }
-            (_, "O-") | (_, "o_negative") => true,
-            (p, "O+") | (p, "o_positive")
+            (_, "O-" | "o_negative") => true,
+            (p, "O+" | "o_positive")
                 if p.ends_with('+') || p.contains("positive") =>
             {
                 true
             }
-            ("A+", "A-") | ("A+", "O-") | ("A+", "O+") => true,
-            ("a_positive", "a_negative")
-            | ("a_positive", "o_negative")
-            | ("a_positive", "o_positive") => true,
-            ("A-", "A-") | ("A-", "O-") => true,
-            ("a_negative", "a_negative") | ("a_negative", "o_negative") => true,
-            ("B+", "B-") | ("B+", "O-") | ("B+", "O+") => true,
-            ("b_positive", "b_negative")
-            | ("b_positive", "o_negative")
-            | ("b_positive", "o_positive") => true,
-            ("B-", "B-") | ("B-", "O-") => true,
-            ("b_negative", "b_negative") | ("b_negative", "o_negative") => true,
+            ("A+" | "a_positive", "A-" | "a_negative") => true,
+            ("A-" | "a_negative", "A-" | "a_negative") => true,
+            ("B+" | "b_positive", "B-" | "b_negative") => true,
+            ("B-" | "b_negative", "B-" | "b_negative") => true,
             _ => false,
         };
         if !compatible {
             return Err(AppError::BadRequest(format!(
-                "ABO/Rh incompatibility: patient {} cannot receive component {}",
-                patient_bg, component_bg
+                "ABO/Rh incompatibility: patient {patient_bg} cannot receive component {component_bg}"
             )));
         }
     }

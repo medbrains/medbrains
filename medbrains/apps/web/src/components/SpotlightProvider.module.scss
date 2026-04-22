@@ -55,12 +55,12 @@
 
   &:hover,
   &[data-selected] {
-    background: var(--mantine-color-primary-0, #eef3ff);
+    background: var(--mantine-color-primary-0, #f3f7f5);
   }
 
   &[data-selected] {
     .actionLabel {
-      color: var(--mantine-color-primary-7, #3b5bdb);
+      color: var(--mantine-color-primary-7, #0d2417);
     }
   }
 }
@@ -78,8 +78,8 @@
   flex-shrink: 0;
 
   [data-selected] & {
-    background: var(--mantine-color-primary-1, #dbe4ff);
-    color: var(--mantine-color-primary-6, #4263eb);
+    background: var(--mantine-color-primary-1, #e4ede9);
+    color: var(--mantine-color-primary-6, #153325);
   }
 }
 

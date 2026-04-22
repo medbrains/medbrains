@@ -722,7 +722,7 @@ pub async fn create_injury(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = chrono::Utc::now();
-    let short_uuid = &uuid::Uuid::new_v4().to_string()[..8];
+    let short_uuid = &Uuid::new_v4().to_string()[..8];
     let report_number = format!(
         "INJ-{}-{}",
         now.format("%Y%m%d%H%M%S"),

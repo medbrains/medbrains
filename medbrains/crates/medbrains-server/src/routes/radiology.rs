@@ -321,9 +321,7 @@ pub async fn update_order_status(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = modality_code
-                .map(|c| format!("RAD-{c}"))
-                .unwrap_or_else(|| "RAD-EXAM".to_owned());
+            let charge_code = modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
 
             let _ = super::billing::auto_charge(
                 &mut tx,

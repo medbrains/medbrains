@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod authorization;
+pub mod client_ip;
 pub mod cookies;
 pub mod csrf;
 pub mod field_access;

@@ -108,7 +108,7 @@ export function ReviewStep({ onBack }: Props) {
           variant="light"
           size={64}
           radius="xl"
-          color="medbrainsTeal"
+          color="teal"
         >
           <IconRocket size={32} />
         </ThemeIcon>

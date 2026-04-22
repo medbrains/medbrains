@@ -107,6 +107,29 @@ const LINEN_TYPES = [
   "bedsheet", "pillowcover", "blanket", "towel", "gown", "curtain",
 ];
 
+// Dropdown options for categorical fields
+const PEST_TYPES = [
+  { value: "rodent", label: "Rodents (Rats/Mice)" },
+  { value: "cockroach", label: "Cockroaches" },
+  { value: "mosquito", label: "Mosquitoes" },
+  { value: "flies", label: "Flies" },
+  { value: "bed_bugs", label: "Bed Bugs" },
+  { value: "ants", label: "Ants" },
+  { value: "termites", label: "Termites" },
+  { value: "other", label: "Other" },
+];
+
+const PEST_TREATMENT_TYPES = [
+  { value: "spraying", label: "Spraying" },
+  { value: "fogging", label: "Fogging" },
+  { value: "baiting", label: "Baiting" },
+  { value: "trapping", label: "Trapping" },
+  { value: "fumigation", label: "Fumigation" },
+  { value: "gel_treatment", label: "Gel Treatment" },
+  { value: "inspection", label: "Inspection Only" },
+  { value: "other", label: "Other" },
+];
+
 // ── BMW Color Codes (per CPCB guidelines) ────────────────
 const BMW_CATEGORY_META: Record<WasteCategoryType, { color: string; mantineColor: string; label: string; description: string }> = {
   yellow: { color: "#FFC107", mantineColor: "warning", label: "Yellow", description: "Human anatomical waste, animal waste, expired medicines" },
@@ -485,7 +508,7 @@ function SchedulesTab({
 
       <Drawer opened={pestDrawer} onClose={pestDrawerH.close} title="New Pest Control Schedule" position="right" size="md">
         <Stack>
-          <TextInput label="Pest Type" value={pestForm.pest_type} onChange={(e) => setPestForm({ ...pestForm, pest_type: e.target.value })} />
+          <Select label="Pest Type" data={PEST_TYPES} value={pestForm.pest_type || null} onChange={(v) => setPestForm({ ...pestForm, pest_type: v ?? "" })} searchable />
           <NumberInput label="Frequency (months)" value={pestForm.frequency_months ?? 3} onChange={(v) => setPestForm({ ...pestForm, frequency_months: Number(v) })} min={1} />
           <TextInput label="Vendor Name" value={pestForm.vendor_name ?? ""} onChange={(e) => setPestForm({ ...pestForm, vendor_name: e.target.value })} />
           <Textarea label="Notes" value={pestForm.notes ?? ""} onChange={(e) => setPestForm({ ...pestForm, notes: e.target.value })} />
@@ -496,7 +519,7 @@ function SchedulesTab({
       <Drawer opened={pestLogDrawer} onClose={pestLogDrawerH.close} title="Record Pest Control Treatment" position="right" size="md">
         <Stack>
           <TextInput label="Treatment Date" type="date" value={pestLogForm.treatment_date} onChange={(e) => setPestLogForm({ ...pestLogForm, treatment_date: e.target.value })} />
-          <TextInput label="Treatment Type" value={pestLogForm.treatment_type} onChange={(e) => setPestLogForm({ ...pestLogForm, treatment_type: e.target.value })} />
+          <Select label="Treatment Type" data={PEST_TREATMENT_TYPES} value={pestLogForm.treatment_type || null} onChange={(v) => setPestLogForm({ ...pestLogForm, treatment_type: v ?? "" })} searchable />
           <TextInput label="Chemicals Used" value={pestLogForm.chemicals_used ?? ""} onChange={(e) => setPestLogForm({ ...pestLogForm, chemicals_used: e.target.value })} />
           <TextInput label="Vendor Name" value={pestLogForm.vendor_name ?? ""} onChange={(e) => setPestLogForm({ ...pestLogForm, vendor_name: e.target.value })} />
           <TextInput label="Certificate No" value={pestLogForm.certificate_no ?? ""} onChange={(e) => setPestLogForm({ ...pestLogForm, certificate_no: e.target.value })} />

@@ -1,7 +1,7 @@
 //! # Screen Masters
 //!
 //! Config-driven page layout system. Screens define full page configurations
-//! (layout, forms, data tables, actions, sidecars) stored as JSONB in PostgreSQL.
+//! (layout, forms, data tables, actions, sidecars) stored as JSONB in `PostgreSQL`.
 //! Supports versioning, tenant overrides, and pipeline-triggered sidecars.
 
 use chrono::{DateTime, Utc};

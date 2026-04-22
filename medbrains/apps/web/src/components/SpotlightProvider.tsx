@@ -1,25 +1,25 @@
+import { Box, Group, Text } from "@mantine/core";
 import {
-  SpotlightActionsList,
   SpotlightAction,
   SpotlightActionsGroup,
+  SpotlightActionsList,
   SpotlightEmpty,
   SpotlightFooter,
   SpotlightRoot,
   SpotlightSearch,
 } from "@mantine/spotlight";
-import { Group, Text, Box } from "@mantine/core";
-import { useNavigate } from "react-router";
 import { usePermissionStore } from "@medbrains/stores";
 import {
-  IconUserPlus,
-  IconReportMedical,
-  IconFileInvoice,
-  IconSearch,
   IconCornerDownLeft,
+  IconFileInvoice,
+  IconReportMedical,
+  IconSearch,
+  IconUserPlus,
 } from "@tabler/icons-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { NAV_GROUPS, resolveIcon, type NavItemConfig } from "../config/navigation";
+import { useNavigate } from "react-router";
+import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "../config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
 interface SpotlightEntry {
@@ -48,9 +48,8 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   "/admin/settings": "System configuration",
   "/admin/form-builder": "Build custom forms",
   "/admin/dashboard-builder": "Build custom dashboards",
-  "/admin/integration-hub": "External integrations",
-  "/admin/integration-builder": "Build integration pipelines",
-  "/admin/screen-builder": "Build custom screens",
+  "/admin/integration-hub": "Pipelines, sidecars, and execution history",
+  "/admin/screen-builder": "Build screens and attach sidecars",
 };
 
 /** Build navigation entries from nav config. */
@@ -86,9 +85,36 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
 
 /** Quick action entries (action-oriented, not nav duplication). */
 const QUICK_ACTIONS: SpotlightEntry[] = [
-  { id: "action-new-patient", label: "Create New Patient", description: "Register a new patient", path: "/patients", icon: <IconUserPlus size={18} stroke={1.5} />, group: "Quick Actions", requiredPermission: "patients.create", keywords: ["register", "add"] },
-  { id: "action-new-opd", label: "New OPD Visit", description: "Start an outpatient visit", path: "/opd", icon: <IconReportMedical size={18} stroke={1.5} />, group: "Quick Actions", requiredPermission: "opd.visit.create", keywords: ["visit", "consultation"] },
-  { id: "action-new-invoice", label: "Create Invoice", description: "New billing invoice", path: "/billing", icon: <IconFileInvoice size={18} stroke={1.5} />, group: "Quick Actions", requiredPermission: "billing.invoices.create", keywords: ["bill", "charge"] },
+  {
+    id: "action-new-patient",
+    label: "Create New Patient",
+    description: "Register a new patient",
+    path: "/patients",
+    icon: <IconUserPlus size={18} stroke={1.5} />,
+    group: "Quick Actions",
+    requiredPermission: "patients.create",
+    keywords: ["register", "add"],
+  },
+  {
+    id: "action-new-opd",
+    label: "New OPD Visit",
+    description: "Start an outpatient visit",
+    path: "/opd",
+    icon: <IconReportMedical size={18} stroke={1.5} />,
+    group: "Quick Actions",
+    requiredPermission: "opd.visit.create",
+    keywords: ["visit", "consultation"],
+  },
+  {
+    id: "action-new-invoice",
+    label: "Create Invoice",
+    description: "New billing invoice",
+    path: "/billing",
+    icon: <IconFileInvoice size={18} stroke={1.5} />,
+    group: "Quick Actions",
+    requiredPermission: "billing.invoices.create",
+    keywords: ["bill", "charge"],
+  },
 ];
 
 function filterActions(query: string, entries: SpotlightEntry[]): SpotlightEntry[] {
@@ -108,20 +134,14 @@ export function SpotlightProvider() {
   const [query, setQuery] = useState("");
   const { t } = useTranslation("nav");
 
-  const allEntries = useMemo(
-    () => [...buildNavEntries(t), ...QUICK_ACTIONS],
-    [t],
-  );
+  const allEntries = useMemo(() => [...buildNavEntries(t), ...QUICK_ACTIONS], [t]);
 
   const permittedEntries = useMemo(
     () => allEntries.filter((e) => !e.requiredPermission || hasPermission(e.requiredPermission)),
     [allEntries, hasPermission],
   );
 
-  const filtered = useMemo(
-    () => filterActions(query, permittedEntries),
-    [query, permittedEntries],
-  );
+  const filtered = useMemo(() => filterActions(query, permittedEntries), [query, permittedEntries]);
 
   // Group filtered entries
   const grouped = useMemo(() => {
@@ -174,9 +194,7 @@ export function SpotlightProvider() {
                   onClick={() => handleAction(entry.path)}
                 >
                   <Group gap="md" wrap="nowrap" align="center">
-                    <Box className={styles.actionIcon}>
-                      {entry.icon}
-                    </Box>
+                    <Box className={styles.actionIcon}>{entry.icon}</Box>
                     <div>
                       <Text className={styles.actionLabel}>{entry.label}</Text>
                       <Text className={styles.actionDescription}>{entry.description}</Text>
@@ -192,17 +210,25 @@ export function SpotlightProvider() {
       <SpotlightFooter className={styles.footer}>
         <Group gap="lg">
           <span className={styles.footerHint}>
-            <span className={styles.footerKbd}><IconCornerDownLeft size={10} /></span>
-            <Text size="xs" c="dimmed">select</Text>
+            <span className={styles.footerKbd}>
+              <IconCornerDownLeft size={10} />
+            </span>
+            <Text size="xs" c="dimmed">
+              select
+            </Text>
           </span>
           <span className={styles.footerHint}>
             <span className={styles.footerKbd}>↑</span>
             <span className={styles.footerKbd}>↓</span>
-            <Text size="xs" c="dimmed">navigate</Text>
+            <Text size="xs" c="dimmed">
+              navigate
+            </Text>
           </span>
           <span className={styles.footerHint}>
             <span className={styles.footerKbd}>esc</span>
-            <Text size="xs" c="dimmed">close</Text>
+            <Text size="xs" c="dimmed">
+              close
+            </Text>
           </span>
         </Group>
       </SpotlightFooter>

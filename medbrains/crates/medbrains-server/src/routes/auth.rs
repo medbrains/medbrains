@@ -140,7 +140,7 @@ pub async fn login(
     let user_agent = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
-        .map(std::borrow::ToOwned::to_owned);
+        .map(ToOwned::to_owned);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
@@ -351,7 +351,7 @@ pub async fn refresh_token(
     let user_agent_val = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
-        .map(std::borrow::ToOwned::to_owned);
+        .map(ToOwned::to_owned);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;

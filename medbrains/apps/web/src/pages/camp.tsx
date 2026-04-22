@@ -103,6 +103,17 @@ const TEAM_ROLES = [
   { value: "driver", label: "Driver" },
 ];
 
+const ID_PROOF_TYPES = [
+  { value: "aadhar", label: "Aadhaar Card" },
+  { value: "pan", label: "PAN Card" },
+  { value: "passport", label: "Passport" },
+  { value: "voter_id", label: "Voter ID" },
+  { value: "driving_license", label: "Driving License" },
+  { value: "ration_card", label: "Ration Card" },
+  { value: "employee_id", label: "Employee ID" },
+  { value: "other", label: "Other" },
+];
+
 const SAMPLE_TYPES = [
   { value: "blood", label: "Blood" },
   { value: "urine", label: "Urine" },
@@ -578,7 +589,7 @@ function RegistrationsTab() {
           <TextInput label="Phone" value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
           <Textarea label="Address" value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.currentTarget.value || undefined })} />
           <Group grow>
-            <TextInput label="ID Proof Type" placeholder="Aadhar, PAN, etc." value={form.id_proof_type ?? ""} onChange={(e) => setForm({ ...form, id_proof_type: e.currentTarget.value || undefined })} />
+            <Select label="ID Proof Type" data={ID_PROOF_TYPES} placeholder="Select ID type" value={form.id_proof_type ?? null} onChange={(v) => setForm({ ...form, id_proof_type: v || undefined })} clearable searchable />
             <TextInput label="ID Proof Number" value={form.id_proof_number ?? ""} onChange={(e) => setForm({ ...form, id_proof_number: e.currentTarget.value || undefined })} />
           </Group>
           <Textarea label="Chief Complaint" value={form.chief_complaint ?? ""} onChange={(e) => setForm({ ...form, chief_complaint: e.currentTarget.value || undefined })} />

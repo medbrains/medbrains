@@ -211,6 +211,159 @@ medbrains/
 - **Never use `useEffect` for**: derived state (use `useMemo` or compute inline), state sync between React state variables (lift state up or use a single source of truth), data fetching (use TanStack Query), navigation side effects (use React Router loaders/actions or event handlers).
 - When tempted to write `useEffect`, first ask: "Can this be an event handler, a `useMemo`, or a TanStack Query instead?"
 
+---
+
+## Senior Architect Guidelines
+
+**This codebase must be built to the standards of a senior or principal software architect.** Every file, function, and component should demonstrate professional craftsmanship, foresight, and attention to detail.
+
+### Architectural Mindset
+
+1. **Think in systems, not features** — Before implementing anything, understand how it fits into the larger system. Consider data flow, dependencies, failure modes, and scaling implications.
+
+2. **Design for change** — Healthcare requirements evolve. Build abstractions at the right level — not too early (YAGNI), not too late (technical debt).
+
+3. **Optimize for readability** — Code is read 10x more than it's written. Optimize for the next developer (who may be you in 6 months).
+
+4. **Single Responsibility at every level** — Files, functions, components, and modules should each do one thing well.
+
+### Code Quality Standards
+
+#### Naming Conventions
+
+- **Functions**: verb + noun — `createPatient`, `validatePrescription`, `calculateBillTotal`
+- **Booleans**: `is`/`has`/`can`/`should` prefix — `isActive`, `hasInsurance`, `canPrescribe`
+- **Collections**: plural nouns — `patients`, `labOrders`, `vitals`
+- **Handlers**: `on` + event — `onSubmit`, `onPatientSelect`, `onClose`
+- **Hooks**: `use` prefix — `usePatientSearch`, `useQueuePolling`
+- **Constants**: SCREAMING_SNAKE_CASE — `MAX_RETRIES`, `DEFAULT_PAGE_SIZE`
+- **Types/Interfaces**: PascalCase, no `I` prefix — `Patient`, `LabOrder`, `BillingConfig`
+
+#### Function Design
+
+- **Maximum 20 lines** per function (excluding type definitions). If longer, extract helper functions.
+- **Maximum 3 parameters**. If more, use an options object: `createOrder({ patientId, items, priority })`
+- **Early returns** for guard clauses — reduce nesting, improve readability
+- **Pure functions** where possible — same input always produces same output, no side effects
+- **Explicit error handling** — never swallow errors silently; log and rethrow or handle gracefully
+
+```typescript
+// Good: Early returns, clear flow
+function getPatientStatus(patient: Patient): string {
+  if (!patient.isActive) return "Inactive";
+  if (patient.currentAdmission) return "Admitted";
+  if (patient.hasAppointmentToday) return "Scheduled";
+  return "Registered";
+}
+
+// Bad: Nested conditionals, hard to follow
+function getPatientStatus(patient: Patient): string {
+  if (patient.isActive) {
+    if (patient.currentAdmission) {
+      return "Admitted";
+    } else {
+      if (patient.hasAppointmentToday) {
+        return "Scheduled";
+      } else {
+        return "Registered";
+      }
+    }
+  } else {
+    return "Inactive";
+  }
+}
+```
+
+#### Component Design (React)
+
+- **One component per file** — except for tightly coupled internal components
+- **Props interface at top** — clearly document what the component accepts
+- **Destructure props** — improves readability and makes dependencies explicit
+- **Separate concerns**: data fetching (hooks) → presentation (components) → styling (SCSS)
+- **Memoize expensive computations** — `useMemo` for derived data, `useCallback` for stable references
+
+```typescript
+// Good: Clear structure, typed props, single responsibility
+interface PatientCardProps {
+  patient: Patient;
+  onSelect?: (patient: Patient) => void;
+  showActions?: boolean;
+}
+
+export function PatientCard({ patient, onSelect, showActions = true }: PatientCardProps) {
+  const fullName = `${patient.firstName} ${patient.lastName}`;
+
+  return (
+    <Card onClick={() => onSelect?.(patient)}>
+      <Text fw={600}>{fullName}</Text>
+      <Text c="dimmed">{patient.uhid}</Text>
+      {showActions && <PatientCardActions patient={patient} />}
+    </Card>
+  );
+}
+```
+
+#### API Design (Backend)
+
+- **RESTful resource naming** — `/patients`, `/patients/{id}`, `/patients/{id}/visits`
+- **Consistent response structure** — always return `{ data, meta }` or `{ error, details }`
+- **Pagination on all list endpoints** — `?page=1&per_page=20`, return total count in meta
+- **Idempotent operations** — PUT/DELETE should be safe to retry
+- **Meaningful HTTP status codes** — 200 OK, 201 Created, 400 Bad Request, 404 Not Found, 422 Validation Error
+
+#### Error Handling
+
+- **Typed errors** — Use `thiserror` enums in Rust, typed error classes in TypeScript
+- **User-friendly messages** — Technical details for logs, human-readable messages for UI
+- **Graceful degradation** — Show cached data if network fails, partial results if one sub-query fails
+- **Never expose stack traces** — Log full error, return sanitized message to client
+
+### Patterns to Follow
+
+| Pattern | When to Use | Example |
+|---------|-------------|---------|
+| **Repository pattern** | Data access abstraction | `PatientRepository.findById(id)` |
+| **Service layer** | Business logic orchestration | `PrescriptionService.createWithValidation()` |
+| **Factory pattern** | Complex object creation | `LabOrderFactory.fromTemplate(template)` |
+| **Strategy pattern** | Swappable algorithms | `BillingCalculator.withStrategy(insuranceStrategy)` |
+| **Observer pattern** | Event-driven updates | WebSocket subscriptions, queue updates |
+| **Composition over inheritance** | Code reuse | React hooks, Rust traits |
+
+### Patterns to Avoid
+
+| Anti-Pattern | Why It's Bad | Better Approach |
+|--------------|--------------|-----------------|
+| **God objects** | Single class doing everything | Split into focused services |
+| **Prop drilling** | Passing props through many layers | Context, Zustand, or composition |
+| **Premature optimization** | Optimizing before measuring | Profile first, optimize bottlenecks |
+| **Magic numbers/strings** | Hard-coded values scattered | Named constants, config files |
+| **Copy-paste code** | Duplicated logic | Extract shared utilities |
+| **Deep nesting** | Hard to read and test | Early returns, extract functions |
+
+### Code Review Checklist
+
+Before considering any code complete, verify:
+
+- [ ] **Types are explicit** — No `any`, no implicit returns, no untyped parameters
+- [ ] **Errors are handled** — Every async operation has error handling
+- [ ] **Edge cases covered** — Empty states, loading states, error states
+- [ ] **No console.log** — Use proper logging or remove debug statements
+- [ ] **No commented code** — Delete it; git preserves history
+- [ ] **No TODO comments** — Create a ticket or fix it now
+- [ ] **Tests exist** — Critical paths have test coverage
+- [ ] **Documentation updated** — API changes reflected in types and comments
+- [ ] **Security considered** — Input validation, SQL injection prevention, XSS protection
+- [ ] **Performance acceptable** — No N+1 queries, reasonable bundle size, lazy loading where appropriate
+
+### Technical Debt Management
+
+- **Fix as you go** — If you touch a file, improve it incrementally (Boy Scout Rule)
+- **Document known issues** — If you must defer a fix, create a GitHub issue with context
+- **Never increase debt** — New code must meet standards; no "we'll fix it later"
+- **Refactor in small steps** — Large rewrites are risky; prefer incremental improvements
+
+---
+
 ### Testing Rules
 
 - **Static checks** (`make check-all`): Must pass before a module is considered complete.

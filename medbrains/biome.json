@@ -26,6 +26,10 @@
       },
       "style": {
         "noNonNullAssertion": "warn"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConfusingVoidType": "error"
       }
     }
   },

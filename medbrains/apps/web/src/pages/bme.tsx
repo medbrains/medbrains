@@ -113,6 +113,23 @@ const BREAKDOWN_PRIORITIES = [
   { value: "low", label: "Low" },
 ];
 
+const EQUIPMENT_CATEGORIES = [
+  { value: "diagnostic", label: "Diagnostic Equipment" },
+  { value: "therapeutic", label: "Therapeutic Equipment" },
+  { value: "life_support", label: "Life Support" },
+  { value: "imaging", label: "Imaging Equipment" },
+  { value: "laboratory", label: "Laboratory Equipment" },
+  { value: "surgical", label: "Surgical Equipment" },
+  { value: "monitoring", label: "Monitoring Equipment" },
+  { value: "dental", label: "Dental Equipment" },
+  { value: "physiotherapy", label: "Physiotherapy Equipment" },
+  { value: "dialysis", label: "Dialysis Equipment" },
+  { value: "ophthalmic", label: "Ophthalmic Equipment" },
+  { value: "ent", label: "ENT Equipment" },
+  { value: "sterilization", label: "Sterilization Equipment" },
+  { value: "other", label: "Other" },
+];
+
 // ── Badge helpers ──────────────────────────────────────
 
 function statusBadge(status: string) {
@@ -248,7 +265,7 @@ function EquipmentTab() {
             <TextInput label="Asset Tag" value={form.asset_tag ?? ""} onChange={(e) => setForm({ ...form, asset_tag: e.target.value })} />
           </Group>
           <Group grow>
-            <TextInput label="Category" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+            <Select label="Category" data={EQUIPMENT_CATEGORIES} value={form.category ?? null} onChange={(v) => setForm({ ...form, category: v || undefined })} clearable searchable />
             <Select label="Risk Category" data={RISK_CATEGORIES} value={form.risk_category ?? "medium"} onChange={(v) => setForm({ ...form, risk_category: (v ?? "medium") as CreateBmeEquipmentRequest["risk_category"] })} />
           </Group>
           <Switch label="Critical Equipment" checked={form.is_critical ?? false} onChange={(e) => setForm({ ...form, is_critical: e.currentTarget.checked })} />

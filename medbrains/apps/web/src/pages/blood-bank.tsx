@@ -84,6 +84,30 @@ const crossmatchStatusColors: Record<string, string> = {
   cancelled: "slate",
 };
 
+// Dropdown options for categorical fields
+const TRANSFUSION_REACTION_TYPES = [
+  { value: "febrile", label: "Febrile Non-Hemolytic" },
+  { value: "allergic_mild", label: "Allergic (Mild)" },
+  { value: "allergic_severe", label: "Allergic (Severe/Anaphylactic)" },
+  { value: "hemolytic_acute", label: "Acute Hemolytic" },
+  { value: "hemolytic_delayed", label: "Delayed Hemolytic" },
+  { value: "trali", label: "TRALI (Transfusion-Related Acute Lung Injury)" },
+  { value: "taco", label: "TACO (Transfusion-Associated Circulatory Overload)" },
+  { value: "septic", label: "Septic/Bacterial" },
+  { value: "hypotensive", label: "Hypotensive" },
+  { value: "pta_gvhd", label: "PTA-GVHD" },
+  { value: "other", label: "Other" },
+];
+
+const TTI_INFECTION_TYPES = [
+  { value: "hiv", label: "HIV" },
+  { value: "hbv", label: "HBV (Hepatitis B)" },
+  { value: "hcv", label: "HCV (Hepatitis C)" },
+  { value: "syphilis", label: "Syphilis" },
+  { value: "malaria", label: "Malaria" },
+  { value: "other", label: "Other" },
+];
+
 // ══════════════════════════════════════════════════════════
 //  Main Page
 // ══════════════════════════════════════════════════════════
@@ -1107,7 +1131,7 @@ function RecordReactionForm({ onSubmit, loading }: { onSubmit: (data: { reaction
 
   return (
     <Stack>
-      <TextInput label="Reaction Type" required value={reactionType} onChange={(e) => setReactionType(e.currentTarget.value)} placeholder="e.g. Febrile, Allergic, Hemolytic" />
+      <Select label="Reaction Type" required data={TRANSFUSION_REACTION_TYPES} value={reactionType || null} onChange={(v) => setReactionType(v ?? "")} searchable placeholder="Select reaction type" />
       <Select label="Severity" required data={[
         { value: "mild", label: "Mild" },
         { value: "moderate", label: "Moderate" },
@@ -1700,7 +1724,7 @@ function LookbackSection() {
 
       <Drawer opened={createOpen} onClose={closeCreate} title="Create Lookback Event" position="right" size="md">
         <Stack>
-          <TextInput label="Infection Type" required value={infectionType} onChange={(e) => setInfectionType(e.currentTarget.value)} placeholder="e.g. HIV, HBV, HCV" />
+          <Select label="Infection Type" required data={TTI_INFECTION_TYPES} value={infectionType || null} onChange={(v) => setInfectionType(v ?? "")} searchable placeholder="Select infection type" />
           <TextInput label="Detection Date" required value={detectionDate} onChange={(e) => setDetectionDate(e.currentTarget.value)} placeholder="YYYY-MM-DD" />
           <TextInput label="Donation ID" value={donationId} onChange={(e) => setDonationId(e.currentTarget.value)} placeholder="Optional UUID" />
           <TextInput label="Donor ID" value={donorId} onChange={(e) => setDonorId(e.currentTarget.value)} placeholder="Optional UUID" />

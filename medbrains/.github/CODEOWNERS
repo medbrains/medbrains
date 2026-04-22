@@ -1,0 +1,64 @@
+# MedBrains Code Owners
+# These owners will be requested for review when someone opens a PR
+# that modifies code they own.
+
+# Default owner for everything
+*                                           @medbrains/core-team
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BACKEND (Rust)
+# ═══════════════════════════════════════════════════════════════════════════
+/crates/                                    @medbrains/backend
+*.rs                                        @medbrains/backend
+Cargo.toml                                  @medbrains/backend
+Cargo.lock                                  @medbrains/backend
+rust-toolchain.toml                         @medbrains/backend
+rustfmt.toml                                @medbrains/backend
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FRONTEND (TypeScript/React)
+# ═══════════════════════════════════════════════════════════════════════════
+/apps/web/                                  @medbrains/frontend
+/packages/                                  @medbrains/frontend
+*.ts                                        @medbrains/frontend
+*.tsx                                       @medbrains/frontend
+*.scss                                      @medbrains/frontend
+package.json                                @medbrains/frontend
+pnpm-lock.yaml                              @medbrains/frontend
+biome.json                                  @medbrains/frontend
+tsconfig*.json                              @medbrains/frontend
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MOBILE & TV
+# ═══════════════════════════════════════════════════════════════════════════
+/apps/mobile/                               @medbrains/mobile
+/apps/tv/                                   @medbrains/mobile
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DATABASE
+# ═══════════════════════════════════════════════════════════════════════════
+/crates/medbrains-db/                       @medbrains/backend @medbrains/dba
+/crates/medbrains-db/src/migrations/        @medbrains/dba
+*.sql                                       @medbrains/dba
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INFRASTRUCTURE & CI/CD
+# ═══════════════════════════════════════════════════════════════════════════
+/.github/                                   @medbrains/devops
+docker-compose.yml                          @medbrains/devops
+Dockerfile                                  @medbrains/devops
+.env.example                                @medbrains/devops
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECURITY-SENSITIVE FILES
+# ═══════════════════════════════════════════════════════════════════════════
+/crates/medbrains-server/src/routes/auth.rs @medbrains/security
+/crates/medbrains-server/src/middleware/    @medbrains/security
+/crates/medbrains-core/src/permissions.rs   @medbrains/security
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCUMENTATION
+# ═══════════════════════════════════════════════════════════════════════════
+/RFCs/                                      @medbrains/architects
+CLAUDE.md                                   @medbrains/architects
+*.md                                        @medbrains/docs

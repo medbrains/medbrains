@@ -39,6 +39,7 @@ import type {
   CreatePoItemInput,
   CreateRcItemInput,
   GoodsReceiptNote,
+  IndentRequisition,
   PurchaseOrder,
   PurchaseOrderItem,
   RateContract,
@@ -87,6 +88,16 @@ const rcStatusColors: Record<string, string> = {
   expired: "orange",
   terminated: "danger",
 };
+
+const poLinkableIndentStatuses = new Set([
+  "approved",
+  "partially_approved",
+  "partially_issued",
+]);
+
+function formatLinkedIndentLabel(requisition: IndentRequisition) {
+  return `${requisition.indent_number} • ${requisition.status.replace(/_/g, " ")}`;
+}
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -446,9 +457,17 @@ function PoDetailView({ id }: { id: string }) {
     queryFn: () => api.getPurchaseOrder(id),
   });
 
+  const linkedIndentId = data?.purchase_order.indent_requisition_id ?? null;
+  const linkedIndentQuery = useQuery({
+    queryKey: ["indent-requisition", "procurement-link", linkedIndentId],
+    queryFn: () => api.getIndentRequisition(linkedIndentId!),
+    enabled: Boolean(linkedIndentId),
+  });
+
   if (isLoading || !data) return <Text>Loading...</Text>;
 
   const { purchase_order: po, items } = data;
+  const linkedIndent = linkedIndentQuery.data?.requisition;
 
   return (
     <Stack>
@@ -458,6 +477,19 @@ function PoDetailView({ id }: { id: string }) {
       </Group>
 
       <Text size="sm">Order Date: {po.order_date}</Text>
+      {po.indent_requisition_id && (
+        <Group gap="xs">
+          <Text size="sm">Linked Indent:</Text>
+          <Badge variant="light" color="info">
+            {linkedIndent?.indent_number ?? po.indent_requisition_id}
+          </Badge>
+          {linkedIndent && (
+            <Badge variant="outline" size="sm">
+              {linkedIndent.status.replace(/_/g, " ")}
+            </Badge>
+          )}
+        </Group>
+      )}
       {po.expected_delivery && <Text size="sm">Expected Delivery: {po.expected_delivery}</Text>}
       {po.payment_terms && <Text size="sm">Payment Terms: {po.payment_terms}</Text>}
       {po.notes && <Text size="sm">{po.notes}</Text>}
@@ -497,6 +529,8 @@ function PoDetailView({ id }: { id: string }) {
 
 function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
   const [vendorId, setVendorId] = useState("");
+  const [linkedIndentId, setLinkedIndentId] = useState<string | null>(null);
+  const [isSyncingIndent, setIsSyncingIndent] = useState(false);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<CreatePoItemInput[]>([{ item_name: "", quantity_ordered: 1, unit_price: 0 }]);
 
@@ -510,10 +544,38 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
     queryFn: () => api.listStoreCatalog({ active_only: "true" }),
   });
 
+  const { data: linkableIndents } = useQuery({
+    queryKey: ["indent-requisitions", "procurement-linkable"],
+    queryFn: async () => {
+      const [approved, partiallyApproved, partiallyIssued] = await Promise.all([
+        api.listIndentRequisitions({ status: "approved", page: "1", per_page: "50" }),
+        api.listIndentRequisitions({ status: "partially_approved", page: "1", per_page: "50" }),
+        api.listIndentRequisitions({ status: "partially_issued", page: "1", per_page: "50" }),
+      ]);
+
+      const merged = [
+        ...approved.requisitions,
+        ...partiallyApproved.requisitions,
+        ...partiallyIssued.requisitions,
+      ];
+
+      const seen = new Set<string>();
+      return merged.filter((requisition) => {
+        if (seen.has(requisition.id)) {
+          return false;
+        }
+        seen.add(requisition.id);
+        return poLinkableIndentStatuses.has(requisition.status);
+      });
+    },
+    staleTime: 60_000,
+  });
+
   const mutation = useMutation({
     mutationFn: () =>
       api.createPurchaseOrder({
         vendor_id: vendorId,
+        indent_requisition_id: linkedIndentId ?? undefined,
         notes: notes || undefined,
         items,
       }),
@@ -532,6 +594,45 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   };
 
+  const syncLinkedIndent = async (value: string | null) => {
+    setLinkedIndentId(value);
+
+    if (!value) {
+      return;
+    }
+
+    setIsSyncingIndent(true);
+    try {
+      const detail = await api.getIndentRequisition(value);
+      const syncedItems = detail.items
+        .map((item) => ({
+          catalog_item_id: item.catalog_item_id ?? undefined,
+          item_name: item.item_name,
+          item_code: undefined,
+          unit: undefined,
+          quantity_ordered: item.quantity_approved - item.quantity_issued,
+          unit_price: Number(item.unit_price ?? 0),
+          indent_item_id: item.id,
+          notes: item.notes ?? undefined,
+        }))
+        .filter((item) => item.quantity_ordered > 0);
+
+      setItems(syncedItems.length > 0 ? syncedItems : [{ item_name: "", quantity_ordered: 1, unit_price: 0 }]);
+      if (!notes.trim()) {
+        setNotes(`Linked to indent ${detail.requisition.indent_number}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load linked indent";
+      notifications.show({
+        title: "Indent sync failed",
+        message,
+        color: "danger",
+      });
+    } finally {
+      setIsSyncingIndent(false);
+    }
+  };
+
   return (
     <Stack>
       <Select
@@ -543,6 +644,28 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         searchable
         required
       />
+      <Select
+        label="Linked Indent"
+        description="Optional cross-module link. Selecting an indent syncs approved items into this PO."
+        placeholder="Select approved indent"
+        data={(linkableIndents ?? []).map((requisition) => ({
+          value: requisition.id,
+          label: formatLinkedIndentLabel(requisition),
+        }))}
+        value={linkedIndentId}
+        onChange={(value) => {
+          void syncLinkedIndent(value);
+        }}
+        searchable
+        clearable
+      />
+      {linkedIndentId && (
+        <Text size="xs" c="dimmed">
+          {isSyncingIndent
+            ? "Syncing indent items into the PO..."
+            : "PO items are linked back to the indent requisition for downstream tracking."}
+        </Text>
+      )}
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
 
       <Text fw={600}>Items</Text>

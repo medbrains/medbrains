@@ -77,6 +77,7 @@ const DashboardBuilderPage = lazy(() => import("./pages/admin/dashboard-builder"
 const IntegrationHubPage = lazy(() => import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })));
 const IntegrationBuilderPage = lazy(() => import("./pages/admin/integration-builder").then((m) => ({ default: m.IntegrationBuilderPage })));
 const ScreenBuilderPage = lazy(() => import("./pages/admin/screen-builder").then((m) => ({ default: m.ScreenBuilderPage })));
+const TvDisplaysPage = lazy(() => import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })));
 const DoctorSchedulesPage = lazy(() => import("./pages/admin/doctor-schedules").then((m) => ({ default: m.DoctorSchedulesPage })));
 const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
@@ -181,6 +182,7 @@ export function App() {
               <Route path="integration-builder" element={<IntegrationBuilderPage />} />
               <Route path="integration-builder/:id" element={<IntegrationBuilderPage />} />
               <Route path="screen-builder" element={<ScreenBuilderPage />} />
+              <Route path="tv-displays" element={<TvDisplaysPage />} />
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />
             </Route>

@@ -1,100 +1,99 @@
-// ── ECG Heartbeat Top Progress Bar — indigo-teal gradient ──
+// ── Top Progress Bar — single heartbeat, slowed at spike, glowing dot ──
+
+$trace: #34d399;
+$forest: #1F4332;
 
 .track {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
+  height: 24px;
   z-index: 10000;
   pointer-events: none;
-  animation: trackFadeIn 0.15s ease-out, trackFadeOut 0.4s ease 1.2s forwards;
-}
-
-@keyframes trackFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  overflow: hidden;
+  animation: trackFadeOut 0.4s ease 2.6s forwards;
 }
 
 @keyframes trackFadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  to { opacity: 0; }
 }
 
-// Faint baseline across full width (indigo tint)
+// Thin baseline
 .baseline {
   position: absolute;
-  top: 50%;
+  top: 14px;
   left: 0;
   width: 100%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgba(99, 102, 241, 0.2) 0%,
-    rgba(13, 148, 136, 0.1) 60%,
-    transparent 100%
-  );
-  transform: translateY(-50%);
+  height: 2px;
+  background: rgba($forest, 0.1);
 }
 
-// Container that sweeps left → right
-.pulseContainer {
+// Glowing dot at the spike position — pulses once when scan reaches it
+.glowDot {
+  position: absolute;
+  top: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $trace;
+  opacity: 0;
+  transform: translate(-3px, -2px);
+  box-shadow: 0 0 6px rgba($trace, 0.8), 0 0 12px rgba($trace, 0.4);
+  animation: dotPulse 2.4s ease forwards;
+}
+
+@keyframes dotPulse {
+  0%, 35% { opacity: 0; transform: translate(-3px, -2px) scale(0.5); }
+  45% { opacity: 1; transform: translate(-3px, -2px) scale(1.5); }
+  55% { opacity: 1; transform: translate(-3px, -2px) scale(1); }
+  70% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+.traceSvg {
   position: absolute;
   top: 0;
-  left: -15%;
-  width: 30%;
-  height: 100%;
-  animation: sweep 1.4s cubic-bezier(0.22, 0.68, 0.36, 1) forwards;
-}
-
-@keyframes sweep {
-  0% {
-    left: -15%;
-  }
-  100% {
-    left: 100%;
-  }
-}
-
-// The ECG waveform SVG
-.heartbeat {
+  left: 0;
   width: 100%;
   height: 24px;
-  margin-top: -10px;
 }
 
-.ecgLine {
+// Faded phosphor trail
+.trailTrace {
   fill: none;
-  filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.5))
-    drop-shadow(0 0 2px rgba(13, 148, 136, 0.4));
-  stroke-dasharray: 400;
-  stroke-dashoffset: 400;
-  animation: draw 1.4s cubic-bezier(0.22, 0.68, 0.36, 1) forwards;
+  opacity: 0.15;
+  stroke-dasharray: var(--path-len);
+  stroke-dashoffset: var(--path-len);
+  animation: drawTrail 2.4s linear forwards;
 }
 
-@keyframes draw {
-  0% {
-    stroke-dashoffset: 400;
-  }
-  100% {
-    stroke-dashoffset: 0;
-  }
+@keyframes drawTrail {
+  to { stroke-dashoffset: 0; }
 }
 
-// ── Reduced motion ──
+// Bright active trace
+.activeTrace {
+  fill: none;
+  filter: drop-shadow(0 0 3px rgba($trace, 0.9))
+          drop-shadow(0 0 8px rgba($trace, 0.4));
+}
+
+// Scan window — speeds across flat line, SLOWS at the beat, then speeds to end
+.scanWindow {
+  animation: moveScan 2.4s ease-in-out forwards;
+}
+
+@keyframes moveScan {
+  0%    { x: var(--scan-start);    animation-timing-function: ease-in; }
+  35%   { x: var(--beat-approach); animation-timing-function: cubic-bezier(0.1, 0, 0.1, 1); }
+  55%   { x: var(--beat-pass);     animation-timing-function: ease-out; }
+  100%  { x: var(--scan-end); }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .track,
-  .pulseContainer,
-  .ecgLine {
-    animation-duration: 0.01ms !important;
-  }
+  .track { animation: none; }
+  .trailTrace { animation: none; stroke-dashoffset: 0; }
+  .scanWindow { animation: none; }
+  .glowDot { animation: none; opacity: 1; }
 }

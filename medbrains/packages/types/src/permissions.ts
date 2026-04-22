@@ -486,6 +486,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "admin.screen_builder.update", label: "Update Screen", description: "Modify screen designs", module: "admin" },
   { code: "admin.screen_builder.delete", label: "Delete Screen", description: "Remove screen designs", module: "admin" },
 
+  // Admin — TV Displays
+  { code: "admin.tv_displays.list", label: "View TV Displays", description: "View TV display configurations", module: "admin" },
+  { code: "admin.tv_displays.create", label: "Create TV Display", description: "Create new TV display configurations", module: "admin" },
+  { code: "admin.tv_displays.update", label: "Update TV Display", description: "Modify TV display configurations", module: "admin" },
+  { code: "admin.tv_displays.delete", label: "Delete TV Display", description: "Remove TV display configurations", module: "admin" },
+  { code: "admin.tv_displays.tokens", label: "Manage Queue Tokens", description: "Generate and manage queue tokens", module: "admin" },
+  { code: "admin.tv_displays.broadcast", label: "Broadcast Announcements", description: "Send announcements to TV displays", module: "admin" },
+
   // Front Office
   { code: "front_office.visitors.list", label: "View Visitors", description: "View visitor registrations", module: "front_office" },
   { code: "front_office.visitors.create", label: "Register Visitor", description: "Register new visitors", module: "front_office" },
@@ -1266,6 +1274,14 @@ export const P = {
       CREATE: "admin.screen_builder.create",
       UPDATE: "admin.screen_builder.update",
       DELETE: "admin.screen_builder.delete",
+    },
+    TV_DISPLAYS: {
+      LIST: "admin.tv_displays.list",
+      CREATE: "admin.tv_displays.create",
+      UPDATE: "admin.tv_displays.update",
+      DELETE: "admin.tv_displays.delete",
+      TOKENS: "admin.tv_displays.tokens",
+      BROADCAST: "admin.tv_displays.broadcast",
     },
   },
   SPECIALTY: {

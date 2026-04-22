@@ -42,7 +42,7 @@ pub struct CreateRetroEncounterRequest {
     pub patient_id: Uuid,
     pub department_id: Uuid,
     pub doctor_id: Uuid,
-    pub clinical_event_date: chrono::DateTime<chrono::Utc>,
+    pub clinical_event_date: chrono::DateTime<Utc>,
     pub reason: String,
     pub visit_type: Option<String>,
     pub chief_complaint: Option<String>,
@@ -65,15 +65,15 @@ pub struct RetroEntryRow {
     pub id: Uuid,
     pub source_table: String,
     pub source_record_id: Uuid,
-    pub clinical_event_date: chrono::DateTime<chrono::Utc>,
-    pub entry_date: chrono::DateTime<chrono::Utc>,
+    pub clinical_event_date: chrono::DateTime<Utc>,
+    pub entry_date: chrono::DateTime<Utc>,
     pub entered_by: Uuid,
     pub reason: String,
     pub status: String,
     pub reviewed_by: Option<Uuid>,
-    pub reviewed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub reviewed_at: Option<chrono::DateTime<Utc>>,
     pub review_notes: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: chrono::DateTime<Utc>,
     pub entered_by_name: Option<String>,
     pub reviewed_by_name: Option<String>,
 }
@@ -402,7 +402,7 @@ pub async fn reject_retro_entry(
     Ok(Json(serde_json::json!({ "rejected": true })))
 }
 
-/// GET /api/retrospective/audit/:source_table/:source_id
+/// GET /`api/retrospective/audit/:source_table/:source_id`
 pub async fn retro_audit_trail(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

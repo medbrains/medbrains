@@ -23,6 +23,10 @@ struct RawConfig {
     cookie_domain: Option<String>,
     #[serde(default)]
     secure_cookies: Option<bool>,
+    /// Comma-separated list of trusted proxy CIDRs (e.g., "10.0.0.0/8,172.16.0.0/12")
+    /// Only trust X-Forwarded-For/X-Real-IP headers from these IPs.
+    #[serde(default)]
+    trusted_proxies: Option<String>,
 }
 
 fn default_host() -> String {
@@ -57,6 +61,8 @@ pub struct AppConfig {
     pub cors_origin: String,
     pub cookie_domain: Option<String>,
     pub secure_cookies: bool,
+    /// Parsed trusted proxy CIDRs for X-Forwarded-For validation.
+    pub trusted_proxies: Vec<ipnet::IpNet>,
 }
 
 impl AppConfig {
@@ -73,6 +79,7 @@ impl AppConfig {
                 cors_origin: default_cors_origin(),
                 cookie_domain: None,
                 secure_cookies: None,
+                trusted_proxies: None,
             }))
             .merge(Toml::file("config.toml"))
             .merge(Env::raw())
@@ -89,6 +96,37 @@ impl AppConfig {
             _ => generate_dev_keypair()?,
         };
 
+        // Parse trusted proxies from comma-separated CIDR list
+        let trusted_proxies: Vec<ipnet::IpNet> = raw
+            .trusted_proxies
+            .map(|s| {
+                s.split(',')
+                    .filter_map(|cidr| {
+                        let trimmed = cidr.trim();
+                        if trimmed.is_empty() {
+                            return None;
+                        }
+                        match trimmed.parse::<ipnet::IpNet>() {
+                            Ok(net) => Some(net),
+                            Err(e) => {
+                                tracing::warn!("Invalid trusted proxy CIDR '{trimmed}': {e}");
+                                None
+                            }
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if trusted_proxies.is_empty() {
+            tracing::warn!(
+                "No TRUSTED_PROXIES configured — X-Forwarded-For headers will be trusted from any source. \
+                 Set TRUSTED_PROXIES to restrict (e.g., '10.0.0.0/8,172.16.0.0/12')"
+            );
+        } else {
+            tracing::info!("Trusted proxy CIDRs: {:?}", trusted_proxies);
+        }
+
         Ok(Self {
             database_url,
             yottadb_url: raw.yottadb_url,
@@ -99,6 +137,7 @@ impl AppConfig {
             cors_origin: raw.cors_origin,
             cookie_domain: raw.cookie_domain,
             secure_cookies: raw.secure_cookies.unwrap_or(false),
+            trusted_proxies,
         })
     }
 

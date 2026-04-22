@@ -15,6 +15,7 @@ pub mod command_center;
 pub mod communications;
 pub mod case_mgmt;
 pub mod chronic_care;
+pub mod cms;
 pub mod cds;
 pub mod consent;
 pub mod cssd;
@@ -35,8 +36,10 @@ pub mod infection_control;
 pub mod insurance;
 pub mod integration;
 pub mod ipd;
+pub mod it_security;
 pub mod lab;
 pub mod mrd;
+pub mod multi_hospital;
 pub mod occ_health;
 pub mod ot;
 pub mod onboarding;
@@ -44,8 +47,18 @@ pub mod opd;
 pub mod order_sets;
 pub mod patients;
 pub mod print_data;
+pub mod print_data_academic;
+pub mod print_data_admin;
 pub mod print_data_billing;
+pub mod print_data_bme;
 pub mod print_data_clinical;
+pub mod print_data_consent;
+pub mod print_data_hr;
+pub mod print_data_medicolegal;
+pub mod print_data_mrd;
+pub mod print_data_quality;
+pub mod print_data_regulatory;
+pub mod print_data_surgical;
 pub mod pharmacy;
 pub mod procurement;
 pub mod quality;
@@ -61,7 +74,9 @@ pub mod specialty_interventional;
 pub mod specialty_maternity;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
+pub mod tv;
 pub mod utilization_review;
+pub mod ws;
 
 use axum::{
     Router,
@@ -72,6 +87,7 @@ use axum::{
 use crate::{
     middleware::{
         auth::auth_middleware,
+        client_ip::client_ip_middleware,
         csrf::csrf_middleware,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{RateLimiter, rate_limit_middleware},
@@ -80,7 +96,7 @@ use crate::{
 };
 
 /// Build the application router — auth + health + onboarding + setup + geo + patients.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::large_stack_frames)]
 pub fn build_router(state: AppState) -> Router {
     // Rate limiter for login endpoint (5 attempts per 60s per IP)
     let login_limiter = RateLimiter::new();
@@ -124,7 +140,19 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/geo/pincode/{code}",
             get(geo::search_pincode),
-        );
+        )
+        // CMS Public API (no auth required)
+        .route("/api/public/cms/posts", get(cms::public_list_posts))
+        .route("/api/public/cms/posts/featured", get(cms::public_featured_posts))
+        .route("/api/public/cms/posts/{slug}", get(cms::public_get_post))
+        .route("/api/public/cms/posts/{post_id}/view", post(cms::public_record_view))
+        .route("/api/public/cms/pages/{slug}", get(cms::public_get_page))
+        .route("/api/public/cms/subscribe", post(cms::public_subscribe))
+        .route("/api/public/cms/confirm/{token}", get(cms::public_confirm_subscription))
+        .route("/api/public/cms/unsubscribe/{token}", get(cms::public_unsubscribe))
+        // WebSocket routes (TV displays)
+        .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
+        .route("/ws/queue", get(ws::queue_ws_handler_all));
 
     // Protected routes (auth required)
     let protected = Router::new()
@@ -150,6 +178,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/setup/settings",
             get(setup::get_settings).put(setup::update_setting),
+        )
+        .route(
+            "/api/setup/device-settings",
+            get(setup::get_secure_device_settings).put(setup::update_secure_device_setting),
         )
         // Setup — facilities
         .route(
@@ -2604,10 +2636,6 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::get_admission_consents),
         )
         .route(
-            "/api/ipd/admissions/{id}/transfer",
-            post(ipd::bed_transfer),
-        )
-        .route(
             "/api/ipd/discharges/expected",
             get(ipd::expected_discharges),
         )
@@ -4727,6 +4755,26 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data::get_patient_card_print_data),
         )
         .route(
+            "/api/print-data/culture-sensitivity/{order_id}",
+            get(print_data::get_culture_sensitivity_print_data),
+        )
+        .route(
+            "/api/print-data/histopath-report/{order_id}",
+            get(print_data::get_histopath_report_print_data),
+        )
+        .route(
+            "/api/print-data/crossmatch-report/{request_id}",
+            get(print_data::get_crossmatch_report_print_data),
+        )
+        .route(
+            "/api/print-data/component-slip/{issue_id}",
+            get(print_data::get_component_slip_print_data),
+        )
+        .route(
+            "/api/print-data/investigation-requisition/{order_id}",
+            get(print_data::get_investigation_requisition_print_data),
+        )
+        .route(
             "/api/print-data/wristband/{admission_id}",
             get(print_data_clinical::get_wristband_print_data),
         )
@@ -4741,6 +4789,34 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/print-data/discharge/{admission_id}",
             get(print_data_clinical::get_discharge_print_data),
+        )
+        .route(
+            "/api/print-data/token-slip/{token_id}",
+            get(print_data_clinical::get_token_slip_print_data),
+        )
+        .route(
+            "/api/print-data/visitor-pass/{pass_id}",
+            get(print_data_clinical::get_visitor_pass_print_data),
+        )
+        .route(
+            "/api/print-data/treatment-chart/{admission_id}",
+            get(print_data_clinical::get_treatment_chart_print_data),
+        )
+        .route(
+            "/api/print-data/transfer-summary/{transfer_id}",
+            get(print_data_clinical::get_transfer_summary_print_data),
+        )
+        .route(
+            "/api/print-data/patient-education/{material_id}",
+            get(print_data_clinical::get_patient_education_print_data),
+        )
+        .route(
+            "/api/print-data/registration-card/{patient_id}",
+            get(print_data_clinical::get_registration_card_print_data),
+        )
+        .route(
+            "/api/print-data/infant-wristband/{newborn_id}",
+            get(print_data_clinical::get_infant_wristband_print_data),
         )
         // ── Print Data (billing) ──────────────────────────────
         .route(
@@ -4762,6 +4838,862 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/print-data/gst-invoice/{invoice_id}",
             get(print_data_billing::get_gst_invoice_print_data),
+        )
+        .route(
+            "/api/print-data/opd-bill/{invoice_id}",
+            get(print_data_billing::get_opd_bill_print_data),
+        )
+        .route(
+            "/api/print-data/ipd-interim-bill/{admission_id}",
+            get(print_data_billing::get_ipd_interim_bill_print_data),
+        )
+        .route(
+            "/api/print-data/ipd-final-bill/{invoice_id}",
+            get(print_data_billing::get_ipd_final_bill_print_data),
+        )
+        .route(
+            "/api/print-data/advance-receipt/{payment_id}",
+            get(print_data_billing::get_advance_receipt_print_data),
+        )
+        .route(
+            "/api/print-data/refund-receipt/{refund_id}",
+            get(print_data_billing::get_refund_receipt_print_data),
+        )
+        .route(
+            "/api/print-data/insurance-preauth/{request_id}",
+            get(print_data_billing::get_insurance_preauth_print_data),
+        )
+        .route(
+            "/api/print-data/cashless-claim/{claim_id}",
+            get(print_data_billing::get_cashless_claim_print_data),
+        )
+        .route(
+            "/api/print-data/package-estimate/{estimate_id}",
+            get(print_data_billing::get_package_estimate_print_data),
+        )
+        // ── Print Data (consent forms) ───────────────────────────
+        .route(
+            "/api/print-data/consent/general/{admission_id}",
+            get(print_data_consent::get_general_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/surgical/{booking_id}",
+            get(print_data_consent::get_surgical_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/anesthesia/{booking_id}",
+            get(print_data_consent::get_anesthesia_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/blood/{admission_id}",
+            get(print_data_consent::get_blood_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/hiv/{patient_id}",
+            get(print_data_consent::get_hiv_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/ama/{admission_id}",
+            get(print_data_consent::get_ama_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/photo/{patient_id}",
+            get(print_data_consent::get_photo_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/dnr/{admission_id}",
+            get(print_data_consent::get_dnr_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/organ-donation/{patient_id}",
+            get(print_data_consent::get_organ_donation_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/research/{enrollment_id}",
+            get(print_data_consent::get_research_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/abdm/{patient_id}",
+            get(print_data_consent::get_abdm_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/teaching/{admission_id}",
+            get(print_data_consent::get_teaching_consent_print_data),
+        )
+        // ── Print Data (MRD forms) ───────────────────────────────
+        .route(
+            "/api/print-data/mrd/progress-note/{admission_id}",
+            get(print_data_mrd::get_progress_note_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/nursing-assessment/{admission_id}",
+            get(print_data_mrd::get_nursing_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/mar/{admission_id}",
+            get(print_data_mrd::get_mar_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/vitals-chart/{admission_id}",
+            get(print_data_mrd::get_vitals_chart_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/io-chart/{admission_id}",
+            get(print_data_mrd::get_io_chart_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/discharge-checklist/{admission_id}",
+            get(print_data_mrd::get_discharge_checklist_print_data),
+        )
+        // ── Print Data (Phase 3: Clinical Charts) ───────────────
+        .route(
+            "/api/print-data/fluid-balance-chart/{admission_id}",
+            get(print_data_mrd::get_fluid_balance_chart_print_data),
+        )
+        .route(
+            "/api/print-data/pain-assessment/{admission_id}",
+            get(print_data_mrd::get_pain_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/fall-risk-assessment/{admission_id}",
+            get(print_data_mrd::get_fall_risk_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/pressure-ulcer-risk/{admission_id}",
+            get(print_data_mrd::get_pressure_ulcer_risk_print_data),
+        )
+        .route(
+            "/api/print-data/gcs-chart/{admission_id}",
+            get(print_data_mrd::get_gcs_chart_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-requisition/{request_id}",
+            get(print_data_mrd::get_transfusion_requisition_print_data),
+        )
+        // ── Print Data (Phase 3: Surgical & OT) ─────────────────
+        .route(
+            "/api/print-data/case-sheet-cover/{admission_id}",
+            get(print_data_surgical::get_case_sheet_cover_print_data),
+        )
+        .route(
+            "/api/print-data/preop-assessment/{admission_id}",
+            get(print_data_surgical::get_preop_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/surgical-safety-checklist/{surgery_id}",
+            get(print_data_surgical::get_surgical_safety_checklist_print_data),
+        )
+        .route(
+            "/api/print-data/anesthesia-record/{surgery_id}",
+            get(print_data_surgical::get_anesthesia_record_print_data),
+        )
+        .route(
+            "/api/print-data/operation-notes/{surgery_id}",
+            get(print_data_surgical::get_operation_notes_print_data),
+        )
+        .route(
+            "/api/print-data/postop-orders/{surgery_id}",
+            get(print_data_surgical::get_postop_orders_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-monitoring/{transfusion_id}",
+            get(print_data_surgical::get_transfusion_monitoring_print_data),
+        )
+        // ── Print Data (Phase 3: Medico-Legal) ──────────────────
+        .route(
+            "/api/print-data/ama-form/{admission_id}",
+            get(print_data_medicolegal::get_ama_form_print_data),
+        )
+        .route(
+            "/api/print-data/mlc-register/{case_id}",
+            get(print_data_medicolegal::get_mlc_register_print_data),
+        )
+        .route(
+            "/api/print-data/wound-certificate/{case_id}",
+            get(print_data_medicolegal::get_wound_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/age-estimation/{case_id}",
+            get(print_data_medicolegal::get_age_estimation_print_data),
+        )
+        .route(
+            "/api/print-data/death-declaration/{patient_id}",
+            get(print_data_medicolegal::get_death_declaration_print_data),
+        )
+        .route(
+            "/api/print-data/mlc-documentation/{case_id}",
+            get(print_data_medicolegal::get_mlc_documentation_print_data),
+        )
+        // ── Print Data (Phase 3: Quality & Safety) ──────────────
+        .route(
+            "/api/print-data/incident-report/{incident_id}",
+            get(print_data_quality::get_incident_report_print_data),
+        )
+        .route(
+            "/api/print-data/rca-template/{incident_id}",
+            get(print_data_quality::get_rca_template_print_data),
+        )
+        .route(
+            "/api/print-data/capa-form/{capa_id}",
+            get(print_data_quality::get_capa_form_print_data),
+        )
+        .route(
+            "/api/print-data/adr-report/{report_id}",
+            get(print_data_quality::get_adr_report_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-reaction/{reaction_id}",
+            get(print_data_quality::get_transfusion_reaction_print_data),
+        )
+        // ── Phase 4: Clinical Delivery Prints ─────────────────────
+        .route(
+            "/api/print-data/opd-prescription/{encounter_id}",
+            get(print_data_clinical::get_opd_prescription_print_data),
+        )
+        .route(
+            "/api/print-data/lab-report-full/{order_id}",
+            get(print_data_clinical::get_lab_report_full_print_data),
+        )
+        .route(
+            "/api/print-data/cumulative-lab-report/{patient_id}",
+            get(print_data_clinical::get_cumulative_lab_report_print_data),
+        )
+        .route(
+            "/api/print-data/radiology-report-full/{order_id}",
+            get(print_data_clinical::get_radiology_report_full_print_data),
+        )
+        // Phase 4 billing prints already registered above (credit-note, package-bill, insurance-claim, tds-certificate)
+        // ── Phase 4: Regulatory Prints ─────────────────────────────
+        .route(
+            "/api/print-data/nabh-quality-report/{period}",
+            get(print_data_regulatory::get_nabh_quality_report_print_data),
+        )
+        .route(
+            "/api/print-data/nmc-compliance-report/{period}",
+            get(print_data_regulatory::get_nmc_compliance_report_print_data),
+        )
+        .route(
+            "/api/print-data/nabl-quality-report/{period}",
+            get(print_data_regulatory::get_nabl_quality_report_print_data),
+        )
+        .route(
+            "/api/print-data/spcb-bmw-returns/{quarter}",
+            get(print_data_regulatory::get_spcb_bmw_returns_print_data),
+        )
+        .route(
+            "/api/print-data/peso-compliance/{year}",
+            get(print_data_regulatory::get_peso_compliance_print_data),
+        )
+        .route(
+            "/api/print-data/drug-license-report/{license_id}",
+            get(print_data_regulatory::get_drug_license_report_print_data),
+        )
+        .route(
+            "/api/print-data/pcpndt-report/{period}",
+            get(print_data_regulatory::get_pcpndt_report_print_data),
+        )
+        .route(
+            "/api/print-data/birth-register/{period}",
+            get(print_data_regulatory::get_birth_register_print_data),
+        )
+        .route(
+            "/api/print-data/death-register/{period}",
+            get(print_data_regulatory::get_death_register_print_data),
+        )
+        .route(
+            "/api/print-data/mlc-register-summary/{period}",
+            get(print_data_regulatory::get_mlc_register_summary_print_data),
+        )
+        .route(
+            "/api/print-data/aebas-attendance/{period}",
+            get(print_data_regulatory::get_aebas_attendance_print_data),
+        )
+        .route(
+            "/api/print-data/nmc-narf-assessment/{year}",
+            get(print_data_regulatory::get_nmc_narf_assessment_print_data),
+        )
+        // ── Phase 4: Admin & Procurement Prints ─────────────────────
+        .route(
+            "/api/print-data/indent-form/{indent_id}",
+            get(print_data_admin::get_indent_form_print_data),
+        )
+        .route(
+            "/api/print-data/purchase-order/{po_id}",
+            get(print_data_admin::get_purchase_order_print_data),
+        )
+        .route(
+            "/api/print-data/grn/{grn_id}",
+            get(print_data_admin::get_grn_print_data),
+        )
+        .route(
+            "/api/print-data/material-issue-voucher/{voucher_id}",
+            get(print_data_admin::get_material_issue_voucher_print_data),
+        )
+        .route(
+            "/api/print-data/stock-transfer-note/{transfer_id}",
+            get(print_data_admin::get_stock_transfer_note_print_data),
+        )
+        .route(
+            "/api/print-data/ndps-register/{period}",
+            get(print_data_admin::get_ndps_register_print_data),
+        )
+        .route(
+            "/api/print-data/drug-expiry-alert/{store_id}",
+            get(print_data_admin::get_drug_expiry_alert_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-condemnation/{condemnation_id}",
+            get(print_data_admin::get_equipment_condemnation_print_data),
+        )
+        .route(
+            "/api/print-data/work-order/{work_order_id}",
+            get(print_data_admin::get_work_order_print_data),
+        )
+        .route(
+            "/api/print-data/pm-checklist/{pm_id}",
+            get(print_data_admin::get_pm_checklist_print_data),
+        )
+        // ══════════════════════════════════════════════════════════
+        // PHASE 5: Admin/HR, BME, Blood Bank, OT, Clinical Forms
+        // ══════════════════════════════════════════════════════════
+        // ── Phase 5: Admin/HR Forms ───────────────────────────────
+        .route(
+            "/api/print-data/employee-id-card/{employee_id}",
+            get(print_data_hr::get_employee_id_card_print_data),
+        )
+        .route(
+            "/api/print-data/duty-roster/{department_id}/{period}",
+            get(print_data_hr::get_duty_roster_print_data),
+        )
+        .route(
+            "/api/print-data/leave-application/{leave_id}",
+            get(print_data_hr::get_leave_application_print_data),
+        )
+        .route(
+            "/api/print-data/staff-attendance/{department_id}/{month}/{year}",
+            get(print_data_hr::get_staff_attendance_print_data),
+        )
+        .route(
+            "/api/print-data/training-certificate/{training_id}",
+            get(print_data_hr::get_training_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/staff-credentials/{employee_id}",
+            get(print_data_hr::get_staff_credentials_print_data),
+        )
+        .route(
+            "/api/print-data/visitor-register/{date}",
+            get(print_data_hr::get_visitor_register_print_data),
+        )
+        // ── Phase 5: BME/Engineering Forms ────────────────────────
+        .route(
+            "/api/print-data/amc-contract/{contract_id}",
+            get(print_data_bme::get_amc_contract_print_data),
+        )
+        .route(
+            "/api/print-data/calibration-certificate/{calibration_id}",
+            get(print_data_bme::get_calibration_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-breakdown/{breakdown_id}",
+            get(print_data_bme::get_equipment_breakdown_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-history/{equipment_id}",
+            get(print_data_bme::get_equipment_history_print_data),
+        )
+        .route(
+            "/api/print-data/mgps-log/{date}/{shift}",
+            get(print_data_bme::get_mgps_log_print_data),
+        )
+        .route(
+            "/api/print-data/water-quality/{test_id}",
+            get(print_data_bme::get_water_quality_print_data),
+        )
+        .route(
+            "/api/print-data/dg-ups-log/{equipment_id}/{date}",
+            get(print_data_bme::get_dg_ups_log_print_data),
+        )
+        .route(
+            "/api/print-data/fire-inspection/{inspection_id}",
+            get(print_data_bme::get_fire_inspection_print_data),
+        )
+        .route(
+            "/api/print-data/materiovigilance/{report_id}",
+            get(print_data_bme::get_materiovigilance_print_data),
+        )
+        .route(
+            "/api/print-data/fire-mock-drill/{drill_id}",
+            get(print_data_bme::get_fire_mock_drill_print_data),
+        )
+        // ── Phase 5: Blood Bank & OT Forms ────────────────────────
+        .route(
+            "/api/print-data/ot-register/{ot_id}/{date}",
+            get(print_data_clinical::get_ot_register_print_data),
+        )
+        .route(
+            "/api/print-data/blood-donor-form/{donor_id}",
+            get(print_data_clinical::get_blood_donor_form_print_data),
+        )
+        .route(
+            "/api/print-data/cross-match-requisition/{requisition_id}",
+            get(print_data_clinical::get_cross_match_requisition_print_data),
+        )
+        // ── Phase 5: Clinical/Identity Forms ──────────────────────
+        // appointment-slip already registered above
+        .route(
+            "/api/print-data/dpdp-consent/{consent_id}",
+            get(print_data_clinical::get_dpdp_consent_print_data),
+        )
+        .route(
+            "/api/print-data/video-consent/{video_consent_id}",
+            get(print_data_clinical::get_video_consent_print_data),
+        )
+        .route(
+            "/api/print-data/restraint-documentation/{restraint_id}",
+            get(print_data_clinical::get_restraint_documentation_print_data),
+        )
+        // ══════════════════════════════════════════════════════════
+        // PHASE 6: ACADEMIC/SPECIALTY FORMS & BRANDING
+        // ══════════════════════════════════════════════════════════
+        // -- Phase 6: Academic/Medical College Forms --
+        .route(
+            "/api/print-data/student-admission-form/{admission_id}",
+            get(print_data_academic::get_student_admission_form),
+        )
+        .route(
+            "/api/print-data/intern-rotation-schedule/{schedule_id}",
+            get(print_data_academic::get_intern_rotation_schedule),
+        )
+        .route(
+            "/api/print-data/pg-logbook-entry/{entry_id}",
+            get(print_data_academic::get_pg_logbook_entry),
+        )
+        .route(
+            "/api/print-data/internal-assessment-marks/{assessment_id}",
+            get(print_data_academic::get_internal_assessment_marks),
+        )
+        .route(
+            "/api/print-data/exam-hall-ticket/{ticket_id}",
+            get(print_data_academic::get_exam_hall_ticket),
+        )
+        .route(
+            "/api/print-data/osce-scoring-sheet/{exam_id}/{station_number}",
+            get(print_data_academic::get_osce_scoring_sheet),
+        )
+        .route(
+            "/api/print-data/simulation-debriefing/{session_id}",
+            get(print_data_academic::get_simulation_debriefing),
+        )
+        .route(
+            "/api/print-data/cme-certificate/{certificate_id}",
+            get(print_data_academic::get_cme_certificate),
+        )
+        .route(
+            "/api/print-data/iec-approval-certificate/{approval_id}",
+            get(print_data_academic::get_iec_approval_certificate),
+        )
+        .route(
+            "/api/print-data/research-proposal-form/{proposal_id}",
+            get(print_data_academic::get_research_proposal_form),
+        )
+        .route(
+            "/api/print-data/hostel-allotment-order/{order_id}",
+            get(print_data_academic::get_hostel_allotment_order),
+        )
+        .route(
+            "/api/print-data/anti-ragging-undertaking/{undertaking_id}",
+            get(print_data_academic::get_anti_ragging_undertaking),
+        )
+        .route(
+            "/api/print-data/disability-accommodation-plan/{plan_id}",
+            get(print_data_academic::get_disability_accommodation_plan),
+        )
+        .route(
+            "/api/print-data/internship-completion-certificate/{certificate_id}",
+            get(print_data_academic::get_internship_completion_certificate),
+        )
+        .route(
+            "/api/print-data/service-bond-agreement/{bond_id}",
+            get(print_data_academic::get_service_bond_agreement),
+        )
+        .route(
+            "/api/print-data/stipend-payment-advice/{advice_id}",
+            get(print_data_academic::get_stipend_payment_advice),
+        )
+        // -- Phase 6: Hospital Branding --
+        .route(
+            "/api/print-data/hospital-branding",
+            get(print_data_academic::get_hospital_branding),
+        )
+        // ── Multi-Hospital Management ──────────────────────────────────
+        // Hospital Groups
+        .route(
+            "/api/multi-hospital/groups",
+            get(multi_hospital::list_groups).post(multi_hospital::create_group),
+        )
+        .route(
+            "/api/multi-hospital/groups/{id}",
+            get(multi_hospital::get_group)
+                .put(multi_hospital::update_group)
+                .delete(multi_hospital::delete_group),
+        )
+        // Regions
+        .route(
+            "/api/multi-hospital/regions",
+            get(multi_hospital::list_regions).post(multi_hospital::create_region),
+        )
+        .route(
+            "/api/multi-hospital/regions/{id}",
+            get(multi_hospital::get_region).delete(multi_hospital::delete_region),
+        )
+        // Hospitals in Group
+        .route(
+            "/api/multi-hospital/groups/{group_id}/hospitals",
+            get(multi_hospital::list_hospitals_in_group),
+        )
+        .route(
+            "/api/multi-hospital/hospital-assignments",
+            post(multi_hospital::assign_hospital_to_group),
+        )
+        .route(
+            "/api/multi-hospital/hospital-assignments/{tenant_id}",
+            delete(multi_hospital::remove_hospital_from_group),
+        )
+        // User Assignments
+        .route(
+            "/api/multi-hospital/users/{user_id}/assignments",
+            get(multi_hospital::list_user_assignments),
+        )
+        .route(
+            "/api/multi-hospital/user-assignments",
+            get(multi_hospital::list_multi_hospital_users)
+                .post(multi_hospital::create_user_assignment),
+        )
+        .route(
+            "/api/multi-hospital/user-assignments/{assignment_id}",
+            delete(multi_hospital::delete_user_assignment),
+        )
+        // Patient Transfers
+        .route(
+            "/api/multi-hospital/transfers/patients/outgoing",
+            get(multi_hospital::list_outgoing_transfers),
+        )
+        .route(
+            "/api/multi-hospital/transfers/patients/incoming",
+            get(multi_hospital::list_incoming_transfers),
+        )
+        .route(
+            "/api/multi-hospital/transfers/patients",
+            post(multi_hospital::create_patient_transfer),
+        )
+        .route(
+            "/api/multi-hospital/transfers/patients/{id}",
+            get(multi_hospital::get_patient_transfer)
+                .put(multi_hospital::update_patient_transfer),
+        )
+        // Stock Transfers
+        .route(
+            "/api/multi-hospital/transfers/stock/outgoing",
+            get(multi_hospital::list_outgoing_stock_transfers),
+        )
+        .route(
+            "/api/multi-hospital/transfers/stock/incoming",
+            get(multi_hospital::list_incoming_stock_transfers),
+        )
+        .route(
+            "/api/multi-hospital/transfers/stock",
+            post(multi_hospital::create_stock_transfer),
+        )
+        .route(
+            "/api/multi-hospital/transfers/stock/{id}",
+            get(multi_hospital::get_stock_transfer)
+                .put(multi_hospital::update_stock_transfer),
+        )
+        .route(
+            "/api/multi-hospital/transfers/stock/{transfer_id}/items",
+            get(multi_hospital::get_stock_transfer_items),
+        )
+        // Group KPIs & Dashboard
+        .route(
+            "/api/multi-hospital/groups/{group_id}/dashboard",
+            get(multi_hospital::get_group_dashboard),
+        )
+        .route(
+            "/api/multi-hospital/groups/{group_id}/kpis",
+            get(multi_hospital::list_group_kpis),
+        )
+        .route(
+            "/api/multi-hospital/hospitals/{tenant_id}/kpi",
+            get(multi_hospital::get_hospital_kpi),
+        )
+        // Doctor Rotation
+        .route(
+            "/api/multi-hospital/groups/{group_id}/rotations",
+            get(multi_hospital::list_doctor_rotations)
+                .post(multi_hospital::create_doctor_rotation),
+        )
+        .route(
+            "/api/multi-hospital/doctors/{doctor_id}/rotations",
+            get(multi_hospital::get_doctor_rotation),
+        )
+        .route(
+            "/api/multi-hospital/rotations/{id}",
+            delete(multi_hospital::delete_doctor_rotation),
+        )
+        // Group Masters
+        .route(
+            "/api/multi-hospital/groups/{group_id}/drugs",
+            get(multi_hospital::list_group_drugs),
+        )
+        .route(
+            "/api/multi-hospital/groups/{group_id}/tests",
+            get(multi_hospital::list_group_tests),
+        )
+        .route(
+            "/api/multi-hospital/groups/{group_id}/tariffs",
+            get(multi_hospital::list_group_tariffs),
+        )
+        .route(
+            "/api/multi-hospital/price-overrides",
+            get(multi_hospital::list_price_overrides),
+        )
+        // Group Templates
+        .route(
+            "/api/multi-hospital/groups/{group_id}/templates",
+            get(multi_hospital::list_group_templates)
+                .post(multi_hospital::create_group_template),
+        )
+        .route(
+            "/api/multi-hospital/templates/{id}",
+            get(multi_hospital::get_group_template)
+                .delete(multi_hospital::delete_group_template),
+        )
+        // ── CMS & Blog ──────────────────────────────────────────────
+        // Dashboard
+        .route(
+            "/api/cms/dashboard",
+            get(cms::get_dashboard_stats),
+        )
+        // Categories
+        .route(
+            "/api/cms/categories",
+            get(cms::list_categories).post(cms::create_category),
+        )
+        .route(
+            "/api/cms/categories/tree",
+            get(cms::list_categories_tree),
+        )
+        .route(
+            "/api/cms/categories/{id}",
+            get(cms::get_category)
+                .put(cms::update_category)
+                .delete(cms::delete_category),
+        )
+        // Tags
+        .route(
+            "/api/cms/tags",
+            get(cms::list_tags).post(cms::create_tag),
+        )
+        .route(
+            "/api/cms/tags/{id}",
+            get(cms::get_tag)
+                .put(cms::update_tag)
+                .delete(cms::delete_tag),
+        )
+        .route(
+            "/api/cms/tags/bulk-delete",
+            post(cms::bulk_delete_tags),
+        )
+        // Authors
+        .route(
+            "/api/cms/authors",
+            get(cms::list_authors).post(cms::create_author),
+        )
+        .route(
+            "/api/cms/authors/{id}",
+            get(cms::get_author)
+                .put(cms::update_author)
+                .delete(cms::delete_author),
+        )
+        // Media Library
+        .route(
+            "/api/cms/media",
+            get(cms::list_media).post(cms::create_media),
+        )
+        .route(
+            "/api/cms/media/{id}",
+            get(cms::get_media)
+                .put(cms::update_media)
+                .delete(cms::delete_media),
+        )
+        // Posts
+        .route(
+            "/api/cms/posts",
+            get(cms::list_posts).post(cms::create_post),
+        )
+        .route(
+            "/api/cms/posts/{id}",
+            get(cms::get_post)
+                .put(cms::update_post)
+                .delete(cms::delete_post),
+        )
+        // Post Workflow
+        .route(
+            "/api/cms/posts/{id}/submit-review",
+            post(cms::submit_post_for_review),
+        )
+        .route(
+            "/api/cms/posts/{id}/review",
+            post(cms::review_post),
+        )
+        .route(
+            "/api/cms/posts/{id}/medical-review",
+            post(cms::medical_review_post),
+        )
+        .route(
+            "/api/cms/posts/{id}/publish",
+            post(cms::publish_post),
+        )
+        .route(
+            "/api/cms/posts/{id}/schedule",
+            post(cms::schedule_post),
+        )
+        .route(
+            "/api/cms/posts/{id}/archive",
+            post(cms::archive_post),
+        )
+        .route(
+            "/api/cms/posts/{id}/unarchive",
+            post(cms::unarchive_post),
+        )
+        // Post Revisions
+        .route(
+            "/api/cms/posts/{post_id}/revisions",
+            get(cms::list_post_revisions),
+        )
+        .route(
+            "/api/cms/posts/{post_id}/revisions/{revision_number}",
+            get(cms::get_post_revision),
+        )
+        .route(
+            "/api/cms/posts/{post_id}/revisions/{revision_number}/restore",
+            post(cms::restore_post_revision),
+        )
+        // Post Analytics
+        .route(
+            "/api/cms/posts/{id}/analytics",
+            get(cms::get_post_analytics),
+        )
+        .route(
+            "/api/cms/analytics/top-posts",
+            get(cms::list_top_posts),
+        )
+        // Subscribers
+        .route(
+            "/api/cms/subscribers",
+            get(cms::list_subscribers),
+        )
+        .route(
+            "/api/cms/subscribers/{id}",
+            get(cms::get_subscriber).delete(cms::delete_subscriber),
+        )
+        .route(
+            "/api/cms/subscribers/export",
+            get(cms::export_subscribers),
+        )
+        // Pages
+        .route(
+            "/api/cms/pages",
+            get(cms::list_pages).post(cms::create_page),
+        )
+        .route(
+            "/api/cms/pages/{id}",
+            get(cms::get_page)
+                .put(cms::update_page)
+                .delete(cms::delete_page),
+        )
+        // Settings
+        .route(
+            "/api/cms/settings",
+            get(cms::get_settings).put(cms::update_settings),
+        )
+        // Menus
+        .route(
+            "/api/cms/menus",
+            get(cms::list_menus),
+        )
+        .route(
+            "/api/cms/menus/{location}",
+            get(cms::get_menu).put(cms::update_menu),
+        )
+        // ── TV Displays & Queue ──────────────────────────────────
+        .route(
+            "/api/tv/displays",
+            get(tv::list_displays).post(tv::create_display),
+        )
+        .route(
+            "/api/tv/displays/{id}",
+            get(tv::get_display)
+                .put(tv::update_display)
+                .delete(tv::delete_display),
+        )
+        .route(
+            "/api/tv/tokens",
+            get(tv::list_tokens).post(tv::create_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/call",
+            post(tv::call_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/complete",
+            post(tv::complete_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/no-show",
+            post(tv::no_show_token),
+        )
+        .route(
+            "/api/tv/queue/{department_id}",
+            get(tv::get_queue_state),
+        )
+        .route(
+            "/api/tv/announcements",
+            post(tv::broadcast_announcement),
+        )
+        // Specialty queue displays
+        .route(
+            "/api/tv/queue/pharmacy",
+            get(tv::get_pharmacy_queue),
+        )
+        .route(
+            "/api/tv/queue/lab",
+            get(tv::get_lab_queue),
+        )
+        .route(
+            "/api/tv/queue/radiology/{modality}",
+            get(tv::get_radiology_queue),
+        )
+        .route(
+            "/api/tv/queue/er",
+            get(tv::get_er_queue),
+        )
+        .route(
+            "/api/tv/queue/billing",
+            get(tv::get_billing_queue),
+        )
+        .route(
+            "/api/tv/queue/beds/{ward_type}",
+            get(tv::get_bed_availability),
+        )
+        .route(
+            "/api/tv/queue/analytics/{department_id}",
+            get(tv::get_queue_analytics),
+        )
+        .route(
+            "/api/tv/queue/metrics/{department_id}",
+            get(tv::get_queue_metrics),
         )
         // ── Audit Trail ────────────────────────────────────────
         .route(
@@ -4808,9 +5740,66 @@ pub fn build_router(state: AppState) -> Router {
             "/api/audit/timeline/{entity_type}/{entity_id}",
             get(audit::entity_timeline),
         )
+        // ── IT Security: Break-Glass ─────────────────────────────────
+        .route("/api/break-glass", post(it_security::start_break_glass).get(it_security::list_break_glass))
+        .route("/api/break-glass/{id}", get(it_security::get_break_glass))
+        .route("/api/break-glass/{id}/end", post(it_security::end_break_glass))
+        .route("/api/break-glass/{id}/review", post(it_security::review_break_glass))
+        // ── IT Security: Clinical Access Monitor ─────────────────────
+        .route("/api/sensitive-patients", get(it_security::list_sensitive_patients).post(it_security::create_sensitive_patient))
+        .route("/api/sensitive-patients/{id}", delete(it_security::delete_sensitive_patient))
+        .route("/api/access-alerts", get(it_security::list_access_alerts))
+        .route("/api/access-alerts/{id}/acknowledge", post(it_security::acknowledge_access_alert))
+        // ── IT Security: Stock Disposal ──────────────────────────────
+        .route("/api/disposals", get(it_security::list_disposals).post(it_security::create_disposal))
+        .route("/api/disposals/{id}", get(it_security::get_disposal))
+        .route("/api/disposals/{id}/items", get(it_security::get_disposal_items))
+        .route("/api/disposals/{id}/approve", post(it_security::approve_disposal))
+        .route("/api/disposals/{id}/execute", post(it_security::execute_disposal))
+        // ── IT Security: TAT Tracking ────────────────────────────────
+        .route("/api/tat/benchmarks", get(it_security::list_tat_benchmarks).post(it_security::create_tat_benchmark))
+        .route("/api/tat/records", get(it_security::list_tat_records).post(it_security::start_tat_record))
+        .route("/api/tat/records/{id}/complete", post(it_security::complete_tat_record))
+        .route("/api/tat/dashboard", get(it_security::tat_dashboard))
+        // ── IT Security: Data Migration ──────────────────────────────
+        .route("/api/migrations", get(it_security::list_migrations).post(it_security::create_migration))
+        .route("/api/migrations/{id}", get(it_security::get_migration))
+        .route("/api/migrations/{id}/cancel", post(it_security::cancel_migration))
+        // ── IT Security: EOD Digest ──────────────────────────────────
+        .route("/api/digest/subscription", get(it_security::get_my_digest_subscription).post(it_security::upsert_digest_subscription))
+        .route("/api/digest/history", get(it_security::list_digest_history))
+        // ── IT Security: Data Quality ────────────────────────────────
+        .route("/api/data-quality/rules", get(it_security::list_dq_rules).post(it_security::create_dq_rule))
+        .route("/api/data-quality/issues", get(it_security::list_dq_issues))
+        .route("/api/data-quality/issues/{id}/resolve", post(it_security::resolve_dq_issue))
+        .route("/api/data-quality/dashboard", get(it_security::dq_dashboard))
+        // ── IT Security: CERT-In Compliance ──────────────────────────
+        .route("/api/security-incidents", get(it_security::list_security_incidents).post(it_security::create_security_incident))
+        .route("/api/security-incidents/{id}", get(it_security::get_security_incident).patch(it_security::update_security_incident))
+        .route("/api/security-incidents/{id}/cert-in", post(it_security::report_to_cert_in))
+        .route("/api/security-incidents/{id}/updates", get(it_security::get_incident_updates).post(it_security::add_incident_update))
+        .route("/api/vulnerabilities", get(it_security::list_vulnerabilities).post(it_security::create_vulnerability))
+        .route("/api/vulnerabilities/{id}", patch(it_security::update_vulnerability))
+        .route("/api/compliance-requirements", get(it_security::list_compliance_requirements))
+        .route("/api/compliance-requirements/{id}", patch(it_security::update_compliance_requirement))
+        // ── IT Security: System Health & Monitoring ──────────────────
+        .route("/api/system-health", get(it_security::system_health_dashboard))
+        .route("/api/backups", get(it_security::list_backups))
+        // ── IT Security: Onboarding Wizard ───────────────────────────
+        .route("/api/it-onboarding/progress", get(it_security::get_onboarding_progress).post(it_security::update_onboarding_progress))
+        .route("/api/it-onboarding/complete-step", post(it_security::complete_onboarding_step))
+        .route("/api/it-onboarding/complete", post(it_security::complete_onboarding))
+        // ── IT Security: Incentive Configuration ─────────────────────
+        .route("/api/incentive-plans", get(it_security::list_incentive_plans).post(it_security::create_incentive_plan))
+        .route("/api/incentive-plans/{id}/rules", get(it_security::get_incentive_plan_rules).post(it_security::add_incentive_rule))
+        .route("/api/incentive-assignments", get(it_security::list_doctor_incentive_assignments).post(it_security::assign_incentive_plan))
+        .route("/api/incentive-calculations", get(it_security::list_incentive_calculations).post(it_security::calculate_incentive))
+        .route("/api/incentive-calculations/{id}/approve", post(it_security::approve_incentive))
+        .route("/api/incentive-calculations/{id}/paid", post(it_security::mark_incentive_paid))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
-        .layer(from_fn_with_state(state.clone(), auth_middleware));
+        .layer(from_fn_with_state(state.clone(), auth_middleware))
+        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
 
     public.merge(protected).with_state(state)
 }

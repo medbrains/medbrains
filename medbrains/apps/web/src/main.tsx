@@ -9,6 +9,11 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { theme, cssVariableResolver } from "./theme";
 
+import "@fontsource-variable/inter-tight/index.css";
+import "@fontsource-variable/fraunces/index.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
+import "@fontsource/jetbrains-mono/600.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/charts/styles.css";

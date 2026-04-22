@@ -7,6 +7,7 @@ import type {
   ReactFlowEdge,
   IntegrationNodeTemplate,
 } from "@medbrains/types";
+import { deepClone } from "@medbrains/utils";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -82,8 +83,8 @@ function generateEdgeId(source: string, target: string): string {
 
 function takeSnapshot(state: IntegrationBuilderState): HistoryEntry {
   return {
-    nodes: structuredClone(state.nodes),
-    edges: structuredClone(state.edges),
+    nodes: deepClone(state.nodes),
+    edges: deepClone(state.edges),
   };
 }
 
@@ -182,7 +183,7 @@ export const useIntegrationBuilderStore = create<IntegrationBuilderStore>(
           templateCode: template.code,
           icon: template.icon,
           color: template.color,
-          config: structuredClone(template.default_config),
+          config: deepClone(template.default_config),
         },
       };
       set((s) => ({
@@ -266,7 +267,7 @@ export const useIntegrationBuilderStore = create<IntegrationBuilderStore>(
         selectedNodeId: null,
         history: {
           past: history.past.slice(0, -1),
-          future: [{ nodes: structuredClone(nodes), edges: structuredClone(edges) }, ...history.future],
+          future: [{ nodes: deepClone(nodes), edges: deepClone(edges) }, ...history.future],
         },
       });
     },
@@ -281,7 +282,7 @@ export const useIntegrationBuilderStore = create<IntegrationBuilderStore>(
         isDirty: true,
         selectedNodeId: null,
         history: {
-          past: [...history.past, { nodes: structuredClone(nodes), edges: structuredClone(edges) }],
+          past: [...history.past, { nodes: deepClone(nodes), edges: deepClone(edges) }],
           future: history.future.slice(1),
         },
       });

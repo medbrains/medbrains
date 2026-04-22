@@ -12,26 +12,26 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission, useIntegrationBuilderStore } from "@medbrains/stores";
+import type { PipelineTriggerType } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
-  IconArrowLeft,
   IconArrowBackUp,
   IconArrowForwardUp,
+  IconArrowLeft,
   IconDeviceFloppy,
   IconPlayerPlay,
   IconToggleLeft,
   IconToggleRight,
 } from "@tabler/icons-react";
-import { P } from "@medbrains/types";
-import type { PipelineTriggerType } from "@medbrains/types";
-import { useHasPermission, useIntegrationBuilderStore } from "@medbrains/stores";
-import { api } from "@medbrains/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 import { useEffectOnce } from "react-use";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { NodePalette } from "../../components/Integration/NodePalette";
-import { PipelineCanvas } from "../../components/Integration/PipelineCanvas";
 import { NodePropertyPanel } from "../../components/Integration/NodePropertyPanel";
+import { PipelineCanvas } from "../../components/Integration/PipelineCanvas";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 const TRIGGER_TYPE_OPTIONS: { value: PipelineTriggerType; label: string }[] = [
   { value: "internal_event", label: "Internal Event" },
@@ -48,12 +48,17 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function IntegrationBuilderPage() {
-  useRequirePermission(P.INTEGRATION.CREATE);
+  const { id } = useParams<{ id: string }>();
+  const isEditing = Boolean(id);
+  const requiredPermission = isEditing ? P.INTEGRATION.UPDATE : P.INTEGRATION.CREATE;
+
+  useRequirePermission(requiredPermission);
+
+  const canCreate = useHasPermission(P.INTEGRATION.CREATE);
   const canExecute = useHasPermission(P.INTEGRATION.EXECUTE);
   const canUpdate = useHasPermission(P.INTEGRATION.UPDATE);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { id } = useParams<{ id: string }>();
 
   const {
     pipeline,
@@ -70,6 +75,7 @@ export function IntegrationBuilderPage() {
     redo,
     markClean,
   } = useIntegrationBuilderStore();
+  const canSave = serverPipelineId ? canUpdate : canCreate;
 
   // Load pipeline if editing
   const { isLoading } = useQuery({
@@ -172,7 +178,11 @@ export function IntegrationBuilderPage() {
   return (
     <Box style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
       {/* Toolbar */}
-      <Box px="md" py={8} style={{ borderBottom: "1px solid var(--mantine-color-gray-3)", background: "white" }}>
+      <Box
+        px="md"
+        py={8}
+        style={{ borderBottom: "1px solid var(--mantine-color-gray-3)", background: "white" }}
+      >
         <Group justify="space-between">
           {/* Left side: Back + pipeline info */}
           <Group gap="sm">
@@ -192,9 +202,7 @@ export function IntegrationBuilderPage() {
               placeholder="Pipeline name"
               size="xs"
               value={pipeline.name}
-              onChange={(e) =>
-                updatePipelineMeta({ name: e.currentTarget.value })
-              }
+              onChange={(e) => updatePipelineMeta({ name: e.currentTarget.value })}
               styles={{ input: { fontWeight: 600, fontSize: 14 } }}
               w={200}
             />
@@ -204,9 +212,7 @@ export function IntegrationBuilderPage() {
                 placeholder="Code (unique)"
                 size="xs"
                 value={pipeline.code}
-                onChange={(e) =>
-                  updatePipelineMeta({ code: e.currentTarget.value })
-                }
+                onChange={(e) => updatePipelineMeta({ code: e.currentTarget.value })}
                 w={140}
                 styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
               />
@@ -225,11 +231,7 @@ export function IntegrationBuilderPage() {
             />
 
             {serverPipelineId && (
-              <Badge
-                color={STATUS_COLORS[pipeline.status] ?? "slate"}
-                variant="light"
-                size="sm"
-              >
+              <Badge color={STATUS_COLORS[pipeline.status] ?? "slate"} variant="light" size="sm">
                 {pipeline.status}
               </Badge>
             )}
@@ -244,22 +246,12 @@ export function IntegrationBuilderPage() {
           {/* Right side: Actions */}
           <Group gap={6}>
             <Tooltip label="Undo (Ctrl+Z)">
-              <ActionIcon
-                variant="subtle"
-                size="md"
-                disabled={!canUndo()}
-                onClick={undo}
-              >
+              <ActionIcon variant="subtle" size="md" disabled={!canUndo()} onClick={undo}>
                 <IconArrowBackUp size={18} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Redo (Ctrl+Shift+Z)">
-              <ActionIcon
-                variant="subtle"
-                size="md"
-                disabled={!canRedo()}
-                onClick={redo}
-              >
+              <ActionIcon variant="subtle" size="md" disabled={!canRedo()} onClick={redo}>
                 <IconArrowForwardUp size={18} />
               </ActionIcon>
             </Tooltip>
@@ -267,7 +259,9 @@ export function IntegrationBuilderPage() {
             <Divider orientation="vertical" />
 
             {canUpdate && serverPipelineId && (
-              <Tooltip label={pipeline.status === "active" ? "Pause Pipeline" : "Activate Pipeline"}>
+              <Tooltip
+                label={pipeline.status === "active" ? "Pause Pipeline" : "Activate Pipeline"}
+              >
                 <ActionIcon
                   variant="light"
                   size="md"
@@ -302,7 +296,7 @@ export function IntegrationBuilderPage() {
               leftSection={<IconDeviceFloppy size={14} />}
               onClick={() => saveMutation.mutate()}
               loading={saveMutation.isPending}
-              disabled={!pipeline.name || (!isDirty && Boolean(serverPipelineId))}
+              disabled={!canSave || !pipeline.name || (!isDirty && Boolean(serverPipelineId))}
             >
               {serverPipelineId ? "Save" : "Create"}
             </Button>

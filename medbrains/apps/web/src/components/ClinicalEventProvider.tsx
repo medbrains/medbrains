@@ -8,19 +8,10 @@
  * Falls back gracefully: if no sidecars are configured, emit is a no-op.
  */
 import { api } from "@medbrains/api";
-import type { ResolvedSidecar } from "@medbrains/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  type ReactNode,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
-import { evaluateCondition } from "./ScreenRenderer/evaluateCondition";
-import { executeInlineAction } from "./ScreenRenderer/executeInlineAction";
+import { runResolvedSidecars } from "./ScreenRenderer/sidecarRuntime";
 
 interface ClinicalEventContextValue {
   emit: (trigger: string, payload: Record<string, unknown>) => void;
@@ -64,51 +55,19 @@ export function ClinicalEventProvider({
 
       firingRef.current = true;
       try {
-        const matching = activeSidecars.filter(
-          (s) => s.trigger_event === trigger,
-        );
-
-        for (const sidecar of matching) {
-          if (!evaluateCondition(sidecar.condition, payload)) continue;
-
-          await executeSidecar(sidecar, payload);
-        }
+        await runResolvedSidecars(activeSidecars, trigger, {
+          navigate,
+          queryClient,
+          screenData: payload,
+        });
       } finally {
         firingRef.current = false;
       }
     },
-    [activeSidecars],
+    [activeSidecars, navigate, queryClient],
   );
-
-  const executeSidecar = async (
-    sidecar: ResolvedSidecar,
-    data: Record<string, unknown>,
-  ) => {
-    if (sidecar.pipeline_id) {
-      try {
-        await api.triggerPipeline(sidecar.pipeline_id, {
-          input_data: data,
-        });
-      } catch {
-        // Pipeline trigger failures are non-blocking
-      }
-      return;
-    }
-
-    if (sidecar.inline_action) {
-      await executeInlineAction(sidecar.inline_action, {
-        navigate,
-        queryClient,
-        screenData: data,
-      });
-    }
-  };
 
   const value = useMemo(() => ({ emit }), [emit]);
 
-  return (
-    <ClinicalEventCtx.Provider value={value}>
-      {children}
-    </ClinicalEventCtx.Provider>
-  );
+  return <ClinicalEventCtx.Provider value={value}>{children}</ClinicalEventCtx.Provider>;
 }

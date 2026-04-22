@@ -102,7 +102,7 @@ const COLOR_OPTIONS = [
   { value: "success", label: "Green", hex: "#40c057" },
   { value: "info", label: "Cyan", hex: "#15aabf" },
   { value: "warning", label: "Yellow", hex: "#fab005" },
-  { value: "primary", label: "Indigo", hex: "#4c6ef5" },
+  { value: "primary", label: "Forest", hex: "#1F4332" },
   { value: "violet", label: "Grape", hex: "#be4bdb" },
   { value: "slate", label: "Gray", hex: "#868e96" },
 ];

@@ -4,17 +4,16 @@ use axum::{Extension, Json, extract::{Path, Query, State}};
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::encounter::Encounter;
 use medbrains_core::ipd::{
-    Admission, AdmissionAttender, AdmissionChecklist, AdmissionPrintData, AdmissionSource,
-    AdmissionStatus, BedReservation, BedReservationStatus, BedTurnaroundLog,
-    BillingSummaryResponse, CarePlanStatus, DeptChargeGroup, DischargeSummaryStatus,
+    Admission, AdmissionAttender, AdmissionChecklist, AdmissionPrintData,
+    AdmissionStatus, BedReservation, BedTurnaroundLog,
+    BillingSummaryResponse, DeptChargeGroup, DischargeSummaryStatus,
     DischargeSummaryTemplate, DischargeType, EstimatedCostResponse,
     InvestigationsResponse, IpType, IpTypeConfiguration, IpdBirthRecord, IpdCarePlan,
-    IpdClinicalAssessment, IpdClinicalDocType, IpdClinicalDocumentation, IpdDeathSummary,
+    IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary,
     IpdDischargeChecklist, IpdDischargeSummary, IpdDischargeTatLog,
     IpdHandoverReport, IpdIntakeOutput, IpdMedicationAdministration,
     IpdNursingAssessment, IpdProgressNote, IpdTransferLog, LabOrderSummary,
-    LabResultSummary, MarStatus, NursingShift, NursingTask, RadiologyOrderSummary,
-    RestraintCheckStatus, RestraintMonitoringLog, TransferType, Ward, WardBedMapping,
+    LabResultSummary, MarStatus, NursingShift, NursingTask, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -841,7 +840,7 @@ pub async fn discharge_patient(
     // Auto-billing: charge room/bed for length of stay
     if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ipd_room").await? {
         if let Some(bed_id) = admission.bed_id {
-            let los_hours = (chrono::Utc::now() - admission.admitted_at).num_hours();
+            let los_hours = (Utc::now() - admission.admitted_at).num_hours();
             #[allow(clippy::cast_precision_loss)]
             let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
             let los_days = los_days.max(1);
@@ -855,9 +854,7 @@ pub async fn discharge_patient(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = bed_type
-                .map(|t| format!("ROOM-{}", t.to_uppercase()))
-                .unwrap_or_else(|| "ROOM-GENERAL".to_owned());
+            let charge_code = bed_type.map_or_else(|| "ROOM-GENERAL".to_owned(), |t| format!("ROOM-{}", t.to_uppercase()));
 
             let desc = if los_days == 1 {
                 "Room charges (1 day)".to_owned()
@@ -4691,7 +4688,7 @@ pub async fn generate_discharge_summary(
         })).collect::<Vec<_>>(),
         "nursing_tasks_count": nursing_tasks.len(),
         "progress_notes_count": progress_notes.len(),
-        "generated_at": chrono::Utc::now(),
+        "generated_at": Utc::now(),
         "generated_by": claims.sub,
     })))
 }
@@ -4773,7 +4770,7 @@ pub async fn bed_transfer(
         "transfer_type": body.transfer_type.as_deref().unwrap_or("internal"),
         "reason": body.reason,
         "transferred_by": claims.sub,
-        "transferred_at": chrono::Utc::now(),
+        "transferred_at": Utc::now(),
     })))
 }
 

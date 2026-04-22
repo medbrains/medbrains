@@ -91,6 +91,25 @@ pub async fn set_user_context(
     Ok(())
 }
 
+/// Set full audit context for a transaction: tenant, user, and IP.
+///
+/// This is the recommended way to start any write transaction. It sets:
+/// - `app.tenant_id` for Row-Level Security
+/// - `app.user_id` for audit trigger attribution
+/// - `app.ip_address` for audit trail (optional)
+///
+/// Call this immediately after `pool.begin()` before any INSERT/UPDATE/DELETE.
+pub async fn set_audit_context(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+    user_id: &uuid::Uuid,
+    ip_address: Option<&str>,
+) -> Result<(), DbError> {
+    set_tenant_context(tx, tenant_id).await?;
+    set_user_context(tx, user_id, ip_address).await?;
+    Ok(())
+}
+
 /// Simple health check — runs `SELECT 1`.
 pub async fn health_check(pool: &PgPool) -> Result<bool, DbError> {
     let row: (i32,) = sqlx::query_as("SELECT 1").fetch_one(pool).await?;

@@ -141,6 +141,37 @@ const auditStatusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
+// Dropdown options for categorical fields
+const INDICATOR_CATEGORIES = [
+  { value: "patient_safety", label: "Patient Safety" },
+  { value: "clinical_outcomes", label: "Clinical Outcomes" },
+  { value: "infection_control", label: "Infection Control" },
+  { value: "medication_safety", label: "Medication Safety" },
+  { value: "surgical_safety", label: "Surgical Safety" },
+  { value: "emergency_care", label: "Emergency Care" },
+  { value: "diagnostic_services", label: "Diagnostic Services" },
+  { value: "nursing_care", label: "Nursing Care" },
+  { value: "documentation", label: "Documentation" },
+  { value: "patient_experience", label: "Patient Experience" },
+  { value: "operational", label: "Operational" },
+  { value: "financial", label: "Financial" },
+  { value: "other", label: "Other" },
+];
+
+const INDICATOR_SUB_CATEGORIES = [
+  { value: "mortality", label: "Mortality" },
+  { value: "morbidity", label: "Morbidity" },
+  { value: "readmission", label: "Readmission" },
+  { value: "complication", label: "Complication" },
+  { value: "hai", label: "Hospital Acquired Infection" },
+  { value: "adverse_event", label: "Adverse Event" },
+  { value: "near_miss", label: "Near Miss" },
+  { value: "timeliness", label: "Timeliness" },
+  { value: "compliance", label: "Compliance" },
+  { value: "satisfaction", label: "Satisfaction" },
+  { value: "other", label: "Other" },
+];
+
 // ── Indicators Tab ──────────────────────────────────────
 
 function IndicatorsTab() {
@@ -447,8 +478,8 @@ function IndicatorsTab() {
         <Stack>
           <TextInput label="Code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
           <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-          <TextInput label="Category" required value={form.category} onChange={(e) => setForm({ ...form, category: e.currentTarget.value })} />
-          <TextInput label="Sub-Category" value={form.sub_category ?? ""} onChange={(e) => setForm({ ...form, sub_category: e.currentTarget.value || undefined })} />
+          <Select label="Category" required data={INDICATOR_CATEGORIES} value={form.category} onChange={(v) => setForm({ ...form, category: v ?? "" })} searchable />
+          <Select label="Sub-Category" data={INDICATOR_SUB_CATEGORIES} value={form.sub_category ?? null} onChange={(v) => setForm({ ...form, sub_category: v || undefined })} clearable searchable />
           <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
           <TextInput label="Numerator Description" value={form.numerator_description ?? ""} onChange={(e) => setForm({ ...form, numerator_description: e.currentTarget.value || undefined })} />
           <TextInput label="Denominator Description" value={form.denominator_description ?? ""} onChange={(e) => setForm({ ...form, denominator_description: e.currentTarget.value || undefined })} />

@@ -1860,12 +1860,35 @@ function PhotoUpdateButton({
     },
   });
 
-  const handleFile = (file: File | null) => {
+  const handleFile = async (file: File | null) => {
     if (!file) return;
-    // For now, create an object URL as placeholder.
-    // In production, this would upload to S3/MinIO and use the returned URL.
-    const url = URL.createObjectURL(file);
-    photoMutation.mutate(url);
+
+    // Validate file size (max 500KB for base64 storage)
+    const MAX_SIZE = 500 * 1024;
+    if (file.size > MAX_SIZE) {
+      notifications.show({
+        title: "File too large",
+        message: "Photo must be less than 500KB. Please compress or resize.",
+        color: "red",
+      });
+      return;
+    }
+
+    // Convert to base64 data URI for database storage.
+    // TODO: Replace with proper object storage (S3/MinIO) upload for production.
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUri = reader.result as string;
+      photoMutation.mutate(dataUri);
+    };
+    reader.onerror = () => {
+      notifications.show({
+        title: "Upload failed",
+        message: "Could not read the image file",
+        color: "red",
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   if (!canUpdate) return null;

@@ -58,7 +58,9 @@ import type {
   InventoryValuationRow,
   IssueToPatientRequest,
   PatientConsumableIssue,
+  PurchaseOrder,
   PurchaseConsumptionTrendRow,
+  ResolvedSidecar,
   StoreCatalog,
   StoreStockMovement,
   UpdateCondemnationStatusRequest,
@@ -89,6 +91,17 @@ const priorityColors: Record<string, string> = {
   emergency: "danger",
 };
 
+const linkedPoStatusColors: Record<string, string> = {
+  draft: "slate",
+  submitted: "primary",
+  approved: "success",
+  sent_to_vendor: "teal",
+  partially_received: "primary",
+  fully_received: "violet",
+  closed: "dark",
+  cancelled: "danger",
+};
+
 const indentTypeLabels: Record<string, string> = {
   general: "General",
   pharmacy: "Pharmacy",
@@ -114,6 +127,12 @@ function statusToStep(status: string): number {
   };
   return map[status] ?? 0;
 }
+
+const indentWorkflowEvents = [
+  "indent.submitted",
+  "indent.approved",
+  "indent.issued",
+] as const;
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -613,7 +632,7 @@ function FlowTrackerPanel() {
       </Group>
 
       {/* Recent indents for quick selection */}
-      <RecentIndentsList onSelect={setSelectedId} />
+      <RecentIndentsList onSelect={setSelectedId} searchTerm={indentNumber} />
 
       {selectedId && detailQuery.data && (
         <IndentTimeline data={detailQuery.data} />
@@ -622,13 +641,27 @@ function FlowTrackerPanel() {
   );
 }
 
-function RecentIndentsList({ onSelect }: { onSelect: (id: string) => void }) {
+function RecentIndentsList({
+  onSelect,
+  searchTerm,
+}: {
+  onSelect: (id: string) => void;
+  searchTerm: string;
+}) {
   const { data } = useQuery({
     queryKey: ["indent-requisitions", { page: "1", per_page: "10" }],
     queryFn: () => api.listIndentRequisitions({ page: "1", per_page: "10" }),
   });
 
-  if (!data?.requisitions.length) return null;
+  const filtered = (data?.requisitions ?? []).filter((req) =>
+    req.indent_number.toLowerCase().includes(searchTerm.trim().toLowerCase()),
+  );
+
+  if (!filtered.length) {
+    return searchTerm.trim() ? (
+      <Text size="sm" c="dimmed">No indents match that number yet.</Text>
+    ) : null;
+  }
 
   return (
     <Table striped highlightOnHover>
@@ -642,7 +675,7 @@ function RecentIndentsList({ onSelect }: { onSelect: (id: string) => void }) {
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {data.requisitions.map((req) => (
+        {filtered.map((req) => (
           <Table.Tr key={req.id} style={{ cursor: "pointer" }} onClick={() => onSelect(req.id)}>
             <Table.Td><Text fw={600} size="sm">{req.indent_number}</Text></Table.Td>
             <Table.Td><Badge variant="light" size="sm">{indentTypeLabels[req.indent_type]}</Badge></Table.Td>
@@ -660,6 +693,16 @@ function RecentIndentsList({ onSelect }: { onSelect: (id: string) => void }) {
 
 function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
   const { requisition, items } = data;
+  const relatedPurchaseOrdersQuery = useQuery({
+    queryKey: ["purchase-orders", "indent-link", requisition.id],
+    queryFn: () => api.listPurchaseOrders({ indent_requisition_id: requisition.id, page: "1", per_page: "10" }),
+    staleTime: 30_000,
+  });
+  const sidecarsQuery = useQuery({
+    queryKey: ["module-sidecars", "indent", "indent-requisitions", "flow-tracker"],
+    queryFn: () => api.listModuleSidecars("indent", "indent-requisitions"),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const timelineItems = [
     { title: "Created", description: `Indent ${requisition.indent_number} created`, date: requisition.created_at, active: true },
@@ -701,6 +744,8 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
         ))}
       </Timeline>
 
+      <WorkflowSidecarPanel sidecars={sidecarsQuery.data ?? []} />
+
       <Table striped>
         <Table.Thead>
           <Table.Tr>
@@ -721,6 +766,117 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
           ))}
         </Table.Tbody>
       </Table>
+
+      <LinkedPurchaseOrdersPanel
+        requisitionId={requisition.id}
+        purchaseOrders={relatedPurchaseOrdersQuery.data?.purchase_orders ?? []}
+      />
+    </Stack>
+  );
+}
+
+function WorkflowSidecarPanel({ sidecars }: { sidecars: ResolvedSidecar[] }) {
+  const relevantSidecars = sidecars.filter((sidecar) =>
+    indentWorkflowEvents.includes(sidecar.trigger_event as (typeof indentWorkflowEvents)[number]),
+  );
+
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Text fw={600}>Workflow Sidecar</Text>
+        <Badge variant="light" color="violet">
+          {relevantSidecars.length} configured
+        </Badge>
+      </Group>
+
+      {relevantSidecars.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No module sidecars are configured for indent events yet. Add a pipeline or inline action from the screen builder to automate this flow.
+        </Text>
+      ) : (
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Event</Table.Th>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Action</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {relevantSidecars.map((sidecar) => (
+              <Table.Tr key={sidecar.id}>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {sidecar.trigger_event}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>{sidecar.name}</Table.Td>
+                <Table.Td>
+                  {sidecar.pipeline_id ? (
+                    <Badge color="violet" variant="outline">Pipeline</Badge>
+                  ) : sidecar.inline_action ? (
+                    <Badge color="teal" variant="outline">Inline Action</Badge>
+                  ) : (
+                    <Badge color="slate" variant="outline">Passive</Badge>
+                  )}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Stack>
+  );
+}
+
+function LinkedPurchaseOrdersPanel({
+  requisitionId,
+  purchaseOrders,
+}: {
+  requisitionId: string;
+  purchaseOrders: PurchaseOrder[];
+}) {
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Text fw={600}>Downstream Procurement</Text>
+        <Badge variant="light" color="info">
+          {purchaseOrders.length} linked
+        </Badge>
+      </Group>
+
+      {purchaseOrders.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No purchase orders are linked to this indent yet. Create a PO from Procurement and select this indent to continue the chain.
+        </Text>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>PO #</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Amount</Table.Th>
+              <Table.Th>Date</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {purchaseOrders.map((po) => (
+              <Table.Tr key={`${requisitionId}-${po.id}`}>
+                <Table.Td>
+                  <Text fw={600} size="sm">{po.po_number}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={linkedPoStatusColors[po.status] ?? "slate"} variant="light" size="sm">
+                    {po.status.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>₹{po.total_amount}</Table.Td>
+                <Table.Td>{po.order_date}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
     </Stack>
   );
 }

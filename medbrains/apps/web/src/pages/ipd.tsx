@@ -126,6 +126,32 @@ const bedStatusColors: Record<string, string> = {
   blocked: "danger",
 };
 
+// Dropdown options for categorical fields
+const NURSING_TASK_TYPES = [
+  { value: "medication", label: "Medication Administration" },
+  { value: "vitals", label: "Vitals Monitoring" },
+  { value: "wound_care", label: "Wound Care/Dressing" },
+  { value: "catheter_care", label: "Catheter Care" },
+  { value: "hygiene", label: "Patient Hygiene" },
+  { value: "feeding", label: "Feeding/Nutrition" },
+  { value: "mobilization", label: "Mobilization/PT" },
+  { value: "specimen", label: "Specimen Collection" },
+  { value: "documentation", label: "Documentation" },
+  { value: "discharge_prep", label: "Discharge Preparation" },
+  { value: "other", label: "Other" },
+];
+
+const ID_PROOF_TYPES = [
+  { value: "aadhar", label: "Aadhaar Card" },
+  { value: "pan", label: "PAN Card" },
+  { value: "passport", label: "Passport" },
+  { value: "voter_id", label: "Voter ID" },
+  { value: "driving_license", label: "Driving License" },
+  { value: "ration_card", label: "Ration Card" },
+  { value: "employee_id", label: "Employee ID" },
+  { value: "other", label: "Other" },
+];
+
 export function IpdPage() {
   useRequirePermission(P.IPD.ADMISSIONS_LIST);
 
@@ -601,7 +627,7 @@ function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; t
       )}
       {showForm && (
         <Stack gap="xs">
-          <TextInput label="Task Type" required onChange={(e) => setForm({ ...form, task_type: e.currentTarget.value })} />
+          <Select label="Task Type" required data={NURSING_TASK_TYPES} onChange={(v) => setForm({ ...form, task_type: v ?? "" })} searchable />
           <TextInput label="Description" required onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
           <TextInput label="Assigned To (User ID)" onChange={(e) => setForm({ ...form, assigned_to: e.currentTarget.value || undefined })} />
           <TextInput label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
@@ -1073,7 +1099,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
           </Group>
           <Textarea label="Address" value={address} onChange={(e) => setAddress(e.currentTarget.value)} />
           <Group grow>
-            <TextInput label="ID Proof Type" value={idProofType} onChange={(e) => setIdProofType(e.currentTarget.value)} />
+            <Select label="ID Proof Type" data={ID_PROOF_TYPES} value={idProofType || null} onChange={(v) => setIdProofType(v ?? "")} clearable searchable />
             <TextInput label="ID Proof Number" value={idProofNumber} onChange={(e) => setIdProofNumber(e.currentTarget.value)} />
           </Group>
           <Checkbox label="Primary attender" checked={isPrimary} onChange={(e) => setIsPrimary(e.currentTarget.checked)} />

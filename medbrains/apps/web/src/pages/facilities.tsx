@@ -141,6 +141,41 @@ const WO_STATUSES = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+const MAINTENANCE_CATEGORIES = [
+  { value: "plumbing", label: "Plumbing" },
+  { value: "electrical", label: "Electrical" },
+  { value: "hvac", label: "HVAC" },
+  { value: "civil", label: "Civil" },
+  { value: "carpentry", label: "Carpentry" },
+  { value: "painting", label: "Painting" },
+  { value: "fire_safety", label: "Fire Safety" },
+  { value: "elevator", label: "Elevator" },
+  { value: "generator", label: "Generator/DG Set" },
+  { value: "medical_gas", label: "Medical Gas" },
+  { value: "water_treatment", label: "Water Treatment" },
+  { value: "other", label: "Other" },
+];
+
+const SCHEDULE_FREQUENCIES = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "fortnightly", label: "Fortnightly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "semi_annual", label: "Semi-Annual" },
+  { value: "annual", label: "Annual" },
+];
+
+const WATER_SCHEDULE_TYPES = [
+  { value: "tank_cleaning", label: "Tank Cleaning" },
+  { value: "legionella_testing", label: "Legionella Testing" },
+  { value: "water_quality_test", label: "Water Quality Test" },
+  { value: "stp_maintenance", label: "STP Maintenance" },
+  { value: "ro_servicing", label: "RO Servicing" },
+  { value: "filter_replacement", label: "Filter Replacement" },
+  { value: "other", label: "Other" },
+];
+
 function priorityColor(p: string) {
   switch (p) {
     case "critical": return "danger";
@@ -460,8 +495,8 @@ function WaterQualityTab() {
 
       <Drawer opened={schedOpen} onClose={closeSched} title="Add Water Schedule" position="right" size="md">
         <Stack>
-          <TextInput label="Schedule Type" required placeholder="e.g. Tank Cleaning, Legionella Testing" value={schedForm.schedule_type} onChange={(e) => setSchedForm({ ...schedForm, schedule_type: e.currentTarget.value })} />
-          <TextInput label="Frequency" required placeholder="e.g. 6 months, quarterly" value={schedForm.frequency} onChange={(e) => setSchedForm({ ...schedForm, frequency: e.currentTarget.value })} />
+          <Select label="Schedule Type" required data={WATER_SCHEDULE_TYPES} value={schedForm.schedule_type || null} onChange={(v) => setSchedForm({ ...schedForm, schedule_type: v ?? "" })} searchable />
+          <Select label="Frequency" required data={SCHEDULE_FREQUENCIES} value={schedForm.frequency || null} onChange={(v) => setSchedForm({ ...schedForm, frequency: v ?? "" })} searchable />
           <Textarea label="Notes" value={schedForm.notes ?? ""} onChange={(e) => setSchedForm({ ...schedForm, notes: e.currentTarget.value })} />
           <Button onClick={() => createSched.mutate()} loading={createSched.isPending}>Save</Button>
         </Stack>
@@ -686,7 +721,7 @@ function WorkOrdersTab() {
 
       <Drawer opened={createOpen} onClose={closeCreate} title="Create Work Order" position="right" size="md">
         <Stack>
-          <TextInput label="Category" placeholder="e.g. Plumbing, Electrical, HVAC" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.currentTarget.value })} />
+          <Select label="Category" data={MAINTENANCE_CATEGORIES} placeholder="Select category" value={form.category ?? null} onChange={(v) => setForm({ ...form, category: v || undefined })} clearable searchable />
           <Select label="Priority" data={WO_PRIORITIES} value={form.priority ?? "medium"} onChange={(v) => setForm({ ...form, priority: v ?? "medium" })} />
           <Textarea label="Description" required minRows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
           <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />

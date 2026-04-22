@@ -11,10 +11,15 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@medbrains/types": "workspace:*",
     "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }

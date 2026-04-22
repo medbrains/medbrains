@@ -152,7 +152,9 @@ import type {
   ServiceRow,
   SetupUser,
   TaxCategoryRow,
+  UpdateSecureDeviceSettingRequest,
   TenantFieldOverride,
+  SecureTenantSettingRow,
   TenantSettingsRow,
   TenantSummary,
   CsvImportRequest,
@@ -1347,7 +1349,6 @@ import type {
   RadiologyReportPrintData,
   PatientCardPrintData,
   WristbandPrintData,
-  AppointmentSlipPrintData,
   DeathCertificatePrintData,
   DischargeSummaryPrintData,
   ReceiptPrintData,
@@ -1355,16 +1356,406 @@ import type {
   CreditNotePrintData,
   TdsCertificatePrintData,
   GstInvoicePrintData,
+  // Consent & MRD Print Data
+  ConsentPrintData,
+  TokenSlipPrintData,
+  VisitorPassPrintData,
+  ProgressNotePrintData,
+  NursingAssessmentPrintData,
+  MarPrintData,
+  VitalsChartPrintData,
+  IoChartPrintData,
+  DischargeChecklistPrintData,
+  // Phase 2 Print Data - Billing
+  OpdBillPrintData,
+  IpdInterimBillPrintData,
+  IpdFinalBillPrintData,
+  AdvanceReceiptPrintData,
+  RefundReceiptPrintData,
+  InsurancePreauthPrintData,
+  CashlessClaimPrintData,
+  PackageEstimatePrintData,
+  // Phase 2 Print Data - Lab & Blood Bank
+  CultureSensitivityPrintData,
+  HistopathReportPrintData,
+  CrossmatchReportPrintData,
+  ComponentSlipPrintData,
+  InvestigationRequisitionPrintData,
+  // Phase 2 Print Data - Consent
+  DnrConsentPrintData,
+  OrganDonationConsentPrintData,
+  ResearchConsentPrintData,
+  AbdmConsentPrintData,
+  TeachingConsentPrintData,
+  // Phase 2 Print Data - Clinical & Identity
+  TreatmentChartPrintData,
+  TransferSummaryPrintData,
+  PatientEducationPrintData,
+  RegistrationCardPrintData,
+  InfantWristbandPrintData,
+  // Phase 3 Print Data - Surgical & OT
+  CaseSheetCoverPrintData,
+  PreopAssessmentPrintData,
+  SurgicalSafetyChecklistPrintData,
+  AnesthesiaRecordPrintData,
+  OperationNotesPrintData,
+  PostopOrdersPrintData,
+  TransfusionMonitoringPrintData,
+  // Phase 3 Print Data - Clinical Charts
+  FluidBalanceChartPrintData,
+  PainAssessmentPrintData,
+  FallRiskAssessmentPrintData,
+  PressureUlcerRiskPrintData,
+  GcsChartPrintData,
+  TransfusionRequisitionPrintData,
+  // Phase 3 Print Data - Medico-Legal
+  AmaFormPrintData,
+  MlcRegisterPrintData,
+  WoundCertificatePrintData,
+  AgeEstimationPrintData,
+  DeathDeclarationPrintData,
+  MlcDocumentationPrintData,
+  // Phase 3 Print Data - Quality & Safety
+  IncidentReportPrintData,
+  RcaTemplatePrintData,
+  CapaFormPrintData,
+  AdrReportPrintData,
+  TransfusionReactionPrintData,
+  // Phase 4 Print Data - Clinical Delivery
+  OpdPrescriptionPrintData,
+  LabReportFullPrintData,
+  CumulativeLabReportPrintData,
+  RadiologyReportFullPrintData,
+  // Phase 4 Print Data - Billing
+  PackageBillPrintData,
+  InsuranceClaimPrintData,
+  // Phase 4 Print Data - Regulatory
+  NabhQualityReportPrintData,
+  NmcComplianceReportPrintData,
+  NablQualityReportPrintData,
+  SpcbBmwReturnsPrintData,
+  PesoComplianceReportPrintData,
+  DrugLicenseReportPrintData,
+  PcpndtReportPrintData,
+  BirthRegisterPrintData,
+  DeathRegisterPrintData,
+  MlcRegisterSummaryPrintData,
+  AebasAttendanceReportPrintData,
+  NmcNarfAssessmentPrintData,
+  // Phase 4 Print Data - Admin & Procurement
+  IndentFormPrintData,
+  PurchaseOrderPrintData,
+  GrnPrintData,
+  MaterialIssueVoucherPrintData,
+  StockTransferNotePrintData,
+  NdpsRegisterPrintData,
+  DrugExpiryAlertPrintData,
+  EquipmentCondemnationPrintData,
+  WorkOrderPrintData,
+  PmChecklistPrintData,
+  // Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
+  EmployeeIdCardPrintData,
+  DutyRosterPrintData,
+  LeaveApplicationPrintData,
+  StaffAttendanceReportPrintData,
+  TrainingCertificatePrintData,
+  StaffCredentialFormPrintData,
+  VisitorRegisterPrintData,
+  AmcContractPrintData,
+  CalibrationCertificatePrintData,
+  EquipmentBreakdownReportPrintData,
+  EquipmentHistoryCardPrintData,
+  MgpsDailyLogPrintData,
+  WaterQualityTestPrintData,
+  DgUpsRunLogPrintData,
+  FireEquipmentInspectionPrintData,
+  MateriovigilanceReportPrintData,
+  FireMockDrillReportPrintData,
+  OtRegisterPrintData,
+  BloodDonorFormPrintData,
+  CrossMatchRequisitionPrintData,
+  AppointmentSlipPrintData,
+  DpdpConsentPrintData,
+  VideoConsentPrintData,
+  RestraintDocumentationPrintData,
+  // Phase 6: Academic/Medical College Forms
+  StudentAdmissionFormPrintData,
+  InternRotationSchedulePrintData,
+  PgLogbookEntryPrintData,
+  InternalAssessmentMarksPrintData,
+  ExamHallTicketPrintData,
+  OsceScoringSheetPrintData,
+  SimulationDebriefingPrintData,
+  CmeCertificatePrintData,
+  IecApprovalCertificatePrintData,
+  ResearchProposalFormPrintData,
+  HostelAllotmentOrderPrintData,
+  AntiRaggingUndertakingPrintData,
+  DisabilityAccommodationPlanPrintData,
+  InternshipCompletionCertificatePrintData,
+  ServiceBondAgreementPrintData,
+  StipendPaymentAdvicePrintData,
+  HospitalBrandingPrintData,
+  // TV Displays & Queue
+  TvDisplay,
+  CreateTvDisplayRequest,
+  UpdateTvDisplayRequest,
+  QueueToken,
+  DepartmentQueueState,
+  TvAnnouncement,
+  CreateQueueTokenRequest,
+  CreateQueueTokenResponse,
+  ListQueueTokensQuery,
+  BroadcastAnnouncementRequest,
+  // Specialty Queue Displays
+  PharmacyQueueDisplay,
+  LabQueueDisplay,
+  RadiologyQueueDisplay,
+  ErQueueDisplay,
+  BillingQueueDisplay,
+  BedAvailabilityDisplay,
+  QueueAnalytics,
+  QueueMetricsRealtime,
+  // Multi-Hospital Management
+  HospitalGroup,
+  CreateHospitalGroup,
+  UpdateHospitalGroup,
+  HospitalRegion,
+  CreateHospitalRegion,
+  HospitalInGroup,
+  AssignHospitalToGroup,
+  UserHospitalAssignment,
+  UserWithAssignments,
+  CreateUserHospitalAssignment,
+  PatientTransfer,
+  PatientTransferDisplay,
+  CreatePatientTransfer,
+  UpdateTransferStatus,
+  StockTransfer,
+  StockTransferItem,
+  CreateStockTransfer,
+  GroupKpiSnapshot,
+  HospitalKpiSummary,
+  GroupDashboard,
+  DoctorRotationSchedule,
+  DoctorRotationDisplay,
+  CreateDoctorRotation,
+  GroupDrugMaster,
+  GroupTestMaster,
+  GroupTariffMaster,
+  HospitalPriceOverride,
+  GroupTemplate,
+  CreateGroupTemplate,
+  // CMS & Blog
+  CmsCategory,
+  CmsCategoryWithChildren,
+  CreateCmsCategory,
+  UpdateCmsCategory,
+  CmsTag,
+  CreateCmsTag,
+  UpdateCmsTag,
+  CmsAuthor,
+  CreateCmsAuthor,
+  UpdateCmsAuthor,
+  CmsMedia,
+  CreateCmsMedia,
+  UpdateCmsMedia,
+  CmsPost,
+  CmsPostSummary,
+  CmsPostDetail,
+  CreateCmsPost,
+  UpdateCmsPost,
+  SubmitPostForReview,
+  ReviewPostAction,
+  SchedulePostRequest,
+  CmsPostRevision,
+  CmsPostAnalytics,
+  CmsDashboardStats,
+  CmsSubscriber,
+  CreateCmsSubscriber,
+  CmsPage,
+  CreateCmsPage,
+  UpdateCmsPage,
+  CmsSettings,
+  UpdateCmsSettings,
+  CmsMenu,
+  UpdateCmsMenu,
+  CmsPublicPost,
+  CmsPostList,
+  // IT Security types
+  BreakGlassEvent,
+  BreakGlassEventSummary,
+  CreateBreakGlassRequest,
+  EndBreakGlassRequest,
+  ReviewBreakGlassRequest,
+  BreakGlassQuery,
+  SensitivePatient,
+  SensitivePatientSummary,
+  CreateSensitivePatientRequest,
+  AccessAlert,
+  AcknowledgeAlertRequest,
+  StockDisposalRequest,
+  StockDisposalSummary,
+  StockDisposalItem,
+  CreateDisposalRequest,
+  ApproveDisposalRequest,
+  ExecuteDisposalRequest,
+  DisposalQuery,
+  TatBenchmark,
+  CreateTatBenchmarkRequest,
+  TatRecord,
+  TatRecordSummary,
+  CreateTatRecordRequest,
+  CompleteTatRecordRequest,
+  TatQuery,
+  TatDashboard,
+  DataMigration,
+  CreateMigrationRequest,
+  MigrationQuery,
+  EodDigestSubscription,
+  CreateDigestSubscriptionRequest,
+  EodDigestHistory,
+  DataQualityRule,
+  CreateDataQualityRuleRequest,
+  DataQualityIssue,
+  ResolveIssueRequest,
+  DataQualityQuery,
+  DataQualityDashboard,
+  CertInIncident,
+  ReportToCertInRequest,
+  CertInIncidentUpdate,
+  AddCertInUpdateRequest,
+  Vulnerability,
+  CreateVulnerabilityRequest,
+  UpdateVulnerabilityRequest,
+  ComplianceRequirement,
+  UpdateComplianceRequest as UpdateCertInComplianceRequest,
+  SystemHealthDashboard,
+  BackupHistory,
+  ItSecurityOnboardingProgress,
+  CompleteItSecurityOnboardingStepRequest,
+  IncentivePlan,
+  CreateIncentivePlanRequest,
+  IncentivePlanRule,
+  CreateIncentiveRuleRequest,
+  DoctorIncentiveAssignment,
+  AssignIncentivePlanRequest,
+  IncentiveCalculation,
+  CalculateIncentiveRequest,
+  ApproveIncentiveRequest,
+  MarkIncentivePaidRequest,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
+// Re-export type guards for use by consumers
+export {
+  // Error class
+  TypeAssertionError,
+  // Type guard functions (is*)
+  isPatient,
+  isPatientCreate,
+  isPatientUpdate,
+  isUser,
+  isUserCreate,
+  isEncounter,
+  isEncounterCreate,
+  isConsultation,
+  isDiagnosis,
+  isVital,
+  isLabOrder,
+  isInvoice,
+  isAdmission,
+  isOpdQueue,
+  // Assertion functions (assert*)
+  assertPatient,
+  assertPatientCreate,
+  assertPatientArray,
+  assertUser,
+  assertUserCreate,
+  assertUserArray,
+  assertEncounter,
+  assertEncounterCreate,
+  assertEncounterArray,
+  assertConsultation,
+  assertDiagnosis,
+  assertVital,
+  assertLabOrder,
+  assertLabOrderArray,
+  assertInvoice,
+  assertInvoiceArray,
+  assertAdmission,
+  assertAdmissionArray,
+  assertOpdQueue,
+  // Array guards
+  isPatientArray,
+  isUserArray,
+  isEncounterArray,
+  isLabOrderArray,
+  isInvoiceArray,
+  isAdmissionArray,
+  // Validation helpers
+  validateApiResponse,
+  validateApiArrayResponse,
+} from "@medbrains/schemas";
+
+// Import for internal use
+import { validateApiResponse, validateApiArrayResponse, TypeAssertionError } from "@medbrains/schemas";
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VALIDATED REQUEST - Runtime type checking for API responses
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Makes an API request and validates the response with a type guard.
+ * Throws TypeAssertionError if validation fails.
+ */
+export async function validatedRequest<T>(
+  path: string,
+  guard: (value: unknown) => value is T,
+  init?: RequestInit,
+): Promise<T> {
+  const data = await request<unknown>(path, init);
+  return validateApiResponse(data, guard, path);
+}
+
+/**
+ * Makes an API request expecting an array and validates each item.
+ */
+export async function validatedArrayRequest<T>(
+  path: string,
+  itemGuard: (value: unknown) => value is T,
+  init?: RequestInit,
+): Promise<T[]> {
+  const data = await request<unknown>(path, init);
+  return validateApiArrayResponse(data, itemGuard, path);
+}
+
+/**
+ * Validates data before sending to API (for create/update payloads).
+ * Throws TypeAssertionError if validation fails.
+ */
+export function validatePayload<T>(
+  data: unknown,
+  guard: (value: unknown) => value is T,
+  context: string,
+): asserts data is T {
+  if (!guard(data)) {
+    throw new TypeAssertionError(context, data, "payload validation");
+  }
+}
 
 // CSRF token — set on login/refresh, sent as X-CSRF-Token header on mutations.
 // Persisted to sessionStorage so it survives Vite HMR and page reloads.
 const CSRF_STORAGE_KEY = "csrf_token";
 
+// Platform-agnostic storage check
+const isBrowser =
+  typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+const hasDocument = typeof document !== "undefined";
+
 function loadCsrfToken(): string | null {
+  if (!isBrowser) return null;
   try {
-    return sessionStorage.getItem(CSRF_STORAGE_KEY);
+    return window.sessionStorage.getItem(CSRF_STORAGE_KEY);
   } catch {
     return null;
   }
@@ -1374,11 +1765,12 @@ let _csrfToken: string | null = loadCsrfToken();
 
 export function setCsrfToken(token: string | null): void {
   _csrfToken = token;
+  if (!isBrowser) return;
   try {
     if (token) {
-      sessionStorage.setItem(CSRF_STORAGE_KEY, token);
+      window.sessionStorage.setItem(CSRF_STORAGE_KEY, token);
     } else {
-      sessionStorage.removeItem(CSRF_STORAGE_KEY);
+      window.sessionStorage.removeItem(CSRF_STORAGE_KEY);
     }
   } catch {
     // non-browser environment
@@ -1388,11 +1780,12 @@ export function setCsrfToken(token: string | null): void {
 function getCsrfToken(): string | null {
   if (_csrfToken) return _csrfToken;
   // Fall back to reading the csrf_token cookie (readable, not HttpOnly)
+  if (!hasDocument) return null;
   try {
     const match = document.cookie
       .split(";")
-      .map((c) => c.trim())
-      .find((c) => c.startsWith("csrf_token="));
+      .map((c: string) => c.trim())
+      .find((c: string) => c.startsWith("csrf_token="));
     if (match) {
       return match.split("=")[1] ?? null;
     }
@@ -1565,7 +1958,7 @@ export const api = {
     completed_steps: number[];
   }) =>
     request<OnboardingProgress>("/onboarding/progress", {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify(data),
     }),
   onboardingSetup: (data: OnboardingSetupRequest) =>
@@ -1899,6 +2292,13 @@ export const api = {
     request<TenantSettingsRow[]>(`/setup/settings?category=${encodeURIComponent(category)}`),
   updateTenantSetting: (data: { category: string; key: string; value: unknown }) =>
     request<TenantSettingsRow>("/setup/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getSecureDeviceSettings: () =>
+    request<SecureTenantSettingRow[]>("/setup/device-settings"),
+  updateSecureDeviceSetting: (data: UpdateSecureDeviceSettingRequest) =>
+    request<SecureTenantSettingRow>("/setup/device-settings", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -6669,17 +7069,17 @@ export const api = {
     if (params?.status) sp.set("status", params.status);
     if (params?.category) sp.set("category", params.category);
     const qs = sp.toString();
-    return request<SecurityIncident[]>(`/security/incidents${qs ? `?${qs}` : ""}`);
+    return request<SecurityIncident[]>(`/security-incidents${qs ? `?${qs}` : ""}`);
   },
   getSecurityIncident: (id: string) =>
-    request<SecurityIncident>(`/security/incidents/${id}`),
+    request<SecurityIncident>(`/security-incidents/${id}`),
   createSecurityIncident: (body: CreateSecurityIncidentRequest) =>
-    request<SecurityIncident>("/security/incidents", {
+    request<SecurityIncident>("/security-incidents", {
       method: "POST", body: JSON.stringify(body),
     }),
   updateSecurityIncident: (id: string, body: UpdateSecurityIncidentRequest) =>
-    request<SecurityIncident>(`/security/incidents/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+    request<SecurityIncident>(`/security-incidents/${id}`, {
+      method: "PATCH", body: JSON.stringify(body),
     }),
 
   // Patient Tags
@@ -9029,9 +9429,6 @@ export const api = {
   getWristbandPrintData: (admissionId: string) =>
     request<WristbandPrintData>(`/print-data/wristband/${admissionId}`),
 
-  getAppointmentSlipPrintData: (appointmentId: string) =>
-    request<AppointmentSlipPrintData>(`/print-data/appointment-slip/${appointmentId}`),
-
   getDeathCertPrintData: (admissionId: string) =>
     request<DeathCertificatePrintData>(`/print-data/death-certificate/${admissionId}`),
 
@@ -9052,6 +9449,444 @@ export const api = {
 
   getGstInvoicePrintData: (invoiceId: string) =>
     request<GstInvoicePrintData>(`/print-data/gst-invoice/${invoiceId}`),
+
+  // ── Consent Form Print Data ─────────────────────────────
+
+  getGeneralConsentPrintData: (admissionId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/general/${admissionId}`),
+
+  getSurgicalConsentPrintData: (bookingId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/surgical/${bookingId}`),
+
+  getAnesthesiaConsentPrintData: (bookingId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/anesthesia/${bookingId}`),
+
+  getBloodConsentPrintData: (admissionId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/blood/${admissionId}`),
+
+  getHivConsentPrintData: (patientId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/hiv/${patientId}`),
+
+  getAmaConsentPrintData: (admissionId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/ama/${admissionId}`),
+
+  getPhotoConsentPrintData: (patientId: string) =>
+    request<ConsentPrintData>(`/print-data/consent/photo/${patientId}`),
+
+  // ── MRD Form Print Data ─────────────────────────────────
+
+  getProgressNotePrintData: (admissionId: string) =>
+    request<ProgressNotePrintData>(`/print-data/mrd/progress-note/${admissionId}`),
+
+  getNursingAssessmentPrintData: (admissionId: string) =>
+    request<NursingAssessmentPrintData>(`/print-data/mrd/nursing-assessment/${admissionId}`),
+
+  getMarPrintData: (admissionId: string) =>
+    request<MarPrintData>(`/print-data/mrd/mar/${admissionId}`),
+
+  getVitalsChartPrintData: (admissionId: string) =>
+    request<VitalsChartPrintData>(`/print-data/mrd/vitals-chart/${admissionId}`),
+
+  getIoChartPrintData: (admissionId: string) =>
+    request<IoChartPrintData>(`/print-data/mrd/io-chart/${admissionId}`),
+
+  getDischargeChecklistPrintData: (admissionId: string) =>
+    request<DischargeChecklistPrintData>(`/print-data/mrd/discharge-checklist/${admissionId}`),
+
+  // ── Token Slip & Visitor Pass ───────────────────────────
+
+  getTokenSlipPrintData: (tokenId: string) =>
+    request<TokenSlipPrintData>(`/print-data/token-slip/${tokenId}`),
+
+  getVisitorPassPrintData: (passId: string) =>
+    request<VisitorPassPrintData>(`/print-data/visitor-pass/${passId}`),
+
+  // ── Phase 2: Billing Print Data ────────────────────────────
+
+  getOpdBillPrintData: (invoiceId: string) =>
+    request<OpdBillPrintData>(`/print-data/opd-bill/${invoiceId}`),
+
+  getIpdInterimBillPrintData: (admissionId: string) =>
+    request<IpdInterimBillPrintData>(`/print-data/ipd-interim-bill/${admissionId}`),
+
+  getIpdFinalBillPrintData: (invoiceId: string) =>
+    request<IpdFinalBillPrintData>(`/print-data/ipd-final-bill/${invoiceId}`),
+
+  getAdvanceReceiptPrintData: (paymentId: string) =>
+    request<AdvanceReceiptPrintData>(`/print-data/advance-receipt/${paymentId}`),
+
+  getRefundReceiptPrintData: (refundId: string) =>
+    request<RefundReceiptPrintData>(`/print-data/refund-receipt/${refundId}`),
+
+  getInsurancePreauthPrintData: (requestId: string) =>
+    request<InsurancePreauthPrintData>(`/print-data/insurance-preauth/${requestId}`),
+
+  getCashlessClaimPrintData: (claimId: string) =>
+    request<CashlessClaimPrintData>(`/print-data/cashless-claim/${claimId}`),
+
+  getPackageEstimatePrintData: (packageId: string) =>
+    request<PackageEstimatePrintData>(`/print-data/package-estimate/${packageId}`),
+
+  // ── Phase 2: Lab & Blood Bank Report Print Data ────────────
+
+  getCultureSensitivityPrintData: (orderId: string) =>
+    request<CultureSensitivityPrintData>(`/print-data/culture-sensitivity/${orderId}`),
+
+  getHistopathReportPrintData: (orderId: string) =>
+    request<HistopathReportPrintData>(`/print-data/histopath-report/${orderId}`),
+
+  getCrossmatchReportPrintData: (requestId: string) =>
+    request<CrossmatchReportPrintData>(`/print-data/crossmatch-report/${requestId}`),
+
+  getComponentSlipPrintData: (issueId: string) =>
+    request<ComponentSlipPrintData>(`/print-data/component-slip/${issueId}`),
+
+  getInvestigationRequisitionPrintData: (orderId: string) =>
+    request<InvestigationRequisitionPrintData>(`/print-data/investigation-requisition/${orderId}`),
+
+  // ── Phase 2: Additional Consent Print Data ─────────────────
+
+  getDnrConsentPrintData: (admissionId: string) =>
+    request<DnrConsentPrintData>(`/print-data/consent/dnr/${admissionId}`),
+
+  getOrganDonationConsentPrintData: (patientId: string) =>
+    request<OrganDonationConsentPrintData>(`/print-data/consent/organ-donation/${patientId}`),
+
+  getResearchConsentPrintData: (enrollmentId: string) =>
+    request<ResearchConsentPrintData>(`/print-data/consent/research/${enrollmentId}`),
+
+  getAbdmConsentPrintData: (patientId: string) =>
+    request<AbdmConsentPrintData>(`/print-data/consent/abdm/${patientId}`),
+
+  getTeachingConsentPrintData: (admissionId: string) =>
+    request<TeachingConsentPrintData>(`/print-data/consent/teaching/${admissionId}`),
+
+  // ── Phase 2: Clinical & Identity Print Data ────────────────
+
+  getTreatmentChartPrintData: (admissionId: string) =>
+    request<TreatmentChartPrintData>(`/print-data/treatment-chart/${admissionId}`),
+
+  getTransferSummaryPrintData: (transferId: string) =>
+    request<TransferSummaryPrintData>(`/print-data/transfer-summary/${transferId}`),
+
+  getPatientEducationPrintData: (materialId: string) =>
+    request<PatientEducationPrintData>(`/print-data/patient-education/${materialId}`),
+
+  getRegistrationCardPrintData: (patientId: string) =>
+    request<RegistrationCardPrintData>(`/print-data/registration-card/${patientId}`),
+
+  getInfantWristbandPrintData: (newbornId: string) =>
+    request<InfantWristbandPrintData>(`/print-data/infant-wristband/${newbornId}`),
+
+  // ── Phase 3: Surgical & OT Print Data ──
+  getCaseSheetCoverPrintData: (admissionId: string) =>
+    request<CaseSheetCoverPrintData>(`/print-data/case-sheet-cover/${admissionId}`),
+
+  getPreopAssessmentPrintData: (admissionId: string) =>
+    request<PreopAssessmentPrintData>(`/print-data/preop-assessment/${admissionId}`),
+
+  getSurgicalSafetyChecklistPrintData: (surgeryId: string) =>
+    request<SurgicalSafetyChecklistPrintData>(`/print-data/surgical-safety-checklist/${surgeryId}`),
+
+  getAnesthesiaRecordPrintData: (surgeryId: string) =>
+    request<AnesthesiaRecordPrintData>(`/print-data/anesthesia-record/${surgeryId}`),
+
+  getOperationNotesPrintData: (surgeryId: string) =>
+    request<OperationNotesPrintData>(`/print-data/operation-notes/${surgeryId}`),
+
+  getPostopOrdersPrintData: (surgeryId: string) =>
+    request<PostopOrdersPrintData>(`/print-data/postop-orders/${surgeryId}`),
+
+  getTransfusionMonitoringPrintData: (transfusionId: string) =>
+    request<TransfusionMonitoringPrintData>(`/print-data/transfusion-monitoring/${transfusionId}`),
+
+  // ── Phase 3: Clinical Charts Print Data ──
+  getFluidBalanceChartPrintData: (admissionId: string) =>
+    request<FluidBalanceChartPrintData>(`/print-data/fluid-balance-chart/${admissionId}`),
+
+  getPainAssessmentPrintData: (admissionId: string) =>
+    request<PainAssessmentPrintData>(`/print-data/pain-assessment/${admissionId}`),
+
+  getFallRiskAssessmentPrintData: (admissionId: string) =>
+    request<FallRiskAssessmentPrintData>(`/print-data/fall-risk-assessment/${admissionId}`),
+
+  getPressureUlcerRiskPrintData: (admissionId: string) =>
+    request<PressureUlcerRiskPrintData>(`/print-data/pressure-ulcer-risk/${admissionId}`),
+
+  getGcsChartPrintData: (admissionId: string) =>
+    request<GcsChartPrintData>(`/print-data/gcs-chart/${admissionId}`),
+
+  getTransfusionRequisitionPrintData: (requestId: string) =>
+    request<TransfusionRequisitionPrintData>(`/print-data/transfusion-requisition/${requestId}`),
+
+  // ── Phase 3: Medico-Legal Print Data ──
+  getAmaFormPrintData: (admissionId: string) =>
+    request<AmaFormPrintData>(`/print-data/ama-form/${admissionId}`),
+
+  getMlcRegisterPrintData: (caseId: string) =>
+    request<MlcRegisterPrintData>(`/print-data/mlc-register/${caseId}`),
+
+  getWoundCertificatePrintData: (caseId: string) =>
+    request<WoundCertificatePrintData>(`/print-data/wound-certificate/${caseId}`),
+
+  getAgeEstimationPrintData: (caseId: string) =>
+    request<AgeEstimationPrintData>(`/print-data/age-estimation/${caseId}`),
+
+  getDeathDeclarationPrintData: (patientId: string) =>
+    request<DeathDeclarationPrintData>(`/print-data/death-declaration/${patientId}`),
+
+  getMlcDocumentationPrintData: (caseId: string) =>
+    request<MlcDocumentationPrintData>(`/print-data/mlc-documentation/${caseId}`),
+
+  // ── Phase 3: Quality & Safety Print Data ──
+  getIncidentReportPrintData: (incidentId: string) =>
+    request<IncidentReportPrintData>(`/print-data/incident-report/${incidentId}`),
+
+  getRcaTemplatePrintData: (incidentId: string) =>
+    request<RcaTemplatePrintData>(`/print-data/rca-template/${incidentId}`),
+
+  getCapaFormPrintData: (capaId: string) =>
+    request<CapaFormPrintData>(`/print-data/capa-form/${capaId}`),
+
+  getAdrReportPrintData: (reportId: string) =>
+    request<AdrReportPrintData>(`/print-data/adr-report/${reportId}`),
+
+  getTransfusionReactionPrintData: (reactionId: string) =>
+    request<TransfusionReactionPrintData>(`/print-data/transfusion-reaction/${reactionId}`),
+
+  // ── Phase 4: Clinical Delivery Print Data ─────────────────
+  getOpdPrescriptionPrintData: (encounterId: string) =>
+    request<OpdPrescriptionPrintData>(`/print-data/opd-prescription/${encounterId}`),
+
+  getLabReportFullPrintData: (orderId: string) =>
+    request<LabReportFullPrintData>(`/print-data/lab-report-full/${orderId}`),
+
+  getCumulativeLabReportPrintData: (patientId: string) =>
+    request<CumulativeLabReportPrintData>(`/print-data/cumulative-lab-report/${patientId}`),
+
+  getRadiologyReportFullPrintData: (orderId: string) =>
+    request<RadiologyReportFullPrintData>(`/print-data/radiology-report-full/${orderId}`),
+
+  getDeathCertificateFullPrintData: (patientId: string) =>
+    request<DeathCertificatePrintData>(`/print-data/death-certificate/${patientId}`),
+
+  // ── Phase 4: Billing Print Data ───────────────────────────
+  getCreditNoteFullPrintData: (creditNoteId: string) =>
+    request<CreditNotePrintData>(`/print-data/credit-note/${creditNoteId}`),
+
+  getPackageBillPrintData: (packageId: string) =>
+    request<PackageBillPrintData>(`/print-data/package-bill/${packageId}`),
+
+  getInsuranceClaimPrintData: (claimId: string) =>
+    request<InsuranceClaimPrintData>(`/print-data/insurance-claim/${claimId}`),
+
+  getTdsCertificateFullPrintData: (tdsId: string) =>
+    request<TdsCertificatePrintData>(`/print-data/tds-certificate/${tdsId}`),
+
+  // ── Phase 4: Regulatory Print Data ────────────────────────
+  getNabhQualityReportPrintData: (period: string) =>
+    request<NabhQualityReportPrintData>(`/print-data/nabh-quality-report/${period}`),
+
+  getNmcComplianceReportPrintData: (period: string) =>
+    request<NmcComplianceReportPrintData>(`/print-data/nmc-compliance-report/${period}`),
+
+  getNablQualityReportPrintData: (period: string) =>
+    request<NablQualityReportPrintData>(`/print-data/nabl-quality-report/${period}`),
+
+  getSpcbBmwReturnsPrintData: (quarter: string) =>
+    request<SpcbBmwReturnsPrintData>(`/print-data/spcb-bmw-returns/${quarter}`),
+
+  getPesoCompliancePrintData: (year: string) =>
+    request<PesoComplianceReportPrintData>(`/print-data/peso-compliance/${year}`),
+
+  getDrugLicenseReportPrintData: (licenseId: string) =>
+    request<DrugLicenseReportPrintData>(`/print-data/drug-license-report/${licenseId}`),
+
+  getPcpndtReportPrintData: (period: string) =>
+    request<PcpndtReportPrintData>(`/print-data/pcpndt-report/${period}`),
+
+  getBirthRegisterPrintData: (period: string) =>
+    request<BirthRegisterPrintData>(`/print-data/birth-register/${period}`),
+
+  getDeathRegisterPrintData: (period: string) =>
+    request<DeathRegisterPrintData>(`/print-data/death-register/${period}`),
+
+  getMlcRegisterSummaryPrintData: (period: string) =>
+    request<MlcRegisterSummaryPrintData>(`/print-data/mlc-register-summary/${period}`),
+
+  getAebasAttendancePrintData: (period: string) =>
+    request<AebasAttendanceReportPrintData>(`/print-data/aebas-attendance/${period}`),
+
+  getNmcNarfAssessmentPrintData: (year: string) =>
+    request<NmcNarfAssessmentPrintData>(`/print-data/nmc-narf-assessment/${year}`),
+
+  // ── Phase 4: Admin & Procurement Print Data ───────────────
+  getIndentFormPrintData: (indentId: string) =>
+    request<IndentFormPrintData>(`/print-data/indent-form/${indentId}`),
+
+  getPurchaseOrderPrintData: (poId: string) =>
+    request<PurchaseOrderPrintData>(`/print-data/purchase-order/${poId}`),
+
+  getGrnPrintData: (grnId: string) =>
+    request<GrnPrintData>(`/print-data/grn/${grnId}`),
+
+  getMaterialIssueVoucherPrintData: (voucherId: string) =>
+    request<MaterialIssueVoucherPrintData>(`/print-data/material-issue-voucher/${voucherId}`),
+
+  getStockTransferNotePrintData: (transferId: string) =>
+    request<StockTransferNotePrintData>(`/print-data/stock-transfer-note/${transferId}`),
+
+  getNdpsRegisterPrintData: (period: string) =>
+    request<NdpsRegisterPrintData>(`/print-data/ndps-register/${period}`),
+
+  getDrugExpiryAlertPrintData: (storeId: string) =>
+    request<DrugExpiryAlertPrintData>(`/print-data/drug-expiry-alert/${storeId}`),
+
+  getEquipmentCondemnationPrintData: (condemnationId: string) =>
+    request<EquipmentCondemnationPrintData>(`/print-data/equipment-condemnation/${condemnationId}`),
+
+  getWorkOrderPrintData: (workOrderId: string) =>
+    request<WorkOrderPrintData>(`/print-data/work-order/${workOrderId}`),
+
+  getPmChecklistPrintData: (pmId: string) =>
+    request<PmChecklistPrintData>(`/print-data/pm-checklist/${pmId}`),
+
+  // ══════════════════════════════════════════════════════════
+  //  Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
+  // ══════════════════════════════════════════════════════════
+
+  // ── Admin/HR Forms ──────────────────────────────────────────
+  getEmployeeIdCardPrintData: (employeeId: string) =>
+    request<EmployeeIdCardPrintData>(`/print-data/employee-id-card/${employeeId}`),
+
+  getDutyRosterPrintData: (departmentId: string, period: string) =>
+    request<DutyRosterPrintData>(`/print-data/duty-roster/${departmentId}/${period}`),
+
+  getLeaveApplicationPrintData: (leaveId: string) =>
+    request<LeaveApplicationPrintData>(`/print-data/leave-application/${leaveId}`),
+
+  getStaffAttendancePrintData: (departmentId: string, month: number, year: number) =>
+    request<StaffAttendanceReportPrintData>(`/print-data/staff-attendance/${departmentId}/${month}/${year}`),
+
+  getTrainingCertificatePrintData: (trainingId: string) =>
+    request<TrainingCertificatePrintData>(`/print-data/training-certificate/${trainingId}`),
+
+  getStaffCredentialsPrintData: (employeeId: string) =>
+    request<StaffCredentialFormPrintData>(`/print-data/staff-credentials/${employeeId}`),
+
+  getVisitorRegisterPrintData: (date: string) =>
+    request<VisitorRegisterPrintData>(`/print-data/visitor-register/${date}`),
+
+  // ── BME/Engineering Forms ───────────────────────────────────
+  getAmcContractPrintData: (contractId: string) =>
+    request<AmcContractPrintData>(`/print-data/amc-contract/${contractId}`),
+
+  getCalibrationCertificatePrintData: (calibrationId: string) =>
+    request<CalibrationCertificatePrintData>(`/print-data/calibration-certificate/${calibrationId}`),
+
+  getEquipmentBreakdownPrintData: (breakdownId: string) =>
+    request<EquipmentBreakdownReportPrintData>(`/print-data/equipment-breakdown/${breakdownId}`),
+
+  getEquipmentHistoryPrintData: (equipmentId: string) =>
+    request<EquipmentHistoryCardPrintData>(`/print-data/equipment-history/${equipmentId}`),
+
+  getMgpsLogPrintData: (date: string, shift: string) =>
+    request<MgpsDailyLogPrintData>(`/print-data/mgps-log/${date}/${shift}`),
+
+  getWaterQualityPrintData: (testId: string) =>
+    request<WaterQualityTestPrintData>(`/print-data/water-quality/${testId}`),
+
+  getDgUpsLogPrintData: (equipmentId: string, date: string) =>
+    request<DgUpsRunLogPrintData>(`/print-data/dg-ups-log/${equipmentId}/${date}`),
+
+  getFireInspectionPrintData: (inspectionId: string) =>
+    request<FireEquipmentInspectionPrintData>(`/print-data/fire-inspection/${inspectionId}`),
+
+  getMateriovigilancePrintData: (reportId: string) =>
+    request<MateriovigilanceReportPrintData>(`/print-data/materiovigilance/${reportId}`),
+
+  getFireMockDrillPrintData: (drillId: string) =>
+    request<FireMockDrillReportPrintData>(`/print-data/fire-mock-drill/${drillId}`),
+
+  // ── Blood Bank & OT Forms ───────────────────────────────────
+  getOtRegisterPrintData: (otId: string, date: string) =>
+    request<OtRegisterPrintData>(`/print-data/ot-register/${otId}/${date}`),
+
+  getBloodDonorFormPrintData: (donorId: string) =>
+    request<BloodDonorFormPrintData>(`/print-data/blood-donor-form/${donorId}`),
+
+  getCrossMatchRequisitionPrintData: (requisitionId: string) =>
+    request<CrossMatchRequisitionPrintData>(`/print-data/cross-match-requisition/${requisitionId}`),
+
+  // ── Clinical/Identity Forms ─────────────────────────────────
+  getAppointmentSlipPrintData: (appointmentId: string) =>
+    request<AppointmentSlipPrintData>(`/print-data/appointment-slip/${appointmentId}`),
+
+  getDpdpConsentPrintData: (consentId: string) =>
+    request<DpdpConsentPrintData>(`/print-data/dpdp-consent/${consentId}`),
+
+  getVideoConsentPrintData: (videoConsentId: string) =>
+    request<VideoConsentPrintData>(`/print-data/video-consent/${videoConsentId}`),
+
+  getRestraintDocumentationPrintData: (restraintId: string) =>
+    request<RestraintDocumentationPrintData>(`/print-data/restraint-documentation/${restraintId}`),
+
+  // ══════════════════════════════════════════════════════════
+  // PHASE 6: ACADEMIC/SPECIALTY FORMS & BRANDING
+  // ══════════════════════════════════════════════════════════
+
+  // -- Phase 6: Academic/Medical College Forms --
+  getStudentAdmissionFormPrintData: (admissionId: string) =>
+    request<StudentAdmissionFormPrintData>(`/print-data/student-admission-form/${admissionId}`),
+
+  getInternRotationSchedulePrintData: (scheduleId: string) =>
+    request<InternRotationSchedulePrintData>(`/print-data/intern-rotation-schedule/${scheduleId}`),
+
+  getPgLogbookEntryPrintData: (entryId: string) =>
+    request<PgLogbookEntryPrintData>(`/print-data/pg-logbook-entry/${entryId}`),
+
+  getInternalAssessmentMarksPrintData: (assessmentId: string) =>
+    request<InternalAssessmentMarksPrintData>(`/print-data/internal-assessment-marks/${assessmentId}`),
+
+  getExamHallTicketPrintData: (ticketId: string) =>
+    request<ExamHallTicketPrintData>(`/print-data/exam-hall-ticket/${ticketId}`),
+
+  getOsceScoringSheetPrintData: (examId: string, stationNumber: number) =>
+    request<OsceScoringSheetPrintData>(`/print-data/osce-scoring-sheet/${examId}/${stationNumber}`),
+
+  getSimulationDebriefingPrintData: (sessionId: string) =>
+    request<SimulationDebriefingPrintData>(`/print-data/simulation-debriefing/${sessionId}`),
+
+  getCmeCertificatePrintData: (certificateId: string) =>
+    request<CmeCertificatePrintData>(`/print-data/cme-certificate/${certificateId}`),
+
+  getIecApprovalCertificatePrintData: (approvalId: string) =>
+    request<IecApprovalCertificatePrintData>(`/print-data/iec-approval-certificate/${approvalId}`),
+
+  getResearchProposalFormPrintData: (proposalId: string) =>
+    request<ResearchProposalFormPrintData>(`/print-data/research-proposal-form/${proposalId}`),
+
+  getHostelAllotmentOrderPrintData: (orderId: string) =>
+    request<HostelAllotmentOrderPrintData>(`/print-data/hostel-allotment-order/${orderId}`),
+
+  getAntiRaggingUndertakingPrintData: (undertakingId: string) =>
+    request<AntiRaggingUndertakingPrintData>(`/print-data/anti-ragging-undertaking/${undertakingId}`),
+
+  getDisabilityAccommodationPlanPrintData: (planId: string) =>
+    request<DisabilityAccommodationPlanPrintData>(`/print-data/disability-accommodation-plan/${planId}`),
+
+  getInternshipCompletionCertificatePrintData: (certificateId: string) =>
+    request<InternshipCompletionCertificatePrintData>(`/print-data/internship-completion-certificate/${certificateId}`),
+
+  getServiceBondAgreementPrintData: (bondId: string) =>
+    request<ServiceBondAgreementPrintData>(`/print-data/service-bond-agreement/${bondId}`),
+
+  getStipendPaymentAdvicePrintData: (adviceId: string) =>
+    request<StipendPaymentAdvicePrintData>(`/print-data/stipend-payment-advice/${adviceId}`),
+
+  // -- Phase 6: Hospital Branding --
+  getHospitalBrandingPrintData: () =>
+    request<HospitalBrandingPrintData>(`/print-data/hospital-branding`),
 
   // ══════════════════════════════════════════════════════════
   //  Bedside Portal
@@ -9115,4 +9950,759 @@ export const api = {
 
   listBedsideFeedback: (admissionId: string) =>
     request<BedsideRealtimeFeedbackRow[]>(`/bedside/${admissionId}/feedback`),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TV Displays & Queue
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  listTvDisplays: () => request<TvDisplay[]>("/tv/displays"),
+
+  createTvDisplay: (data: CreateTvDisplayRequest) =>
+    request<TvDisplay>("/tv/displays", { method: "POST", body: JSON.stringify(data) }),
+
+  getTvDisplay: (id: string) => request<TvDisplay>(`/tv/displays/${id}`),
+
+  updateTvDisplay: (id: string, data: UpdateTvDisplayRequest) =>
+    request<TvDisplay>(`/tv/displays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteTvDisplay: (id: string) =>
+    request<void>(`/tv/displays/${id}`, { method: "DELETE" }),
+
+  listQueueTokens: (params?: ListQueueTokensQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.date) sp.set("date", params.date);
+    const qs = sp.toString();
+    return request<QueueToken[]>(`/tv/tokens${qs ? `?${qs}` : ""}`);
+  },
+
+  createQueueToken: (data: CreateQueueTokenRequest) =>
+    request<CreateQueueTokenResponse>("/tv/tokens", { method: "POST", body: JSON.stringify(data) }),
+
+  callQueueToken: (id: string) =>
+    request<QueueToken>(`/tv/tokens/${id}/call`, { method: "POST" }),
+
+  completeQueueToken: (id: string) =>
+    request<QueueToken>(`/tv/tokens/${id}/complete`, { method: "POST" }),
+
+  noShowQueueToken: (id: string) =>
+    request<QueueToken>(`/tv/tokens/${id}/no-show`, { method: "POST" }),
+
+  getQueueState: (departmentId: string) =>
+    request<DepartmentQueueState>(`/tv/queue/${departmentId}`),
+
+  broadcastAnnouncement: (data: BroadcastAnnouncementRequest) =>
+    request<TvAnnouncement>("/tv/announcements", { method: "POST", body: JSON.stringify(data) }),
+
+  // ── Specialty Queue Displays ─────────────────────────────────────────────
+  getPharmacyQueueDisplay: () =>
+    request<PharmacyQueueDisplay>("/tv/queue/pharmacy"),
+
+  getLabQueueDisplay: () =>
+    request<LabQueueDisplay>("/tv/queue/lab"),
+
+  getRadiologyQueueDisplay: (modality: string) =>
+    request<RadiologyQueueDisplay>(`/tv/queue/radiology/${modality}`),
+
+  getErQueueDisplay: () =>
+    request<ErQueueDisplay>("/tv/queue/er"),
+
+  getBillingQueueDisplay: () =>
+    request<BillingQueueDisplay>("/tv/queue/billing"),
+
+  getBedAvailabilityDisplay: (wardType: string) =>
+    request<BedAvailabilityDisplay>(`/tv/queue/beds/${wardType}`),
+
+  getQueueAnalytics: (departmentId: string) =>
+    request<QueueAnalytics>(`/tv/queue/analytics/${departmentId}`),
+
+  getQueueMetricsRealtime: (departmentId: string) =>
+    request<QueueMetricsRealtime>(`/tv/queue/metrics/${departmentId}`),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // Multi-Hospital Management
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // Hospital Groups
+  listHospitalGroups: () =>
+    request<HospitalGroup[]>("/multi-hospital/groups"),
+
+  getHospitalGroup: (id: string) =>
+    request<HospitalGroup>(`/multi-hospital/groups/${id}`),
+
+  createHospitalGroup: (data: CreateHospitalGroup) =>
+    request<HospitalGroup>("/multi-hospital/groups", { method: "POST", body: JSON.stringify(data) }),
+
+  updateHospitalGroup: (id: string, data: UpdateHospitalGroup) =>
+    request<HospitalGroup>(`/multi-hospital/groups/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteHospitalGroup: (id: string) =>
+    request<void>(`/multi-hospital/groups/${id}`, { method: "DELETE" }),
+
+  // Regions
+  listHospitalRegions: (groupId: string) => {
+    const sp = new URLSearchParams({ group_id: groupId });
+    return request<HospitalRegion[]>(`/multi-hospital/regions?${sp.toString()}`);
+  },
+
+  getHospitalRegion: (id: string) =>
+    request<HospitalRegion>(`/multi-hospital/regions/${id}`),
+
+  createHospitalRegion: (data: CreateHospitalRegion) =>
+    request<HospitalRegion>("/multi-hospital/regions", { method: "POST", body: JSON.stringify(data) }),
+
+  deleteHospitalRegion: (id: string) =>
+    request<void>(`/multi-hospital/regions/${id}`, { method: "DELETE" }),
+
+  // Hospitals in Group
+  listHospitalsInGroup: (groupId: string) =>
+    request<HospitalInGroup[]>(`/multi-hospital/groups/${groupId}/hospitals`),
+
+  assignHospitalToGroup: (data: AssignHospitalToGroup) =>
+    request<HospitalInGroup>("/multi-hospital/hospital-assignments", { method: "POST", body: JSON.stringify(data) }),
+
+  removeHospitalFromGroup: (tenantId: string) =>
+    request<void>(`/multi-hospital/hospital-assignments/${tenantId}`, { method: "DELETE" }),
+
+  // User Assignments
+  getUserHospitalAssignments: (userId: string) =>
+    request<UserWithAssignments>(`/multi-hospital/users/${userId}/assignments`),
+
+  listMultiHospitalUsers: (groupId: string) => {
+    const sp = new URLSearchParams({ group_id: groupId });
+    return request<UserWithAssignments[]>(`/multi-hospital/user-assignments?${sp.toString()}`);
+  },
+
+  createUserHospitalAssignment: (data: CreateUserHospitalAssignment) =>
+    request<UserHospitalAssignment>("/multi-hospital/user-assignments", { method: "POST", body: JSON.stringify(data) }),
+
+  deleteUserHospitalAssignment: (assignmentId: string) =>
+    request<void>(`/multi-hospital/user-assignments/${assignmentId}`, { method: "DELETE" }),
+
+  // Patient Transfers
+  listOutgoingPatientTransfers: (params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<PatientTransferDisplay[]>(`/multi-hospital/transfers/patients/outgoing${qs ? `?${qs}` : ""}`);
+  },
+
+  listIncomingPatientTransfers: (params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<PatientTransferDisplay[]>(`/multi-hospital/transfers/patients/incoming${qs ? `?${qs}` : ""}`);
+  },
+
+  getPatientTransfer: (id: string) =>
+    request<PatientTransfer>(`/multi-hospital/transfers/patients/${id}`),
+
+  createPatientTransfer: (data: CreatePatientTransfer) =>
+    request<PatientTransfer>("/multi-hospital/transfers/patients", { method: "POST", body: JSON.stringify(data) }),
+
+  updatePatientTransferStatus: (id: string, data: UpdateTransferStatus) =>
+    request<PatientTransfer>(`/multi-hospital/transfers/patients/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Stock Transfers
+  listOutgoingStockTransfers: (params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<StockTransfer[]>(`/multi-hospital/transfers/stock/outgoing${qs ? `?${qs}` : ""}`);
+  },
+
+  listIncomingStockTransfers: (params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<StockTransfer[]>(`/multi-hospital/transfers/stock/incoming${qs ? `?${qs}` : ""}`);
+  },
+
+  getStockTransfer: (id: string) =>
+    request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`),
+
+  getStockTransferItems: (transferId: string) =>
+    request<StockTransferItem[]>(`/multi-hospital/transfers/stock/${transferId}/items`),
+
+  createStockTransfer: (data: CreateStockTransfer) =>
+    request<StockTransfer>("/multi-hospital/transfers/stock", { method: "POST", body: JSON.stringify(data) }),
+
+  updateStockTransferStatus: (id: string, data: UpdateTransferStatus) =>
+    request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Group KPIs & Dashboard
+  getGroupDashboard: (groupId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<GroupDashboard>(`/multi-hospital/groups/${groupId}/dashboard${qs ? `?${qs}` : ""}`);
+  },
+
+  listGroupKpis: (groupId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<GroupKpiSnapshot[]>(`/multi-hospital/groups/${groupId}/kpis${qs ? `?${qs}` : ""}`);
+  },
+
+  getHospitalKpi: (tenantId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<HospitalKpiSummary>(`/multi-hospital/hospitals/${tenantId}/kpi${qs ? `?${qs}` : ""}`);
+  },
+
+  // Doctor Rotation
+  listDoctorRotations: (groupId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<DoctorRotationDisplay[]>(`/multi-hospital/groups/${groupId}/rotations${qs ? `?${qs}` : ""}`);
+  },
+
+  getDoctorRotation: (doctorId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<DoctorRotationSchedule[]>(`/multi-hospital/doctors/${doctorId}/rotations${qs ? `?${qs}` : ""}`);
+  },
+
+  createDoctorRotation: (groupId: string, data: CreateDoctorRotation) =>
+    request<DoctorRotationSchedule>(`/multi-hospital/groups/${groupId}/rotations`, { method: "POST", body: JSON.stringify(data) }),
+
+  deleteDoctorRotation: (id: string) =>
+    request<void>(`/multi-hospital/rotations/${id}`, { method: "DELETE" }),
+
+  // Group Masters
+  listGroupDrugs: (groupId: string) =>
+    request<GroupDrugMaster[]>(`/multi-hospital/groups/${groupId}/drugs`),
+
+  listGroupTests: (groupId: string) =>
+    request<GroupTestMaster[]>(`/multi-hospital/groups/${groupId}/tests`),
+
+  listGroupTariffs: (groupId: string) =>
+    request<GroupTariffMaster[]>(`/multi-hospital/groups/${groupId}/tariffs`),
+
+  listPriceOverrides: () =>
+    request<HospitalPriceOverride[]>("/multi-hospital/price-overrides"),
+
+  // Group Templates
+  listGroupTemplates: (groupId: string, templateType?: string) => {
+    const sp = new URLSearchParams();
+    if (templateType) sp.set("period", templateType);
+    const qs = sp.toString();
+    return request<GroupTemplate[]>(`/multi-hospital/groups/${groupId}/templates${qs ? `?${qs}` : ""}`);
+  },
+
+  getGroupTemplate: (id: string) =>
+    request<GroupTemplate>(`/multi-hospital/templates/${id}`),
+
+  createGroupTemplate: (groupId: string, data: CreateGroupTemplate) =>
+    request<GroupTemplate>(`/multi-hospital/groups/${groupId}/templates`, { method: "POST", body: JSON.stringify(data) }),
+
+  deleteGroupTemplate: (id: string) =>
+    request<void>(`/multi-hospital/templates/${id}`, { method: "DELETE" }),
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CMS & Blog
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // Dashboard
+  getCmsDashboard: () =>
+    request<CmsDashboardStats>("/cms/dashboard"),
+
+  // Categories
+  listCmsCategories: () =>
+    request<CmsCategory[]>("/cms/categories"),
+
+  listCmsCategoriesTree: () =>
+    request<CmsCategoryWithChildren[]>("/cms/categories/tree"),
+
+  getCmsCategory: (id: string) =>
+    request<CmsCategory>(`/cms/categories/${id}`),
+
+  createCmsCategory: (data: CreateCmsCategory) =>
+    request<CmsCategory>("/cms/categories", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsCategory: (id: string, data: UpdateCmsCategory) =>
+    request<CmsCategory>(`/cms/categories/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsCategory: (id: string) =>
+    request<void>(`/cms/categories/${id}`, { method: "DELETE" }),
+
+  // Tags
+  listCmsTags: () =>
+    request<CmsTag[]>("/cms/tags"),
+
+  getCmsTag: (id: string) =>
+    request<CmsTag>(`/cms/tags/${id}`),
+
+  createCmsTag: (data: CreateCmsTag) =>
+    request<CmsTag>("/cms/tags", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsTag: (id: string, data: UpdateCmsTag) =>
+    request<CmsTag>(`/cms/tags/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsTag: (id: string) =>
+    request<void>(`/cms/tags/${id}`, { method: "DELETE" }),
+
+  bulkDeleteCmsTags: (ids: string[]) =>
+    request<void>("/cms/tags/bulk-delete", { method: "POST", body: JSON.stringify(ids) }),
+
+  // Authors
+  listCmsAuthors: () =>
+    request<CmsAuthor[]>("/cms/authors"),
+
+  getCmsAuthor: (id: string) =>
+    request<CmsAuthor>(`/cms/authors/${id}`),
+
+  createCmsAuthor: (data: CreateCmsAuthor) =>
+    request<CmsAuthor>("/cms/authors", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsAuthor: (id: string, data: UpdateCmsAuthor) =>
+    request<CmsAuthor>(`/cms/authors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsAuthor: (id: string) =>
+    request<void>(`/cms/authors/${id}`, { method: "DELETE" }),
+
+  // Media Library
+  listCmsMedia: (params?: { page?: number; per_page?: number; mime_type?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    if (params?.mime_type) sp.set("mime_type", params.mime_type);
+    const qs = sp.toString();
+    return request<CmsMedia[]>(`/cms/media${qs ? `?${qs}` : ""}`);
+  },
+
+  getCmsMedia: (id: string) =>
+    request<CmsMedia>(`/cms/media/${id}`),
+
+  createCmsMedia: (data: CreateCmsMedia) =>
+    request<CmsMedia>("/cms/media", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsMedia: (id: string, data: UpdateCmsMedia) =>
+    request<CmsMedia>(`/cms/media/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsMedia: (id: string) =>
+    request<void>(`/cms/media/${id}`, { method: "DELETE" }),
+
+  // Posts
+  listCmsPosts: (params?: { page?: number; per_page?: number; status?: string; category_id?: string; author_id?: string; search?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    if (params?.status) sp.set("status", params.status);
+    if (params?.category_id) sp.set("category_id", params.category_id);
+    if (params?.author_id) sp.set("author_id", params.author_id);
+    if (params?.search) sp.set("search", params.search);
+    const qs = sp.toString();
+    return request<CmsPostSummary[]>(`/cms/posts${qs ? `?${qs}` : ""}`);
+  },
+
+  getCmsPost: (id: string) =>
+    request<CmsPostDetail>(`/cms/posts/${id}`),
+
+  createCmsPost: (data: CreateCmsPost) =>
+    request<CmsPost>("/cms/posts", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsPost: (id: string, data: UpdateCmsPost) =>
+    request<CmsPost>(`/cms/posts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsPost: (id: string) =>
+    request<void>(`/cms/posts/${id}`, { method: "DELETE" }),
+
+  // Post Workflow
+  submitCmsPostForReview: (id: string, data: SubmitPostForReview) =>
+    request<CmsPost>(`/cms/posts/${id}/submit-review`, { method: "POST", body: JSON.stringify(data) }),
+
+  reviewCmsPost: (id: string, data: ReviewPostAction) =>
+    request<CmsPost>(`/cms/posts/${id}/review`, { method: "POST", body: JSON.stringify(data) }),
+
+  medicalReviewCmsPost: (id: string, data: ReviewPostAction) =>
+    request<CmsPost>(`/cms/posts/${id}/medical-review`, { method: "POST", body: JSON.stringify(data) }),
+
+  publishCmsPost: (id: string) =>
+    request<CmsPost>(`/cms/posts/${id}/publish`, { method: "POST" }),
+
+  scheduleCmsPost: (id: string, data: SchedulePostRequest) =>
+    request<CmsPost>(`/cms/posts/${id}/schedule`, { method: "POST", body: JSON.stringify(data) }),
+
+  archiveCmsPost: (id: string) =>
+    request<CmsPost>(`/cms/posts/${id}/archive`, { method: "POST" }),
+
+  unarchiveCmsPost: (id: string) =>
+    request<CmsPost>(`/cms/posts/${id}/unarchive`, { method: "POST" }),
+
+  // Post Revisions
+  listCmsPostRevisions: (postId: string) =>
+    request<CmsPostRevision[]>(`/cms/posts/${postId}/revisions`),
+
+  getCmsPostRevision: (postId: string, revisionNumber: number) =>
+    request<CmsPostRevision>(`/cms/posts/${postId}/revisions/${revisionNumber}`),
+
+  restoreCmsPostRevision: (postId: string, revisionNumber: number) =>
+    request<CmsPost>(`/cms/posts/${postId}/revisions/${revisionNumber}/restore`, { method: "POST" }),
+
+  // Post Analytics
+  getCmsPostAnalytics: (id: string) =>
+    request<CmsPostAnalytics>(`/cms/posts/${id}/analytics`),
+
+  listCmsTopPosts: () =>
+    request<CmsPostAnalytics[]>("/cms/analytics/top-posts"),
+
+  // Subscribers
+  listCmsSubscribers: (params?: { page?: number; per_page?: number; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<CmsSubscriber[]>(`/cms/subscribers${qs ? `?${qs}` : ""}`);
+  },
+
+  getCmsSubscriber: (id: string) =>
+    request<CmsSubscriber>(`/cms/subscribers/${id}`),
+
+  deleteCmsSubscriber: (id: string) =>
+    request<void>(`/cms/subscribers/${id}`, { method: "DELETE" }),
+
+  exportCmsSubscribers: () =>
+    request<string>("/cms/subscribers/export"),
+
+  // Pages
+  listCmsPages: () =>
+    request<CmsPage[]>("/cms/pages"),
+
+  getCmsPage: (id: string) =>
+    request<CmsPage>(`/cms/pages/${id}`),
+
+  createCmsPage: (data: CreateCmsPage) =>
+    request<CmsPage>("/cms/pages", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCmsPage: (id: string, data: UpdateCmsPage) =>
+    request<CmsPage>(`/cms/pages/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteCmsPage: (id: string) =>
+    request<void>(`/cms/pages/${id}`, { method: "DELETE" }),
+
+  // Settings
+  getCmsSettings: () =>
+    request<CmsSettings>("/cms/settings"),
+
+  updateCmsSettings: (data: UpdateCmsSettings) =>
+    request<CmsSettings>("/cms/settings", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Menus
+  listCmsMenus: () =>
+    request<CmsMenu[]>("/cms/menus"),
+
+  getCmsMenu: (location: string) =>
+    request<CmsMenu>(`/cms/menus/${location}`),
+
+  updateCmsMenu: (location: string, data: UpdateCmsMenu) =>
+    request<CmsMenu>(`/cms/menus/${location}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Public API
+  publicListCmsPosts: (params?: { page?: number; per_page?: number; category?: string; tag?: string; author?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    if (params?.category) sp.set("category", params.category);
+    if (params?.tag) sp.set("tag", params.tag);
+    if (params?.author) sp.set("author", params.author);
+    const qs = sp.toString();
+    return request<CmsPostList>(`/public/cms/posts${qs ? `?${qs}` : ""}`);
+  },
+
+  publicGetCmsPost: (slug: string) =>
+    request<CmsPublicPost>(`/public/cms/posts/${slug}`),
+
+  publicGetFeaturedPosts: () =>
+    request<CmsPublicPost[]>("/public/cms/posts/featured"),
+
+  publicRecordCmsView: (postId: string) =>
+    request<void>(`/public/cms/posts/${postId}/view`, { method: "POST" }),
+
+  publicGetCmsPage: (slug: string) =>
+    request<CmsPage>(`/public/cms/pages/${slug}`),
+
+  publicSubscribeCms: (data: CreateCmsSubscriber) =>
+    request<CmsSubscriber>("/public/cms/subscribe", { method: "POST", body: JSON.stringify(data) }),
+
+  publicConfirmCmsSubscription: (token: string) =>
+    request<void>(`/public/cms/confirm/${token}`),
+
+  publicUnsubscribeCms: (token: string) =>
+    request<void>(`/public/cms/unsubscribe/${token}`),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: BREAK-GLASS
+  // ══════════════════════════════════════════════════════════════
+
+  startBreakGlass: (data: CreateBreakGlassRequest) =>
+    request<BreakGlassEvent>("/break-glass", { method: "POST", body: JSON.stringify(data) }),
+
+  listBreakGlass: (params?: BreakGlassQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.user_id) sp.set("user_id", params.user_id);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
+    if (params?.reviewed !== undefined) sp.set("reviewed", String(params.reviewed));
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return request<BreakGlassEventSummary[]>(`/break-glass${qs ? `?${qs}` : ""}`);
+  },
+
+  getBreakGlass: (id: string) =>
+    request<BreakGlassEvent>(`/break-glass/${id}`),
+
+  endBreakGlass: (id: string, data: EndBreakGlassRequest) =>
+    request<BreakGlassEvent>(`/break-glass/${id}/end`, { method: "POST", body: JSON.stringify(data) }),
+
+  reviewBreakGlass: (id: string, data: ReviewBreakGlassRequest) =>
+    request<BreakGlassEvent>(`/break-glass/${id}/review`, { method: "POST", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: CLINICAL ACCESS MONITOR
+  // ══════════════════════════════════════════════════════════════
+
+  listSensitivePatients: () =>
+    request<SensitivePatientSummary[]>("/sensitive-patients"),
+
+  createSensitivePatient: (data: CreateSensitivePatientRequest) =>
+    request<SensitivePatient>("/sensitive-patients", { method: "POST", body: JSON.stringify(data) }),
+
+  deleteSensitivePatient: (id: string) =>
+    request<{ deleted: boolean }>(`/sensitive-patients/${id}`, { method: "DELETE" }),
+
+  listAccessAlerts: () =>
+    request<AccessAlert[]>("/access-alerts"),
+
+  acknowledgeAccessAlert: (id: string, data: AcknowledgeAlertRequest) =>
+    request<AccessAlert>(`/access-alerts/${id}/acknowledge`, { method: "POST", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: STOCK DISPOSAL
+  // ══════════════════════════════════════════════════════════════
+
+  listDisposals: (params?: DisposalQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.store_id) sp.set("store_id", params.store_id);
+    if (params?.disposal_type) sp.set("disposal_type", params.disposal_type);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return request<StockDisposalSummary[]>(`/disposals${qs ? `?${qs}` : ""}`);
+  },
+
+  getDisposal: (id: string) =>
+    request<StockDisposalRequest>(`/disposals/${id}`),
+
+  getDisposalItems: (id: string) =>
+    request<StockDisposalItem[]>(`/disposals/${id}/items`),
+
+  createDisposal: (data: CreateDisposalRequest) =>
+    request<StockDisposalRequest>("/disposals", { method: "POST", body: JSON.stringify(data) }),
+
+  approveDisposal: (id: string, data: ApproveDisposalRequest) =>
+    request<StockDisposalRequest>(`/disposals/${id}/approve`, { method: "POST", body: JSON.stringify(data) }),
+
+  executeDisposal: (id: string, data: ExecuteDisposalRequest) =>
+    request<StockDisposalRequest>(`/disposals/${id}/execute`, { method: "POST", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: TAT TRACKING
+  // ══════════════════════════════════════════════════════════════
+
+  listTatBenchmarks: () =>
+    request<TatBenchmark[]>("/tat/benchmarks"),
+
+  createTatBenchmark: (data: CreateTatBenchmarkRequest) =>
+    request<TatBenchmark>("/tat/benchmarks", { method: "POST", body: JSON.stringify(data) }),
+
+  listTatRecords: (params?: TatQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.category) sp.set("category", params.category);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return request<TatRecordSummary[]>(`/tat/records${qs ? `?${qs}` : ""}`);
+  },
+
+  startTatRecord: (data: CreateTatRecordRequest) =>
+    request<TatRecord>("/tat/records", { method: "POST", body: JSON.stringify(data) }),
+
+  completeTatRecord: (id: string, data: CompleteTatRecordRequest) =>
+    request<TatRecord>(`/tat/records/${id}/complete`, { method: "POST", body: JSON.stringify(data) }),
+
+  getTatDashboard: () =>
+    request<TatDashboard>("/tat/dashboard"),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: DATA MIGRATION
+  // ══════════════════════════════════════════════════════════════
+
+  listMigrations: (params?: MigrationQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.direction) sp.set("direction", params.direction);
+    if (params?.entity_type) sp.set("entity_type", params.entity_type);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return request<DataMigration[]>(`/migrations${qs ? `?${qs}` : ""}`);
+  },
+
+  getMigration: (id: string) =>
+    request<DataMigration>(`/migrations/${id}`),
+
+  createMigration: (data: CreateMigrationRequest) =>
+    request<DataMigration>("/migrations", { method: "POST", body: JSON.stringify(data) }),
+
+  cancelMigration: (id: string) =>
+    request<DataMigration>(`/migrations/${id}/cancel`, { method: "POST" }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: EOD DIGEST
+  // ══════════════════════════════════════════════════════════════
+
+  getMyDigestSubscription: () =>
+    request<EodDigestSubscription | null>("/digest/subscription"),
+
+  upsertDigestSubscription: (data: CreateDigestSubscriptionRequest) =>
+    request<EodDigestSubscription>("/digest/subscription", { method: "POST", body: JSON.stringify(data) }),
+
+  listDigestHistory: () =>
+    request<EodDigestHistory[]>("/digest/history"),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: DATA QUALITY
+  // ══════════════════════════════════════════════════════════════
+
+  listDataQualityRules: () =>
+    request<DataQualityRule[]>("/data-quality/rules"),
+
+  createDataQualityRule: (data: CreateDataQualityRuleRequest) =>
+    request<DataQualityRule>("/data-quality/rules", { method: "POST", body: JSON.stringify(data) }),
+
+  listDataQualityIssues: (params?: DataQualityQuery) => {
+    const sp = new URLSearchParams();
+    if (params?.category) sp.set("category", params.category);
+    if (params?.entity_type) sp.set("entity_type", params.entity_type);
+    if (params?.severity) sp.set("severity", params.severity);
+    if (params?.is_resolved !== undefined) sp.set("is_resolved", String(params.is_resolved));
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return request<DataQualityIssue[]>(`/data-quality/issues${qs ? `?${qs}` : ""}`);
+  },
+
+  resolveDataQualityIssue: (id: string, data: ResolveIssueRequest) =>
+    request<DataQualityIssue>(`/data-quality/issues/${id}/resolve`, { method: "POST", body: JSON.stringify(data) }),
+
+  getDataQualityDashboard: () =>
+    request<DataQualityDashboard>("/data-quality/dashboard"),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: CERT-IN COMPLIANCE
+  // ══════════════════════════════════════════════════════════════
+
+  reportToCertIn: (id: string, data: ReportToCertInRequest) =>
+    request<CertInIncident>(`/security-incidents/${id}/cert-in`, { method: "POST", body: JSON.stringify(data) }),
+
+  getIncidentUpdates: (id: string) =>
+    request<CertInIncidentUpdate[]>(`/security-incidents/${id}/updates`),
+
+  addIncidentUpdate: (id: string, data: AddCertInUpdateRequest) =>
+    request<CertInIncidentUpdate>(`/security-incidents/${id}/updates`, { method: "POST", body: JSON.stringify(data) }),
+
+  listVulnerabilities: () =>
+    request<Vulnerability[]>("/vulnerabilities"),
+
+  createVulnerability: (data: CreateVulnerabilityRequest) =>
+    request<Vulnerability>("/vulnerabilities", { method: "POST", body: JSON.stringify(data) }),
+
+  updateVulnerability: (id: string, data: UpdateVulnerabilityRequest) =>
+    request<Vulnerability>(`/vulnerabilities/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  listComplianceRequirements: () =>
+    request<ComplianceRequirement[]>("/compliance-requirements"),
+
+  updateComplianceRequirement: (id: string, data: UpdateCertInComplianceRequest) =>
+    request<ComplianceRequirement>(`/compliance-requirements/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: SYSTEM HEALTH & MONITORING
+  // ══════════════════════════════════════════════════════════════
+
+  getSystemHealthDashboard: () =>
+    request<SystemHealthDashboard>("/system-health"),
+
+  listBackups: () =>
+    request<BackupHistory[]>("/backups"),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: ONBOARDING WIZARD
+  // ══════════════════════════════════════════════════════════════
+
+  getOnboardingProgress: () =>
+    request<ItSecurityOnboardingProgress | null>("/onboarding/progress"),
+
+  completeOnboardingStep: (data: CompleteItSecurityOnboardingStepRequest) =>
+    request<ItSecurityOnboardingProgress>("/onboarding/complete-step", { method: "POST", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════
+  // IT SECURITY: INCENTIVE CONFIGURATION
+  // ══════════════════════════════════════════════════════════════
+
+  listIncentivePlans: () =>
+    request<IncentivePlan[]>("/incentive-plans"),
+
+  createIncentivePlan: (data: CreateIncentivePlanRequest) =>
+    request<IncentivePlan>("/incentive-plans", { method: "POST", body: JSON.stringify(data) }),
+
+  getIncentivePlanRules: (id: string) =>
+    request<IncentivePlanRule[]>(`/incentive-plans/${id}/rules`),
+
+  addIncentiveRule: (planId: string, data: CreateIncentiveRuleRequest) =>
+    request<IncentivePlanRule>(`/incentive-plans/${planId}/rules`, { method: "POST", body: JSON.stringify(data) }),
+
+  listDoctorIncentiveAssignments: () =>
+    request<DoctorIncentiveAssignment[]>("/incentive-assignments"),
+
+  assignIncentivePlan: (data: AssignIncentivePlanRequest) =>
+    request<DoctorIncentiveAssignment>("/incentive-assignments", { method: "POST", body: JSON.stringify(data) }),
+
+  listIncentiveCalculations: () =>
+    request<IncentiveCalculation[]>("/incentive-calculations"),
+
+  calculateIncentive: (data: CalculateIncentiveRequest) =>
+    request<IncentiveCalculation>("/incentive-calculations", { method: "POST", body: JSON.stringify(data) }),
+
+  approveIncentive: (id: string, data: ApproveIncentiveRequest) =>
+    request<IncentiveCalculation>(`/incentive-calculations/${id}/approve`, { method: "POST", body: JSON.stringify(data) }),
+
+  markIncentivePaid: (id: string, data: MarkIncentivePaidRequest) =>
+    request<IncentiveCalculation>(`/incentive-calculations/${id}/paid`, { method: "POST", body: JSON.stringify(data) }),
 };

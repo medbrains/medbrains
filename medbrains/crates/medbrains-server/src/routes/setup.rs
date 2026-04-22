@@ -9,7 +9,8 @@ use medbrains_core::{
     patient::{MasterInsuranceProvider, MasterOccupation, MasterReligion, MasterRelation},
     permissions,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -806,7 +807,7 @@ pub async fn list_users(
     Ok(Json(rows))
 }
 
-/// GET /api/setup/doctors — returns only users with role = 'doctor' and is_active = true
+/// GET /api/setup/doctors — returns only users with role = 'doctor' and `is_active` = true
 pub async fn list_doctors(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2077,6 +2078,492 @@ pub async fn update_setting(
     Ok(Json(row))
 }
 
+// ── Secure Device / Integration Settings ────────────────────
+
+const DEVICE_SETTINGS_CATEGORY: &str = "device_integrations";
+const MASKED_SECRET_VALUE: &str = "********";
+const DEVICE_SETTINGS_KEYS: &[&str] = &[
+    "pacs_dicom",
+    "lab_interface",
+    "biometric",
+    "printing",
+    "queue_display",
+];
+
+#[derive(Debug, Serialize)]
+pub struct SecureTenantSettingRow {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub category: String,
+    pub key: String,
+    pub value: Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub has_secrets: bool,
+    pub masked_secret_fields: Vec<String>,
+    pub is_configured: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSecureDeviceSettingRequest {
+    pub key: String,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct PacsDicomDeviceConfig {
+    enabled: bool,
+    host: String,
+    port: Option<u16>,
+    local_ae_title: String,
+    remote_ae_title: String,
+    username: String,
+    password: String,
+    worklist_enabled: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PacsDicomDeviceConfigInput {
+    enabled: Option<bool>,
+    host: Option<String>,
+    port: Option<u16>,
+    local_ae_title: Option<String>,
+    remote_ae_title: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    worklist_enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct LabInterfaceDeviceConfig {
+    enabled: bool,
+    protocol: String,
+    host: String,
+    port: Option<u16>,
+    analyzer_code: String,
+    username: String,
+    password: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct LabInterfaceDeviceConfigInput {
+    enabled: Option<bool>,
+    protocol: Option<String>,
+    host: Option<String>,
+    port: Option<u16>,
+    analyzer_code: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct BiometricDeviceConfig {
+    enabled: bool,
+    vendor: String,
+    service_url: String,
+    device_id: String,
+    api_key: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct BiometricDeviceConfigInput {
+    enabled: Option<bool>,
+    vendor: Option<String>,
+    service_url: Option<String>,
+    device_id: Option<String>,
+    api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct PrintingDeviceConfig {
+    enabled: bool,
+    agent_url: String,
+    default_printer: String,
+    label_printer: String,
+    api_key: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct PrintingDeviceConfigInput {
+    enabled: Option<bool>,
+    agent_url: Option<String>,
+    default_printer: Option<String>,
+    label_printer: Option<String>,
+    api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct QueueDisplayDeviceConfig {
+    enabled: bool,
+    display_client_url: String,
+    location_code: String,
+    websocket_channel: String,
+    api_key: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct QueueDisplayDeviceConfigInput {
+    enabled: Option<bool>,
+    display_client_url: Option<String>,
+    location_code: Option<String>,
+    websocket_channel: Option<String>,
+    api_key: Option<String>,
+}
+
+pub async fn get_secure_device_settings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<SecureTenantSettingRow>>, AppError> {
+    require_permission(&claims, permissions::integration::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, TenantSettings>(
+        "SELECT * FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = $2 \
+         ORDER BY key",
+    )
+    .bind(claims.tenant_id)
+    .bind(DEVICE_SETTINGS_CATEGORY)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    let filtered = rows
+        .into_iter()
+        .filter(|row| DEVICE_SETTINGS_KEYS.contains(&row.key.as_str()))
+        .map(mask_secure_setting_row)
+        .collect();
+
+    Ok(Json(filtered))
+}
+
+pub async fn update_secure_device_setting(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateSecureDeviceSettingRequest>,
+) -> Result<Json<SecureTenantSettingRow>, AppError> {
+    require_permission(&claims, permissions::integration::UPDATE)?;
+
+    let key = body.key.trim();
+    if !DEVICE_SETTINGS_KEYS.contains(&key) {
+        let mut errors = ValidationErrors::new();
+        errors.add("key", "Unsupported secure device setting key");
+        return Err(AppError::ValidationFailed(errors));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let existing = sqlx::query_as::<_, TenantSettings>(
+        "SELECT * FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = $2 AND key = $3",
+    )
+    .bind(claims.tenant_id)
+    .bind(DEVICE_SETTINGS_CATEGORY)
+    .bind(key)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let canonical_value = normalize_secure_device_setting(
+        key,
+        existing.as_ref().map(|row| &row.value),
+        &body.value,
+    )?;
+
+    let row = sqlx::query_as::<_, TenantSettings>(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now() \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(DEVICE_SETTINGS_CATEGORY)
+    .bind(key)
+    .bind(&canonical_value)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let old_values = existing.as_ref().map(|row| mask_value_for_key(key, &row.value).0);
+    let new_values = mask_value_for_key(key, &canonical_value).0;
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "secure_device_setting_updated",
+            entity_type: "tenant_setting",
+            entity_id: Some(row.id),
+            old_values: old_values.as_ref(),
+            new_values: Some(&new_values),
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await?;
+
+    Ok(Json(mask_secure_setting_row(row)))
+}
+
+fn parse_partial_config<T: DeserializeOwned>(
+    value: &Value,
+    field_name: &str,
+) -> Result<T, AppError> {
+    serde_json::from_value::<T>(value.clone()).map_err(|_| {
+        let mut errors = ValidationErrors::new();
+        errors.add(field_name, "Invalid configuration payload for this device connector");
+        AppError::ValidationFailed(errors)
+    })
+}
+
+fn merge_secret(previous: &str, incoming: Option<String>) -> String {
+    match incoming {
+        Some(value) if value == MASKED_SECRET_VALUE => previous.to_owned(),
+        Some(value) => value,
+        None => previous.to_owned(),
+    }
+}
+
+fn validate_plain_text(
+    errors: &mut ValidationErrors,
+    field: &str,
+    value: &str,
+    max_len: usize,
+) {
+    if value.len() > max_len {
+        errors.add(field, format!("Must be at most {max_len} characters"));
+    }
+    validation::validate_no_html(errors, field, value);
+}
+
+fn validate_protocol(errors: &mut ValidationErrors, field: &str, value: &str) {
+    let allowed = ["hl7", "astm", "file_drop"];
+    if !value.is_empty() && !allowed.contains(&value) {
+        errors.add(field, "Protocol must be one of hl7, astm, or file_drop");
+    }
+}
+
+fn validate_configured_value(value: &Value) -> bool {
+    value.as_object().is_some_and(|obj| {
+        obj.values().any(|field| match field {
+            Value::Bool(true) => true,
+            Value::Number(_) => true,
+            Value::String(text) => !text.is_empty() && text != MASKED_SECRET_VALUE,
+            _ => false,
+        })
+    })
+}
+
+fn parse_existing_config<T>(existing: Option<&Value>) -> T
+where
+    T: Default + DeserializeOwned,
+{
+    existing
+        .and_then(|value| serde_json::from_value::<T>(value.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn secret_fields_for_key(key: &str) -> &'static [&'static str] {
+    match key {
+        "pacs_dicom" | "lab_interface" => &["password"],
+        "biometric" | "printing" | "queue_display" => &["api_key"],
+        _ => &[],
+    }
+}
+
+fn mask_value_for_key(key: &str, value: &Value) -> (Value, bool, Vec<String>) {
+    let Some(obj) = value.as_object() else {
+        return (value.clone(), false, Vec::new());
+    };
+
+    let mut masked = obj.clone();
+    let mut masked_fields = Vec::new();
+
+    for field in secret_fields_for_key(key) {
+        if obj
+            .get(*field)
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty())
+        {
+            masked.insert(
+                (*field).to_owned(),
+                Value::String(MASKED_SECRET_VALUE.to_owned()),
+            );
+            masked_fields.push((*field).to_owned());
+        }
+    }
+
+    (
+        Value::Object(masked),
+        !masked_fields.is_empty(),
+        masked_fields,
+    )
+}
+
+fn mask_secure_setting_row(row: TenantSettings) -> SecureTenantSettingRow {
+    let (masked_value, has_secrets, masked_secret_fields) =
+        mask_value_for_key(&row.key, &row.value);
+
+    SecureTenantSettingRow {
+        id: row.id,
+        tenant_id: row.tenant_id,
+        category: row.category,
+        key: row.key,
+        value: masked_value.clone(),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        has_secrets,
+        masked_secret_fields,
+        is_configured: validate_configured_value(&masked_value),
+    }
+}
+
+fn normalize_secure_device_setting(
+    key: &str,
+    existing: Option<&Value>,
+    incoming: &Value,
+) -> Result<Value, AppError> {
+    let mut errors = ValidationErrors::new();
+
+    let normalized = match key {
+        "pacs_dicom" => {
+            let input: PacsDicomDeviceConfigInput = parse_partial_config(incoming, "value")?;
+            let previous: PacsDicomDeviceConfig = parse_existing_config(existing);
+            let merged = PacsDicomDeviceConfig {
+                enabled: input.enabled.unwrap_or(previous.enabled),
+                host: input.host.unwrap_or(previous.host),
+                port: input.port.or(previous.port),
+                local_ae_title: input.local_ae_title.unwrap_or(previous.local_ae_title),
+                remote_ae_title: input.remote_ae_title.unwrap_or(previous.remote_ae_title),
+                username: input.username.unwrap_or(previous.username),
+                password: merge_secret(&previous.password, input.password),
+                worklist_enabled: input.worklist_enabled.unwrap_or(previous.worklist_enabled),
+            };
+            validate_plain_text(&mut errors, "host", &merged.host, 255);
+            validate_plain_text(&mut errors, "local_ae_title", &merged.local_ae_title, 64);
+            validate_plain_text(&mut errors, "remote_ae_title", &merged.remote_ae_title, 64);
+            validate_plain_text(&mut errors, "username", &merged.username, 120);
+            validate_plain_text(&mut errors, "password", &merged.password, 200);
+            serde_json::to_value(merged)
+                .map_err(|e| AppError::Internal(format!("serialize pacs_dicom config: {e}")))?
+        }
+        "lab_interface" => {
+            let input: LabInterfaceDeviceConfigInput = parse_partial_config(incoming, "value")?;
+            let previous: LabInterfaceDeviceConfig = parse_existing_config(existing);
+            let merged = LabInterfaceDeviceConfig {
+                enabled: input.enabled.unwrap_or(previous.enabled),
+                protocol: input.protocol.unwrap_or(previous.protocol),
+                host: input.host.unwrap_or(previous.host),
+                port: input.port.or(previous.port),
+                analyzer_code: input.analyzer_code.unwrap_or(previous.analyzer_code),
+                username: input.username.unwrap_or(previous.username),
+                password: merge_secret(&previous.password, input.password),
+            };
+            validate_protocol(&mut errors, "protocol", &merged.protocol);
+            validate_plain_text(&mut errors, "host", &merged.host, 255);
+            validate_plain_text(&mut errors, "analyzer_code", &merged.analyzer_code, 64);
+            validate_plain_text(&mut errors, "username", &merged.username, 120);
+            validate_plain_text(&mut errors, "password", &merged.password, 200);
+            serde_json::to_value(merged).map_err(|e| {
+                AppError::Internal(format!("serialize lab_interface config: {e}"))
+            })?
+        }
+        "biometric" => {
+            let input: BiometricDeviceConfigInput = parse_partial_config(incoming, "value")?;
+            let previous: BiometricDeviceConfig = parse_existing_config(existing);
+            let merged = BiometricDeviceConfig {
+                enabled: input.enabled.unwrap_or(previous.enabled),
+                vendor: input.vendor.unwrap_or(previous.vendor),
+                service_url: input.service_url.unwrap_or(previous.service_url),
+                device_id: input.device_id.unwrap_or(previous.device_id),
+                api_key: merge_secret(&previous.api_key, input.api_key),
+            };
+            validate_plain_text(&mut errors, "vendor", &merged.vendor, 120);
+            validation::validate_optional_url(&mut errors, "service_url", &merged.service_url);
+            validate_plain_text(&mut errors, "device_id", &merged.device_id, 120);
+            validate_plain_text(&mut errors, "api_key", &merged.api_key, 200);
+            serde_json::to_value(merged)
+                .map_err(|e| AppError::Internal(format!("serialize biometric config: {e}")))?
+        }
+        "printing" => {
+            let input: PrintingDeviceConfigInput = parse_partial_config(incoming, "value")?;
+            let previous: PrintingDeviceConfig = parse_existing_config(existing);
+            let merged = PrintingDeviceConfig {
+                enabled: input.enabled.unwrap_or(previous.enabled),
+                agent_url: input.agent_url.unwrap_or(previous.agent_url),
+                default_printer: input.default_printer.unwrap_or(previous.default_printer),
+                label_printer: input.label_printer.unwrap_or(previous.label_printer),
+                api_key: merge_secret(&previous.api_key, input.api_key),
+            };
+            validation::validate_optional_url(&mut errors, "agent_url", &merged.agent_url);
+            validate_plain_text(
+                &mut errors,
+                "default_printer",
+                &merged.default_printer,
+                120,
+            );
+            validate_plain_text(&mut errors, "label_printer", &merged.label_printer, 120);
+            validate_plain_text(&mut errors, "api_key", &merged.api_key, 200);
+            serde_json::to_value(merged)
+                .map_err(|e| AppError::Internal(format!("serialize printing config: {e}")))?
+        }
+        "queue_display" => {
+            let input: QueueDisplayDeviceConfigInput = parse_partial_config(incoming, "value")?;
+            let previous: QueueDisplayDeviceConfig = parse_existing_config(existing);
+            let merged = QueueDisplayDeviceConfig {
+                enabled: input.enabled.unwrap_or(previous.enabled),
+                display_client_url: input
+                    .display_client_url
+                    .unwrap_or(previous.display_client_url),
+                location_code: input.location_code.unwrap_or(previous.location_code),
+                websocket_channel: input.websocket_channel.unwrap_or(previous.websocket_channel),
+                api_key: merge_secret(&previous.api_key, input.api_key),
+            };
+            validation::validate_optional_url(
+                &mut errors,
+                "display_client_url",
+                &merged.display_client_url,
+            );
+            validate_plain_text(&mut errors, "location_code", &merged.location_code, 64);
+            validate_plain_text(
+                &mut errors,
+                "websocket_channel",
+                &merged.websocket_channel,
+                120,
+            );
+            validate_plain_text(&mut errors, "api_key", &merged.api_key, 200);
+            serde_json::to_value(merged).map_err(|e| {
+                AppError::Internal(format!("serialize queue_display config: {e}"))
+            })?
+        }
+        _ => {
+            errors.add("key", "Unsupported secure device setting key");
+            Value::Null
+        }
+    };
+
+    if errors.has_errors() {
+        return Err(AppError::ValidationFailed(errors));
+    }
+
+    Ok(normalized)
+}
+
 // ── Helper: upsert a single tenant setting within a transaction ──
 
 async fn upsert_setting_in_tx(
@@ -3075,9 +3562,7 @@ pub async fn import_departments(
         }
 
         let dept_type = type_idx
-            .and_then(|idx| row.values.get(idx))
-            .map(|v| v.trim().to_lowercase())
-            .unwrap_or_else(|| "clinical".to_string());
+            .and_then(|idx| row.values.get(idx)).map_or_else(|| "clinical".to_string(), |v| v.trim().to_lowercase());
 
         let valid_types = [
             "clinical", "pre_clinical", "para_clinical",
@@ -3204,14 +3689,10 @@ pub async fn import_users(
         }
 
         let password = password_idx
-            .and_then(|idx| row.values.get(idx))
-            .map(|v| v.trim().to_string())
-            .unwrap_or_else(|| format!("Welcome@{}", &username));
+            .and_then(|idx| row.values.get(idx)).map_or_else(|| format!("Welcome@{}", &username), |v| v.trim().to_string());
 
         let role = role_idx
-            .and_then(|idx| row.values.get(idx))
-            .map(|v| v.trim().to_string())
-            .unwrap_or_else(|| "receptionist".to_string());
+            .and_then(|idx| row.values.get(idx)).map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
 
         // Hash password
         let salt = SaltString::generate(&mut OsRng);
@@ -3256,10 +3737,10 @@ pub async fn import_users(
 
 // ── Print Template CRUD ─────────────────────────────────────
 
-/// Print templates stored in tenant_settings.
+/// Print templates stored in `tenant_settings`.
 ///
-/// Keys: 'letterhead', 'prescription_pad', 'invoice', 'lab_report', 'discharge_summary'.
-/// Values: JSONB with header_text, footer_text, logo_position, font, margins, etc.
+/// Keys: 'letterhead', '`prescription_pad`', 'invoice', '`lab_report`', '`discharge_summary`'.
+/// Values: JSONB with `header_text`, `footer_text`, `logo_position`, font, margins, etc.
 
 #[derive(Debug, Deserialize)]
 pub struct PrintTemplateRequest {

@@ -14,7 +14,6 @@ use medbrains_core::ipd::Admission;
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
@@ -87,8 +86,8 @@ pub struct QueueEntry {
     pub token_number: i32,
     pub status: String,
     pub queue_date: NaiveDate,
-    pub called_at: Option<chrono::DateTime<Utc>>,
-    pub completed_at: Option<chrono::DateTime<Utc>>,
+    pub called_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
     pub patient_id: Uuid,
     pub patient_name: String,
     pub uhid: String,
@@ -620,9 +619,7 @@ pub async fn complete_queue_entry(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = dept_code
-                .map(|c| format!("OPD-CONSULT-{c}"))
-                .unwrap_or_else(|| "OPD-CONSULT".to_owned());
+            let charge_code = dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
 
             let _ = super::billing::auto_charge(
                 &mut tx,
@@ -2793,8 +2790,8 @@ pub struct PharmacyDispatchStatusRow {
     pub status: String,
     pub dispensing_type: Option<String>,
     pub total_items: Option<i64>,
-    pub created_at: chrono::DateTime<Utc>,
-    pub dispensed_at: Option<chrono::DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub dispensed_at: Option<DateTime<Utc>>,
 }
 
 pub async fn pharmacy_dispatch_status(

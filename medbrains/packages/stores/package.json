@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@medbrains/types": "workspace:*",
+    "@medbrains/utils": "workspace:*",
     "@tanstack/react-query": "^5.90.21",
     "zustand": "^5.0.11"
   },

@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use medbrains_yottadb::client::YottaDbClient;
 use sqlx::PgPool;
+
+use crate::routes::ws::QueueBroadcaster;
 
 /// Cookie configuration for `HttpOnly` cookie-based auth.
 #[derive(Debug, Clone)]
@@ -18,6 +22,11 @@ pub struct AppState {
     pub jwt_encoding_key: EncodingKey,
     pub jwt_decoding_key: DecodingKey,
     pub cookie_config: CookieConfig,
+    /// Broadcaster for real-time TV display updates
+    pub queue_broadcaster: QueueBroadcaster,
+    /// Trusted proxy CIDRs for X-Forwarded-For validation.
+    /// Only trust forwarded headers if the direct connection is from one of these networks.
+    pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -28,6 +37,8 @@ impl std::fmt::Debug for AppState {
             .field("jwt_encoding_key", &"[redacted]")
             .field("jwt_decoding_key", &"[redacted]")
             .field("cookie_config", &self.cookie_config)
+            .field("queue_broadcaster", &self.queue_broadcaster)
+            .field("trusted_proxies", &self.trusted_proxies.len())
             .finish()
     }
 }

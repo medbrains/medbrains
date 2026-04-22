@@ -5,7 +5,7 @@ use chrono::{NaiveDate, Utc};
 use medbrains_core::insurance::{
     AppealStatus, DenialReasonCount, InsuranceDashboard, InsuranceVerification, PaCheckResult,
     PaRequirementRule, PaUrgency, PriorAuthAppeal, PriorAuthDocument, PriorAuthRequest,
-    PriorAuthStatus, PriorAuthStatusLog, VerificationStatus,
+    PriorAuthStatus, VerificationStatus,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;

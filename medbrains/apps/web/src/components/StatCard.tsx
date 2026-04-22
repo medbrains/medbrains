@@ -17,9 +17,10 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
         <Text
           size="xs"
           tt="uppercase"
-          c="var(--mb-text-secondary)"
-          fw={600}
-          style={{ letterSpacing: "0.04em", fontSize: 11 }}
+          c="var(--mb-text-muted)"
+          fw={500}
+          ff="var(--font-mono, 'JetBrains Mono', monospace)"
+          style={{ letterSpacing: "0.14em", fontSize: 11 }}
         >
           {label}
         </Text>
@@ -27,17 +28,24 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
           {icon}
         </ThemeIcon>
       </Group>
-      <Text fz={28} fw={700} lh={1.1} c="var(--mb-text-primary)">
+      <Text
+        fz={28}
+        fw={400}
+        lh={1.1}
+        c="var(--mb-text-primary)"
+        ff="var(--font-display, 'Fraunces Variable', Georgia, serif)"
+        style={{ fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "-0.02em" }}
+      >
         {value}
       </Text>
       {trend && (
         <Group gap={4} mt="sm">
           {trend.value >= 0 ? (
-            <IconArrowUpRight size={14} color="#20c997" stroke={2} />
+            <IconArrowUpRight size={14} color="var(--mb-success-accent, #10b981)" stroke={2} />
           ) : (
-            <IconArrowDownRight size={14} color="#ff6b6b" stroke={2} />
+            <IconArrowDownRight size={14} color="var(--mb-danger-accent, #f43f5e)" stroke={2} />
           )}
-          <Text size="xs" c={trend.value >= 0 ? "teal" : "danger"} fw={600}>
+          <Text size="xs" c={trend.value >= 0 ? "success" : "danger"} fw={600}>
             {Math.abs(trend.value)}%
           </Text>
           {trend.label && (

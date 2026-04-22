@@ -1342,6 +1342,15 @@ pub mod admin {
         pub const UPDATE: &str = "admin.screen_builder.update";
         pub const DELETE: &str = "admin.screen_builder.delete";
     }
+
+    // IT Security permissions
+    pub const SECURITY: &str = "admin.security.manage";
+    pub const CONFIG: &str = "admin.config.manage";
+    pub const MIGRATION: &str = "admin.migration.manage";
+    pub const COMPLIANCE: &str = "admin.compliance.manage";
+    pub const SYSTEM: &str = "admin.system.view";
+    pub const BACKUP: &str = "admin.backup.manage";
+    pub const INCENTIVE: &str = "admin.incentive.manage";
 }
 
 pub mod documents {
@@ -1470,6 +1479,7 @@ pub mod audit {
     pub const VIEW: &str = "audit.log.view";
     pub const EXPORT: &str = "audit.log.export";
     pub const ACCESS_VIEW: &str = "audit.access.view";
+    pub const REVIEW: &str = "audit.break_glass.review";
 }
 
 pub mod analytics {
@@ -1492,4 +1502,10 @@ pub mod command_center {
     pub mod discharge {
         pub const VIEW: &str = "command_center.discharge.view";
     }
+}
+
+pub mod inventory {
+    pub const VIEW: &str = "inventory.view";
+    pub const DISPOSE: &str = "inventory.dispose";
+    pub const APPROVE: &str = "inventory.approve";
 }

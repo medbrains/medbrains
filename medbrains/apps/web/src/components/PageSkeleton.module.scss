@@ -1,9 +1,11 @@
-// ── Page Skeleton — Branded ECG loader with indigo-teal gradient ──
+// ── Page Skeleton — emerald cardiac monitor loader ──
+
+$trace: #34d399;
 
 .wrapper {
   background: radial-gradient(
     ellipse at center,
-    rgba(99, 102, 241, 0.03) 0%,
+    rgba($trace, 0.03) 0%,
     transparent 70%
   );
 }
@@ -21,74 +23,47 @@
   overflow: visible;
 }
 
-// ── Shadow trace (always visible, faint) ──
-
+// Ghost trace — always visible, very faint
 .shadowLine {
   fill: none;
-  opacity: 0.15;
+  opacity: 0.1;
 }
 
-// ── Main trace (mask-revealed) ──
-
+// Bright active trace — revealed by sweep mask
 .mainLine {
   fill: none;
-  filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.4))
-    drop-shadow(0 0 8px rgba(13, 148, 136, 0.2));
+  filter: drop-shadow(0 0 4px rgba($trace, 0.7))
+          drop-shadow(0 0 8px rgba($trace, 0.25));
 }
 
-// ── Sweep mask rectangle ──
-
+// Sweep mask — reveals left→right, resets
 .sweepRect {
-  animation: pageSweep 2.8s ease-in-out infinite;
+  animation: pageSweep 2.8s linear infinite;
 }
 
 @keyframes pageSweep {
-  0% {
-    width: 0;
-  }
-  65% {
-    width: 200;
-    opacity: 1;
-  }
-  82% {
-    width: 200;
-    opacity: 1;
-  }
-  95% {
-    width: 200;
-    opacity: 0;
-  }
-  100% {
-    width: 0;
-    opacity: 0;
-  }
+  0% { width: 0; opacity: 1; }
+  70% { width: 200; opacity: 1; }
+  85% { width: 200; opacity: 0.6; }
+  95% { width: 200; opacity: 0; }
+  100% { width: 0; opacity: 0; }
 }
 
-// ── Branded text ──
-
+// Brand name — pulses in sync with sweep
 .text {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--mantine-color-dimmed, #868e96);
-  letter-spacing: 0.12em;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mb-text-muted);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   animation: textPulse 2.8s ease-in-out infinite;
 }
 
 @keyframes textPulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    letter-spacing: 0.12em;
-  }
-  30%,
-  60% {
-    opacity: 1;
-    letter-spacing: 0.18em;
-  }
+  0%, 100% { opacity: 0.3; }
+  40%, 60% { opacity: 1; }
 }
-
-// ── Reduced motion ──
 
 @media (prefers-reduced-motion: reduce) {
   .sweepRect {

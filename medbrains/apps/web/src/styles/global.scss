@@ -21,7 +21,7 @@ body {
   color: var(--mb-text-primary);
 }
 
-// ─── Focus ring (branded indigo) ───
+// ─── Focus ring (branded forest) ───
 :focus-visible {
   outline: 2px solid var(--mb-focus-ring);
   outline-offset: 2px;
@@ -112,63 +112,117 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ── BUTTONS — 3 distinct visual tiers ────────────────────────
+// ── BUTTONS — 5 tiers with micro-interactions ────────────────
 // ═══════════════════════════════════════════════════════════════
-//
-// FILLED (primary CTA): solid indigo bg, white text, colored glow shadow
-// DEFAULT (secondary):  white bg, no border, neutral shadow, floats
-// LIGHT (tertiary):     soft tinted bg, matching text, subtle lift
-// OUTLINE:              white bg + themed border, clean corporate
-// SUBTLE:               no bg, text only, hover reveals tint
-//
 
 .mantine-Button-root {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 600;
+  position: relative;
+  overflow: hidden;
 
-  &:active { transform: scale(0.97); }
+  // Tactile press — scale + darken
+  &:active:not(:disabled) {
+    transform: scale(0.97) translateY(0);
+    transition-duration: 0.08s;
+  }
 
-  // Filled — branded glow shadow (indigo tinted)
+  // Ripple-like inner glow on click (via ::after)
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  &:active::after {
+    opacity: 1;
+    transition-duration: 0.05s;
+  }
+
+  // ── Filled (primary CTA) — forest bg, glow shadow, lift on hover ──
   &[data-variant="filled"] {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 12px var(--mantine-color-primary-light);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 2px 8px rgba(31, 67, 50, 0.15);
 
-    &:hover {
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 20px var(--mantine-color-primary-light);
+    &:hover:not(:disabled) {
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 6px 16px rgba(31, 67, 50, 0.25);
       transform: translateY(-1px);
+    }
+
+    &::after {
+      background: radial-gradient(circle at center, rgba(255,255,255,0.15) 0%, transparent 70%);
     }
   }
 
-  // Default — white floating pill, subtle blue-tinted shadow
+  // ── Default (secondary) — white float, hairline border, lift ──
   &[data-variant="default"] {
     background: var(--mb-card-bg);
     border-color: var(--mb-border);
-    box-shadow: 0 1px 2px rgba(50, 50, 93, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-    &:hover {
-      background: var(--mb-card-bg);
+    &:hover:not(:disabled) {
       border-color: var(--mb-text-faint);
-      box-shadow: 0 2px 6px rgba(50, 50, 93, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.06),
+        0 4px 12px rgba(0, 0, 0, 0.04);
       transform: translateY(-1px);
+    }
+
+    &::after {
+      background: radial-gradient(circle at center, rgba(31, 67, 50, 0.04) 0%, transparent 70%);
     }
   }
 
-  // Light — soft tinted bg with subtle lift
+  // ── Light (tertiary) — tinted bg, subtle lift ──
   &[data-variant="light"] {
-    &:hover {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    &:hover:not(:disabled) {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
       transform: translateY(-1px);
     }
   }
 
-  // Outline — white bg, clean border, blue-tinted shadow
+  // ── Outline — clean border, fills on hover ──
   &[data-variant="outline"] {
     background: var(--mb-card-bg);
-    box-shadow: 0 1px 2px rgba(50, 50, 93, 0.04);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
 
-    &:hover {
-      box-shadow: 0 2px 8px rgba(50, 50, 93, 0.08);
+    &:hover:not(:disabled) {
+      background: var(--mantine-color-primary-0, #f3f7f5);
+      box-shadow: 0 2px 6px rgba(31, 67, 50, 0.08);
     }
   }
+
+  // ── Subtle — text only, tint bg on hover ──
+  &[data-variant="subtle"] {
+    &:hover:not(:disabled) {
+      background: var(--mantine-color-primary-0, #f3f7f5);
+    }
+  }
+
+  // ── Disabled — muted, no interaction cues ──
+  &:disabled, &[data-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  // ── Loading state — pulse the button gently ──
+  &[data-loading] {
+    animation: buttonLoadPulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes buttonLoadPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.65; }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -178,22 +232,27 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 .mantine-ActionIcon-root {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
-  &:active { transform: scale(0.92); }
+  &:active:not(:disabled) {
+    transform: scale(0.88);
+    transition-duration: 0.06s;
+  }
 
   &[data-variant="default"] {
     background: var(--mb-card-bg);
     border-color: var(--mb-border);
-    box-shadow: 0 1px 3px rgba(50, 50, 93, 0.06);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
-    &:hover {
+    &:hover:not(:disabled) {
       border-color: var(--mb-text-faint);
-      box-shadow: 0 2px 8px rgba(50, 50, 93, 0.08);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      transform: translateY(-1px);
     }
   }
 
   &[data-variant="subtle"] {
-    &:hover {
+    &:hover:not(:disabled) {
       background: var(--mb-bg-content);
+      transform: scale(1.05);
     }
   }
 }
@@ -236,10 +295,23 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 .mantine-Badge-root {
   font-weight: 600;
   letter-spacing: 0.02em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &[data-variant="light"] {
     border: none;
   }
+
+  // Badges that indicate live/active status pulse subtly
+  &[data-color="success"], &[data-color="danger"] {
+    &[data-variant="light"] {
+      animation: badgePulse 3s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -251,10 +323,11 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   background: var(--mb-card-bg);
 }
 
-// ─── Stat cards: entrance + hover lift ───
+// ─── Stat cards: entrance + hover lift + left accent ───
 .stat-card {
   animation: scaleIn 0.25s ease-out backwards;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+  border-left: 3px solid transparent;
 
   @for $i from 1 through 8 {
     &:nth-child(#{$i}) {
@@ -263,8 +336,9 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   }
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(50, 50, 93, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
-    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+    border-left-color: var(--mantine-color-primary-5, #1F4332);
   }
 }
 
@@ -376,11 +450,39 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 }
 
 .mantine-Modal-content {
-  box-shadow: 0 8px 24px rgba(50, 50, 93, 0.12), 0 20px 48px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 20px 48px rgba(0, 0, 0, 0.06);
 }
 
 .mantine-Tooltip-tooltip {
-  box-shadow: 0 2px 8px rgba(50, 50, 93, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── NOTIFICATION BELL — processing indicator pulse ──────────
+// ═══════════════════════════════════════════════════════════════
+
+.mantine-Indicator-indicator[data-processing] {
+  animation: indicatorPulse 2s ease-in-out infinite;
+}
+
+@keyframes indicatorPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── SKELETON loading — emerald-tinted shimmer ───────────────
+// ═══════════════════════════════════════════════════════════════
+
+.mantine-Skeleton-root {
+  &::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(52, 211, 153, 0.06) 50%,
+      transparent 100%
+    ) !important;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -388,14 +490,14 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 // ═══════════════════════════════════════════════════════════════
 
 .gradient-accent {
-  background: linear-gradient(135deg, #14b8a6 0%, #0ea5e9 40%, #2563eb 100%);
+  background: linear-gradient(135deg, #1F4332 0%, #2d5a43 50%, #B8924A 100%);
   color: white;
   border: none;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 16px rgba(31, 67, 50, 0.3);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    box-shadow: 0 6px 24px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 6px 24px rgba(31, 67, 50, 0.4);
     transform: translateY(-1px);
   }
 }
@@ -403,9 +505,9 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 .gradient-accent-soft {
   background: linear-gradient(
     135deg,
-    rgba(20, 184, 166, 0.1) 0%,
-    rgba(14, 165, 233, 0.1) 40%,
-    rgba(37, 99, 235, 0.1) 100%
+    rgba(31, 67, 50, 0.1) 0%,
+    rgba(45, 90, 67, 0.1) 50%,
+    rgba(184, 146, 74, 0.1) 100%
   );
 }
 

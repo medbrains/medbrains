@@ -19,7 +19,7 @@ license = "UNLICENSED"
 tokio = { version = "1", features = ["full"] }
 
 # Web framework
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tower = { version = "0.5" }
 tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util", "set-header"] }
 
@@ -58,6 +58,9 @@ base64 = "0.22"
 # Validation
 regex = "1"
 url = "2"
+
+# Async streams (WebSocket)
+futures = "0.3"
 
 # HTTP client (for YottaDB REST)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }

@@ -390,6 +390,31 @@ export interface TenantSettingsRow {
   updated_at: string;
 }
 
+export type SecureDeviceSettingsKey =
+  | "pacs_dicom"
+  | "lab_interface"
+  | "biometric"
+  | "printing"
+  | "queue_display";
+
+export interface SecureTenantSettingRow {
+  id: string;
+  tenant_id: string;
+  category: string;
+  key: SecureDeviceSettingsKey;
+  value: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  has_secrets: boolean;
+  masked_secret_fields: string[];
+  is_configured: boolean;
+}
+
+export interface UpdateSecureDeviceSettingRequest {
+  key: SecureDeviceSettingsKey;
+  value: Record<string, unknown>;
+}
+
 // ── CSV Import ──────────────────────────────────────────────
 
 export interface CsvImportRow {
@@ -15845,19 +15870,6 @@ export interface WristbandPrintData {
   allergies: string[];
 }
 
-export interface AppointmentSlipPrintData {
-  patient_name: string;
-  uhid: string;
-  phone: string;
-  doctor_name: string;
-  department: string;
-  appointment_date: string;
-  slot_start: string;
-  slot_end: string;
-  token_number: number | null;
-  reason: string | null;
-}
-
 export interface DeathCertificatePrintData {
   patient_name: string;
   uhid: string;
@@ -15948,6 +15960,928 @@ export interface TdsCertificatePrintData {
   hospital_name: string | null;
 }
 
+export interface PackageAdditionalCharge {
+  description: string;
+  amount: number;
+  reason: string | null;
+}
+
+export interface PackageExclusion {
+  description: string;
+  amount: number;
+}
+
+export interface PackageBillPrintData {
+  bill_number: string;
+  bill_date: string;
+  patient_name: string;
+  uhid: string;
+  admission_number: string | null;
+  admission_date: string | null;
+  discharge_date: string | null;
+  package_name: string;
+  package_code: string | null;
+  package_description: string | null;
+  package_inclusions: string[];
+  package_amount: number;
+  additional_charges: PackageAdditionalCharge[];
+  additional_total: number;
+  exclusions_used: PackageExclusion[];
+  exclusion_total: number;
+  gross_amount: number;
+  discount_amount: number;
+  tax_amount: number;
+  net_amount: number;
+  advance_paid: number;
+  insurance_amount: number;
+  balance_due: number;
+  amount_in_words: string;
+  doctor_name: string | null;
+  department: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_gstin: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface InsuranceClaimPrintData {
+  claim_number: string;
+  claim_date: string;
+  claim_type: string;
+  tpa_name: string | null;
+  insurance_company: string | null;
+  policy_number: string | null;
+  member_id: string | null;
+  // Patient Information
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  relation_to_primary: string | null;
+  primary_holder_name: string | null;
+  primary_holder_id: string | null;
+  // Treatment Details
+  admission_date: string | null;
+  discharge_date: string | null;
+  length_of_stay: number | null;
+  diagnosis: string;
+  icd_codes: string[];
+  procedure_performed: string | null;
+  procedure_codes: string[];
+  treating_doctor: string;
+  department: string | null;
+  // Billing
+  room_charges: number;
+  nursing_charges: number;
+  investigation_charges: number;
+  medicine_charges: number;
+  consultation_charges: number;
+  procedure_charges: number;
+  other_charges: number;
+  total_bill_amount: number;
+  pre_auth_amount: number | null;
+  claim_amount: number;
+  patient_payable: number;
+  // Documents
+  pre_auth_number: string | null;
+  pre_auth_date: string | null;
+  discharge_summary_attached: boolean;
+  investigation_reports_attached: boolean;
+  bill_attached: boolean;
+  // Declaration
+  declaration_date: string;
+  patient_signature_obtained: boolean;
+  hospital_stamp: boolean;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_empanelment_number: string | null;
+  hospital_logo_url: string | null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 5: Admin/HR, BME, Blood Bank, OT, Clinical Forms
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Admin/HR Forms ────────────────────────────────────────────────────────────
+
+export interface EmployeeIdCardPrintData {
+  employee_id: string;
+  employee_name: string;
+  designation: string;
+  department: string;
+  date_of_joining: string;
+  blood_group: string | null;
+  emergency_contact: string | null;
+  photo_url: string | null;
+  access_zones: string[];
+  valid_from: string;
+  valid_until: string;
+  barcode_data: string;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface ShiftDefinition {
+  shift_name: string;
+  start_time: string;
+  end_time: string;
+  color_code: string | null;
+}
+
+export interface DayShift {
+  date: string;
+  shift: string;
+  is_off: boolean;
+}
+
+export interface RosterEntry {
+  employee_name: string;
+  employee_id: string;
+  designation: string;
+  schedule: DayShift[];
+}
+
+export interface DutyRosterPrintData {
+  department: string;
+  period_start: string;
+  period_end: string;
+  generated_date: string;
+  generated_by: string;
+  shifts: ShiftDefinition[];
+  roster_entries: RosterEntry[];
+  hospital_name: string;
+}
+
+export interface LeaveApplicationPrintData {
+  application_number: string;
+  application_date: string;
+  employee_name: string;
+  employee_id: string;
+  department: string;
+  designation: string;
+  leave_type: string;
+  leave_from: string;
+  leave_to: string;
+  total_days: number;
+  reason: string;
+  leave_balance_before: number;
+  leave_balance_after: number;
+  relieving_officer: string | null;
+  contact_during_leave: string | null;
+  approver_name: string | null;
+  approval_status: string;
+  approval_date: string | null;
+  remarks: string | null;
+  hospital_name: string;
+}
+
+export interface DailyAttendance {
+  date: string;
+  status: string;
+  in_time: string | null;
+  out_time: string | null;
+}
+
+export interface AttendanceRecord {
+  employee_name: string;
+  employee_id: string;
+  designation: string;
+  days_present: number;
+  days_absent: number;
+  days_leave: number;
+  late_arrivals: number;
+  early_departures: number;
+  overtime_hours: number;
+  daily_attendance: DailyAttendance[];
+}
+
+export interface AttendanceSummary {
+  total_staff: number;
+  avg_attendance_percent: number;
+  total_leave_days: number;
+  total_absent_days: number;
+}
+
+export interface StaffAttendanceReportPrintData {
+  department: string;
+  month: string;
+  year: number;
+  generated_date: string;
+  attendance_records: AttendanceRecord[];
+  summary: AttendanceSummary;
+  hospital_name: string;
+}
+
+export interface TrainingCertificatePrintData {
+  certificate_number: string;
+  certificate_date: string;
+  employee_name: string;
+  employee_id: string;
+  designation: string;
+  department: string;
+  training_title: string;
+  training_type: string;
+  training_date: string;
+  training_duration: string;
+  trainer_name: string | null;
+  trainer_organization: string | null;
+  topics_covered: string[];
+  score: number | null;
+  grade: string | null;
+  certificate_valid_until: string | null;
+  issued_by: string;
+  qr_verification_url: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface CredentialDetail {
+  credential_type: string;
+  credential_name: string;
+  issuing_authority: string;
+  credential_number: string;
+  issue_date: string | null;
+  expiry_date: string | null;
+  verification_status: string;
+  document_attached: boolean;
+}
+
+export interface StaffCredentialFormPrintData {
+  verification_number: string;
+  verification_date: string;
+  employee_name: string;
+  employee_id: string;
+  designation: string;
+  department: string;
+  credentials: CredentialDetail[];
+  verification_status: string;
+  verified_by: string | null;
+  remarks: string | null;
+  hospital_name: string;
+}
+
+export interface VisitorEntry {
+  serial_no: number;
+  visitor_name: string;
+  visitor_phone: string | null;
+  visitor_id_type: string | null;
+  visitor_id_number: string | null;
+  purpose: string;
+  visiting_department: string | null;
+  visiting_person: string | null;
+  patient_name: string | null;
+  patient_uhid: string | null;
+  in_time: string;
+  out_time: string | null;
+  badge_number: string | null;
+}
+
+export interface VisitorRegisterPrintData {
+  register_date: string;
+  location: string;
+  entries: VisitorEntry[];
+  total_visitors: number;
+  hospital_name: string;
+}
+
+// ── BME/Engineering Forms ─────────────────────────────────────────────────────
+
+export interface EquipmentCoverage {
+  equipment_name: string;
+  equipment_id: string;
+  location: string;
+  serial_number: string | null;
+}
+
+export interface EscalationContact {
+  level: number;
+  name: string;
+  designation: string;
+  phone: string;
+  email: string | null;
+}
+
+export interface AmcContractPrintData {
+  contract_number: string;
+  contract_type: string;
+  vendor_name: string;
+  vendor_contact: string | null;
+  vendor_email: string | null;
+  equipment_covered: EquipmentCoverage[];
+  contract_start: string;
+  contract_end: string;
+  contract_value: number;
+  payment_terms: string | null;
+  response_time_sla: string | null;
+  resolution_time_sla: string | null;
+  inclusions: string[];
+  exclusions: string[];
+  escalation_contacts: EscalationContact[];
+  renewal_date: string | null;
+  hospital_name: string;
+}
+
+export interface CalibrationParameter {
+  parameter_name: string;
+  unit: string;
+  nominal_value: string;
+  measured_value: string;
+  tolerance: string;
+  result: string;
+}
+
+export interface CalibrationCertificatePrintData {
+  certificate_number: string;
+  calibration_date: string;
+  next_calibration_due: string;
+  equipment_name: string;
+  equipment_id: string;
+  serial_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  location: string;
+  calibration_agency: string;
+  agency_accreditation: string | null;
+  calibration_standard: string | null;
+  parameters_calibrated: CalibrationParameter[];
+  calibration_result: string;
+  calibrated_by: string;
+  approved_by: string | null;
+  remarks: string | null;
+  hospital_name: string;
+}
+
+export interface ReplacedPart {
+  part_name: string;
+  part_number: string | null;
+  quantity: number;
+  cost: number | null;
+}
+
+export interface EquipmentBreakdownReportPrintData {
+  report_number: string;
+  report_date: string;
+  equipment_name: string;
+  equipment_id: string;
+  serial_number: string | null;
+  location: string;
+  department: string;
+  breakdown_datetime: string;
+  reported_by: string;
+  fault_description: string;
+  impact_assessment: string | null;
+  immediate_action_taken: string | null;
+  root_cause: string | null;
+  repair_action: string | null;
+  parts_replaced: ReplacedPart[];
+  downtime_hours: number;
+  repair_cost: number | null;
+  repaired_by: string | null;
+  repair_completed_at: string | null;
+  verified_by: string | null;
+  preventive_measures: string | null;
+  hospital_name: string;
+}
+
+export interface MaintenanceEvent {
+  date: string;
+  maintenance_type: string;
+  description: string;
+  performed_by: string;
+  cost: number | null;
+}
+
+export interface BreakdownEvent {
+  date: string;
+  fault: string;
+  downtime_hours: number;
+  repair_cost: number | null;
+}
+
+export interface CalibrationEvent {
+  date: string;
+  agency: string;
+  result: string;
+  next_due: string;
+}
+
+export interface EquipmentHistoryCardPrintData {
+  equipment_name: string;
+  equipment_id: string;
+  serial_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  purchase_date: string | null;
+  installation_date: string | null;
+  warranty_expiry: string | null;
+  purchase_cost: number | null;
+  location: string;
+  department: string;
+  asset_category: string | null;
+  maintenance_history: MaintenanceEvent[];
+  breakdown_history: BreakdownEvent[];
+  calibration_history: CalibrationEvent[];
+  total_maintenance_cost: number;
+  total_downtime_hours: number;
+  current_status: string;
+  last_updated: string;
+  hospital_name: string;
+}
+
+export interface MgpsReading {
+  time: string;
+  gas_type: string;
+  line_pressure: number;
+  purity_percent: number | null;
+  flow_rate: number | null;
+  alarm_status: string;
+}
+
+export interface MgpsConsumption {
+  o2_liters: number;
+  n2o_liters: number;
+  air_liters: number;
+  vacuum_liters: number;
+}
+
+export interface MgpsIncident {
+  time: string;
+  description: string;
+  action_taken: string;
+}
+
+export interface CylinderBank {
+  bank_id: string;
+  gas_type: string;
+  primary_pressure: number;
+  secondary_pressure: number;
+  cylinders_full: number;
+  cylinders_in_use: number;
+  cylinders_empty: number;
+}
+
+export interface MgpsDailyLogPrintData {
+  log_date: string;
+  shift: string;
+  operator_name: string;
+  readings: MgpsReading[];
+  consumption: MgpsConsumption;
+  incidents: MgpsIncident[];
+  cylinder_status: CylinderBank[];
+  manifold_status: string;
+  remarks: string | null;
+  supervisor_verified: boolean;
+  supervisor_name: string | null;
+  hospital_name: string;
+}
+
+export interface WaterTestParameter {
+  parameter: string;
+  unit: string;
+  result: string;
+  acceptable_range: string;
+  status: string;
+}
+
+export interface MicrobiologicalResult {
+  total_plate_count: string;
+  coliform_count: string;
+  e_coli: string;
+  pseudomonas: string | null;
+  endotoxin_level: string | null;
+}
+
+export interface WaterQualityTestPrintData {
+  test_date: string;
+  sample_id: string;
+  sample_location: string;
+  sample_type: string;
+  collected_by: string;
+  tested_by: string;
+  test_parameters: WaterTestParameter[];
+  overall_result: string;
+  microbiological_results: MicrobiologicalResult | null;
+  action_required: string | null;
+  next_test_due: string | null;
+  remarks: string | null;
+  hospital_name: string;
+}
+
+export interface RunEvent {
+  start_time: string;
+  end_time: string | null;
+  duration_minutes: number;
+  reason: string;
+  load_percent: number | null;
+}
+
+export interface FuelStatus {
+  opening_level: number;
+  closing_level: number;
+  fuel_added: number;
+  fuel_consumed: number;
+}
+
+export interface BatteryStatus {
+  voltage: number;
+  current: number;
+  charge_percent: number;
+  health_status: string;
+}
+
+export interface DgUpsParameters {
+  voltage_r: number | null;
+  voltage_y: number | null;
+  voltage_b: number | null;
+  frequency: number | null;
+  load_kw: number | null;
+  runtime_hours: number;
+}
+
+export interface DgUpsRunLogPrintData {
+  log_date: string;
+  equipment_type: string;
+  equipment_id: string;
+  location: string;
+  capacity: string;
+  run_events: RunEvent[];
+  fuel_status: FuelStatus | null;
+  battery_status: BatteryStatus | null;
+  daily_parameters: DgUpsParameters;
+  operator_name: string;
+  remarks: string | null;
+  hospital_name: string;
+}
+
+export interface FireExtinguisherCheck {
+  location: string;
+  extinguisher_type: string;
+  capacity: string;
+  expiry_date: string;
+  pressure_ok: boolean;
+  seal_intact: boolean;
+  accessible: boolean;
+  signage_ok: boolean;
+  status: string;
+}
+
+export interface FireAlarmCheck {
+  zone: string;
+  panel_ok: boolean;
+  detectors_ok: boolean;
+  sounders_ok: boolean;
+  battery_ok: boolean;
+  last_tested: string | null;
+  status: string;
+}
+
+export interface FireHydrantCheck {
+  location: string;
+  water_flow_ok: boolean;
+  hose_condition: string;
+  nozzle_ok: boolean;
+  valve_operational: boolean;
+  status: string;
+}
+
+export interface EmergencyExitCheck {
+  location: string;
+  signage_illuminated: boolean;
+  path_clear: boolean;
+  door_operational: boolean;
+  panic_bar_ok: boolean;
+  status: string;
+}
+
+export interface SprinklerCheck {
+  zones_inspected: number;
+  heads_ok: boolean;
+  valve_ok: boolean;
+  pressure_ok: boolean;
+  last_flow_test: string | null;
+  status: string;
+}
+
+export interface FireEquipmentInspectionPrintData {
+  inspection_date: string;
+  inspection_number: string;
+  inspector_name: string;
+  inspector_designation: string;
+  area_inspected: string;
+  fire_extinguishers: FireExtinguisherCheck[];
+  fire_alarms: FireAlarmCheck[];
+  fire_hydrants: FireHydrantCheck[];
+  emergency_exits: EmergencyExitCheck[];
+  sprinkler_system: SprinklerCheck | null;
+  overall_status: string;
+  deficiencies_found: string[];
+  corrective_actions: string[];
+  next_inspection_due: string;
+  supervisor_verified: boolean;
+  hospital_name: string;
+}
+
+export interface MateriovigilanceReportPrintData {
+  report_number: string;
+  report_date: string;
+  reporter_name: string;
+  reporter_designation: string;
+  reporter_department: string;
+  equipment_name: string;
+  equipment_id: string;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  lot_batch_number: string | null;
+  incident_date: string;
+  incident_description: string;
+  patient_involved: boolean;
+  patient_outcome: string | null;
+  injury_type: string | null;
+  immediate_action: string | null;
+  root_cause_analysis: string | null;
+  corrective_action: string | null;
+  reported_to_cdsco: boolean;
+  cdsco_reference: string | null;
+  status: string;
+  hospital_name: string;
+}
+
+export interface DrillObservation {
+  observation: string;
+  category: string;
+  action_required: string | null;
+}
+
+export interface FirstResponder {
+  name: string;
+  role: string;
+  response_time_seconds: number;
+  performance: string;
+}
+
+export interface FireMockDrillReportPrintData {
+  drill_number: string;
+  drill_date: string;
+  drill_time: string;
+  drill_type: string;
+  scenario: string;
+  area_covered: string;
+  participants_count: number;
+  evacuation_time_minutes: number;
+  target_time_minutes: number;
+  observations: DrillObservation[];
+  equipment_used: string[];
+  first_responders: FirstResponder[];
+  areas_for_improvement: string[];
+  recommendations: string[];
+  drill_conductor: string;
+  fire_officer_name: string | null;
+  overall_rating: string;
+  next_drill_scheduled: string | null;
+  hospital_name: string;
+}
+
+// ── Blood Bank & OT Forms ─────────────────────────────────────────────────────
+
+export interface OtSurgeryEntry {
+  serial_no: number;
+  patient_name: string;
+  uhid: string;
+  age_gender: string;
+  ip_number: string | null;
+  diagnosis: string;
+  procedure: string;
+  surgery_type: string;
+  surgeon: string;
+  assistant_surgeon: string | null;
+  anesthesiologist: string;
+  anesthesia_type: string;
+  scrub_nurse: string | null;
+  circulating_nurse: string | null;
+  scheduled_time: string;
+  actual_start: string | null;
+  actual_end: string | null;
+  duration_minutes: number | null;
+  outcome: string | null;
+  complications: string | null;
+}
+
+export interface OtRegisterPrintData {
+  register_date: string;
+  ot_name: string;
+  ot_number: string;
+  surgeries: OtSurgeryEntry[];
+  total_surgeries: number;
+  total_elective: number;
+  total_emergency: number;
+  printed_by: string;
+  hospital_name: string;
+}
+
+export interface DonorMedicalHistory {
+  recent_illness: boolean;
+  recent_surgery: boolean;
+  recent_transfusion: boolean;
+  chronic_disease: boolean;
+  on_medication: boolean;
+  pregnant_or_lactating: boolean;
+  high_risk_behavior: boolean;
+  tattoo_recent: boolean;
+  details: string | null;
+}
+
+export interface DonorPhysicalExam {
+  weight_kg: number;
+  blood_pressure: string;
+  pulse: number;
+  temperature: number;
+  hemoglobin: number;
+  fit_to_donate: boolean;
+  deferral_reason: string | null;
+}
+
+export interface BloodDonorFormPrintData {
+  registration_number: string;
+  registration_date: string;
+  donor_name: string;
+  age: number;
+  gender: string;
+  blood_group: string;
+  rh_factor: string;
+  father_husband_name: string | null;
+  address: string;
+  phone: string;
+  email: string | null;
+  id_proof_type: string;
+  id_proof_number: string;
+  occupation: string | null;
+  donation_type: string;
+  previous_donations: number;
+  last_donation_date: string | null;
+  medical_history: DonorMedicalHistory;
+  physical_exam: DonorPhysicalExam;
+  consent_given: boolean;
+  consent_date: string | null;
+  medical_officer: string | null;
+  hospital_name: string;
+}
+
+export interface CrossMatchRequisitionPrintData {
+  requisition_number: string;
+  requisition_date: string;
+  urgency: string;
+  patient_name: string;
+  uhid: string;
+  age_gender: string;
+  ip_number: string | null;
+  ward_bed: string;
+  blood_group: string;
+  rh_factor: string;
+  diagnosis: string;
+  indication_for_transfusion: string;
+  units_required: number;
+  component_type: string;
+  previous_transfusions: number;
+  transfusion_reactions_history: boolean;
+  reaction_details: string | null;
+  sample_collected_by: string;
+  sample_collected_at: string;
+  requesting_doctor: string;
+  doctor_signature_date: string;
+  hospital_name: string;
+}
+
+// ── Clinical/Identity Forms ───────────────────────────────────────────────────
+
+export interface AppointmentSlipPrintData {
+  appointment_number: string;
+  appointment_date: string;
+  appointment_time: string;
+  patient_name: string;
+  uhid: string;
+  phone: string | null;
+  doctor_name: string;
+  doctor_designation: string | null;
+  department: string;
+  clinic_location: string | null;
+  visit_type: string;
+  preparation_instructions: string | null;
+  documents_to_bring: string[];
+  estimated_wait_time: string | null;
+  contact_for_queries: string | null;
+  cancellation_policy: string | null;
+  qr_code_data: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface DataCategory {
+  category: string;
+  description: string;
+  is_sensitive: boolean;
+}
+
+export interface ProcessingPurpose {
+  purpose: string;
+  legal_basis: string;
+}
+
+export interface DataSharingEntity {
+  entity_type: string;
+  entity_name: string | null;
+  purpose: string;
+}
+
+export interface GrievanceOfficer {
+  name: string;
+  email: string;
+  phone: string | null;
+}
+
+export interface DpdpConsentPrintData {
+  consent_number: string;
+  consent_date: string;
+  patient_name: string;
+  uhid: string;
+  guardian_name: string | null;
+  data_categories: DataCategory[];
+  processing_purposes: ProcessingPurpose[];
+  data_sharing: DataSharingEntity[];
+  retention_period: string;
+  patient_rights: string[];
+  grievance_officer: GrievanceOfficer;
+  consent_given: boolean;
+  consent_method: string;
+  witness_name: string | null;
+  hospital_name: string;
+  hospital_dpo_contact: string | null;
+}
+
+export interface VideoConsentPrintData {
+  consent_number: string;
+  consent_date: string;
+  patient_name: string;
+  uhid: string;
+  consent_type: string;
+  procedure_name: string | null;
+  video_reference_id: string;
+  video_duration_seconds: number;
+  video_recorded_at: string;
+  qr_code_to_video: string;
+  video_url: string;
+  video_verified: boolean;
+  patient_visible_in_video: boolean;
+  verbal_consent_given: boolean;
+  witness_name: string | null;
+  witness_relationship: string | null;
+  recording_staff: string;
+  hospital_name: string;
+}
+
+export interface RestraintMonitoring {
+  datetime: string;
+  nurse_name: string;
+  patient_condition: string;
+  circulation_checked: boolean;
+  hydration_offered: boolean;
+  toileting_offered: boolean;
+  position_changed: boolean;
+  continued_need_assessed: boolean;
+  remarks: string | null;
+}
+
+export interface RestraintDocumentationPrintData {
+  form_number: string;
+  form_date: string;
+  patient_name: string;
+  uhid: string;
+  ip_number: string | null;
+  ward: string;
+  diagnosis: string;
+  restraint_type: string;
+  restraint_device: string | null;
+  indication: string;
+  alternatives_tried: string[];
+  start_datetime: string;
+  planned_duration: string;
+  actual_end_datetime: string | null;
+  ordering_physician: string;
+  physician_assessment: string;
+  nursing_monitoring: RestraintMonitoring[];
+  patient_condition_on_release: string | null;
+  family_notified: boolean;
+  family_notification_datetime: string | null;
+  patient_rights_explained: boolean;
+  consent_obtained: boolean;
+  consent_from: string | null;
+  review_by_psychiatrist: boolean;
+  psychiatrist_name: string | null;
+  mhca_compliance_verified: boolean;
+  hospital_name: string;
+}
+
 export interface GstInvoiceItemLine {
   description: string;
   hsn_code: string | null;
@@ -15969,6 +16903,2870 @@ export interface GstInvoicePrintData {
   hospital_address: string | null;
   items: GstInvoiceItemLine[];
   date: string;
+}
+
+// ── Consent Print Data ──────────────────────────────────
+
+export interface ConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  date_of_birth: string | null;
+  address: string | null;
+  phone: string;
+  consent_type: string;
+  consent_date: string;
+  consent_time: string;
+  admission_id: string | null;
+  bed_number: string | null;
+  ward_name: string | null;
+  treating_doctor: string | null;
+  department: string | null;
+  procedure_name: string | null;
+  procedure_date: string | null;
+  surgeon_name: string | null;
+  anesthetist_name: string | null;
+  risks_explained: string[];
+  alternatives_discussed: string[];
+  special_instructions: string | null;
+  blood_group: string | null;
+  components_required: string[];
+  reason_for_ama: string | null;
+  advice_given_at_discharge: string | null;
+  language: string;
+  translated_content: unknown | null;
+}
+
+export interface ConsentSignatureBlock {
+  signatory_type: string;
+  name: string;
+  designation: string | null;
+  relation: string | null;
+  signature_data: string | null;
+  signed_at: string | null;
+}
+
+// ── Token Slip & Visitor Pass Print Data ─────────────────
+
+export interface TokenSlipPrintData {
+  token_number: string;
+  token_date: string;
+  token_time: string;
+  patient_name: string | null;
+  uhid: string | null;
+  department_name: string;
+  doctor_name: string | null;
+  room_number: string | null;
+  estimated_wait_minutes: number | null;
+  priority: string;
+  qr_code_data: string;
+  instructions: string;
+}
+
+export interface VisitorPassPrintData {
+  pass_number: string;
+  visitor_name: string;
+  visitor_phone: string;
+  visitor_id_type: string | null;
+  visitor_id_number: string | null;
+  patient_name: string;
+  patient_uhid: string;
+  patient_ward: string | null;
+  patient_bed: string | null;
+  relation: string | null;
+  valid_from: string;
+  valid_until: string;
+  issued_at: string;
+  issued_by: string | null;
+  photo_url: string | null;
+  qr_code_data: string;
+}
+
+// ── MRD Form Print Data ─────────────────────────────────
+
+export interface VitalSignsBlock {
+  temperature: string | null;
+  pulse: string | null;
+  bp_systolic: string | null;
+  bp_diastolic: string | null;
+  respiratory_rate: string | null;
+  spo2: string | null;
+  pain_score: string | null;
+}
+
+export interface IoBalanceBlock {
+  intake_oral: string | null;
+  intake_iv: string | null;
+  intake_other: string | null;
+  output_urine: string | null;
+  output_drain: string | null;
+  output_other: string | null;
+  balance: string | null;
+}
+
+export interface ProgressNotePrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  diagnosis: string | null;
+  note_date: string;
+  note_time: string | null;
+  shift: string | null;
+  subjective: string | null;
+  objective: string | null;
+  assessment: string | null;
+  plan: string | null;
+  vital_signs: VitalSignsBlock | null;
+  io_balance: IoBalanceBlock | null;
+  doctor_name: string;
+  doctor_signature: string | null;
+}
+
+export interface NursingAssessmentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  assessment_date: string;
+  assessment_time: string;
+  shift: string;
+  chief_complaint: string | null;
+  history: string | null;
+  allergies: string[];
+  vital_signs: VitalSignsBlock;
+  consciousness_level: string | null;
+  pain_assessment: string | null;
+  skin_integrity: string | null;
+  mobility_status: string | null;
+  fall_risk_score: number | null;
+  braden_score: number | null;
+  nutritional_status: string | null;
+  iv_lines: string[];
+  drains_tubes: string[];
+  nursing_diagnosis: string[];
+  care_plan: string | null;
+  nurse_name: string;
+  nurse_signature: string | null;
+}
+
+export interface MarAdministration {
+  scheduled_time: string;
+  actual_time: string | null;
+  given_by: string | null;
+  status: string;
+  notes: string | null;
+}
+
+export interface MarMedicationRow {
+  drug_name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  scheduled_times: string[];
+  administrations: MarAdministration[];
+}
+
+export interface MarPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  allergies: string[];
+  chart_date: string;
+  medications: MarMedicationRow[];
+}
+
+export interface VitalReading {
+  recorded_at: string;
+  shift: string | null;
+  temperature: string | null;
+  pulse: string | null;
+  bp_systolic: string | null;
+  bp_diastolic: string | null;
+  respiratory_rate: string | null;
+  spo2: string | null;
+  pain_score: string | null;
+  recorded_by: string | null;
+}
+
+export interface VitalsChartPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  chart_date: string;
+  readings: VitalReading[];
+}
+
+export interface IoEntry {
+  recorded_at: string;
+  shift: string | null;
+  intake_oral: number | null;
+  intake_iv: number | null;
+  intake_ng: number | null;
+  intake_other: number | null;
+  output_urine: number | null;
+  output_vomit: number | null;
+  output_drain: number | null;
+  output_stool: number | null;
+  output_other: number | null;
+  recorded_by: string | null;
+}
+
+export interface IoTotals {
+  total_intake: number;
+  total_output: number;
+  balance: number;
+}
+
+export interface IoChartPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  chart_date: string;
+  entries: IoEntry[];
+  daily_totals: IoTotals;
+}
+
+export interface ChecklistItem {
+  category: string;
+  item: string;
+  completed: boolean;
+  completed_by: string | null;
+  completed_at: string | null;
+  notes: string | null;
+}
+
+export interface FollowUpItem {
+  department: string;
+  doctor_name: string | null;
+  recommended_date: string;
+  reason: string | null;
+}
+
+export interface DischargeChecklistPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  expected_discharge_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  diagnosis: string | null;
+  discharge_type: string | null;
+  checklist_items: ChecklistItem[];
+  discharge_medications: string[];
+  follow_up_appointments: FollowUpItem[];
+  patient_education_completed: boolean;
+  discharge_summary_ready: boolean;
+  final_bill_settled: boolean;
+  verified_by: string | null;
+  verified_at: string | null;
+}
+
+// ── Billing Print Data (Phase 2) ────────────────────────
+
+export interface BillLineItem {
+  description: string;
+  service_code: string | null;
+  hsn_sac: string | null;
+  quantity: number;
+  unit_price: string;
+  discount: string;
+  tax_percent: string;
+  total: string;
+}
+
+export interface BillCategoryTotal {
+  category: string;
+  amount: string;
+}
+
+export interface OpdBillPrintData {
+  invoice_number: string;
+  invoice_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  phone: string;
+  doctor_name: string | null;
+  department: string | null;
+  items: BillLineItem[];
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total_amount: string;
+  amount_paid: string;
+  balance_due: string;
+  payment_mode: string | null;
+  hospital_name: string | null;
+  hospital_gstin: string | null;
+}
+
+export interface IpdInterimBillPrintData {
+  bill_number: string;
+  bill_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  doctor_name: string | null;
+  department: string | null;
+  diagnosis: string | null;
+  room_charges: string;
+  investigation_charges: string;
+  procedure_charges: string;
+  pharmacy_charges: string;
+  consumable_charges: string;
+  professional_fees: string;
+  other_charges: string;
+  items: BillLineItem[];
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total_amount: string;
+  advance_paid: string;
+  balance_due: string;
+  los_days: number;
+  hospital_name: string | null;
+}
+
+export interface IpdFinalBillPrintData {
+  invoice_number: string;
+  invoice_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  discharge_date: string | null;
+  bed_number: string | null;
+  ward_name: string | null;
+  doctor_name: string | null;
+  department: string | null;
+  diagnosis: string | null;
+  discharge_type: string | null;
+  category_breakup: BillCategoryTotal[];
+  items: BillLineItem[];
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total_amount: string;
+  advance_paid: string;
+  insurance_approved: string;
+  patient_payable: string;
+  amount_paid: string;
+  balance_due: string;
+  los_days: number;
+  hospital_name: string | null;
+  hospital_gstin: string | null;
+}
+
+export interface AdvanceReceiptPrintData {
+  receipt_number: string;
+  receipt_date: string;
+  patient_name: string;
+  uhid: string;
+  admission_id: string | null;
+  amount: string;
+  amount_in_words: string;
+  payment_mode: string;
+  reference_number: string | null;
+  purpose: string;
+  received_by: string | null;
+  hospital_name: string | null;
+}
+
+export interface RefundReceiptPrintData {
+  receipt_number: string;
+  receipt_date: string;
+  patient_name: string;
+  uhid: string;
+  original_receipt_number: string | null;
+  refund_amount: string;
+  amount_in_words: string;
+  refund_mode: string;
+  reference_number: string | null;
+  reason: string;
+  approved_by: string | null;
+  processed_by: string | null;
+  hospital_name: string | null;
+}
+
+export interface InsurancePreauthPrintData {
+  request_number: string;
+  request_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  policy_number: string;
+  insurance_company: string;
+  tpa_name: string | null;
+  employee_id: string | null;
+  corporate_name: string | null;
+  admission_date: string | null;
+  expected_los: number | null;
+  diagnosis: string | null;
+  icd_codes: string[];
+  planned_procedures: string[];
+  estimated_cost: string;
+  treating_doctor: string | null;
+  contact_number: string;
+  hospital_name: string | null;
+}
+
+export interface CashlessClaimPrintData {
+  claim_number: string;
+  claim_date: string;
+  patient_name: string;
+  uhid: string;
+  policy_number: string;
+  insurance_company: string;
+  tpa_name: string | null;
+  admission_date: string;
+  discharge_date: string | null;
+  diagnosis: string | null;
+  procedures_performed: string[];
+  total_bill_amount: string;
+  approved_amount: string;
+  deductions: string;
+  patient_payable: string;
+  claim_status: string;
+  treating_doctor: string | null;
+  hospital_name: string | null;
+}
+
+export interface PackageEstimatePrintData {
+  estimate_number: string;
+  estimate_date: string;
+  valid_until: string;
+  patient_name: string | null;
+  package_name: string;
+  package_code: string;
+  procedure_name: string;
+  inclusions: string[];
+  exclusions: string[];
+  package_price: string;
+  additional_charges_note: string | null;
+  terms_conditions: string[];
+  hospital_name: string | null;
+}
+
+// ── Lab/Blood Bank Print Data (Phase 2) ─────────────────
+
+export interface AntibioticSensitivity {
+  antibiotic_name: string;
+  antibiotic_class: string | null;
+  mic: string | null;
+  interpretation: string;
+  zone_size: string | null;
+}
+
+export interface CultureSensitivityPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  sample_type: string;
+  sample_id: string;
+  collected_at: string | null;
+  received_at: string | null;
+  reported_at: string | null;
+  referring_doctor: string | null;
+  clinical_history: string | null;
+  organism_isolated: string | null;
+  colony_count: string | null;
+  gram_stain: string | null;
+  sensitivity_results: AntibioticSensitivity[];
+  interpretation: string | null;
+  comments: string | null;
+  microbiologist_name: string | null;
+  hospital_name: string | null;
+  nabl_logo: boolean;
+}
+
+export interface IhcMarker {
+  marker_name: string;
+  result: string;
+  intensity: string | null;
+  percentage: string | null;
+}
+
+export interface HistopathReportPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  specimen_type: string;
+  specimen_id: string;
+  collected_at: string | null;
+  received_at: string | null;
+  reported_at: string | null;
+  referring_doctor: string | null;
+  clinical_history: string | null;
+  gross_description: string | null;
+  microscopic_description: string | null;
+  diagnosis: string;
+  icd_o_morphology: string | null;
+  icd_o_topography: string | null;
+  staging: string | null;
+  grade: string | null;
+  margin_status: string | null;
+  lymph_node_status: string | null;
+  ihc_markers: IhcMarker[];
+  comments: string | null;
+  pathologist_name: string | null;
+  hospital_name: string | null;
+  nabl_logo: boolean;
+}
+
+export interface CrossmatchUnit {
+  bag_number: string;
+  donation_date: string;
+  expiry_date: string;
+  donor_blood_group: string;
+  volume_ml: number;
+  crossmatch_result: string;
+  issue_status: string;
+}
+
+export interface CrossmatchReportPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  blood_group: string;
+  rh_type: string;
+  request_date: string;
+  request_number: string;
+  ward: string | null;
+  bed: string | null;
+  diagnosis: string | null;
+  requesting_doctor: string | null;
+  units_requested: number;
+  component_type: string;
+  crossmatch_results: CrossmatchUnit[];
+  antibody_screen: string | null;
+  special_requirements: string | null;
+  technician_name: string | null;
+  verified_by: string | null;
+  hospital_name: string | null;
+}
+
+export interface ComponentSlipPrintData {
+  issue_number: string;
+  issue_date: string;
+  issue_time: string;
+  patient_name: string;
+  uhid: string;
+  blood_group: string;
+  ward: string | null;
+  bed: string | null;
+  bag_number: string;
+  component_type: string;
+  volume_ml: number;
+  donation_date: string;
+  expiry_date: string;
+  crossmatch_result: string;
+  special_instructions: string | null;
+  issued_by: string | null;
+  verified_by: string | null;
+  barcode_data: string;
+  hospital_name: string | null;
+}
+
+export interface OrderedTest {
+  test_name: string;
+  test_code: string | null;
+  sample_type: string | null;
+  container: string | null;
+}
+
+export interface InvestigationRequisitionPrintData {
+  requisition_number: string;
+  requisition_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  ward: string | null;
+  bed: string | null;
+  requesting_doctor: string | null;
+  department: string | null;
+  clinical_history: string | null;
+  diagnosis: string | null;
+  tests_ordered: OrderedTest[];
+  priority: string;
+  fasting_required: boolean;
+  special_instructions: string | null;
+  barcode_data: string;
+}
+
+// ── Additional Consent Print Data (Phase 2) ─────────────
+
+export interface DnrConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  diagnosis: string | null;
+  prognosis: string | null;
+  consent_date: string;
+  consent_time: string;
+  dnr_type: string;
+  interventions_declined: string[];
+  interventions_allowed: string[];
+  patient_wishes: string | null;
+  family_discussion_notes: string | null;
+  treating_doctor: string | null;
+  witness_name: string | null;
+  language: string;
+}
+
+export interface OrganDonationConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  address: string | null;
+  consent_date: string;
+  consent_type: string;
+  organs_consented: string[];
+  tissues_consented: string[];
+  next_of_kin_name: string | null;
+  next_of_kin_relation: string | null;
+  next_of_kin_phone: string | null;
+  thoa_registration_number: string | null;
+  transplant_coordinator: string | null;
+  hospital_name: string | null;
+  language: string;
+}
+
+export interface ResearchConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  consent_date: string;
+  study_title: string;
+  study_protocol_number: string;
+  principal_investigator: string;
+  iec_approval_number: string;
+  iec_approval_date: string;
+  sponsor_name: string | null;
+  study_purpose: string;
+  procedures_involved: string[];
+  risks_benefits: string;
+  compensation: string | null;
+  confidentiality_statement: string;
+  withdrawal_rights: string;
+  contact_details: string;
+  language: string;
+}
+
+export interface AbdmConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  abha_number: string | null;
+  abha_address: string | null;
+  consent_date: string;
+  consent_type: string;
+  purposes_consented: string[];
+  health_info_types: string[];
+  hip_name: string;
+  hiu_name: string | null;
+  validity_period: string | null;
+  language: string;
+}
+
+export interface TeachingConsentPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_id: string | null;
+  consent_date: string;
+  consent_type: string;
+  teaching_activity: string;
+  student_level: string;
+  department: string | null;
+  faculty_supervisor: string | null;
+  patient_rights_explained: boolean;
+  can_withdraw_anytime: boolean;
+  language: string;
+}
+
+// ── Clinical Print Data (Phase 2) ───────────────────────
+
+export interface TreatmentChartMedication {
+  drug_name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  time_slots: string[];
+  start_date: string;
+  end_date: string | null;
+  special_instructions: string | null;
+}
+
+export interface TreatmentChartIvFluid {
+  fluid_name: string;
+  volume_ml: number;
+  rate: string;
+  additives: string[];
+  start_time: string;
+  duration_hours: number | null;
+}
+
+export interface StatOrder {
+  order_type: string;
+  description: string;
+  ordered_at: string;
+  ordered_by: string | null;
+}
+
+export interface TreatmentChartPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  admission_date: string;
+  bed_number: string | null;
+  ward_name: string | null;
+  diagnosis: string | null;
+  allergies: string[];
+  chart_date: string;
+  medications: TreatmentChartMedication[];
+  iv_fluids: TreatmentChartIvFluid[];
+  stat_orders: StatOrder[];
+  treating_doctor: string | null;
+}
+
+export interface TransferSummaryPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  transfer_date: string;
+  transfer_time: string;
+  from_ward: string;
+  from_bed: string | null;
+  to_ward: string;
+  to_bed: string | null;
+  transfer_reason: string;
+  diagnosis: string | null;
+  current_condition: string;
+  vital_signs: string | null;
+  current_medications: string[];
+  pending_investigations: string[];
+  pending_consultations: string[];
+  special_precautions: string[];
+  handover_notes: string | null;
+  transferring_doctor: string | null;
+  receiving_doctor: string | null;
+  transferring_nurse: string | null;
+  receiving_nurse: string | null;
+}
+
+export interface EducationSection {
+  heading: string;
+  content: string;
+  bullet_points: string[];
+}
+
+export interface PatientEducationPrintData {
+  patient_name: string;
+  uhid: string;
+  material_title: string;
+  material_code: string;
+  category: string;
+  content_sections: EducationSection[];
+  language: string;
+  provided_date: string;
+  provided_by: string | null;
+  hospital_name: string | null;
+}
+
+// ── Identity Print Data (Phase 2) ───────────────────────
+
+export interface RegistrationCardPrintData {
+  patient_name: string;
+  uhid: string;
+  date_of_birth: string | null;
+  age: string | null;
+  gender: string;
+  blood_group: string | null;
+  phone: string;
+  email: string | null;
+  address: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  allergies: string[];
+  photo_url: string | null;
+  qr_code_data: string;
+  registration_date: string;
+  hospital_name: string | null;
+}
+
+export interface InfantWristbandPrintData {
+  mother_name: string;
+  mother_uhid: string;
+  baby_id: string;
+  baby_gender: string;
+  date_of_birth: string;
+  time_of_birth: string;
+  birth_weight_grams: number;
+  delivery_type: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  attending_doctor: string | null;
+  barcode_data: string;
+  rfid_tag: string | null;
+}
+
+// ── Phase 3: Surgical & OT Print Data ──────────────────────────
+
+export interface CaseSheetCoverPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  admission_number: string;
+  admission_date: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  primary_diagnosis: string | null;
+  secondary_diagnoses: string[];
+  attending_doctor: string | null;
+  department: string | null;
+  allergies: string[];
+  blood_group: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  insurance_provider: string | null;
+  policy_number: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PreopVitals {
+  bp_systolic: number | null;
+  bp_diastolic: number | null;
+  pulse: number | null;
+  temperature: number | null;
+  spo2: number | null;
+  respiratory_rate: number | null;
+}
+
+export interface PreopLabResult {
+  test_name: string;
+  value: string;
+  unit: string | null;
+  reference_range: string | null;
+  is_abnormal: boolean;
+}
+
+export interface PreopAssessmentPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  admission_number: string;
+  surgery_name: string | null;
+  surgery_date: string | null;
+  surgeon_name: string | null;
+  anesthesiologist: string | null;
+  asa_class: string | null;
+  vitals: PreopVitals;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
+  allergies: string[];
+  current_medications: string[];
+  past_surgeries: string[];
+  comorbidities: string[];
+  airway_assessment: string | null;
+  mallampati_score: string | null;
+  cardiac_clearance: boolean;
+  pulmonary_clearance: boolean;
+  renal_clearance: boolean;
+  lab_results: PreopLabResult[];
+  blood_arranged: boolean;
+  blood_units: number | null;
+  consent_signed: boolean;
+  fasting_hours: number | null;
+  special_instructions: string | null;
+  assessed_by: string | null;
+  assessed_at: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface SurgicalSignIn {
+  patient_identity_confirmed: boolean;
+  site_marked: boolean;
+  anesthesia_safety_check: boolean;
+  pulse_oximeter_functioning: boolean;
+  known_allergy: boolean;
+  allergy_details: string | null;
+  difficult_airway_risk: boolean;
+  airway_equipment_available: boolean;
+  blood_loss_risk: boolean;
+  blood_products_available: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+}
+
+export interface SurgicalTimeOut {
+  team_introduction_done: boolean;
+  patient_name_confirmed: boolean;
+  procedure_confirmed: boolean;
+  site_confirmed: boolean;
+  antibiotics_given: boolean;
+  antibiotics_time: string | null;
+  critical_steps_reviewed: boolean;
+  equipment_issues_addressed: boolean;
+  imaging_displayed: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+}
+
+export interface SurgicalSignOut {
+  procedure_recorded: boolean;
+  instrument_count_correct: boolean;
+  sponge_count_correct: boolean;
+  specimen_labeled: boolean;
+  equipment_issues_documented: boolean;
+  recovery_concerns_addressed: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+}
+
+export interface SurgicalSafetyChecklistPrintData {
+  patient_name: string;
+  uhid: string;
+  surgery_name: string | null;
+  surgery_date: string | null;
+  surgeon_name: string | null;
+  anesthesiologist: string | null;
+  scrub_nurse: string | null;
+  circulating_nurse: string | null;
+  ot_room: string | null;
+  sign_in: SurgicalSignIn;
+  time_out: SurgicalTimeOut;
+  sign_out: SurgicalSignOut;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface AnesthesiaDrug {
+  drug_name: string;
+  dose: string;
+  route: string;
+  time_given: string;
+}
+
+export interface AnesthesiaVitalEntry {
+  recorded_at: string;
+  bp_systolic: number | null;
+  bp_diastolic: number | null;
+  heart_rate: number | null;
+  spo2: number | null;
+  etco2: number | null;
+  respiratory_rate: number | null;
+  temperature: number | null;
+}
+
+export interface FluidEntry {
+  fluid_name: string;
+  volume_ml: number;
+  time_given: string;
+}
+
+export interface BloodProductEntry {
+  product_type: string;
+  unit_number: string;
+  volume_ml: number;
+  time_given: string;
+}
+
+export interface AnesthesiaRecordPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  weight_kg: number | null;
+  height_cm: number | null;
+  surgery_name: string | null;
+  surgery_date: string | null;
+  surgeon_name: string | null;
+  anesthesiologist: string | null;
+  anesthesia_assistant: string | null;
+  asa_class: string | null;
+  anesthesia_type: string | null;
+  anesthesia_start: string | null;
+  anesthesia_end: string | null;
+  surgery_start: string | null;
+  surgery_end: string | null;
+  preop_diagnosis: string | null;
+  airway_management: string | null;
+  airway_device: string | null;
+  tube_size: string | null;
+  intubation_attempts: number | null;
+  drugs_administered: AnesthesiaDrug[];
+  vital_entries: AnesthesiaVitalEntry[];
+  fluids_given: FluidEntry[];
+  blood_products: BloodProductEntry[];
+  estimated_blood_loss_ml: number | null;
+  urine_output_ml: number | null;
+  complications: string[];
+  postop_instructions: string | null;
+  transfer_destination: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface OperationNotesPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  admission_number: string;
+  surgery_date: string | null;
+  surgery_start: string | null;
+  surgery_end: string | null;
+  ot_room: string | null;
+  surgeon_name: string | null;
+  assistant_surgeons: string[];
+  anesthesiologist: string | null;
+  scrub_nurse: string | null;
+  preop_diagnosis: string | null;
+  postop_diagnosis: string | null;
+  procedure_name: string | null;
+  procedure_code: string | null;
+  laterality: string | null;
+  anesthesia_type: string | null;
+  position: string | null;
+  incision: string | null;
+  findings: string | null;
+  procedure_details: string | null;
+  specimens_sent: string[];
+  drains_placed: string[];
+  implants_used: string[];
+  estimated_blood_loss_ml: number | null;
+  complications: string | null;
+  postop_instructions: string | null;
+  dictated_by: string | null;
+  dictated_at: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PostopFluidOrder {
+  fluid_name: string;
+  rate_ml_hr: number;
+  duration_hours: number;
+}
+
+export interface PostopMedicationOrder {
+  drug_name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  duration: string | null;
+  special_instructions: string | null;
+}
+
+export interface PostopOrdersPrintData {
+  patient_name: string;
+  uhid: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  surgery_name: string | null;
+  surgery_date: string | null;
+  surgeon_name: string | null;
+  postop_diagnosis: string | null;
+  diet_orders: string | null;
+  activity_orders: string | null;
+  position_orders: string | null;
+  fluid_orders: PostopFluidOrder[];
+  medication_orders: PostopMedicationOrder[];
+  monitoring_orders: string[];
+  drain_care: string[];
+  wound_care: string | null;
+  catheter_care: string | null;
+  vte_prophylaxis: string | null;
+  pain_management: string | null;
+  labs_to_order: string[];
+  imaging_to_order: string[];
+  notify_conditions: string[];
+  special_instructions: string | null;
+  ordered_by: string | null;
+  ordered_at: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface TransfusionVitals {
+  bp_systolic: number | null;
+  bp_diastolic: number | null;
+  pulse: number | null;
+  temperature: number | null;
+  spo2: number | null;
+  respiratory_rate: number | null;
+}
+
+export interface TransfusionMonitoringEntry {
+  recorded_at: string;
+  vitals: TransfusionVitals;
+  volume_transfused_ml: number;
+  adverse_reaction: boolean;
+  reaction_details: string | null;
+  recorded_by: string | null;
+}
+
+export interface TransfusionMonitoringPrintData {
+  patient_name: string;
+  uhid: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  blood_group: string | null;
+  rh_type: string | null;
+  product_type: string | null;
+  unit_number: string | null;
+  donation_date: string | null;
+  expiry_date: string | null;
+  volume_ml: number | null;
+  crossmatch_compatible: boolean;
+  consent_obtained: boolean;
+  indication: string | null;
+  ordered_by: string | null;
+  transfusion_start: string | null;
+  transfusion_end: string | null;
+  pre_transfusion_vitals: TransfusionVitals | null;
+  monitoring_entries: TransfusionMonitoringEntry[];
+  post_transfusion_vitals: TransfusionVitals | null;
+  total_volume_transfused_ml: number | null;
+  complications: string[];
+  transfusion_nurse: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+// ── Phase 3: Clinical Charts Print Data ──────────────────────────
+
+export interface FluidIntakeEntry {
+  recorded_at: string;
+  source: string;
+  volume_ml: number;
+  recorded_by: string | null;
+}
+
+export interface FluidOutputEntry {
+  recorded_at: string;
+  source: string;
+  volume_ml: number;
+  recorded_by: string | null;
+}
+
+export interface FluidBalanceChartPrintData {
+  patient_name: string;
+  uhid: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  chart_date: string;
+  intake_entries: FluidIntakeEntry[];
+  output_entries: FluidOutputEntry[];
+  total_intake_ml: number;
+  total_output_ml: number;
+  net_balance_ml: number;
+  previous_balance_ml: number | null;
+  cumulative_balance_ml: number | null;
+  target_intake_ml: number | null;
+  target_output_ml: number | null;
+  fluid_restriction: string | null;
+  special_instructions: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PainAssessmentEntry {
+  assessed_at: string;
+  pain_score: number;
+  pain_location: string | null;
+  pain_character: string | null;
+  intervention: string | null;
+  reassessment_score: number | null;
+  assessed_by: string | null;
+}
+
+export interface PainAssessmentPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  assessment_date: string;
+  pain_scale_used: string;
+  assessments: PainAssessmentEntry[];
+  current_pain_management: string | null;
+  prn_medications: string[];
+  non_pharmacological_interventions: string[];
+  pain_goals: string | null;
+  special_considerations: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface FallRiskAssessmentPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  assessed_at: string;
+  fall_history: boolean;
+  fall_history_score: number;
+  secondary_diagnosis: boolean;
+  secondary_diagnosis_score: number;
+  ambulatory_aid: string | null;
+  ambulatory_aid_score: number;
+  iv_heparin_lock: boolean;
+  iv_heparin_lock_score: number;
+  gait: string | null;
+  gait_score: number;
+  mental_status: string | null;
+  mental_status_score: number;
+  total_score: number;
+  risk_level: string;
+  interventions_required: string[];
+  bed_alarm_required: boolean;
+  one_to_one_required: boolean;
+  mobility_aids: string[];
+  assessed_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface SkinAssessmentEntry {
+  body_area: string;
+  condition: string;
+  moisture: string | null;
+  wound_present: boolean;
+  wound_stage: string | null;
+  notes: string | null;
+}
+
+export interface PressureUlcerRiskPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  assessed_at: string;
+  sensory_perception: string;
+  sensory_perception_score: number;
+  moisture: string;
+  moisture_score: number;
+  activity: string;
+  activity_score: number;
+  mobility: string;
+  mobility_score: number;
+  nutrition: string;
+  nutrition_score: number;
+  friction_shear: string;
+  friction_shear_score: number;
+  total_score: number;
+  risk_level: string;
+  skin_assessments: SkinAssessmentEntry[];
+  interventions_required: string[];
+  repositioning_schedule: string | null;
+  special_mattress_required: boolean;
+  nutritional_consult: boolean;
+  assessed_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface GcsEntry {
+  assessed_at: string;
+  eye_response: number;
+  verbal_response: number;
+  motor_response: number;
+  total_score: number;
+  pupil_left_size: number | null;
+  pupil_left_reaction: string | null;
+  pupil_right_size: number | null;
+  pupil_right_reaction: string | null;
+  assessed_by: string | null;
+}
+
+export interface GcsChartPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  primary_diagnosis: string | null;
+  chart_date: string;
+  entries: GcsEntry[];
+  baseline_gcs: number | null;
+  current_gcs: number | null;
+  trend: string | null;
+  neuro_observations: string | null;
+  notify_physician_if: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface TransfusionRequisitionPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  ward_name: string | null;
+  bed_number: string | null;
+  blood_group: string | null;
+  rh_type: string | null;
+  diagnosis: string | null;
+  indication: string | null;
+  product_requested: string;
+  units_requested: number;
+  urgency: string;
+  hemoglobin_level: number | null;
+  platelet_count: number | null;
+  inr: number | null;
+  previous_transfusions: number | null;
+  previous_reactions: boolean;
+  reaction_details: string | null;
+  special_requirements: string[];
+  consent_signed: boolean;
+  sample_collected_at: string | null;
+  sample_collected_by: string | null;
+  requested_by: string | null;
+  requested_at: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+// ── Phase 3: Medico-Legal Print Data ──────────────────────────
+
+export interface AmaFormPrintData {
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  address: string | null;
+  phone: string | null;
+  admission_number: string | null;
+  admission_date: string | null;
+  ward_name: string | null;
+  bed_number: string | null;
+  diagnosis: string | null;
+  treatment_given: string | null;
+  reason_for_lama: string | null;
+  risks_explained: string[];
+  patient_statement: string | null;
+  patient_signature_obtained: boolean;
+  witness_name: string | null;
+  witness_signature_obtained: boolean;
+  relative_name: string | null;
+  relative_relationship: string | null;
+  relative_signature_obtained: boolean;
+  doctor_name: string | null;
+  doctor_signature_obtained: boolean;
+  discharge_date: string | null;
+  discharge_time: string | null;
+  medications_provided: string[];
+  followup_instructions: string | null;
+  emergency_contact_given: boolean;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface InjuryEntry {
+  injury_type: string;
+  body_part: string;
+  size_cm: string | null;
+  description: string;
+  weapon_likely: string | null;
+  age_of_injury: string | null;
+}
+
+export interface MlcRegisterPrintData {
+  mlc_number: string;
+  registration_date: string;
+  registration_time: string | null;
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  address: string | null;
+  phone: string | null;
+  brought_by: string | null;
+  brought_by_relationship: string | null;
+  police_station: string | null;
+  fir_number: string | null;
+  history_of_incident: string | null;
+  incident_date: string | null;
+  incident_time: string | null;
+  incident_place: string | null;
+  condition_on_arrival: string | null;
+  consciousness_level: string | null;
+  injuries: InjuryEntry[];
+  treatment_given: string | null;
+  outcome: string | null;
+  disposal: string | null;
+  police_intimation_time: string | null;
+  police_officer_name: string | null;
+  police_officer_designation: string | null;
+  examining_doctor: string | null;
+  doctor_registration_number: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface WoundEntry {
+  wound_number: number;
+  wound_type: string;
+  body_region: string;
+  exact_location: string;
+  size_length_cm: number | null;
+  size_width_cm: number | null;
+  size_depth_cm: number | null;
+  shape: string | null;
+  margins: string | null;
+  floor: string | null;
+  surrounding_area: string | null;
+  direction: string | null;
+  weapon_likely: string | null;
+  age_of_wound: string | null;
+  simple_or_grievous: string;
+  healing_duration_days: number | null;
+}
+
+export interface WoundCertificatePrintData {
+  certificate_number: string;
+  certificate_date: string;
+  patient_name: string;
+  age_display: string;
+  gender: string;
+  address: string | null;
+  brought_by: string | null;
+  police_requisition_number: string | null;
+  police_station: string | null;
+  examination_date: string;
+  examination_time: string | null;
+  history_given: string | null;
+  general_condition: string | null;
+  consciousness_level: string | null;
+  wounds: WoundEntry[];
+  total_wounds: number;
+  simple_wounds: number;
+  grievous_wounds: number;
+  dangerous_to_life: boolean;
+  disability_likely: boolean;
+  disability_type: string | null;
+  opinion: string | null;
+  weapon_opinion: string | null;
+  time_since_injury: string | null;
+  xray_findings: string | null;
+  treatment_advised: string | null;
+  examining_doctor: string | null;
+  doctor_registration_number: string | null;
+  doctor_designation: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface EpiphysealFusion {
+  bone_name: string;
+  epiphysis: string;
+  fusion_status: string;
+  estimated_age_range: string | null;
+}
+
+export interface SecondaryCharacters {
+  facial_hair: string | null;
+  pubic_hair: string | null;
+  axillary_hair: string | null;
+  breast_development: string | null;
+  voice_change: boolean | null;
+  adams_apple: boolean | null;
+}
+
+export interface AgeEstimationPrintData {
+  certificate_number: string;
+  certificate_date: string;
+  patient_name: string;
+  gender: string;
+  brought_by: string | null;
+  purpose_of_examination: string | null;
+  police_requisition_number: string | null;
+  police_station: string | null;
+  examination_date: string;
+  general_appearance: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  dental_examination: string | null;
+  teeth_erupted: string | null;
+  dental_age_estimate: string | null;
+  secondary_sex_characters: SecondaryCharacters | null;
+  epiphyseal_status: EpiphysealFusion[];
+  radiological_findings: string | null;
+  ossification_age_estimate: string | null;
+  opinion_age_range_lower: number | null;
+  opinion_age_range_upper: number | null;
+  opinion_narrative: string | null;
+  examining_doctor: string | null;
+  doctor_registration_number: string | null;
+  doctor_designation: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface DeathDeclarationPrintData {
+  declaration_number: string;
+  patient_name: string;
+  uhid: string | null;
+  age_display: string;
+  gender: string;
+  address: string | null;
+  admission_number: string | null;
+  admission_date: string | null;
+  ward_name: string | null;
+  bed_number: string | null;
+  date_of_death: string;
+  time_of_death: string;
+  place_of_death: string | null;
+  cause_of_death_immediate: string | null;
+  cause_of_death_antecedent: string | null;
+  cause_of_death_underlying: string | null;
+  other_conditions: string[];
+  manner_of_death: string;
+  autopsy_requested: boolean;
+  autopsy_reason: string | null;
+  mlc_case: boolean;
+  mlc_number: string | null;
+  death_summary: string | null;
+  certified_by: string | null;
+  doctor_registration_number: string | null;
+  certification_time: string | null;
+  relative_informed: boolean;
+  relative_name: string | null;
+  relative_relationship: string | null;
+  body_handover_to: string | null;
+  body_handover_time: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PoliceVisitEntry {
+  visit_date: string;
+  officer_name: string;
+  officer_designation: string | null;
+  purpose: string;
+  statement_recorded: boolean;
+  notes: string | null;
+}
+
+export interface SamplePreservedEntry {
+  sample_type: string;
+  quantity: string | null;
+  preserved_in: string | null;
+  sealed: boolean;
+  handed_to: string | null;
+  handed_date: string | null;
+}
+
+export interface MlcDateEntry {
+  entry_date: string;
+  entry_time: string | null;
+  entry_type: string;
+  details: string;
+  entered_by: string | null;
+}
+
+export interface MlcDocumentationPrintData {
+  mlc_number: string;
+  case_status: string;
+  patient_name: string;
+  uhid: string;
+  age_display: string;
+  gender: string;
+  address: string | null;
+  registration_date: string;
+  case_type: string | null;
+  police_station: string | null;
+  fir_number: string | null;
+  io_name: string | null;
+  io_contact: string | null;
+  initial_examination: string | null;
+  initial_opinion: string | null;
+  injuries_summary: string | null;
+  treatment_summary: string | null;
+  current_condition: string | null;
+  prognosis: string | null;
+  police_visits: PoliceVisitEntry[];
+  samples_preserved: SamplePreservedEntry[];
+  date_entries: MlcDateEntry[];
+  certificates_issued: string[];
+  wound_certificate_number: string | null;
+  disability_certificate_number: string | null;
+  final_opinion: string | null;
+  case_closed: boolean;
+  closure_date: string | null;
+  closure_reason: string | null;
+  attending_doctor: string | null;
+  doctor_registration_number: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+// ── Phase 3: Quality & Safety Print Data ──────────────────────────
+
+export interface StaffInvolvedEntry {
+  staff_name: string;
+  designation: string | null;
+  department: string | null;
+  role_in_incident: string | null;
+}
+
+export interface IncidentReportPrintData {
+  incident_number: string;
+  incident_date: string;
+  incident_time: string | null;
+  incident_location: string | null;
+  incident_type: string;
+  incident_category: string | null;
+  severity: string;
+  patient_involved: boolean;
+  patient_name: string | null;
+  patient_uhid: string | null;
+  visitor_involved: boolean;
+  visitor_name: string | null;
+  staff_involved: StaffInvolvedEntry[];
+  incident_description: string | null;
+  immediate_actions: string | null;
+  patient_condition_before: string | null;
+  patient_condition_after: string | null;
+  harm_caused: string | null;
+  harm_level: string | null;
+  equipment_involved: string | null;
+  equipment_id: string | null;
+  medications_involved: string[];
+  contributing_factors: string[];
+  preventability: string | null;
+  witness_names: string[];
+  reported_by: string | null;
+  reported_to: string | null;
+  reported_at: string | null;
+  notification_sent_to: string[];
+  initial_response: string | null;
+  follow_up_required: boolean;
+  rca_required: boolean;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface RcaTeamMember {
+  name: string;
+  designation: string | null;
+  department: string | null;
+  role_in_rca: string | null;
+}
+
+export interface RcaTimelineEntry {
+  event_time: string;
+  event_description: string;
+  personnel_involved: string | null;
+  category: string | null;
+}
+
+export interface FiveWhyEntry {
+  level: number;
+  question: string;
+  answer: string;
+}
+
+export interface FishboneCategory {
+  category: string;
+  causes: string[];
+}
+
+export interface CorrectiveAction {
+  action: string;
+  responsible: string | null;
+  due_date: string | null;
+  status: string;
+}
+
+export interface PreventiveAction {
+  action: string;
+  responsible: string | null;
+  due_date: string | null;
+  status: string;
+}
+
+export interface RcaTemplatePrintData {
+  rca_number: string;
+  incident_number: string;
+  incident_date: string;
+  incident_summary: string | null;
+  rca_initiated_date: string;
+  rca_completed_date: string | null;
+  team_members: RcaTeamMember[];
+  event_timeline: RcaTimelineEntry[];
+  five_whys: FiveWhyEntry[];
+  fishbone_analysis: FishboneCategory[];
+  root_causes_identified: string[];
+  contributing_factors: string[];
+  proximate_causes: string[];
+  system_issues: string[];
+  process_gaps: string[];
+  human_factors: string[];
+  equipment_factors: string[];
+  environment_factors: string[];
+  corrective_actions: CorrectiveAction[];
+  preventive_actions: PreventiveAction[];
+  lessons_learned: string[];
+  similar_incidents_reviewed: boolean;
+  recommendations: string[];
+  management_response: string | null;
+  follow_up_plan: string | null;
+  effectiveness_review_date: string | null;
+  lead_investigator: string | null;
+  approved_by: string | null;
+  approval_date: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface CapaAction {
+  action_number: number;
+  action_type: string;
+  description: string;
+  responsible: string | null;
+  due_date: string | null;
+  completed_date: string | null;
+  status: string;
+  verification_method: string | null;
+  verified_by: string | null;
+  verification_date: string | null;
+  effectiveness: string | null;
+}
+
+export interface CapaFormPrintData {
+  capa_number: string;
+  source_type: string;
+  source_reference: string | null;
+  issue_identified: string | null;
+  issue_date: string | null;
+  issue_category: string | null;
+  department_affected: string | null;
+  priority: string;
+  capa_owner: string | null;
+  capa_initiated_date: string;
+  target_completion_date: string | null;
+  actual_completion_date: string | null;
+  root_cause_analysis: string | null;
+  actions: CapaAction[];
+  total_actions: number;
+  completed_actions: number;
+  verification_status: string | null;
+  effectiveness_criteria: string | null;
+  effectiveness_evaluation: string | null;
+  capa_status: string;
+  closure_remarks: string | null;
+  closed_by: string | null;
+  closure_date: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface SuspectedDrug {
+  drug_name: string;
+  brand_name: string | null;
+  batch_number: string | null;
+  manufacturer: string | null;
+  dose: string | null;
+  route: string | null;
+  frequency: string | null;
+  start_date: string | null;
+  stop_date: string | null;
+  indication: string | null;
+  dechallenge: string | null;
+  rechallenge: string | null;
+}
+
+export interface ConcomitantDrug {
+  drug_name: string;
+  dose: string | null;
+  route: string | null;
+  frequency: string | null;
+  start_date: string | null;
+  indication: string | null;
+}
+
+export interface AdrReportPrintData {
+  report_number: string;
+  pvpi_id: string | null;
+  report_type: string;
+  initial_or_followup: string;
+  report_date: string;
+  patient_initials: string | null;
+  patient_age: number | null;
+  patient_gender: string | null;
+  patient_weight_kg: number | null;
+  patient_height_cm: number | null;
+  pregnancy_status: string | null;
+  relevant_history: string | null;
+  allergies: string[];
+  suspected_drugs: SuspectedDrug[];
+  concomitant_drugs: ConcomitantDrug[];
+  reaction_onset_date: string | null;
+  reaction_description: string | null;
+  reaction_severity: string | null;
+  seriousness_criteria: string[];
+  outcome: string | null;
+  outcome_date: string | null;
+  causality_assessment: string | null;
+  naranjo_score: number | null;
+  who_umc_category: string | null;
+  action_taken: string | null;
+  treatment_given: string | null;
+  sequelae: string | null;
+  reporter_name: string | null;
+  reporter_qualification: string | null;
+  reporter_email: string | null;
+  reporter_phone: string | null;
+  institution_name: string | null;
+  institution_address: string | null;
+  submitted_to_pvpi: boolean;
+  submission_date: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface TransfusionReactionPrintData {
+  report_number: string;
+  naco_id: string | null;
+  report_date: string;
+  patient_name: string | null;
+  patient_uhid: string | null;
+  patient_age: number | null;
+  patient_gender: string | null;
+  patient_blood_group: string | null;
+  patient_rh_type: string | null;
+  ward_name: string | null;
+  bed_number: string | null;
+  transfusion_date: string | null;
+  transfusion_start_time: string | null;
+  reaction_time: string | null;
+  time_to_reaction_minutes: number | null;
+  product_type: string | null;
+  unit_number: string | null;
+  donation_date: string | null;
+  component_age_days: number | null;
+  donor_blood_group: string | null;
+  volume_transfused_ml: number | null;
+  indication_for_transfusion: string | null;
+  reaction_type: string | null;
+  reaction_severity: string | null;
+  imputability: string | null;
+  signs_symptoms: string[];
+  vital_signs_at_reaction: string | null;
+  immediate_actions: string[];
+  treatment_given: string | null;
+  transfusion_stopped: boolean;
+  unit_returned: boolean;
+  samples_collected: string[];
+  lab_investigations: string[];
+  investigation_findings: string | null;
+  final_diagnosis: string | null;
+  outcome: string | null;
+  sequelae: string | null;
+  preventability: string | null;
+  similar_previous_reactions: boolean;
+  blood_bank_notified: boolean;
+  blood_bank_notification_time: string | null;
+  reported_by: string | null;
+  reported_to: string | null;
+  hemovigilance_officer: string | null;
+  submitted_to_naco: boolean;
+  submission_date: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+// ══════════════════════════════════════════════════════════
+// Phase 4: Clinical Delivery Print Data
+// ══════════════════════════════════════════════════════════
+
+export interface OpdPrescriptionPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  phone: string | null;
+  address: string | null;
+  vitals: Record<string, string>;
+  doctor_name: string;
+  doctor_qualification: string | null;
+  doctor_registration: string | null;
+  department: string | null;
+  encounter_date: string;
+  encounter_time: string;
+  chief_complaints: string[];
+  diagnosis: string[];
+  medications: PrescriptionMedication[];
+  investigations: string[];
+  advice: string | null;
+  follow_up_date: string | null;
+  follow_up_instructions: string | null;
+  refer_to: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_phone: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface PrescriptionMedication {
+  drug_name: string;
+  generic_name: string | null;
+  strength: string | null;
+  form: string | null;
+  route: string;
+  frequency: string;
+  duration: string;
+  quantity: number;
+  instructions: string | null;
+  timing: string | null;
+  is_prn: boolean;
+}
+
+export interface LabReportFullPrintData {
+  report_number: string;
+  report_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  phone: string | null;
+  sample_type: string | null;
+  sample_id: string | null;
+  collection_date: string | null;
+  collection_time: string | null;
+  received_date: string | null;
+  report_time: string | null;
+  referring_doctor: string | null;
+  department: string | null;
+  test_name: string;
+  test_code: string | null;
+  parameters: LabParameter[];
+  interpretation: string | null;
+  comments: string | null;
+  pathologist_name: string | null;
+  pathologist_registration: string | null;
+  pathologist_signature_url: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  is_critical: boolean;
+  critical_values: string[];
+  nabl_logo: boolean;
+  nabl_certificate_number: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_logo_url: string | null;
+  barcode_data: string | null;
+}
+
+export interface LabParameter {
+  parameter_name: string;
+  result: string;
+  unit: string | null;
+  reference_range: string | null;
+  flag: string | null;
+  is_critical: boolean;
+}
+
+export interface CumulativeLabReportPrintData {
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  report_date: string;
+  date_range: string;
+  test_name: string;
+  parameters: CumulativeLabParameter[];
+  trend_summary: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface CumulativeLabParameter {
+  parameter_name: string;
+  unit: string | null;
+  reference_range: string | null;
+  results: CumulativeResult[];
+}
+
+export interface CumulativeResult {
+  date: string;
+  value: string;
+  flag: string | null;
+}
+
+export interface RadiologyReportFullPrintData {
+  report_number: string;
+  report_date: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  modality: string;
+  study_description: string;
+  accession_number: string | null;
+  study_date: string;
+  study_time: string | null;
+  referring_doctor: string | null;
+  department: string | null;
+  clinical_history: string | null;
+  technique: string | null;
+  findings: string;
+  impression: string;
+  recommendations: string | null;
+  key_images: KeyImage[];
+  radiologist_name: string | null;
+  radiologist_registration: string | null;
+  radiologist_signature_url: string | null;
+  verified_at: string | null;
+  is_critical: boolean;
+  critical_findings: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface KeyImage {
+  image_url: string;
+  caption: string | null;
+  sequence_number: number;
+}
+
+// ══════════════════════════════════════════════════════════
+// Phase 4: Regulatory Print Data
+// ══════════════════════════════════════════════════════════
+
+export interface NabhQualityReportPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  nabh_certificate_number: string | null;
+  accreditation_valid_until: string | null;
+  indicators: QualityIndicator[];
+  summary: QualitySummary;
+  action_items: string[];
+  prepared_by: string | null;
+  reviewed_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface QualityIndicator {
+  indicator_code: string;
+  indicator_name: string;
+  category: string;
+  numerator: number;
+  denominator: number;
+  rate: number;
+  benchmark: number | null;
+  status: string;
+  trend: string | null;
+}
+
+export interface QualitySummary {
+  total_indicators: number;
+  met_benchmark: number;
+  below_benchmark: number;
+  not_applicable: number;
+}
+
+export interface NmcComplianceReportPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  registration_number: string | null;
+  compliance_sections: ComplianceSection[];
+  overall_compliance_percentage: number;
+  non_compliance_items: string[];
+  corrective_actions: string[];
+  prepared_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface ComplianceSection {
+  section_name: string;
+  total_items: number;
+  compliant_items: number;
+  partial_items: number;
+  non_compliant_items: number;
+  compliance_percentage: number;
+}
+
+export interface NablQualityReportPrintData {
+  report_period: string;
+  report_date: string;
+  lab_name: string;
+  nabl_certificate_number: string | null;
+  scope_of_accreditation: string | null;
+  valid_until: string | null;
+  internal_qc_results: InternalQcResult[];
+  eqa_results: EqaResult[];
+  proficiency_testing: ProficiencyTestResult[];
+  non_conformances: NonConformance[];
+  prepared_by: string | null;
+  quality_manager: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface InternalQcResult {
+  test_name: string;
+  level: string;
+  mean: number;
+  sd: number;
+  cv_percent: number;
+  within_limits: boolean;
+}
+
+export interface EqaResult {
+  program_name: string;
+  analyte: string;
+  our_result: string;
+  target_value: string;
+  z_score: number | null;
+  performance: string;
+}
+
+export interface ProficiencyTestResult {
+  survey_name: string;
+  date: string;
+  score_percent: number;
+  status: string;
+}
+
+export interface NonConformance {
+  date: string;
+  description: string;
+  root_cause: string | null;
+  corrective_action: string | null;
+  status: string;
+}
+
+export interface SpcbBmwReturnsPrintData {
+  quarter: string;
+  year: number;
+  report_date: string;
+  hospital_name: string;
+  authorization_number: string | null;
+  valid_until: string | null;
+  category_wise_generation: BmwCategoryData[];
+  total_waste_kg: number;
+  disposal_details: BmwDisposalDetail[];
+  cbwtf_details: CbwtfDetail | null;
+  incidents: string[];
+  prepared_by: string | null;
+  authorized_signatory: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface BmwCategoryData {
+  category: string;
+  color_code: string;
+  quantity_kg: number;
+  treatment_method: string;
+}
+
+export interface BmwDisposalDetail {
+  date: string;
+  category: string;
+  quantity_kg: number;
+  collected_by: string;
+  manifest_number: string | null;
+}
+
+export interface CbwtfDetail {
+  name: string;
+  authorization_number: string | null;
+  address: string | null;
+  contact: string | null;
+}
+
+export interface PesoComplianceReportPrintData {
+  report_year: number;
+  report_date: string;
+  hospital_name: string;
+  peso_license_number: string | null;
+  license_valid_until: string | null;
+  medical_gas_systems: MedicalGasSystem[];
+  cylinder_storage: CylinderStorage;
+  safety_inspections: SafetyInspection[];
+  incidents: GasIncident[];
+  compliance_status: string;
+  prepared_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface MedicalGasSystem {
+  gas_type: string;
+  source_type: string;
+  location: string;
+  capacity: string;
+  last_tested: string | null;
+  next_test_due: string | null;
+  status: string;
+}
+
+export interface CylinderStorage {
+  total_capacity: number;
+  oxygen_cylinders: number;
+  nitrous_oxide_cylinders: number;
+  co2_cylinders: number;
+  other_cylinders: number;
+  storage_compliant: boolean;
+}
+
+export interface SafetyInspection {
+  inspection_date: string;
+  inspector: string;
+  findings: string;
+  status: string;
+}
+
+export interface GasIncident {
+  incident_date: string;
+  gas_type: string;
+  description: string;
+  action_taken: string;
+}
+
+export interface DrugLicenseReportPrintData {
+  report_date: string;
+  hospital_name: string;
+  drug_license_number: string;
+  license_type: string;
+  valid_from: string;
+  valid_until: string;
+  licensing_authority: string;
+  registered_pharmacist: string | null;
+  registration_number: string | null;
+  authorized_categories: string[];
+  controlled_substance_license: string | null;
+  storage_conditions_compliant: boolean;
+  inspection_history: DrugInspection[];
+  current_stock_summary: DrugStockCategory[];
+  expiry_alerts: ExpiryAlert[];
+  hospital_logo_url: string | null;
+}
+
+export interface DrugInspection {
+  inspection_date: string;
+  inspector_name: string;
+  findings: string;
+  compliance_status: string;
+}
+
+export interface DrugStockCategory {
+  category: string;
+  total_items: number;
+  total_value: number;
+}
+
+export interface ExpiryAlert {
+  drug_name: string;
+  batch_number: string;
+  expiry_date: string;
+  quantity: number;
+  days_to_expiry: number;
+}
+
+export interface PcpndtReportPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  registration_number: string;
+  registration_valid_until: string;
+  appropriate_authority: string;
+  registered_equipment: PcpndtEquipment[];
+  qualified_personnel: PcpndtPersonnel[];
+  procedures_performed: PcpndtProcedure[];
+  form_f_compliance: FormFCompliance;
+  inspections: PcpndtInspection[];
+  declaration_text: string;
+  signatory_name: string;
+  signatory_designation: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PcpndtEquipment {
+  equipment_name: string;
+  registration_number: string;
+  location: string;
+}
+
+export interface PcpndtPersonnel {
+  name: string;
+  qualification: string;
+  registration_number: string;
+  role: string;
+}
+
+export interface PcpndtProcedure {
+  procedure_type: string;
+  total_count: number;
+  male_fetus: number;
+  female_fetus: number;
+  indeterminate: number;
+}
+
+export interface FormFCompliance {
+  total_forms: number;
+  complete_forms: number;
+  incomplete_forms: number;
+  compliance_percentage: number;
+}
+
+export interface PcpndtInspection {
+  date: string;
+  authority: string;
+  findings: string;
+  status: string;
+}
+
+export interface BirthRegisterPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  hospital_code: string | null;
+  municipal_area: string | null;
+  entries: BirthRegisterEntry[];
+  total_births: number;
+  male_births: number;
+  female_births: number;
+  live_births: number;
+  still_births: number;
+  prepared_by: string | null;
+  verified_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface BirthRegisterEntry {
+  serial_number: number;
+  registration_number: string;
+  date_of_birth: string;
+  time_of_birth: string;
+  gender: string;
+  birth_weight_grams: number;
+  birth_type: string;
+  mother_name: string;
+  mother_age: number;
+  father_name: string;
+  address: string;
+  delivery_type: string;
+  attending_doctor: string;
+}
+
+export interface DeathRegisterPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  hospital_code: string | null;
+  municipal_area: string | null;
+  entries: DeathRegisterEntry[];
+  total_deaths: number;
+  male_deaths: number;
+  female_deaths: number;
+  mlc_cases: number;
+  prepared_by: string | null;
+  verified_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface DeathRegisterEntry {
+  serial_number: number;
+  registration_number: string;
+  date_of_death: string;
+  time_of_death: string;
+  deceased_name: string;
+  age: string;
+  gender: string;
+  address: string;
+  cause_of_death: string;
+  icd_code: string | null;
+  certifying_doctor: string;
+  mlc_case: boolean;
+}
+
+export interface MlcRegisterSummaryPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  entries: MlcRegisterSummaryEntry[];
+  total_cases: number;
+  by_case_type: MlcCaseTypeCount[];
+  by_outcome: MlcOutcomeCount[];
+  pending_cases: number;
+  prepared_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface MlcRegisterSummaryEntry {
+  serial_number: number;
+  mlc_number: string;
+  registration_date: string;
+  patient_name: string;
+  age_gender: string;
+  case_type: string;
+  police_station: string;
+  fir_number: string | null;
+  outcome: string;
+  current_status: string;
+}
+
+export interface MlcCaseTypeCount {
+  case_type: string;
+  count: number;
+}
+
+export interface MlcOutcomeCount {
+  outcome: string;
+  count: number;
+}
+
+export interface AebasAttendanceReportPrintData {
+  report_period: string;
+  report_date: string;
+  hospital_name: string;
+  aebas_unit_code: string | null;
+  department_summary: DepartmentAttendance[];
+  total_employees: number;
+  average_attendance_percentage: number;
+  total_working_days: number;
+  holidays: number;
+  prepared_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface DepartmentAttendance {
+  department_name: string;
+  total_employees: number;
+  average_present: number;
+  average_absent: number;
+  average_leave: number;
+  attendance_percentage: number;
+}
+
+export interface NmcNarfAssessmentPrintData {
+  assessment_year: number;
+  report_date: string;
+  hospital_name: string;
+  nmc_registration_number: string | null;
+  assessment_sections: NarfSection[];
+  overall_score: number;
+  maximum_score: number;
+  percentage: number;
+  grade: string;
+  strengths: string[];
+  areas_for_improvement: string[];
+  action_plan: string[];
+  assessed_by: string | null;
+  verified_by: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface NarfSection {
+  section_name: string;
+  max_score: number;
+  achieved_score: number;
+  percentage: number;
+  criteria: NarfCriterion[];
+}
+
+export interface NarfCriterion {
+  criterion: string;
+  max_marks: number;
+  achieved_marks: number;
+  evidence: string | null;
+}
+
+// ══════════════════════════════════════════════════════════
+// Phase 4: Admin & Procurement Print Data
+// ══════════════════════════════════════════════════════════
+
+export interface IndentFormPrintData {
+  indent_number: string;
+  indent_date: string;
+  indent_type: string;
+  priority: string;
+  requesting_department: string;
+  requesting_store: string | null;
+  requested_by: string;
+  items: IndentFormItem[];
+  total_items: number;
+  estimated_value: number | null;
+  justification: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  status: string;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface IndentFormItem {
+  item_code: string;
+  item_name: string;
+  specification: string | null;
+  unit: string;
+  quantity_requested: number;
+  quantity_approved: number | null;
+  current_stock: number | null;
+  remarks: string | null;
+}
+
+export interface PurchaseOrderPrintData {
+  po_number: string;
+  po_date: string;
+  vendor_name: string;
+  vendor_address: string | null;
+  vendor_gstin: string | null;
+  vendor_contact: string | null;
+  delivery_address: string;
+  delivery_date: string | null;
+  payment_terms: string | null;
+  items: PoItem[];
+  subtotal: number;
+  discount_percentage: number | null;
+  discount_amount: number;
+  tax_amount: number;
+  freight_charges: number;
+  total_amount: number;
+  amount_in_words: string;
+  terms_and_conditions: string[];
+  prepared_by: string | null;
+  approved_by: string | null;
+  hospital_name: string;
+  hospital_address: string | null;
+  hospital_gstin: string | null;
+  hospital_logo_url: string | null;
+}
+
+export interface PoItem {
+  item_code: string;
+  item_name: string;
+  specification: string | null;
+  hsn_code: string | null;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  amount: number;
+}
+
+export interface GrnPrintData {
+  grn_number: string;
+  grn_date: string;
+  po_number: string | null;
+  po_date: string | null;
+  vendor_name: string;
+  vendor_invoice_number: string | null;
+  vendor_invoice_date: string | null;
+  challan_number: string | null;
+  receiving_store: string;
+  items: GrnItem[];
+  total_items: number;
+  total_quantity: number;
+  total_value: number;
+  quality_check_done: boolean;
+  quality_remarks: string | null;
+  received_by: string;
+  verified_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface GrnItem {
+  item_code: string;
+  item_name: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+  manufacturing_date: string | null;
+  unit: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  quantity_accepted: number;
+  quantity_rejected: number;
+  rejection_reason: string | null;
+  unit_price: number;
+  amount: number;
+}
+
+export interface MaterialIssueVoucherPrintData {
+  voucher_number: string;
+  voucher_date: string;
+  issue_type: string;
+  issuing_store: string;
+  receiving_department: string;
+  receiving_cost_center: string | null;
+  requested_by: string;
+  items: IssueItem[];
+  total_items: number;
+  total_value: number;
+  purpose: string | null;
+  issued_by: string;
+  received_by: string | null;
+  received_at: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface IssueItem {
+  item_code: string;
+  item_name: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+  unit: string;
+  quantity_requested: number;
+  quantity_issued: number;
+  unit_price: number;
+  amount: number;
+}
+
+export interface StockTransferNotePrintData {
+  transfer_number: string;
+  transfer_date: string;
+  from_store: string;
+  to_store: string;
+  transfer_type: string;
+  items: TransferItem[];
+  total_items: number;
+  total_value: number;
+  reason: string | null;
+  initiated_by: string;
+  dispatched_by: string | null;
+  dispatched_at: string | null;
+  received_by: string | null;
+  received_at: string | null;
+  status: string;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface TransferItem {
+  item_code: string;
+  item_name: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+}
+
+export interface NdpsRegisterPrintData {
+  report_period: string;
+  report_date: string;
+  store_name: string;
+  license_number: string;
+  license_valid_until: string;
+  opening_balance: NdpsBalance[];
+  transactions: NdpsTransaction[];
+  closing_balance: NdpsBalance[];
+  physical_verification_date: string | null;
+  discrepancies: string[];
+  register_maintained_by: string;
+  verified_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface NdpsBalance {
+  drug_name: string;
+  schedule: string;
+  batch_number: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface NdpsTransaction {
+  transaction_date: string;
+  drug_name: string;
+  batch_number: string;
+  transaction_type: string;
+  quantity: number;
+  balance_after: number;
+  patient_name: string | null;
+  patient_uhid: string | null;
+  prescribing_doctor: string | null;
+  witness_name: string | null;
+  reference_number: string;
+}
+
+export interface DrugExpiryAlertPrintData {
+  report_date: string;
+  store_name: string;
+  alert_threshold_days: number;
+  expired_drugs: ExpiryDrugItem[];
+  expiring_soon: ExpiryDrugItem[];
+  total_expired_value: number;
+  total_expiring_value: number;
+  prepared_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface ExpiryDrugItem {
+  item_code: string;
+  drug_name: string;
+  batch_number: string;
+  expiry_date: string;
+  days_to_expiry: number;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  total_value: number;
+  manufacturer: string | null;
+  supplier: string | null;
+  location: string;
+}
+
+export interface EquipmentCondemnationPrintData {
+  condemnation_number: string;
+  condemnation_date: string;
+  equipment_name: string;
+  equipment_code: string;
+  serial_number: string | null;
+  make: string | null;
+  model: string | null;
+  location: string;
+  department: string;
+  purchase_date: string | null;
+  purchase_value: number | null;
+  current_book_value: number | null;
+  reason_for_condemnation: string;
+  condition_assessment: string;
+  inspection_findings: string;
+  repair_history: RepairHistoryEntry[];
+  total_repair_cost: number;
+  disposal_recommendation: string;
+  estimated_salvage_value: number | null;
+  inspected_by: string;
+  recommended_by: string;
+  approved_by: string | null;
+  approval_date: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface RepairHistoryEntry {
+  repair_date: string;
+  issue: string;
+  action_taken: string;
+  cost: number;
+  vendor: string | null;
+}
+
+export interface WorkOrderPrintData {
+  work_order_number: string;
+  work_order_date: string;
+  work_type: string;
+  priority: string;
+  requested_by: string;
+  requesting_department: string;
+  location: string;
+  description: string;
+  equipment_involved: string | null;
+  equipment_code: string | null;
+  estimated_hours: number | null;
+  estimated_cost: number | null;
+  materials_required: WorkOrderMaterial[];
+  assigned_to: string | null;
+  assigned_team: string | null;
+  scheduled_date: string | null;
+  completion_date: string | null;
+  actual_hours: number | null;
+  actual_cost: number | null;
+  work_done: string | null;
+  status: string;
+  verified_by: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface WorkOrderMaterial {
+  material_name: string;
+  quantity: number;
+  unit: string;
+  estimated_cost: number;
+}
+
+export interface PmChecklistPrintData {
+  pm_number: string;
+  pm_date: string;
+  equipment_name: string;
+  equipment_code: string;
+  serial_number: string | null;
+  location: string;
+  department: string;
+  last_pm_date: string | null;
+  pm_frequency: string;
+  checklist_items: PmChecklistItem[];
+  overall_condition: string;
+  issues_found: string[];
+  corrective_actions: string[];
+  parts_replaced: PartReplaced[];
+  next_pm_due: string | null;
+  performed_by: string;
+  verified_by: string | null;
+  department_head_acknowledgment: string | null;
+  hospital_name: string;
+  hospital_logo_url: string | null;
+}
+
+export interface PmChecklistItem {
+  item_number: number;
+  check_description: string;
+  status: string;
+  remarks: string | null;
+}
+
+export interface PartReplaced {
+  part_name: string;
+  part_number: string | null;
+  quantity: number;
+  reason: string;
 }
 
 // ── Ambulance Fleet Management ──────────────────────────
@@ -16634,4 +20432,2756 @@ export interface SubmitBedsideFeedbackRequest {
   patient_id: string; pain_level?: number; comfort_level?: number;
   cleanliness_level?: number; noise_level?: number;
   staff_response?: number; comments?: string;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TV Displays & Queue
+// ══════════════════════════════════════════════════════════════════════════════
+
+export type TvDisplayType =
+  | "opd_queue"
+  | "lab_queue"
+  | "pharmacy_queue"
+  | "bed_status"
+  | "emergency_triage"
+  | "digital_signage"
+  | "dashboard";
+
+export type QueueTokenStatus =
+  | "waiting"
+  | "called"
+  | "in_progress"
+  | "completed"
+  | "no_show"
+  | "cancelled";
+
+export type QueuePriority =
+  | "normal"
+  | "elderly"
+  | "disabled"
+  | "pregnant"
+  | "emergency_referral"
+  | "vip";
+
+export type AnnouncementPriority = "info" | "warning" | "emergency";
+
+export interface TvDisplay {
+  id: string;
+  tenant_id: string;
+  department_id: string | null;
+  location_name: string;
+  display_type: string;
+  doctors_per_screen: number;
+  show_patient_name: boolean;
+  show_wait_time: boolean;
+  language: string[];
+  announcement_enabled: boolean;
+  scroll_speed: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueueToken {
+  id: string;
+  tenant_id: string;
+  token_date: string;
+  token_seq: number;
+  token_number: string;
+  patient_id: string | null;
+  department_id: string;
+  doctor_id: string | null;
+  status: QueueTokenStatus;
+  priority: QueuePriority;
+  called_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface QueueTokenInfo {
+  token_number: string;
+  patient_name: string;
+  department_name: string;
+  doctor_name: string | null;
+  status: string;
+  counter: string | null;
+  called_at: string | null;
+}
+
+export interface DepartmentQueueState {
+  department_id: string;
+  department_name: string;
+  current_token: QueueTokenInfo | null;
+  next_tokens: QueueTokenInfo[];
+  waiting_count: number;
+  completed_count: number;
+}
+
+export interface TvAnnouncement {
+  id: string;
+  message: string;
+  priority: AnnouncementPriority;
+  created_at: string;
+}
+
+export interface CreateTvDisplayRequest {
+  location_name: string;
+  display_type: string;
+  department_id?: string;
+  doctors_per_screen?: number;
+  show_patient_name?: boolean;
+  show_wait_time?: boolean;
+  language?: string[];
+  announcement_enabled?: boolean;
+  scroll_speed?: number;
+}
+
+export interface UpdateTvDisplayRequest {
+  location_name?: string;
+  display_type?: string;
+  department_id?: string;
+  doctors_per_screen?: number;
+  show_patient_name?: boolean;
+  show_wait_time?: boolean;
+  language?: string[];
+  announcement_enabled?: boolean;
+  scroll_speed?: number;
+}
+
+export interface CreateQueueTokenRequest {
+  department_id: string;
+  patient_id?: string;
+  doctor_id?: string;
+  priority?: QueuePriority;
+}
+
+export interface CreateQueueTokenResponse {
+  id: string;
+  token_number: string;
+  department_name: string;
+  queue_position: number;
+  estimated_wait_minutes: number | null;
+}
+
+export interface ListQueueTokensQuery {
+  department_id?: string;
+  status?: QueueTokenStatus;
+  date?: string;
+}
+
+export interface BroadcastAnnouncementRequest {
+  message: string;
+  priority?: AnnouncementPriority;
+  display_ids?: string[];
+  ends_at?: string;
+}
+
+// ── Specialty Queue Displays ───────────────────────────────────────────────
+
+/** Pharmacy queue token for display */
+export interface PharmacyQueueToken {
+  token_number: string;
+  patient_name: string;
+  prescription_count: number;
+  status: string;
+  counter: number | null;
+  estimated_wait_minutes: number | null;
+}
+
+/** Pharmacy queue statistics */
+export interface PharmacyQueueStats {
+  waiting_count: number;
+  preparing_count: number;
+  ready_count: number;
+  dispensed_today: number;
+  avg_wait_minutes: number;
+}
+
+/** Pharmacy queue display data */
+export interface PharmacyQueueDisplay {
+  current_token: PharmacyQueueToken | null;
+  preparing: PharmacyQueueToken[];
+  ready_for_pickup: PharmacyQueueToken[];
+  waiting: PharmacyQueueToken[];
+  stats: PharmacyQueueStats;
+}
+
+/** Lab queue token for display */
+export interface LabQueueToken {
+  token_number: string;
+  patient_name: string;
+  test_count: number;
+  is_fasting: boolean;
+  is_pediatric: boolean;
+  status: string;
+  counter: number | null;
+}
+
+/** Lab queue statistics */
+export interface LabQueueStats {
+  waiting_count: number;
+  collected_today: number;
+  avg_wait_minutes: number;
+  counters_active: number;
+}
+
+/** Lab queue display data */
+export interface LabQueueDisplay {
+  current_tokens: LabQueueToken[];
+  waiting: LabQueueToken[];
+  collection_in_progress: LabQueueToken[];
+  stats: LabQueueStats;
+}
+
+/** Radiology queue token for display */
+export interface RadiologyQueueToken {
+  token_number: string;
+  patient_name: string;
+  modality: string;
+  room_number: string;
+  status: string;
+  preparation_instructions: string | null;
+}
+
+/** Radiology queue statistics */
+export interface RadiologyQueueStats {
+  waiting_count: number;
+  completed_today: number;
+  avg_scan_minutes: number;
+}
+
+/** Radiology queue display data */
+export interface RadiologyQueueDisplay {
+  modality: string;
+  room_number: string;
+  current_token: RadiologyQueueToken | null;
+  waiting: RadiologyQueueToken[];
+  stats: RadiologyQueueStats;
+}
+
+/** ER triage color codes per Manchester Triage System (for display) */
+export type TriageLevelColor = "red" | "orange" | "yellow" | "green" | "blue";
+
+/** ER triage queue token (privacy-safe - no names on display) */
+export interface ErTriageToken {
+  token_number: string;
+  triage_level: TriageLevelColor;
+  waiting_minutes: number;
+  target_wait_minutes: number;
+  is_overdue: boolean;
+}
+
+/** ER queue display data */
+export interface ErQueueDisplay {
+  red: ErTriageToken[];
+  orange: ErTriageToken[];
+  yellow: ErTriageToken[];
+  green: ErTriageToken[];
+  blue: ErTriageToken[];
+  resuscitation_bays_available: number;
+  total_waiting: number;
+}
+
+/** Billing queue token for display */
+export interface BillingQueueToken {
+  token_number: string;
+  patient_name: string;
+  queue_type: string;
+  counter: number | null;
+  status: string;
+}
+
+/** Billing queue display data */
+export interface BillingQueueDisplay {
+  opd_billing: BillingQueueToken[];
+  ipd_discharge: BillingQueueToken[];
+  advance_deposit: BillingQueueToken[];
+  insurance_desk: BillingQueueToken[];
+}
+
+/** Bed waiting entry for IPD */
+export interface BedWaitingEntry {
+  patient_name: string;
+  ward_type: string;
+  priority: string;
+  wait_time_minutes: number;
+  status: string;
+}
+
+/** Bed availability display data */
+export interface BedAvailabilityDisplay {
+  ward_type: string;
+  total_beds: number;
+  occupied: number;
+  available: number;
+  waiting_list: BedWaitingEntry[];
+}
+
+/** Queue analytics for a department */
+export interface QueueAnalytics {
+  department_name: string;
+  date: string;
+  total_tokens: number;
+  completed: number;
+  no_shows: number;
+  avg_wait_minutes: number;
+  peak_hour: number;
+  peak_hour_count: number;
+}
+
+/** Real-time queue metrics - Note: QueueMetrics already exists at line 15401 */
+export interface QueueMetricsRealtime {
+  current_waiting: number;
+  avg_wait_minutes: number;
+  throughput_per_hour: number;
+  estimated_wait_new_token: number;
+}
+
+// ============================================================================
+// PHASE 6: ACADEMIC/SPECIALTY FORMS (Medical College & Branding)
+// ============================================================================
+
+export interface SubmittedDocument {
+  document_name: string;
+  original_submitted: boolean;
+  verified: boolean;
+}
+
+export interface AdmissionFeeDetails {
+  tuition_fee: number;
+  hostel_fee: number | null;
+  caution_deposit: number;
+  total_amount: number;
+  payment_mode: string;
+  receipt_number: string | null;
+}
+
+export interface StudentAdmissionFormPrintData {
+  admission_number: string;
+  admission_date: string;
+  academic_year: string;
+  course: string;
+  batch_year: number;
+  student_name: string;
+  date_of_birth: string;
+  gender: string;
+  photo_url: string | null;
+  father_name: string;
+  mother_name: string;
+  permanent_address: string;
+  correspondence_address: string;
+  phone: string;
+  email: string;
+  emergency_contact: string;
+  blood_group: string;
+  nationality: string;
+  category: string;
+  admission_quota: string;
+  neet_score: number | null;
+  neet_rank: number | null;
+  qualifying_exam: string;
+  qualifying_marks_percent: number;
+  documents_submitted: SubmittedDocument[];
+  fee_details: AdmissionFeeDetails;
+  hostel_opted: boolean;
+  medical_fitness_certified: boolean;
+  undertaking_signed: boolean;
+  college_name: string;
+  university_name: string;
+  registrar_name: string;
+}
+
+export interface InternRotation {
+  department: string;
+  unit: string | null;
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  posting_type: string;
+  supervisor: string;
+  status: string;
+}
+
+export interface InternRotationSchedulePrintData {
+  schedule_id: string;
+  academic_year: string;
+  intern_name: string;
+  intern_registration_number: string;
+  batch: string;
+  internship_start_date: string;
+  internship_end_date: string;
+  rotations: InternRotation[];
+  total_days: number;
+  leave_allowed: number;
+  current_posting: InternRotation | null;
+  completed_rotations: number;
+  pending_rotations: number;
+  mentor_name: string;
+  coordinator_name: string;
+  college_name: string;
+}
+
+export interface PgCaseEntry {
+  diagnosis: string;
+  presenting_complaints: string;
+  examination_findings: string;
+  investigations: string;
+  treatment_given: string;
+  learning_points: string;
+  case_outcome: string;
+}
+
+export interface PgProcedureEntry {
+  procedure_name: string;
+  indication: string;
+  technique: string;
+  complications: string | null;
+  assisted_or_performed: string;
+  count_this_rotation: number;
+  cumulative_count: number;
+}
+
+export interface PgAcademicEntry {
+  activity_type: string;
+  topic: string;
+  duration_minutes: number;
+  feedback_received: string | null;
+}
+
+export interface PgLogbookEntryPrintData {
+  entry_id: string;
+  entry_date: string;
+  resident_name: string;
+  resident_registration: string;
+  course: string;
+  department: string;
+  year_of_training: number;
+  entry_type: string;
+  case_details: PgCaseEntry | null;
+  procedure_details: PgProcedureEntry | null;
+  academic_activity: PgAcademicEntry | null;
+  supervisor_name: string;
+  supervisor_remarks: string | null;
+  verified: boolean;
+  verification_date: string | null;
+  college_name: string;
+}
+
+export interface AssessmentComponent {
+  component_name: string;
+  marks_obtained: number;
+  max_marks: number;
+  date: string;
+}
+
+export interface InternalAssessmentMarksPrintData {
+  assessment_id: string;
+  academic_year: string;
+  term: string;
+  student_name: string;
+  roll_number: string;
+  course: string;
+  year: number;
+  subject: string;
+  theory_marks: AssessmentComponent[];
+  practical_marks: AssessmentComponent[];
+  viva_marks: AssessmentComponent | null;
+  theory_total: number;
+  theory_max: number;
+  practical_total: number;
+  practical_max: number;
+  grand_total: number;
+  grand_max: number;
+  percentage: number;
+  attendance_percent: number;
+  eligible_for_exam: boolean;
+  remarks: string | null;
+  faculty_name: string;
+  hod_name: string;
+  college_name: string;
+}
+
+export interface ExamSubject {
+  subject_code: string;
+  subject_name: string;
+  exam_date: string;
+  exam_time: string;
+  paper_type: string;
+}
+
+export interface ExamHallTicketPrintData {
+  hall_ticket_number: string;
+  exam_name: string;
+  exam_session: string;
+  academic_year: string;
+  student_name: string;
+  roll_number: string;
+  photo_url: string | null;
+  course: string;
+  year: number;
+  subjects: ExamSubject[];
+  exam_center: string;
+  center_address: string;
+  reporting_time: string;
+  instructions: string[];
+  student_signature_required: boolean;
+  controller_exam_name: string;
+  university_name: string;
+  college_name: string;
+  issue_date: string;
+  barcode: string;
+}
+
+export interface OsceTask {
+  task_number: number;
+  task_description: string;
+  max_marks: number;
+  marks_obtained: number;
+  competency_level: string;
+}
+
+export interface OsceGlobalRating {
+  communication_skills: number;
+  professionalism: number;
+  clinical_judgment: number;
+  overall_performance: string;
+}
+
+export interface OsceScoringSheetPrintData {
+  exam_id: string;
+  exam_date: string;
+  station_number: number;
+  station_name: string;
+  station_type: string;
+  time_allowed_minutes: number;
+  candidate_roll: string;
+  candidate_name: string;
+  clinical_scenario: string;
+  tasks: OsceTask[];
+  global_rating: OsceGlobalRating | null;
+  total_marks: number;
+  max_marks: number;
+  pass_marks: number;
+  examiner_comments: string | null;
+  examiner_name: string;
+  examiner_signature_date: string;
+  college_name: string;
+}
+
+export interface SimulationParticipant {
+  name: string;
+  role_assigned: string;
+  course: string;
+  year: number;
+}
+
+export interface SimulationEvent {
+  timestamp_minutes: number;
+  event_description: string;
+  expected_action: string;
+  actual_action: string;
+  was_correct: boolean;
+}
+
+export interface DebriefingPoint {
+  category: string;
+  observation: string;
+  discussion_summary: string;
+}
+
+export interface SimulationDebriefingPrintData {
+  session_id: string;
+  session_date: string;
+  scenario_name: string;
+  scenario_type: string;
+  duration_minutes: number;
+  participants: SimulationParticipant[];
+  scenario_objectives: string[];
+  events_timeline: SimulationEvent[];
+  debriefing_points: DebriefingPoint[];
+  key_learning_outcomes: string[];
+  areas_for_improvement: string[];
+  participant_feedback: string | null;
+  facilitator_name: string;
+  technician_name: string | null;
+  simulation_center: string;
+  college_name: string;
+}
+
+export interface CmeFaculty {
+  name: string;
+  designation: string;
+  institution: string;
+  topic: string;
+}
+
+export interface CmeCertificatePrintData {
+  certificate_number: string;
+  program_name: string;
+  program_date: string;
+  program_duration_hours: number;
+  credit_hours_awarded: number;
+  participant_name: string;
+  participant_registration: string;
+  participant_designation: string;
+  participant_institution: string;
+  topics_covered: string[];
+  faculty_speakers: CmeFaculty[];
+  organizing_department: string;
+  accreditation_body: string;
+  accreditation_number: string;
+  organizing_secretary: string;
+  dean_name: string;
+  college_name: string;
+  issue_date: string;
+  qr_code_for_verification: string;
+}
+
+export interface IecApprovalCertificatePrintData {
+  approval_number: string;
+  approval_date: string;
+  study_title: string;
+  principal_investigator: string;
+  pi_department: string;
+  pi_designation: string;
+  co_investigators: string[];
+  study_type: string;
+  study_design: string;
+  sample_size: number;
+  study_duration_months: number;
+  approval_type: string;
+  approval_category: string;
+  conditions: string[];
+  valid_until: string;
+  reporting_requirements: string[];
+  ctri_registration: string | null;
+  iec_chairman: string;
+  member_secretary: string;
+  meeting_date: string;
+  meeting_number: string;
+  institution_name: string;
+}
+
+export interface CoInvestigator {
+  name: string;
+  designation: string;
+  department: string;
+  institution: string;
+  role: string;
+}
+
+export interface BudgetSummary {
+  personnel: number;
+  equipment: number;
+  consumables: number;
+  travel: number;
+  contingency: number;
+  total: number;
+}
+
+export interface ResearchProposalFormPrintData {
+  proposal_id: string;
+  submission_date: string;
+  project_title: string;
+  principal_investigator: string;
+  pi_designation: string;
+  pi_department: string;
+  pi_email: string;
+  pi_phone: string;
+  co_investigators: CoInvestigator[];
+  research_type: string;
+  study_design: string;
+  objectives: string[];
+  background_summary: string;
+  methodology_summary: string;
+  sample_size: number;
+  sample_size_justification: string;
+  inclusion_criteria: string[];
+  exclusion_criteria: string[];
+  outcome_measures: string[];
+  statistical_methods: string;
+  ethical_considerations: string;
+  informed_consent_process: string;
+  funding_source: string;
+  budget_summary: BudgetSummary;
+  timeline_months: number;
+  expected_outcomes: string[];
+  institution_name: string;
+}
+
+export interface HostelFeeDetails {
+  room_rent: number;
+  mess_charges: number;
+  establishment_charges: number;
+  electricity_advance: number;
+  caution_money: number;
+  total: number;
+  payment_deadline: string;
+}
+
+export interface HostelAllotmentOrderPrintData {
+  order_number: string;
+  order_date: string;
+  academic_year: string;
+  student_name: string;
+  student_roll: string;
+  course: string;
+  year: number;
+  hostel_name: string;
+  room_number: string;
+  room_type: string;
+  block_wing: string | null;
+  floor: number;
+  allotment_from: string;
+  allotment_to: string;
+  mess_facility: boolean;
+  mess_type: string | null;
+  fee_details: HostelFeeDetails;
+  rules_acknowledged: boolean;
+  emergency_contact: string;
+  emergency_phone: string;
+  medical_conditions: string | null;
+  warden_name: string;
+  chief_warden_name: string;
+  college_name: string;
+}
+
+export interface AntiRaggingUndertakingPrintData {
+  undertaking_number: string;
+  date: string;
+  academic_year: string;
+  student_name: string;
+  student_roll: string;
+  course: string;
+  year: number;
+  student_phone: string;
+  student_email: string;
+  parent_guardian_name: string;
+  parent_relationship: string;
+  parent_phone: string;
+  parent_email: string;
+  parent_address: string;
+  ugc_regulations_read: boolean;
+  consequences_understood: boolean;
+  student_declaration: string;
+  parent_declaration: string;
+  student_signature_date: string;
+  parent_signature_date: string;
+  aadhar_last_four: string;
+  anti_ragging_helpline: string;
+  anti_ragging_email: string;
+  college_name: string;
+}
+
+export interface AccommodationItem {
+  accommodation_type: string;
+  description: string;
+  approved: boolean;
+  effective_from: string;
+}
+
+export interface DisabilityAccommodationPlanPrintData {
+  plan_id: string;
+  plan_date: string;
+  academic_year: string;
+  student_name: string;
+  student_roll: string;
+  course: string;
+  year: number;
+  disability_type: string;
+  disability_percentage: number;
+  disability_certificate_number: string;
+  issuing_authority: string;
+  functional_limitations: string[];
+  accommodations_granted: AccommodationItem[];
+  classroom_accommodations: string[];
+  examination_accommodations: string[];
+  hostel_accommodations: string[] | null;
+  assistive_devices_provided: string[];
+  support_staff_assigned: string | null;
+  review_period_months: number;
+  next_review_date: string;
+  student_consent: boolean;
+  disability_coordinator: string;
+  dean_academics_name: string;
+  college_name: string;
+}
+
+export interface InternshipPosting {
+  department: string;
+  duration_days: number;
+  from_date: string;
+  to_date: string;
+  supervisor: string;
+  satisfactory: boolean;
+}
+
+export interface InternshipCompletionCertificatePrintData {
+  certificate_number: string;
+  issue_date: string;
+  intern_name: string;
+  intern_registration: string;
+  parent_name: string;
+  permanent_address: string;
+  date_of_birth: string;
+  mbbs_pass_year: number;
+  mbbs_university: string;
+  internship_start_date: string;
+  internship_end_date: string;
+  total_days: number;
+  leave_taken: number;
+  extension_days: number;
+  postings_completed: InternshipPosting[];
+  conduct: string;
+  eligible_for_registration: boolean;
+  state_medical_council: string;
+  principal_name: string;
+  principal_registration: string;
+  dean_name: string;
+  university_name: string;
+  college_name: string;
+  college_address: string;
+}
+
+export interface ServiceBondAgreementPrintData {
+  bond_number: string;
+  bond_date: string;
+  employee_name: string;
+  employee_designation: string;
+  employee_department: string;
+  employee_address: string;
+  employee_phone: string;
+  date_of_joining: string;
+  bond_period_years: number;
+  bond_amount: number;
+  bond_amount_words: string;
+  terms_and_conditions: string[];
+  leave_rules: string;
+  exit_clause: string;
+  penalty_clause: string;
+  surety_name: string;
+  surety_address: string;
+  surety_relationship: string;
+  surety_occupation: string;
+  witness_1_name: string;
+  witness_1_address: string;
+  witness_2_name: string;
+  witness_2_address: string;
+  notarization_required: boolean;
+  notary_name: string | null;
+  notary_date: string | null;
+  institution_name: string;
+  institution_address: string;
+  authorized_signatory: string;
+  authorized_designation: string;
+}
+
+export interface StipendComponent {
+  component_name: string;
+  amount: number;
+}
+
+export interface StipendPaymentAdvicePrintData {
+  advice_number: string;
+  payment_month: string;
+  payment_year: number;
+  payment_date: string;
+  recipient_name: string;
+  recipient_type: string;
+  recipient_registration: string;
+  department: string;
+  year_of_training: number;
+  bank_name: string;
+  bank_account: string;
+  ifsc_code: string;
+  earnings: StipendComponent[];
+  deductions: StipendComponent[];
+  gross_stipend: number;
+  total_deductions: number;
+  net_payable: number;
+  attendance_days: number;
+  leave_days: number;
+  working_days_in_month: number;
+  arrears: number;
+  remarks: string | null;
+  prepared_by: string;
+  verified_by: string;
+  approved_by: string;
+  institution_name: string;
+}
+
+export interface HospitalRegistration {
+  registration_type: string;
+  registration_number: string;
+  valid_until: string | null;
+}
+
+export interface HospitalBrandingPrintData {
+  hospital_name: string;
+  hospital_tagline: string | null;
+  logo_url: string;
+  logo_position: string;
+  logo_size: string;
+  secondary_logo_url: string | null;
+  header_style: string;
+  header_background_color: string | null;
+  header_text_color: string | null;
+  footer_style: string;
+  address_line_1: string;
+  address_line_2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  phone_numbers: string[];
+  email: string;
+  website: string | null;
+  registration_numbers: HospitalRegistration[];
+  accreditations: string[];
+  iso_certifications: string[];
+  nabh_accredited: boolean;
+  nabl_accredited: boolean;
+  jci_accredited: boolean;
+  watermark_text: string | null;
+  watermark_opacity: number;
+  footer_disclaimer: string | null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-Hospital Management Types
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Hospital Groups (Chains)
+export interface HospitalGroup {
+  id: string;
+  code: string;
+  name: string;
+  display_name: string | null;
+  headquarters_address: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  logo_url: string | null;
+  primary_color: string | null;
+  config: Record<string, unknown>;
+  default_currency: string;
+  timezone: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateHospitalGroup {
+  code: string;
+  name: string;
+  display_name?: string;
+  headquarters_address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logo_url?: string;
+  primary_color?: string;
+  default_currency?: string;
+  timezone?: string;
+}
+
+export interface UpdateHospitalGroup {
+  name?: string;
+  display_name?: string;
+  headquarters_address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logo_url?: string;
+  primary_color?: string;
+  default_currency?: string;
+  timezone?: string;
+  is_active?: boolean;
+}
+
+// Hospital Regions
+export interface HospitalRegion {
+  id: string;
+  group_id: string;
+  code: string;
+  name: string;
+  country: string;
+  states: string[] | null;
+  regional_head_name: string | null;
+  regional_head_email: string | null;
+  regional_head_phone: string | null;
+  config: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateHospitalRegion {
+  group_id: string;
+  code: string;
+  name: string;
+  country?: string;
+  states?: string[];
+  regional_head_name?: string;
+  regional_head_email?: string;
+  regional_head_phone?: string;
+}
+
+// Hospital in Group
+export interface HospitalInGroup {
+  id: string;
+  code: string;
+  name: string;
+  group_id: string | null;
+  region_id: string | null;
+  branch_code: string | null;
+  is_headquarters: boolean;
+  city: string | null;
+  state: string | null;
+}
+
+export interface AssignHospitalToGroup {
+  tenant_id: string;
+  group_id: string;
+  region_id?: string;
+  branch_code?: string;
+  is_headquarters?: boolean;
+}
+
+// Cross-Hospital User Assignments
+export interface UserHospitalAssignment {
+  id: string;
+  user_id: string;
+  tenant_id: string;
+  role: string;
+  permissions: unknown[];
+  is_primary: boolean;
+  is_active: boolean;
+  valid_from: string;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserWithAssignments {
+  user_id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  assignments: UserHospitalAssignment[];
+}
+
+export interface CreateUserHospitalAssignment {
+  user_id: string;
+  tenant_id: string;
+  role: string;
+  permissions?: string[];
+  is_primary?: boolean;
+  valid_from?: string;
+  valid_to?: string;
+}
+
+// Patient Transfers
+export type TransferStatus =
+  | "requested"
+  | "approved"
+  | "in_transit"
+  | "received"
+  | "cancelled"
+  | "rejected";
+
+export interface PatientTransfer {
+  id: string;
+  source_tenant_id: string;
+  dest_tenant_id: string;
+  patient_id: string;
+  admission_id: string | null;
+  transfer_type: string;
+  reason: string;
+  clinical_summary: string | null;
+  priority: string;
+  status: TransferStatus;
+  requested_at: string;
+  approved_at: string | null;
+  departed_at: string | null;
+  arrived_at: string | null;
+  requested_by: string;
+  approved_by: string | null;
+  received_by: string | null;
+  transport_mode: string | null;
+  transport_details: Record<string, unknown>;
+  documents: unknown[];
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatientTransferDisplay {
+  id: string;
+  source_hospital_name: string;
+  dest_hospital_name: string;
+  patient_name: string;
+  uhid: string;
+  transfer_type: string;
+  reason: string;
+  priority: string;
+  status: TransferStatus;
+  requested_at: string;
+  requested_by_name: string;
+}
+
+export interface CreatePatientTransfer {
+  dest_tenant_id: string;
+  patient_id: string;
+  admission_id?: string;
+  transfer_type?: string;
+  reason: string;
+  clinical_summary?: string;
+  priority?: string;
+  transport_mode?: string;
+}
+
+export interface UpdateTransferStatus {
+  status: TransferStatus;
+  notes?: string;
+}
+
+// Stock Transfers
+export type StockTransferStatus =
+  | "requested"
+  | "approved"
+  | "dispatched"
+  | "in_transit"
+  | "received"
+  | "cancelled";
+
+export interface StockTransfer {
+  id: string;
+  source_tenant_id: string;
+  dest_tenant_id: string;
+  transfer_number: string;
+  status: StockTransferStatus;
+  priority: string;
+  requested_at: string;
+  approved_at: string | null;
+  dispatched_at: string | null;
+  received_at: string | null;
+  requested_by: string;
+  approved_by: string | null;
+  dispatched_by: string | null;
+  received_by: string | null;
+  request_reason: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockTransferItem {
+  id: string;
+  transfer_id: string;
+  item_id: string;
+  item_type: string;
+  item_code: string;
+  item_name: string;
+  batch_number: string | null;
+  expiry_date: string | null;
+  requested_qty: number;
+  approved_qty: number | null;
+  dispatched_qty: number | null;
+  received_qty: number | null;
+  unit: string;
+  unit_price: number | null;
+  created_at: string;
+}
+
+export interface CreateStockTransferItem {
+  item_id: string;
+  item_type?: string;
+  item_code: string;
+  item_name: string;
+  batch_number?: string;
+  expiry_date?: string;
+  requested_qty: number;
+  unit: string;
+  unit_price?: number;
+}
+
+export interface CreateStockTransfer {
+  dest_tenant_id: string;
+  priority?: string;
+  request_reason?: string;
+  items: CreateStockTransferItem[];
+}
+
+// Group KPIs & Dashboard
+export interface GroupKpiSnapshot {
+  id: string;
+  group_id: string;
+  tenant_id: string | null;
+  snapshot_date: string;
+  snapshot_type: string;
+  total_beds: number | null;
+  occupied_beds: number | null;
+  occupancy_pct: number | null;
+  opd_visits: number | null;
+  new_patients: number | null;
+  admissions: number | null;
+  discharges: number | null;
+  gross_revenue: number | null;
+  net_revenue: number | null;
+  collections: number | null;
+  avg_los: number | null;
+  mortality_rate: number | null;
+  readmission_rate: number | null;
+  infection_rate: number | null;
+  metrics: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface HospitalKpiSummary {
+  tenant_id: string;
+  hospital_name: string;
+  branch_code: string | null;
+  region_name: string | null;
+  total_beds: number;
+  occupied_beds: number;
+  occupancy_pct: number;
+  opd_visits: number;
+  admissions: number;
+  revenue: number;
+  avg_los: number;
+}
+
+export interface GroupDashboard {
+  group_id: string;
+  group_name: string;
+  hospitals: HospitalKpiSummary[];
+  total_beds: number;
+  total_occupied: number;
+  overall_occupancy_pct: number;
+  total_opd_visits: number;
+  total_admissions: number;
+  total_revenue: number;
+  snapshot_date: string;
+}
+
+// Doctor Rotation
+export interface DoctorRotationSchedule {
+  id: string;
+  group_id: string;
+  doctor_id: string;
+  schedule_date: string;
+  tenant_id: string;
+  department_id: string | null;
+  shift: string;
+  start_time: string | null;
+  end_time: string | null;
+  is_locum: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoctorRotationDisplay {
+  id: string;
+  doctor_name: string;
+  doctor_specialty: string | null;
+  hospital_name: string;
+  department_name: string | null;
+  schedule_date: string;
+  shift: string;
+  start_time: string | null;
+  end_time: string | null;
+  is_locum: boolean;
+}
+
+export interface CreateDoctorRotation {
+  doctor_id: string;
+  schedule_date: string;
+  tenant_id: string;
+  department_id?: string;
+  shift?: string;
+  start_time?: string;
+  end_time?: string;
+  is_locum?: boolean;
+  notes?: string;
+}
+
+// Group Masters
+export interface GroupDrugMaster {
+  id: string;
+  group_id: string;
+  code: string;
+  name: string;
+  generic_name: string | null;
+  manufacturer: string | null;
+  drug_schedule: string | null;
+  atc_code: string | null;
+  formulation: string | null;
+  strength: string | null;
+  unit: string | null;
+  hsn_code: string | null;
+  gst_rate: number | null;
+  is_controlled: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupTestMaster {
+  id: string;
+  group_id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  department: string | null;
+  loinc_code: string | null;
+  sample_type: string | null;
+  container_type: string | null;
+  volume_required: string | null;
+  tat_hours: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupTariffMaster {
+  id: string;
+  group_id: string;
+  service_code: string;
+  service_name: string;
+  category: string | null;
+  base_price: number;
+  gst_applicable: boolean;
+  gst_rate: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HospitalPriceOverride {
+  id: string;
+  tenant_id: string;
+  group_tariff_id: string;
+  override_price: number;
+  effective_from: string;
+  effective_to: string | null;
+  reason: string | null;
+  approved_by: string | null;
+  created_at: string;
+}
+
+// Group Templates
+export interface GroupTemplate {
+  id: string;
+  group_id: string;
+  template_type: string;
+  code: string;
+  name: string;
+  content: Record<string, unknown>;
+  version: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGroupTemplate {
+  template_type: string;
+  code: string;
+  name: string;
+  content: Record<string, unknown>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CMS & Blog Types
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Post Status
+export type CmsPostStatus =
+  | "draft"
+  | "pending_review"
+  | "pending_medical_review"
+  | "approved"
+  | "published"
+  | "scheduled"
+  | "archived";
+
+// Content Type
+export type CmsContentType =
+  | "article"
+  | "quick_post"
+  | "opinion"
+  | "case_study"
+  | "news"
+  | "event"
+  | "announcement";
+
+// Categories
+export interface CmsCategory {
+  id: string;
+  tenant_id: string;
+  parent_id: string | null;
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  requires_medical_review: boolean;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CmsCategoryWithChildren {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  requires_medical_review: boolean;
+  sort_order: number;
+  is_active: boolean;
+  children: CmsCategoryWithChildren[];
+}
+
+export interface CreateCmsCategory {
+  parent_id?: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  requires_medical_review?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateCmsCategory {
+  parent_id?: string;
+  name?: string;
+  slug?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  requires_medical_review?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+// Tags
+export interface CmsTag {
+  id: string;
+  tenant_id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface CreateCmsTag {
+  name: string;
+  slug?: string;
+  description?: string;
+}
+
+export interface UpdateCmsTag {
+  name?: string;
+  slug?: string;
+  description?: string;
+}
+
+// Authors
+export interface CmsAuthor {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  name: string;
+  slug: string;
+  bio: string | null;
+  credentials: string | null;
+  designation: string | null;
+  avatar_url: string | null;
+  website: string | null;
+  twitter: string | null;
+  linkedin: string | null;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCmsAuthor {
+  user_id?: string;
+  name: string;
+  slug?: string;
+  bio?: string;
+  credentials?: string;
+  designation?: string;
+  avatar_url?: string;
+  website?: string;
+  twitter?: string;
+  linkedin?: string;
+  role?: string;
+}
+
+export interface UpdateCmsAuthor {
+  name?: string;
+  slug?: string;
+  bio?: string;
+  credentials?: string;
+  designation?: string;
+  avatar_url?: string;
+  website?: string;
+  twitter?: string;
+  linkedin?: string;
+  role?: string;
+  is_active?: boolean;
+}
+
+// Media Library
+export interface CmsMedia {
+  id: string;
+  tenant_id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  url: string;
+  thumbnail_url: string | null;
+  alt_text: string | null;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface CreateCmsMedia {
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  file_size: number;
+  url: string;
+  thumbnail_url?: string;
+  alt_text?: string;
+  caption?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface UpdateCmsMedia {
+  alt_text?: string;
+  caption?: string;
+}
+
+// Posts
+export interface CmsPost {
+  id: string;
+  tenant_id: string;
+  author_id: string;
+  category_id: string | null;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  content_type: CmsContentType;
+  feature_image_id: string | null;
+  feature_image_alt: string | null;
+  feature_image_caption: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  og_image_id: string | null;
+  canonical_url: string | null;
+  status: CmsPostStatus;
+  is_featured: boolean;
+  reading_time_minutes: number | null;
+  published_at: string | null;
+  scheduled_at: string | null;
+  submitted_for_review_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  medical_reviewed_by: string | null;
+  medical_reviewed_at: string | null;
+  medical_review_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CmsPostSummary {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content_type: CmsContentType;
+  status: CmsPostStatus;
+  is_featured: boolean;
+  reading_time_minutes: number | null;
+  feature_image_url: string | null;
+  author_name: string;
+  category_name: string | null;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface CmsPostDetail {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  content_type: CmsContentType;
+  status: CmsPostStatus;
+  is_featured: boolean;
+  reading_time_minutes: number | null;
+  feature_image: CmsMedia | null;
+  og_image: CmsMedia | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  canonical_url: string | null;
+  author: CmsAuthor;
+  category: CmsCategory | null;
+  tags: CmsTag[];
+  published_at: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCmsPost {
+  author_id: string;
+  category_id?: string;
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content: string;
+  content_type?: CmsContentType;
+  feature_image_id?: string;
+  feature_image_alt?: string;
+  feature_image_caption?: string;
+  meta_title?: string;
+  meta_description?: string;
+  og_image_id?: string;
+  canonical_url?: string;
+  is_featured?: boolean;
+  tag_ids?: string[];
+}
+
+export interface UpdateCmsPost {
+  category_id?: string;
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  content_type?: CmsContentType;
+  feature_image_id?: string;
+  feature_image_alt?: string;
+  feature_image_caption?: string;
+  meta_title?: string;
+  meta_description?: string;
+  og_image_id?: string;
+  canonical_url?: string;
+  is_featured?: boolean;
+  tag_ids?: string[];
+}
+
+// Post Workflow
+export interface SubmitPostForReview {
+  notes?: string;
+}
+
+export type CmsReviewAction = "approve" | "reject" | "request_changes";
+
+export interface ReviewPostAction {
+  action: CmsReviewAction;
+  notes?: string;
+}
+
+export interface SchedulePostRequest {
+  scheduled_at: string;
+}
+
+// Post Revisions
+export interface CmsPostRevision {
+  id: string;
+  post_id: string;
+  revision_number: number;
+  title: string;
+  content: string;
+  excerpt: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// Post Analytics
+export interface CmsPostAnalytics {
+  id: string;
+  title: string;
+  slug: string;
+  status: CmsPostStatus;
+  published_at: string | null;
+  author_name: string;
+  category_name: string | null;
+  total_views: number;
+  days_with_views: number;
+  last_viewed_at: string | null;
+}
+
+export interface CmsDashboardStats {
+  total_posts: number;
+  published_posts: number;
+  draft_posts: number;
+  total_views: number;
+  total_subscribers: number;
+  active_subscribers: number;
+  top_posts: CmsPostAnalytics[];
+}
+
+// Subscribers
+export interface CmsSubscriber {
+  id: string;
+  tenant_id: string;
+  email: string;
+  name: string | null;
+  status: string;
+  confirmation_token: string | null;
+  confirmed_at: string | null;
+  unsubscribed_at: string | null;
+  created_at: string;
+}
+
+export interface CreateCmsSubscriber {
+  email: string;
+  name?: string;
+}
+
+// Static Pages
+export interface CmsPage {
+  id: string;
+  tenant_id: string;
+  title: string;
+  slug: string;
+  content: string;
+  template: string;
+  meta_title: string | null;
+  meta_description: string | null;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCmsPage {
+  title: string;
+  slug?: string;
+  content: string;
+  template?: string;
+  meta_title?: string;
+  meta_description?: string;
+  is_published?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateCmsPage {
+  title?: string;
+  slug?: string;
+  content?: string;
+  template?: string;
+  meta_title?: string;
+  meta_description?: string;
+  is_published?: boolean;
+  sort_order?: number;
+}
+
+// Site Settings
+export interface CmsSettings {
+  id: string;
+  tenant_id: string;
+  site_title: string | null;
+  site_tagline: string | null;
+  site_description: string | null;
+  logo_url: string | null;
+  favicon_url: string | null;
+  twitter_handle: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  youtube_url: string | null;
+  linkedin_url: string | null;
+  default_meta_title: string | null;
+  default_meta_description: string | null;
+  google_analytics_id: string | null;
+  posts_per_page: number;
+  show_author_bio: boolean;
+  enable_comments: boolean;
+  contact_email: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  custom_css: string | null;
+  custom_js: string | null;
+  custom_head: string | null;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateCmsSettings {
+  site_title?: string;
+  site_tagline?: string;
+  site_description?: string;
+  logo_url?: string;
+  favicon_url?: string;
+  twitter_handle?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  youtube_url?: string;
+  linkedin_url?: string;
+  default_meta_title?: string;
+  default_meta_description?: string;
+  google_analytics_id?: string;
+  posts_per_page?: number;
+  show_author_bio?: boolean;
+  enable_comments?: boolean;
+  contact_email?: string;
+  contact_phone?: string;
+  address?: string;
+  custom_css?: string;
+  custom_js?: string;
+  custom_head?: string;
+}
+
+// Menus
+export interface CmsMenu {
+  id: string;
+  tenant_id: string;
+  name: string;
+  location: string;
+  items: CmsMenuItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CmsMenuItem {
+  id: string;
+  label: string;
+  url: string | null;
+  page_id: string | null;
+  target: string | null;
+  children: CmsMenuItem[];
+}
+
+export interface UpdateCmsMenu {
+  name?: string;
+  items?: CmsMenuItem[];
+}
+
+// Public API Types
+export interface CmsPublicPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  content_type: CmsContentType;
+  reading_time_minutes: number | null;
+  feature_image_url: string | null;
+  feature_image_alt: string | null;
+  author: CmsPublicAuthor;
+  category: CmsPublicCategory | null;
+  tags: CmsPublicTag[];
+  published_at: string;
+}
+
+export interface CmsPublicAuthor {
+  name: string;
+  slug: string;
+  bio: string | null;
+  credentials: string | null;
+  avatar_url: string | null;
+}
+
+export interface CmsPublicCategory {
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string | null;
+}
+
+export interface CmsPublicTag {
+  name: string;
+  slug: string;
+}
+
+export interface CmsPostList {
+  posts: CmsPublicPost[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: BREAK-GLASS
+// ══════════════════════════════════════════════════════════════
+
+export interface BreakGlassEvent {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  patient_id: string | null;
+  reason: string;
+  justification: string | null;
+  modules_accessed: string[];
+  start_time: string;
+  end_time: string | null;
+  is_active: boolean;
+  ip_address: string | null;
+  user_agent: string | null;
+  supervisor_id: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+}
+
+export interface BreakGlassEventSummary {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  patient_id: string | null;
+  patient_name: string | null;
+  reason: string;
+  start_time: string;
+  end_time: string | null;
+  is_active: boolean;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface CreateBreakGlassRequest {
+  patient_id?: string;
+  reason: string;
+  justification?: string;
+}
+
+export interface EndBreakGlassRequest {
+  modules_accessed: string[];
+}
+
+export interface ReviewBreakGlassRequest {
+  review_notes?: string;
+}
+
+export interface BreakGlassQuery {
+  user_id?: string;
+  patient_id?: string;
+  is_active?: boolean;
+  reviewed?: boolean;
+  from?: string;
+  to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: CLINICAL ACCESS MONITOR
+// ══════════════════════════════════════════════════════════════
+
+export type SensitivityType = "vip" | "celebrity" | "employee" | "staff_family" | "legal" | "research" | "other";
+
+export interface SensitivePatient {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  sensitivity_type: string;
+  reason: string | null;
+  access_restricted_to: string[] | null;
+  alert_on_access: boolean;
+  notify_users: string[] | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SensitivePatientSummary {
+  id: string;
+  patient_id: string;
+  patient_name: string | null;
+  sensitivity_type: string;
+  reason: string | null;
+  alert_on_access: boolean;
+  created_at: string;
+}
+
+export interface CreateSensitivePatientRequest {
+  patient_id: string;
+  sensitivity_type: string;
+  reason?: string;
+  access_restricted_to?: string[];
+  alert_on_access?: boolean;
+  notify_users?: string[];
+}
+
+export interface AccessAlert {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  patient_name: string | null;
+  user_id: string;
+  user_name: string | null;
+  access_type: string;
+  module: string | null;
+  ip_address: string | null;
+  is_authorized: boolean | null;
+  alert_sent: boolean;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AcknowledgeAlertRequest {
+  notes?: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: STOCK DISPOSAL
+// ══════════════════════════════════════════════════════════════
+
+export type DisposalMethod = "incineration" | "autoclave" | "shredding" | "chemical" | "return_vendor" | "donation" | "landfill" | "other";
+export type DisposalStatus = "pending" | "approved" | "in_progress" | "completed" | "cancelled";
+
+export interface StockDisposalRequest {
+  id: string;
+  tenant_id: string;
+  request_number: string;
+  store_id: string | null;
+  disposal_type: string;
+  disposal_method: DisposalMethod | null;
+  status: DisposalStatus;
+  requested_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  executed_by: string | null;
+  executed_at: string | null;
+  total_value: string | null;
+  reason: string | null;
+  notes: string | null;
+  certificate_number: string | null;
+  witness_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockDisposalSummary {
+  id: string;
+  request_number: string;
+  store_name: string | null;
+  disposal_type: string;
+  status: DisposalStatus;
+  requested_by_name: string | null;
+  total_value: string | null;
+  item_count: number | null;
+  created_at: string;
+}
+
+export interface StockDisposalItem {
+  id: string;
+  disposal_id: string;
+  item_id: string | null;
+  item_name: string;
+  item_code: string | null;
+  batch_number: string | null;
+  expiry_date: string | null;
+  quantity: string;
+  unit: string;
+  unit_cost: string | null;
+  total_cost: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface CreateDisposalRequest {
+  store_id?: string;
+  disposal_type: string;
+  disposal_method?: DisposalMethod;
+  reason?: string;
+  notes?: string;
+  items: CreateDisposalItemRequest[];
+}
+
+export interface CreateDisposalItemRequest {
+  item_id?: string;
+  item_name: string;
+  item_code?: string;
+  batch_number?: string;
+  expiry_date?: string;
+  quantity: string;
+  unit: string;
+  unit_cost?: string;
+  reason?: string;
+}
+
+export interface ApproveDisposalRequest {
+  notes?: string;
+}
+
+export interface ExecuteDisposalRequest {
+  certificate_number?: string;
+  witness_id?: string;
+  notes?: string;
+}
+
+export interface DisposalQuery {
+  store_id?: string;
+  disposal_type?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: TAT TRACKING
+// ══════════════════════════════════════════════════════════════
+
+export type TatCategory = "lab" | "radiology" | "pharmacy" | "discharge" | "emergency" | "opd_wait" | "ipd_admission" | "surgery" | "blood_bank" | "other";
+
+export interface TatBenchmark {
+  id: string;
+  tenant_id: string;
+  category: TatCategory;
+  sub_category: string | null;
+  benchmark_minutes: number;
+  warning_minutes: number | null;
+  critical_minutes: number | null;
+  department_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTatBenchmarkRequest {
+  category: TatCategory;
+  sub_category?: string;
+  benchmark_minutes: number;
+  warning_minutes?: number;
+  critical_minutes?: number;
+  department_id?: string;
+}
+
+export interface TatRecord {
+  id: string;
+  tenant_id: string;
+  category: TatCategory;
+  sub_category: string | null;
+  entity_type: string;
+  entity_id: string;
+  patient_id: string | null;
+  department_id: string | null;
+  start_time: string;
+  end_time: string | null;
+  elapsed_minutes: number | null;
+  benchmark_minutes: number | null;
+  status: string | null;
+  breach_reason: string | null;
+  created_at: string;
+}
+
+export interface TatRecordSummary {
+  id: string;
+  category: TatCategory;
+  sub_category: string | null;
+  entity_type: string;
+  entity_id: string;
+  patient_name: string | null;
+  start_time: string;
+  end_time: string | null;
+  elapsed_minutes: number | null;
+  benchmark_minutes: number | null;
+  status: string | null;
+}
+
+export interface CreateTatRecordRequest {
+  category: TatCategory;
+  sub_category?: string;
+  entity_type: string;
+  entity_id: string;
+  patient_id?: string;
+  department_id?: string;
+}
+
+export interface CompleteTatRecordRequest {
+  breach_reason?: string;
+}
+
+export interface TatAlert {
+  id: string;
+  tenant_id: string;
+  tat_record_id: string;
+  alert_type: string;
+  notified_users: string[] | null;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+}
+
+export interface TatQuery {
+  category?: string;
+  status?: string;
+  department_id?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface TatDashboard {
+  total_records: number;
+  on_track: number;
+  warning: number;
+  breached: number;
+  avg_tat_minutes: number | null;
+  breach_rate: number;
+  by_category: TatCategoryStats[];
+}
+
+export interface TatCategoryStats {
+  category: string;
+  total: number;
+  on_track: number;
+  breached: number;
+  avg_minutes: number | null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: DATA MIGRATION
+// ══════════════════════════════════════════════════════════════
+
+export type MigrationStatus = "pending" | "validating" | "validated" | "importing" | "completed" | "failed" | "cancelled";
+export type MigrationDirection = "import" | "export";
+
+export interface DataMigration {
+  id: string;
+  tenant_id: string;
+  direction: MigrationDirection;
+  entity_type: string;
+  file_name: string | null;
+  file_path: string | null;
+  file_size_bytes: number | null;
+  status: MigrationStatus;
+  total_records: number | null;
+  processed_records: number | null;
+  success_count: number | null;
+  error_count: number | null;
+  warning_count: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  initiated_by: string;
+  error_log: unknown;
+  mapping_config: unknown;
+  options: unknown;
+  created_at: string;
+}
+
+export interface CreateMigrationRequest {
+  direction: MigrationDirection;
+  entity_type: string;
+  file_name?: string;
+  mapping_config?: unknown;
+  options?: unknown;
+}
+
+export interface MigrationQuery {
+  direction?: string;
+  entity_type?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: EOD DIGEST
+// ══════════════════════════════════════════════════════════════
+
+export type DigestFrequency = "daily" | "weekly" | "monthly";
+
+export interface EodDigestSubscription {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  frequency: DigestFrequency;
+  delivery_time: string | null;
+  delivery_days: number[] | null;
+  modules: string[] | null;
+  include_summary: boolean;
+  include_alerts: boolean;
+  include_pending_tasks: boolean;
+  email_enabled: boolean;
+  push_enabled: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDigestSubscriptionRequest {
+  frequency?: DigestFrequency;
+  delivery_time?: string;
+  delivery_days?: number[];
+  modules?: string[];
+  include_summary?: boolean;
+  include_alerts?: boolean;
+  include_pending_tasks?: boolean;
+  email_enabled?: boolean;
+  push_enabled?: boolean;
+}
+
+export interface EodDigestHistory {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  digest_date: string;
+  content: unknown;
+  sent_at: string | null;
+  delivery_status: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: DATA QUALITY
+// ══════════════════════════════════════════════════════════════
+
+export type DataQualityCategory = "completeness" | "accuracy" | "timeliness" | "consistency" | "duplicates";
+
+export interface DataQualityRule {
+  id: string;
+  tenant_id: string;
+  category: DataQualityCategory;
+  entity_type: string;
+  field_name: string | null;
+  rule_name: string;
+  rule_expression: string;
+  severity: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDataQualityRuleRequest {
+  category: DataQualityCategory;
+  entity_type: string;
+  field_name?: string;
+  rule_name: string;
+  rule_expression: string;
+  severity?: string;
+}
+
+export interface DataQualityIssue {
+  id: string;
+  tenant_id: string;
+  rule_id: string | null;
+  category: DataQualityCategory;
+  entity_type: string;
+  entity_id: string | null;
+  field_name: string | null;
+  issue_description: string;
+  severity: string | null;
+  current_value: string | null;
+  suggested_value: string | null;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+}
+
+export interface ResolveIssueRequest {
+  resolution_notes?: string;
+}
+
+export interface DataQualityQuery {
+  category?: string;
+  entity_type?: string;
+  severity?: string;
+  is_resolved?: boolean;
+  page?: number;
+  per_page?: number;
+}
+
+export interface DataQualityScore {
+  id: string;
+  tenant_id: string;
+  entity_type: string;
+  score_date: string;
+  completeness_score: string | null;
+  accuracy_score: string | null;
+  timeliness_score: string | null;
+  consistency_score: string | null;
+  overall_score: string | null;
+  total_records: number | null;
+  issues_found: number | null;
+  created_at: string;
+}
+
+export interface DataQualityDashboard {
+  overall_score: number;
+  completeness_score: number;
+  accuracy_score: number;
+  timeliness_score: number;
+  consistency_score: number;
+  total_issues: number;
+  unresolved_issues: number;
+  critical_issues: number;
+  by_entity_type: EntityQualityStats[];
+}
+
+export interface EntityQualityStats {
+  entity_type: string;
+  overall_score: number | null;
+  total_issues: number;
+  unresolved_issues: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: CERT-IN COMPLIANCE
+// ══════════════════════════════════════════════════════════════
+
+export type CertInSeverity = "low" | "medium" | "high" | "critical";
+export type CertInStatus = "detected" | "investigating" | "contained" | "eradicated" | "recovered" | "closed";
+
+export interface CertInIncident {
+  id: string;
+  tenant_id: string;
+  incident_number: string;
+  title: string;
+  description: string | null;
+  incident_type: string;
+  severity: CertInSeverity;
+  status: CertInStatus;
+  detected_at: string;
+  detected_by: string | null;
+  affected_systems: string[] | null;
+  affected_data_types: string[] | null;
+  estimated_impact: string | null;
+  containment_steps: string | null;
+  eradication_steps: string | null;
+  recovery_steps: string | null;
+  lessons_learned: string | null;
+  cert_in_reported: boolean;
+  cert_in_report_date: string | null;
+  cert_in_reference: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CertInIncidentSummary {
+  id: string;
+  incident_number: string;
+  title: string;
+  incident_type: string;
+  severity: CertInSeverity;
+  status: CertInStatus;
+  detected_at: string;
+  cert_in_reported: boolean;
+  created_at: string;
+}
+
+export interface CreateCertInIncidentRequest {
+  title: string;
+  description?: string;
+  incident_type: string;
+  severity: CertInSeverity;
+  detected_at: string;
+  affected_systems?: string[];
+  affected_data_types?: string[];
+  estimated_impact?: string;
+}
+
+export interface UpdateCertInIncidentRequest {
+  title?: string;
+  description?: string;
+  severity?: CertInSeverity;
+  status?: CertInStatus;
+  containment_steps?: string;
+  eradication_steps?: string;
+  recovery_steps?: string;
+  lessons_learned?: string;
+}
+
+export interface ReportToCertInRequest {
+  cert_in_reference?: string;
+}
+
+export interface CertInIncidentUpdate {
+  id: string;
+  incident_id: string;
+  update_type: string;
+  description: string;
+  old_status: CertInStatus | null;
+  new_status: CertInStatus | null;
+  updated_by: string;
+  updated_by_name: string | null;
+  created_at: string;
+}
+
+export interface AddCertInUpdateRequest {
+  update_type: string;
+  description: string;
+}
+
+export interface CertInQuery {
+  incident_type?: string;
+  severity?: string;
+  status?: string;
+  cert_in_reported?: boolean;
+  from?: string;
+  to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface Vulnerability {
+  id: string;
+  tenant_id: string;
+  cve_id: string | null;
+  title: string;
+  description: string | null;
+  severity: CertInSeverity;
+  affected_component: string;
+  discovered_at: string;
+  discovered_by: string | null;
+  remediation_status: string | null;
+  remediation_notes: string | null;
+  remediation_deadline: string | null;
+  remediated_at: string | null;
+  remediated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateVulnerabilityRequest {
+  cve_id?: string;
+  title: string;
+  description?: string;
+  severity: CertInSeverity;
+  affected_component: string;
+  discovered_at: string;
+  discovered_by?: string;
+  remediation_deadline?: string;
+}
+
+export interface UpdateVulnerabilityRequest {
+  remediation_status?: string;
+  remediation_notes?: string;
+}
+
+export interface ComplianceRequirement {
+  id: string;
+  tenant_id: string;
+  framework: string;
+  requirement_code: string;
+  requirement_title: string;
+  requirement_description: string | null;
+  category: string | null;
+  is_mandatory: boolean;
+  compliance_status: string | null;
+  evidence_links: string[] | null;
+  last_assessed_at: string | null;
+  assessed_by: string | null;
+  next_review_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateComplianceRequest {
+  compliance_status?: string;
+  evidence_links?: string[];
+  notes?: string;
+  next_review_date?: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: SYSTEM HEALTH & MONITORING
+// ══════════════════════════════════════════════════════════════
+
+export interface SystemHealthMetric {
+  id: string;
+  tenant_id: string | null;
+  metric_name: string;
+  metric_value: string;
+  metric_unit: string | null;
+  component: string;
+  status: string | null;
+  threshold_warning: string | null;
+  threshold_critical: string | null;
+  recorded_at: string;
+}
+
+export interface SystemHealthDashboard {
+  overall_status: string;
+  database_status: string;
+  api_status: string;
+  storage_status: string;
+  metrics: SystemHealthMetric[];
+}
+
+export interface BackupHistory {
+  id: string;
+  tenant_id: string | null;
+  backup_type: string;
+  backup_name: string;
+  file_path: string | null;
+  file_size_bytes: number | null;
+  status: string | null;
+  started_at: string;
+  completed_at: string | null;
+  verification_at: string | null;
+  retention_days: number | null;
+  expires_at: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: ONBOARDING WIZARD
+// ══════════════════════════════════════════════════════════════
+
+export interface ItSecurityOnboardingProgress {
+  id: string;
+  tenant_id: string;
+  wizard_type: string;
+  current_step: string;
+  completed_steps: string[];
+  step_data: unknown;
+  is_completed: boolean;
+  completed_at: string | null;
+  started_by: string | null;
+  started_at: string;
+  updated_at: string;
+}
+
+export interface UpdateItSecurityOnboardingRequest {
+  current_step: string;
+  step_data?: unknown;
+}
+
+export interface CompleteItSecurityOnboardingStepRequest {
+  step: string;
+  step_data?: unknown;
+}
+
+// ══════════════════════════════════════════════════════════════
+// IT SECURITY: INCENTIVE CONFIGURATION
+// ══════════════════════════════════════════════════════════════
+
+export interface IncentivePlan {
+  id: string;
+  tenant_id: string;
+  plan_name: string;
+  plan_code: string;
+  description: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  is_active: boolean;
+  calculation_basis: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateIncentivePlanRequest {
+  plan_name: string;
+  plan_code: string;
+  description?: string;
+  effective_from: string;
+  effective_to?: string;
+  calculation_basis?: string;
+}
+
+export interface IncentivePlanRule {
+  id: string;
+  plan_id: string;
+  rule_name: string;
+  service_type: string | null;
+  department_id: string | null;
+  min_threshold: string | null;
+  max_threshold: string | null;
+  percentage: string | null;
+  fixed_amount: string | null;
+  multiplier: string | null;
+  created_at: string;
+}
+
+export interface CreateIncentiveRuleRequest {
+  rule_name: string;
+  service_type?: string;
+  department_id?: string;
+  min_threshold?: string;
+  max_threshold?: string;
+  percentage?: string;
+  fixed_amount?: string;
+  multiplier?: string;
+}
+
+export interface DoctorIncentiveAssignment {
+  id: string;
+  tenant_id: string;
+  doctor_id: string;
+  doctor_name: string | null;
+  plan_id: string;
+  plan_name: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  custom_percentage: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignIncentivePlanRequest {
+  doctor_id: string;
+  plan_id: string;
+  effective_from: string;
+  effective_to?: string;
+  custom_percentage?: string;
+}
+
+export interface IncentiveCalculation {
+  id: string;
+  tenant_id: string;
+  doctor_id: string;
+  doctor_name: string | null;
+  plan_id: string;
+  period_start: string;
+  period_end: string;
+  gross_revenue: string | null;
+  eligible_revenue: string | null;
+  incentive_amount: string | null;
+  deductions: string | null;
+  net_payable: string | null;
+  status: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  paid_at: string | null;
+  payment_reference: string | null;
+  calculation_details: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalculateIncentiveRequest {
+  doctor_id: string;
+  period_start: string;
+  period_end: string;
+}
+
+export interface ApproveIncentiveRequest {
+  notes?: string;
+}
+
+export interface MarkIncentivePaidRequest {
+  payment_reference: string;
 }

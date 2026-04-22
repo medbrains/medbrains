@@ -158,14 +158,12 @@ async fn login(user: &mut GooseUser) -> TransactionResult {
     let goose = user.request(request).await?;
 
     // Extract CSRF token from login response JSON
-    if let Ok(response) = goose.response {
-        if let Ok(resp_body) = response.json::<serde_json::Value>().await {
-            if let Some(token) = resp_body.get("csrf_token").and_then(|v| v.as_str()) {
+    if let Ok(response) = goose.response
+        && let Ok(resp_body) = response.json::<serde_json::Value>().await
+            && let Some(token) = resp_body.get("csrf_token").and_then(|v| v.as_str()) {
                 let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
                 session.lock().await.csrf_token = Some(token.to_owned());
             }
-        }
-    }
 
     Ok(())
 }

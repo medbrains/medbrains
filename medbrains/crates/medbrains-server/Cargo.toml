@@ -37,6 +37,8 @@ ed25519-dalek = "2"
 getrandom = { version = "0.3", features = ["std"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
 time = "0.3"
+futures = { workspace = true }
+ipnet = "2"
 
 [lints]
 workspace = true

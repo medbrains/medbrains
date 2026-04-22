@@ -1,0 +1,102 @@
+version: 2
+updates:
+  # Rust dependencies (Cargo)
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    reviewers:
+      - medbrains/backend
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      rust-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # JavaScript/TypeScript dependencies (pnpm)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 10
+    reviewers:
+      - medbrains/frontend
+    labels:
+      - dependencies
+      - javascript
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      # Group Mantine packages together
+      mantine:
+        patterns:
+          - "@mantine/*"
+      # Group React packages together
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # Group TanStack packages together
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      # Group testing packages together
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@testing-library/*"
+          - "@playwright/*"
+      # Group dev tools together
+      dev-tools:
+        patterns:
+          - "typescript"
+          - "@biomejs/*"
+          - "vite"
+          - "@vitejs/*"
+          - "turbo"
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(ci):"
+
+  # Docker base images
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: "chore(docker):"

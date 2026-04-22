@@ -521,7 +521,7 @@ pub async fn complete_order(
     if let Some(ref o) = order {
         if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "lab").await? {
             #[derive(sqlx::FromRow)]
-            struct TestInfo { code: String, name: String, price: rust_decimal::Decimal }
+            struct TestInfo { code: String, name: String, price: Decimal }
             let test_info = sqlx::query_as::<_, TestInfo>(
                 "SELECT code, name, price FROM lab_test_catalog \
                  WHERE id = $1 AND tenant_id = $2",

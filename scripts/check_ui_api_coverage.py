@@ -81,7 +81,8 @@ def extract_api_methods() -> dict[str, int]:
         # Only match at depth 1 (top-level methods in the api object)
         # This is approximate — we check that the line starts with
         # whitespace + identifier + colon
-        m = re.match(r"^\s{2,6}(\w+)\s*:\s*\(", line)
+        # Pattern handles both: `methodName: (args)` and `methodName: async (args)`
+        m = re.match(r"^\s{2,6}(\w+)\s*:\s*(?:async\s*)?\(", line)
         if m:
             name = m.group(1)
             methods[name] = i + 1  # 1-based line number

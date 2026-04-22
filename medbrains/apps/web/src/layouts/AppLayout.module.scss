@@ -49,8 +49,8 @@
 
 .railItemActive {
   composes: railItem;
-  background: var(--mantine-color-primary-0, #eef3ff);
-  color: var(--mantine-color-primary-5, #4c6ef5);
+  background: var(--mantine-color-primary-0, #f3f7f5);
+  color: var(--mantine-color-primary-5, #1F4332);
 
   &::before {
     content: "";
@@ -60,12 +60,12 @@
     bottom: 8px;
     width: 3px;
     border-radius: 2px;
-    background: var(--mantine-color-primary-5, #4c6ef5);
+    background: var(--mantine-color-primary-5, #1F4332);
   }
 
   &:hover {
-    background: var(--mantine-color-primary-0, #eef3ff);
-    color: var(--mantine-color-primary-5, #4c6ef5);
+    background: var(--mantine-color-primary-0, #f3f7f5);
+    color: var(--mantine-color-primary-5, #1F4332);
   }
 }
 
@@ -93,12 +93,12 @@
 .expandedItemActive {
   composes: expandedItem;
   font-weight: 600;
-  color: var(--mantine-color-primary-5, #4c6ef5);
-  background: var(--mantine-color-primary-0, #eef3ff);
+  color: var(--mantine-color-primary-5, #1F4332);
+  background: var(--mantine-color-primary-0, #f3f7f5);
 
   &:hover {
-    background: var(--mantine-color-primary-0, #eef3ff);
-    color: var(--mantine-color-primary-5, #4c6ef5);
+    background: var(--mantine-color-primary-0, #f3f7f5);
+    color: var(--mantine-color-primary-5, #1F4332);
   }
 }
 
@@ -120,12 +120,12 @@
 .expandedChildActive {
   composes: expandedChild;
   font-weight: 600;
-  color: var(--mantine-color-primary-5, #4c6ef5);
-  background: var(--mantine-color-primary-0, #eef3ff);
+  color: var(--mantine-color-primary-5, #1F4332);
+  background: var(--mantine-color-primary-0, #f3f7f5);
 
   &:hover {
-    background: var(--mantine-color-primary-0, #eef3ff);
-    color: var(--mantine-color-primary-5, #4c6ef5);
+    background: var(--mantine-color-primary-0, #f3f7f5);
+    color: var(--mantine-color-primary-5, #1F4332);
   }
 }
 
@@ -205,7 +205,7 @@
   display: inline-block;
 
   &:hover {
-    color: var(--mantine-color-primary-5, #4c6ef5);
+    color: var(--mantine-color-primary-5, #1F4332);
     text-decoration: underline;
     transform: translateX(2px);
   }

@@ -83,6 +83,35 @@ const methodLabels: Record<SterilizationMethod, string> = {
   flash: "Flash",
 };
 
+// Dropdown options for categorical fields
+const INSTRUMENT_CATEGORIES = [
+  { value: "surgical", label: "Surgical Instruments" },
+  { value: "diagnostic", label: "Diagnostic Instruments" },
+  { value: "dental", label: "Dental Instruments" },
+  { value: "ophthalmic", label: "Ophthalmic Instruments" },
+  { value: "orthopedic", label: "Orthopedic Instruments" },
+  { value: "endoscopy", label: "Endoscopy Equipment" },
+  { value: "laparoscopy", label: "Laparoscopy Instruments" },
+  { value: "cardiology", label: "Cardiology Instruments" },
+  { value: "neurology", label: "Neurology Instruments" },
+  { value: "urology", label: "Urology Instruments" },
+  { value: "gynecology", label: "Gynecology Instruments" },
+  { value: "ent", label: "ENT Instruments" },
+  { value: "other", label: "Other" },
+];
+
+const MAINTENANCE_TYPES = [
+  { value: "preventive", label: "Preventive Maintenance" },
+  { value: "corrective", label: "Corrective Maintenance" },
+  { value: "calibration", label: "Calibration" },
+  { value: "validation", label: "Validation" },
+  { value: "inspection", label: "Inspection" },
+  { value: "repair", label: "Repair" },
+  { value: "replacement", label: "Part Replacement" },
+  { value: "cleaning", label: "Deep Cleaning" },
+  { value: "other", label: "Other" },
+];
+
 // ── Instruments Tab ─────────────────────────────────────
 
 function InstrumentsTab() {
@@ -178,7 +207,7 @@ function InstrumentsTab() {
         <Stack>
           <TextInput label="Barcode" required value={instrForm.barcode} onChange={(e) => setInstrForm({ ...instrForm, barcode: e.currentTarget.value })} />
           <TextInput label="Name" required value={instrForm.name} onChange={(e) => setInstrForm({ ...instrForm, name: e.currentTarget.value })} />
-          <TextInput label="Category" value={instrForm.category ?? ""} onChange={(e) => setInstrForm({ ...instrForm, category: e.currentTarget.value || undefined })} />
+          <Select label="Category" data={INSTRUMENT_CATEGORIES} value={instrForm.category ?? null} onChange={(v) => setInstrForm({ ...instrForm, category: v || undefined })} clearable searchable />
           <TextInput label="Manufacturer" value={instrForm.manufacturer ?? ""} onChange={(e) => setInstrForm({ ...instrForm, manufacturer: e.currentTarget.value || undefined })} />
           <NumberInput label="Max Uses (lifecycle)" value={instrForm.max_uses ?? ""} onChange={(v) => setInstrForm({ ...instrForm, max_uses: v === "" ? undefined : Number(v) })} />
           <Textarea label="Notes" value={instrForm.notes ?? ""} onChange={(e) => setInstrForm({ ...instrForm, notes: e.currentTarget.value || undefined })} />
@@ -624,7 +653,7 @@ function EquipmentTab() {
           {canManage && (
             <>
               <Text fw={600}>Log Maintenance</Text>
-              <TextInput label="Type" required value={maintForm.maintenance_type} onChange={(e) => setMaintForm({ ...maintForm, maintenance_type: e.currentTarget.value })} />
+              <Select label="Type" required data={MAINTENANCE_TYPES} value={maintForm.maintenance_type} onChange={(v) => setMaintForm({ ...maintForm, maintenance_type: v ?? "" })} searchable />
               <TextInput label="Performed By" value={maintForm.performed_by ?? ""} onChange={(e) => setMaintForm({ ...maintForm, performed_by: e.currentTarget.value || undefined })} />
               <Textarea label="Findings" value={maintForm.findings ?? ""} onChange={(e) => setMaintForm({ ...maintForm, findings: e.currentTarget.value || undefined })} />
               <Textarea label="Actions Taken" value={maintForm.actions_taken ?? ""} onChange={(e) => setMaintForm({ ...maintForm, actions_taken: e.currentTarget.value || undefined })} />

@@ -1,0 +1,287 @@
+// ── Document Renderer — Print-Friendly Styles ──────────
+
+.renderer {
+  font-family: var(--doc-font, "Times New Roman", serif);
+  font-size: var(--doc-font-size, 11pt);
+  color: #000;
+  background: #fff;
+  line-height: 1.5;
+  padding: var(--doc-margin-top, 15mm) var(--doc-margin-right, 15mm)
+    var(--doc-margin-bottom, 15mm) var(--doc-margin-left, 15mm);
+}
+
+// ── Hospital Header ─────────────────────────────────────
+
+.hospitalHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.hospitalLogo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.hospitalInfo {
+  flex: 1;
+
+  h2 {
+    margin: 0;
+    font-size: 1.4em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  p {
+    margin: 2px 0 0;
+    font-size: 0.85em;
+    color: #333;
+  }
+}
+
+// ── Document Title ──────────────────────────────────────
+
+.docTitle {
+  text-align: center;
+  font-size: 1.2em;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-decoration: underline;
+  margin: 12px 0;
+}
+
+// ── Patient Info Grid ───────────────────────────────────
+
+.patientInfo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+  margin-bottom: 12px;
+  font-size: 0.95em;
+}
+
+.infoItem {
+  display: flex;
+  gap: 4px;
+
+  .label {
+    font-weight: 600;
+    white-space: nowrap;
+
+    &::after {
+      content: ":";
+    }
+  }
+
+  .value {
+    flex: 1;
+  }
+}
+
+// ── Key-Value Section ───────────────────────────────────
+
+.keyValueSection {
+  margin-bottom: 10px;
+
+  .kvTitle {
+    font-weight: 700;
+    font-size: 1em;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #999;
+  }
+}
+
+.kvGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 20px;
+}
+
+// ── Table ───────────────────────────────────────────────
+
+.docTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 0.9em;
+
+  th,
+  td {
+    border: 1px solid #333;
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: #f0f0f0;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  tbody tr:nth-child(even) {
+    background: #fafafa;
+  }
+}
+
+// ── Summary Section ─────────────────────────────────────
+
+.summarySection {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px solid #999;
+  border-radius: 2px;
+}
+
+.summaryGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.95em;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+
+  &.total {
+    font-weight: 700;
+    border-top: 1px solid #333;
+    padding-top: 4px;
+    margin-top: 4px;
+  }
+}
+
+// ── Text Block ──────────────────────────────────────────
+
+.textBlock {
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+
+  .textTitle {
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+}
+
+// ── Signatures ──────────────────────────────────────────
+
+.signaturesRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  gap: 24px;
+}
+
+.signatureBlock {
+  text-align: center;
+  min-width: 150px;
+
+  .sigLine {
+    border-top: 1px solid #000;
+    margin-bottom: 4px;
+    padding-top: 4px;
+  }
+
+  .sigLabel {
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+
+  .sigDesignation {
+    font-size: 0.8em;
+    color: #555;
+  }
+}
+
+// ── QR Code ─────────────────────────────────────────────
+
+.qrBlock {
+  text-align: center;
+  margin: 12px 0;
+
+  img {
+    width: 100px;
+    height: 100px;
+  }
+
+  .qrCaption {
+    font-size: 0.75em;
+    color: #666;
+    margin-top: 4px;
+  }
+}
+
+// ── Print Meta (timestamp, page numbers) ────────────────
+
+.printMeta {
+  font-size: 0.75em;
+  color: #999;
+  text-align: center;
+  margin-top: 16px;
+  border-top: 1px solid #ccc;
+  padding-top: 4px;
+}
+
+// ── Flag badges (lab results) ───────────────────────────
+
+.flagHigh {
+  color: #c92a2a;
+  font-weight: 700;
+}
+
+.flagLow {
+  color: #1971c2;
+  font-weight: 700;
+}
+
+.flagCritical {
+  color: #c92a2a;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+// ── Screen-only controls ────────────────────────────────
+
+.screenOnly {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+// ── Print Media Overrides ───────────────────────────────
+
+@media print {
+  .screenOnly {
+    display: none !important;
+  }
+
+  .renderer {
+    padding: 0;
+    box-shadow: none;
+    border: none;
+  }
+
+  .hospitalHeader {
+    break-after: avoid;
+  }
+
+  .docTable {
+    break-inside: auto;
+
+    tr {
+      break-inside: avoid;
+    }
+  }
+
+  .signaturesRow {
+    break-inside: avoid;
+  }
+}

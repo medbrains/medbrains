@@ -1,4 +1,7 @@
-// ── ECG Loader (inline Mantine Loader) — indigo-teal gradient + mask sweep ──
+// ── ECG Loader — emerald cardiac monitor style ──
+// Matches TopProgressBar visual language: scan sweep, phosphor glow, PQRST beats
+
+$trace: #34d399;
 
 .ecgLoader {
   display: inline-block;
@@ -6,36 +9,30 @@
   overflow: visible;
 }
 
-.trace {
+// Faint always-visible ghost of the full waveform
+.ghostTrace {
   fill: none;
-  filter: drop-shadow(0 0 3px rgba(99, 102, 241, 0.4))
-    drop-shadow(0 0 6px rgba(13, 148, 136, 0.25));
+  opacity: 0.12;
 }
 
+// Bright trace revealed by sweep mask
+.activeTrace {
+  fill: none;
+  filter: drop-shadow(0 0 3px rgba($trace, 0.8))
+          drop-shadow(0 0 6px rgba($trace, 0.3));
+}
+
+// Sweep mask — reveals trace left→right, then resets (infinite loop)
 .sweepRect {
-  animation: ecgSweep 2s ease-in-out infinite;
+  animation: ecgSweep 2.4s linear infinite;
 }
 
 @keyframes ecgSweep {
-  0% {
-    width: 0;
-  }
-  70% {
-    width: 120;
-    opacity: 1;
-  }
-  85% {
-    width: 120;
-    opacity: 1;
-  }
-  95% {
-    width: 120;
-    opacity: 0;
-  }
-  100% {
-    width: 0;
-    opacity: 0;
-  }
+  0% { width: 0; opacity: 1; }
+  75% { width: 120; opacity: 1; }
+  88% { width: 120; opacity: 0.6; }
+  95% { width: 120; opacity: 0; }
+  100% { width: 0; opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

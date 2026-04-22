@@ -15,6 +15,7 @@ import type {
   RegulatoryClauseRef,
   RequirementLevel,
 } from "@medbrains/types";
+import { deepClone } from "@medbrains/utils";
 import { create } from "zustand";
 
 // ── 12-Column Grid Helpers ───────────────────────────────
@@ -69,9 +70,9 @@ const MAX_HISTORY = 50;
 
 function takeSnapshot(state: FormBuilderStoreState): FormBuilderHistoryEntry {
   return {
-    sections: structuredClone(state.sections),
+    sections: deepClone(state.sections),
     sectionOrder: [...state.sectionOrder],
-    fields: structuredClone(state.fields),
+    fields: deepClone(state.fields),
     fieldOrder: Object.fromEntries(
       Object.entries(state.fieldOrder).map(([k, v]) => [k, [...v]]),
     ),

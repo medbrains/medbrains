@@ -959,7 +959,7 @@ pub async fn update_calibration(
     .await?;
 
     // Auto-lock equipment if out of tolerance
-    if let Some(false) = body.is_in_tolerance {
+    if body.is_in_tolerance == Some(false) {
         sqlx::query(
             "UPDATE bme_equipment SET status = 'out_of_service'::bme_equipment_status \
              WHERE id = (SELECT equipment_id FROM bme_calibrations WHERE id = $1)",

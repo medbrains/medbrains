@@ -1,33 +1,26 @@
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  SegmentedControl,
-  Text,
-  Tooltip,
-} from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type { PipelineStatus, PipelineSummary } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
-  IconPlayerPlay,
-  IconPencil,
-  IconTrash,
-  IconPlug,
   IconHistory,
+  IconLayoutDashboard,
+  IconPencil,
+  IconPlayerPlay,
+  IconPlug,
   IconToggleLeft,
   IconToggleRight,
+  IconTrash,
 } from "@tabler/icons-react";
-import { P } from "@medbrains/types";
-import type { PipelineStatus, PipelineSummary } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { api } from "@medbrains/api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../../components/PageHeader";
+import { useNavigate } from "react-router";
 import { DataTable } from "../../components/DataTable";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { ExecutionPanel } from "../../components/Integration";
+import { PageHeader } from "../../components/PageHeader";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 const STATUS_COLORS: Record<PipelineStatus, string> = {
   draft: "slate",
@@ -50,6 +43,7 @@ export function IntegrationHubPage() {
   const canUpdate = useHasPermission(P.INTEGRATION.UPDATE);
   const canDelete = useHasPermission(P.INTEGRATION.DELETE);
   const canExecute = useHasPermission(P.INTEGRATION.EXECUTE);
+  const canOpenScreenBuilder = useHasPermission(P.ADMIN.SCREEN_BUILDER.LIST);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -73,24 +67,20 @@ export function IntegrationHubPage() {
 
   const toggleStatus = useMutation({
     mutationFn: (pipeline: PipelineSummary) => {
-      const newStatus: PipelineStatus =
-        pipeline.status === "active" ? "paused" : "active";
+      const newStatus: PipelineStatus = pipeline.status === "active" ? "paused" : "active";
       return api.updatePipelineStatus(pipeline.id, { status: newStatus });
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const deletePipeline = useMutation({
     mutationFn: (id: string) => api.deletePipeline(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const triggerPipeline = useMutation({
     mutationFn: (id: string) => api.triggerPipeline(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const columns = [
@@ -107,11 +97,7 @@ export function IntegrationHubPage() {
       key: "status",
       label: "Status",
       render: (row: PipelineSummary) => (
-        <Badge
-          color={STATUS_COLORS[row.status]}
-          variant="light"
-          size="sm"
-        >
+        <Badge color={STATUS_COLORS[row.status]} variant="light" size="sm">
           {row.status}
         </Badge>
       ),
@@ -128,18 +114,14 @@ export function IntegrationHubPage() {
     {
       key: "executions",
       label: "Runs",
-      render: (row: PipelineSummary) => (
-        <Text size="sm">{row.execution_count}</Text>
-      ),
+      render: (row: PipelineSummary) => <Text size="sm">{row.execution_count}</Text>,
     },
     {
       key: "last_run",
       label: "Last Run",
       render: (row: PipelineSummary) => (
         <Text size="xs" c="dimmed">
-          {row.last_run_at
-            ? new Date(row.last_run_at).toLocaleString()
-            : "Never"}
+          {row.last_run_at ? new Date(row.last_run_at).toLocaleString() : "Never"}
         </Text>
       ),
     },
@@ -178,16 +160,12 @@ export function IntegrationHubPage() {
                 <ActionIcon
                   variant="subtle"
                   size="sm"
-                  onClick={() =>
-                    navigate(`/admin/integration-builder/${row.id}`)
-                  }
+                  onClick={() => navigate(`/admin/integration-builder/${row.id}`)}
                 >
                   <IconPencil size={14} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip
-                label={row.status === "active" ? "Pause" : "Activate"}
-              >
+              <Tooltip label={row.status === "active" ? "Pause" : "Activate"}>
                 <ActionIcon
                   variant="subtle"
                   size="sm"
@@ -223,17 +201,31 @@ export function IntegrationHubPage() {
   return (
     <div>
       <PageHeader
-        title="Integration Hub"
-        subtitle="Manage automated cross-module pipelines"
+        title="Automation Hub"
+        subtitle="Build cross-module pipelines and link them through screen or module sidecars"
         actions={
-          canCreate ? (
-            <Button
-              size="xs"
-              leftSection={<IconPlug size={14} />}
-              onClick={() => navigate("/admin/integration-builder")}
-            >
-              New Pipeline
-            </Button>
+          canOpenScreenBuilder || canCreate ? (
+            <>
+              {canOpenScreenBuilder && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconLayoutDashboard size={14} />}
+                  onClick={() => navigate("/admin/screen-builder")}
+                >
+                  Open Screen Builder
+                </Button>
+              )}
+              {canCreate && (
+                <Button
+                  size="xs"
+                  leftSection={<IconPlug size={14} />}
+                  onClick={() => navigate("/admin/integration-builder")}
+                >
+                  New Pipeline
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
@@ -250,7 +242,7 @@ export function IntegrationHubPage() {
         rowKey={(r) => r.id}
         emptyIcon={<IconPlug size={48} stroke={1} />}
         emptyTitle="No pipelines yet"
-        emptyDescription="Create your first integration pipeline to automate cross-module workflows."
+        emptyDescription="Create a pipeline here, then attach it to screen or module sidecars to link workflows across modules."
         emptyAction={
           canCreate
             ? {
@@ -269,11 +261,7 @@ export function IntegrationHubPage() {
         }
       />
 
-      <ExecutionPanel
-        pipelineId={execPipelineId}
-        opened={execOpened}
-        onClose={closeExec}
-      />
+      <ExecutionPanel pipelineId={execPipelineId} opened={execOpened} onClose={closeExec} />
     </div>
   );
 }

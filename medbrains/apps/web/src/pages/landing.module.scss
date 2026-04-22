@@ -1,4 +1,4 @@
-// Landing page — clean & minimal
+// Landing page — Forest + Copper design system
 
 .page {
   scroll-behavior: smooth;
@@ -11,7 +11,7 @@
   z-index: 100;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--mb-border, #e7ebe8);
   padding: 0 24px;
   height: 60px;
   display: flex;
@@ -38,7 +38,7 @@
 .navLogoText {
   font-size: 18px;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--mb-text-primary, #0F1412);
   letter-spacing: -0.03em;
 }
 
@@ -55,13 +55,13 @@
 .navLink {
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   text-decoration: none;
   transition: color 0.15s ease;
   cursor: pointer;
 
   &:hover {
-    color: #0F6CBD;
+    color: var(--mantine-color-primary-5, #1F4332);
   }
 }
 
@@ -93,20 +93,28 @@
   gap: 8px;
   padding: 6px 16px;
   border-radius: 20px;
-  background: #EBF3FC;
-  color: #0F6CBD;
+  background: var(--mantine-color-primary-0, #f3f7f5);
+  color: var(--mantine-color-primary-5, #1F4332);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 24px;
 }
 
+// Fraunces display — regular weight, italic accent word in forest green
 .heroTitle {
+  font-family: var(--font-display, "Fraunces Variable", "Fraunces", Georgia, serif);
   font-size: 48px;
-  font-weight: 800;
-  color: #1e293b;
-  line-height: 1.1;
+  font-weight: 400;
+  color: var(--mb-text-primary, #0F1412);
+  line-height: 1.02;
   letter-spacing: -0.03em;
   margin-bottom: 20px;
+
+  em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--mantine-color-primary-5, #1F4332);
+  }
 
   @media (max-width: 768px) {
     font-size: 32px;
@@ -115,7 +123,7 @@
 
 .heroSubtitle {
   font-size: 18px;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   line-height: 1.6;
   max-width: 600px;
   margin: 0 auto 40px;
@@ -137,8 +145,8 @@
 .stats {
   padding: 48px 24px;
   background: #ffffff;
-  border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
+  border-top: 1px solid var(--mb-border, #e7ebe8);
+  border-bottom: 1px solid var(--mb-border, #e7ebe8);
 }
 
 .statsInner {
@@ -161,7 +169,7 @@
   padding: 0 32px;
 
   &:not(:last-child) {
-    border-right: 1px solid #e2e8f0;
+    border-right: 1px solid var(--mb-border, #e7ebe8);
 
     @media (max-width: 768px) {
       border-right: none;
@@ -169,16 +177,19 @@
   }
 }
 
+// Serif numerals for stat values (Fraunces)
 .statValue {
+  font-family: var(--font-display, "Fraunces Variable", "Fraunces", Georgia, serif);
   font-size: 32px;
-  font-weight: 800;
-  color: #0F6CBD;
+  font-weight: 400;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--mantine-color-primary-5, #1F4332);
   letter-spacing: -0.02em;
 }
 
 .statLabel {
   font-size: 14px;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   font-weight: 500;
   margin-top: 4px;
 }
@@ -186,7 +197,7 @@
 // ─── Features Grid ───
 .features {
   padding: 80px 24px;
-  background: #f8fafc;
+  background: var(--mb-bg-content, #f7f8f6);
 
   @media (max-width: 768px) {
     padding: 60px 20px;
@@ -200,8 +211,8 @@
 
 .sectionTitle {
   font-size: 28px;
-  font-weight: 800;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--mb-text-primary, #0F1412);
   text-align: center;
   letter-spacing: -0.02em;
   margin-bottom: 12px;
@@ -209,14 +220,14 @@
 
 .sectionSubtitle {
   font-size: 16px;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   text-align: center;
   margin-bottom: 48px;
 }
 
 .featureCard {
   padding: 28px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--mb-border, #e7ebe8);
   border-radius: 8px;
   background: #ffffff;
   transition: box-shadow 0.15s ease;
@@ -229,14 +240,14 @@
 .featureTitle {
   font-size: 16px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--mb-text-primary, #0F1412);
   margin-top: 16px;
   margin-bottom: 8px;
 }
 
 .featureDesc {
   font-size: 14px;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   line-height: 1.5;
 }
 
@@ -254,12 +265,14 @@
   margin-bottom: 24px;
 }
 
+// Eyebrow — mono, caps, tight tracking
 .moduleCategoryTitle {
-  font-size: 13px;
-  font-weight: 700;
-  color: #94a3b8;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mb-text-muted, #8a938f);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   margin-bottom: 12px;
 }
 
@@ -272,7 +285,7 @@
 // ─── Open Source Section ───
 .openSource {
   padding: 80px 24px;
-  background: #f8fafc;
+  background: var(--mb-bg-content, #f7f8f6);
 
   @media (max-width: 768px) {
     padding: 60px 20px;
@@ -280,8 +293,8 @@
 }
 
 .codeBlock {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--mantine-color-primary-7, #0d2417);
+  color: var(--mantine-color-primary-1, #e4ede9);
   padding: 20px 24px;
   border-radius: 8px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
@@ -299,20 +312,20 @@
 .osCardTitle {
   font-size: 16px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--mb-text-primary, #0F1412);
   margin-bottom: 12px;
 }
 
 .osCardDesc {
   font-size: 14px;
-  color: #475569;
+  color: var(--mb-text-secondary, #3e4a44);
   line-height: 1.5;
 }
 
 // ─── Footer ───
 .footer {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--mantine-color-primary-7, #0d2417);
+  color: var(--mantine-color-primary-1, #e4ede9);
   padding: 64px 24px 32px;
 
   @media (max-width: 768px) {
@@ -351,16 +364,17 @@
 
 .footerBrandDesc {
   font-size: 14px;
-  color: #94a3b8;
+  color: var(--mantine-color-primary-3, #8aa89a);
   line-height: 1.5;
 }
 
 .footerColTitle {
-  font-size: 13px;
-  font-weight: 700;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+  font-weight: 500;
   color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   margin-bottom: 16px;
 }
 
@@ -375,7 +389,7 @@
 
 .footerLink {
   font-size: 14px;
-  color: #94a3b8;
+  color: var(--mantine-color-primary-3, #8aa89a);
   text-decoration: none;
   transition: color 0.15s ease;
   cursor: pointer;
@@ -397,7 +411,7 @@
 
 .footerCopyright {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--mantine-color-primary-3, #8aa89a);
 }
 
 // ─── Features Modal ───
@@ -409,13 +423,13 @@
 
 .featureListItem {
   padding: 10px 12px;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--mb-border-subtle, #eef2f0);
 
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: #f8fafc;
+    background: var(--mb-bg-content, #f7f8f6);
   }
 }
