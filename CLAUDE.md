@@ -82,6 +82,7 @@ All RFCs live in `RFCs/` at the project root.
 | Client state | Zustand |
 | Forms | React Hook Form + Zod |
 | Linting | **Biome** (lint + format) |
+| Fonts | **Inter Tight** (UI), **Fraunces** (display/editorial), **JetBrains Mono** (code/metadata) |
 
 ### Mobile
 
@@ -122,6 +123,60 @@ The codebase is being aligned to the APPROVED RFC. Known divergences:
 | Zustand | Zustand | Aligned |
 | TanStack Query v5 | TanStack Query v5 | Aligned |
 | Axum 0.8 + SQLx | Axum 0.8 + SQLx | Aligned |
+
+---
+
+## Design System — Forest + Copper (LOCKED)
+
+The visual identity is **Forest + Copper** — deep institutional green, white canvas, copper reserved accent. Designed for clinical gravitas and institutional warmth (peers: Mayo Clinic, Roche, Patagonia-medical).
+
+### Brand Palette
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `--fc-brand` (primary-5) | `#1F4332` | Primary fill, CTAs, active nav, links, focus rings |
+| `--fc-brand-hover` (primary-6) | `#153325` | Hover state |
+| `--fc-brand-deep` (primary-7) | `#0d2417` | Pressed, deep ink on tint |
+| `--fc-ink` | `#0F1412` | Body text, headings (never `#000`) |
+| `--fc-canvas` | `#FFFFFF` | White-first institutional body |
+| `--fc-panel` | `#f7f8f6` | Fog — hover bg, rail panels |
+| `--fc-rule` | `#e7ebe8` | Hairline borders (always 1px) |
+| `--fc-copper` | `#B8924A` | **Reserved accent** — changed values, unread counts, single hero moment only |
+| `--fc-tint` | `#e4ede9` | Active nav pills, hover cards |
+
+**Copper is NEVER decoration.** Use only for: changed values, unread counts, "new since last visit", one KPI hero card.
+
+### Typography
+
+- **Fraunces** (display) — hero headlines (regular weight, italic accent word in forest), serif KPI numerals, pull quotes. Never in dense UI.
+- **Inter Tight** (UI) — all body, buttons, inputs, tables, labels, nav, toasts, modal content.
+- **JetBrains Mono** (metadata) — eyebrow labels (11px, 0.14em tracking, uppercase), code blocks, UHIDs, timestamps.
+- Font packages: `@fontsource-variable/inter-tight`, `@fontsource-variable/fraunces`, `@fontsource/jetbrains-mono`
+- Imported in `main.tsx` before Mantine styles.
+
+### Signature UI Details
+
+- **ECG Loader** — emerald cardiac monitor (`#34d399`), sweep-mask reveal, ghost trace + bright active trace. Used as default Mantine Loader.
+- **TopProgressBar** — single PQRST heartbeat centered on screen, scan window slows at spike, glowing dot at beat start, phosphor trail. Memoized with trace cache.
+- **Stat cards** — Fraunces serif numerals, JetBrains Mono eyebrow labels, forest left-accent on hover.
+- **Buttons** — 5 tiers (filled/default/light/outline/subtle), radial glow on press, loading pulse animation, tactile scale on active.
+- **Shadows** — dual-layer (design system spec), no blue tint. Cards `sm`, menus `md`, modals `xl`.
+- **Active sidebar** — 3px forest pill indicator on left edge.
+- **Hero titles** — Fraunces at regular weight, one italic clause in forest green per headline.
+
+### Emergency Code Layer (fixed, safety-critical)
+
+Six codes, fixed hexes, identical on every deployment regardless of theme:
+`--code-blue` `#1E63B8` (cardiac), `--code-red` `#C8102E` (fire), `--code-pink` `#E24C94` (abduction), `--code-black` `#0a0a0a` (bomb), `--code-yellow` `#E6B422` (disaster), `--code-orange` `#E86A1F` (hazmat).
+
+---
+
+## Git Workflow
+
+- **Feature branches**: `feature/<name>` branched from `master`
+- Each feature developed in isolation, merged via PR
+- Do NOT commit directly to `master` — always use feature branches
+- Commit messages: imperative, concise, explain "why" not "what"
 
 ---
 
@@ -177,9 +232,11 @@ medbrains/
 
 ### SQL
 
-- **All queries must be compile-time verified** via `sqlx::query!()` or `sqlx::query_as!()`.
+- **Runtime queries** via `sqlx::query_as::<_, T>()` — avoids compile-time DB dependency.
+- All types derive `FromRow` for strong typing.
 - Every tenant-scoped table has `tenant_id` column with Row-Level Security (RLS).
-- Set tenant context per request: `SET LOCAL app.tenant_id = $1`.
+- Set tenant context per request via `set_tenant_context(&mut tx, &tenant_id)`.
+- **Migration pitfalls**: no `NOW()` in index predicates (use `IS NULL`), no duplicate enum names across migrations, wrap seed INSERTs in `IF EXISTS (SELECT 1 FROM tenants)` guard.
 
 ### TypeScript / React
 
