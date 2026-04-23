@@ -19,6 +19,7 @@ test.describe("Pharmacy Dispensing Flow", () => {
   });
 
   test("should view pending pharmacy orders", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "Pharmacy::Dispense prescription" });
     await navigateTo(page, "/pharmacy");
 
     // TODO: Navigate to /pharmacy

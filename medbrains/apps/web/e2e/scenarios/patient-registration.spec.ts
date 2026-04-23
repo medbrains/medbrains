@@ -30,6 +30,7 @@ test.describe("Patient Registration Flow", () => {
   });
 
   test("should register a new patient via full form", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "Patients::Register new patient with full demographics" });
     const patient = uniquePatient();
 
     await navigateTo(page, "/patients");

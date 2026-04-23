@@ -1,0 +1,26 @@
+module: Billing
+plan: Billing & Invoicing
+category: Finance
+cases:
+  - summary: Generate OPD invoice
+    priority: High
+    automated: true
+    steps:
+      - action: Navigate to /billing, click Generate Invoice
+        expected: Invoice form with service selection
+      - action: Add services, apply discount, submit
+        expected: Invoice created with number, total calculated
+
+  - summary: Payment collection
+    priority: High
+    automated: false
+    steps:
+      - action: Select invoice, click Collect Payment
+        expected: Payment modal with cash/card/UPI options
+
+  - summary: Invoice print preview
+    priority: Medium
+    automated: false
+    steps:
+      - action: Click Print on invoice
+        expected: PDF preview with hospital header, GST details

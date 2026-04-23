@@ -1,0 +1,26 @@
+module: OPD
+plan: OPD Queue & Visits
+category: Clinical
+cases:
+  - summary: Create new OPD visit
+    priority: High
+    automated: true
+    steps:
+      - action: Navigate to /opd, click New OPD Visit
+        expected: Visit creation form opens
+      - action: Select patient, assign doctor, generate token
+        expected: Token generated, patient added to queue
+
+  - summary: OPD queue displays tokens
+    priority: High
+    automated: false
+    steps:
+      - action: GET /api/opd/queue
+        expected: Active tokens listed with status
+
+  - summary: Call next token
+    priority: High
+    automated: false
+    steps:
+      - action: POST /api/opd/tokens/{id}/call
+        expected: Token status changes to called

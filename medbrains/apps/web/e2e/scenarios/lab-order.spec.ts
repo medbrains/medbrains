@@ -19,6 +19,7 @@ test.describe("Lab Order Flow", () => {
   });
 
   test("should create a lab order", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "Lab::Create lab order" });
     await navigateTo(page, "/lab");
 
     // TODO: Navigate to /lab

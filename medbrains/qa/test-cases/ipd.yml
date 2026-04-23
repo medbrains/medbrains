@@ -1,0 +1,19 @@
+module: IPD
+plan: Inpatient Management
+category: Clinical
+cases:
+  - summary: Admit patient to IPD
+    priority: High
+    automated: true
+    steps:
+      - action: Navigate to /ipd, click Admit Patient
+        expected: Admission form opens
+      - action: Select patient, ward, bed, submit
+        expected: Admission created, bed marked occupied
+
+  - summary: Discharge patient
+    priority: High
+    automated: false
+    steps:
+      - action: Select admitted patient, click Discharge
+        expected: Discharge summary form, bed freed after completion
