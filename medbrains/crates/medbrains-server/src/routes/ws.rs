@@ -78,6 +78,16 @@ impl QueueBroadcaster {
         }
     }
 
+    /// Broadcast a "token called" event to a department's TV displays.
+    pub async fn broadcast_token_called(&self, department_id: Uuid, token_number: &str, patient_name: &str) {
+        self.broadcast_queue_event(department_id, QueueEvent::TokenCalled {
+            token_number: token_number.to_owned(),
+            patient_name: patient_name.to_owned(),
+            room: None,
+            counter: None,
+        }).await;
+    }
+
     /// Broadcast an announcement to all connected displays.
     pub fn broadcast_announcement(&self, event: AnnouncementEvent) {
         let _ = self.announcements.send(event);

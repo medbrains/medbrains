@@ -5827,5 +5827,16 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/bridge/register", post(devices::register_bridge_agent))
         .route("/api/bridge/heartbeat", post(devices::bridge_heartbeat));
 
-    public.merge(protected).merge(bridge_routes).with_state(state)
+    // ── Public appointment booking + kiosk check-in (no auth) ──
+    let public_booking = Router::new()
+        .route("/api/public/appointments/slots", get(appointments::public_available_slots))
+        .route("/api/public/appointments/book", post(appointments::public_book_appointment))
+        .route("/api/public/kiosk/checkin", post(appointments::kiosk_checkin));
+
+    // ── Reminder config (protected) — add to protected routes ──
+    let reminder_routes = Router::new()
+        .route("/api/opd/appointments/reminder-config",
+            get(appointments::get_reminder_config).put(appointments::update_reminder_config));
+
+    public.merge(protected).merge(bridge_routes).merge(public_booking).merge(reminder_routes).with_state(state)
 }

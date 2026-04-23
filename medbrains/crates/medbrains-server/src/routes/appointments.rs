@@ -496,6 +496,7 @@ pub async fn list_appointments(
         recurrence_group_id: Option<Uuid>,
         recurrence_index: Option<i32>,
         appointment_group_id: Option<Uuid>,
+        booking_source: Option<String>,
         created_by: Uuid,
         created_at: chrono::DateTime<Utc>,
         updated_at: chrono::DateTime<Utc>,
@@ -554,6 +555,7 @@ pub async fn list_appointments(
                 recurrence_group_id: r.recurrence_group_id,
                 recurrence_index: r.recurrence_index,
                 appointment_group_id: r.appointment_group_id,
+                booking_source: r.booking_source,
                 created_by: r.created_by,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
@@ -841,4 +843,173 @@ pub async fn mark_appointment_no_show(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Public Booking + Kiosk Check-in + Reminders
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct PublicBookingRequest {
+    pub tenant_code: String,
+    pub doctor_id: Uuid,
+    pub department_id: Uuid,
+    pub appointment_date: NaiveDate,
+    pub slot_start: NaiveTime,
+    pub slot_end: NaiveTime,
+    pub patient_name: String,
+    pub patient_phone: String,
+    pub patient_dob: Option<NaiveDate>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublicBookingResponse {
+    pub appointment_id: Uuid,
+    pub appointment_date: NaiveDate,
+    pub slot_start: NaiveTime,
+    pub doctor_name: String,
+    pub department_name: String,
+    pub qr_code_data: String,
+    pub status: String,
+    pub message: String,
+}
+
+/// POST /api/public/appointments/book
+pub async fn public_book_appointment(
+    State(state): State<AppState>,
+    Json(body): Json<PublicBookingRequest>,
+) -> Result<Json<PublicBookingResponse>, AppError> {
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants WHERE code = $1 AND is_active = true")
+        .bind(&body.tenant_code).fetch_optional(&state.db).await?
+        .ok_or_else(|| AppError::BadRequest("Invalid hospital code".into()))?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    let patient_id: Uuid = match sqlx::query_scalar::<_, Uuid>("SELECT id FROM patients WHERE phone_primary = $1 LIMIT 1")
+        .bind(&body.patient_phone).fetch_optional(&mut *tx).await? {
+        Some(id) => id,
+        None => sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO patients (tenant_id, first_name, phone_primary, date_of_birth) VALUES ($1,$2,$3,$4) RETURNING id")
+            .bind(tenant_id).bind(&body.patient_name).bind(&body.patient_phone).bind(body.patient_dob)
+            .fetch_one(&mut *tx).await?,
+    };
+
+    let booked: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM appointments WHERE doctor_id=$1 AND appointment_date=$2 AND slot_start=$3 AND status NOT IN ('cancelled','no_show')")
+        .bind(body.doctor_id).bind(body.appointment_date).bind(body.slot_start).fetch_one(&mut *tx).await?;
+    let day_of_week = body.appointment_date.weekday().num_days_from_sunday() as i32;
+    let max_patients: Option<i32> = sqlx::query_scalar("SELECT max_patients FROM doctor_schedules WHERE doctor_id=$1 AND day_of_week=$2 AND is_active=true")
+        .bind(body.doctor_id).bind(day_of_week).fetch_optional(&mut *tx).await?;
+    if let Some(max) = max_patients { if booked >= i64::from(max) { return Err(AppError::Conflict("Slot fully booked".into())); } }
+
+    let appt = sqlx::query_as::<_, Appointment>(
+        "INSERT INTO appointments (tenant_id,patient_id,doctor_id,department_id,appointment_date,slot_start,slot_end,appointment_type,reason,status,booking_source) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'new_visit',$8,'confirmed','online') RETURNING *")
+        .bind(tenant_id).bind(patient_id).bind(body.doctor_id).bind(body.department_id)
+        .bind(body.appointment_date).bind(body.slot_start).bind(body.slot_end).bind(&body.reason)
+        .fetch_one(&mut *tx).await?;
+
+    let doctor_name: String = sqlx::query_scalar("SELECT full_name FROM users WHERE id=$1").bind(body.doctor_id).fetch_optional(&mut *tx).await?.unwrap_or_else(|| "Doctor".to_owned());
+    let dept_name: String = sqlx::query_scalar("SELECT name FROM departments WHERE id=$1").bind(body.department_id).fetch_optional(&mut *tx).await?.unwrap_or_else(|| "Dept".to_owned());
+    let qr_data = format!("MEDBRAINS:APT:{}", appt.id);
+    tx.commit().await?;
+
+    Ok(Json(PublicBookingResponse { appointment_id: appt.id, appointment_date: appt.appointment_date, slot_start: appt.slot_start, doctor_name, department_name: dept_name, qr_code_data: qr_data, status: "confirmed".to_owned(), message: "Appointment booked. Show QR code at kiosk on arrival.".to_owned() }))
+}
+
+/// GET /api/public/appointments/slots
+#[derive(Debug, Deserialize)]
+pub struct PublicSlotsQuery { pub tenant_code: String, pub doctor_id: Uuid, pub date: NaiveDate }
+
+pub async fn public_available_slots(State(state): State<AppState>, Query(params): Query<PublicSlotsQuery>) -> Result<Json<Vec<AvailableSlot>>, AppError> {
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants WHERE code=$1 AND is_active=true")
+        .bind(&params.tenant_code).fetch_optional(&state.db).await?.ok_or_else(|| AppError::BadRequest("Invalid code".into()))?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let day_of_week = params.date.weekday().num_days_from_sunday() as i32;
+    let schedules = sqlx::query_as::<_, DoctorSchedule>("SELECT * FROM doctor_schedules WHERE doctor_id=$1 AND day_of_week=$2 AND is_active=true")
+        .bind(params.doctor_id).bind(day_of_week).fetch_all(&mut *tx).await?;
+    let mut slots = Vec::new();
+    for sched in &schedules {
+        let dur = sched.slot_duration_mins;
+        let mut cur = sched.start_time;
+        while cur < sched.end_time {
+            let end = cur + chrono::Duration::minutes(i64::from(dur));
+            if end > sched.end_time { break; }
+            let booked: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM appointments WHERE doctor_id=$1 AND appointment_date=$2 AND slot_start=$3 AND status NOT IN ('cancelled','no_show')")
+                .bind(params.doctor_id).bind(params.date).bind(cur).fetch_one(&mut *tx).await?;
+            let max = i64::from(sched.max_patients);
+            if booked < max { slots.push(AvailableSlot { start_time: cur, end_time: end, booked_count: booked, max_patients: sched.max_patients, is_available: true }); }
+            cur = end;
+        }
+    }
+    tx.commit().await?;
+    Ok(Json(slots))
+}
+
+/// POST /api/public/kiosk/checkin — QR scan → check in → generate token → broadcast to TV
+#[derive(Debug, Deserialize)]
+pub struct KioskCheckinRequest { pub qr_data: String }
+
+#[derive(Debug, Serialize)]
+pub struct KioskCheckinResponse { pub appointment_id: Uuid, pub patient_name: String, pub doctor_name: String, pub department_name: String, pub token_number: String, pub status: String, pub message: String }
+
+pub async fn kiosk_checkin(State(state): State<AppState>, Json(body): Json<KioskCheckinRequest>) -> Result<Json<KioskCheckinResponse>, AppError> {
+    let appt_id = body.qr_data.strip_prefix("MEDBRAINS:APT:").and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| AppError::BadRequest("Invalid QR code".into()))?;
+    let appt = sqlx::query_as::<_, Appointment>("SELECT * FROM appointments WHERE id=$1").bind(appt_id).fetch_optional(&state.db).await?.ok_or(AppError::NotFound)?;
+    let today = Utc::now().date_naive();
+    if appt.appointment_date != today { return Err(AppError::BadRequest(format!("Appointment is for {}", appt.appointment_date))); }
+    if appt.status != AppointmentStatus::Scheduled && appt.status != AppointmentStatus::Confirmed { return Err(AppError::Conflict("Already checked in".into())); }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &appt.tenant_id).await?;
+    sqlx::query("UPDATE appointments SET status='checked_in', checked_in_at=now() WHERE id=$1").bind(appt_id).execute(&mut *tx).await?;
+
+    let token_seq: i32 = sqlx::query_scalar("SELECT COALESCE(MAX(token_seq),0)+1 FROM queue_tokens WHERE department_id=$1 AND token_date=CURRENT_DATE")
+        .bind(appt.department_id).fetch_one(&mut *tx).await?;
+    let token_number = format!("T-{token_seq:03}");
+    sqlx::query("INSERT INTO queue_tokens (tenant_id,department_id,patient_id,token_date,token_seq,token_number,status) VALUES ($1,$2,$3,CURRENT_DATE,$4,$5,'waiting')")
+        .bind(appt.tenant_id).bind(appt.department_id).bind(appt.patient_id).bind(token_seq).bind(&token_number).execute(&mut *tx).await?;
+
+    let patient_name: String = sqlx::query_scalar("SELECT COALESCE(first_name||' '||last_name,first_name) FROM patients WHERE id=$1").bind(appt.patient_id).fetch_optional(&mut *tx).await?.unwrap_or_else(|| "Patient".to_owned());
+    let doctor_name: String = sqlx::query_scalar("SELECT full_name FROM users WHERE id=$1").bind(appt.doctor_id).fetch_optional(&mut *tx).await?.unwrap_or_else(|| "Doctor".to_owned());
+    let dept_name: String = sqlx::query_scalar("SELECT name FROM departments WHERE id=$1").bind(appt.department_id).fetch_optional(&mut *tx).await?.unwrap_or_else(|| "Dept".to_owned());
+
+    state.queue_broadcaster.broadcast_token_called(appt.department_id, &token_number, &patient_name).await;
+    tx.commit().await?;
+
+    Ok(Json(KioskCheckinResponse { appointment_id: appt_id, patient_name, doctor_name, department_name: dept_name, token_number, status: "checked_in".to_owned(), message: "Check-in successful. Wait for your token.".to_owned() }))
+}
+
+/// GET /api/opd/appointments/reminder-config
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReminderConfig { pub sms_enabled: bool, pub whatsapp_enabled: bool, pub email_enabled: bool, pub remind_hours_before: Vec<i32>, pub sms_template: String, pub whatsapp_template: String }
+
+pub async fn get_reminder_config(State(state): State<AppState>, Extension(claims): Extension<Claims>) -> Result<Json<ReminderConfig>, AppError> {
+    require_permission(&claims, permissions::opd::appointment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let config: Option<serde_json::Value> = sqlx::query_scalar("SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='appointments' AND key='reminder_config'")
+        .bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
+    tx.commit().await?;
+    let cfg = config.and_then(|v| serde_json::from_value(v).ok()).unwrap_or(ReminderConfig {
+        sms_enabled: false, whatsapp_enabled: false, email_enabled: false, remind_hours_before: vec![24, 2],
+        sms_template: "Reminder: Appointment with Dr. {doctor} on {date} at {time}.".to_owned(),
+        whatsapp_template: "Appointment confirmed for {date} at {time} with Dr. {doctor}. Show QR at kiosk.".to_owned(),
+    });
+    Ok(Json(cfg))
+}
+
+/// PUT /api/opd/appointments/reminder-config
+pub async fn update_reminder_config(State(state): State<AppState>, Extension(claims): Extension<Claims>, Json(body): Json<ReminderConfig>) -> Result<Json<ReminderConfig>, AppError> {
+    require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let value = serde_json::to_value(&body).map_err(|e| AppError::Internal(e.to_string()))?;
+    sqlx::query("INSERT INTO tenant_settings (id,tenant_id,category,key,value) VALUES (gen_random_uuid(),$1,'appointments','reminder_config',$2) ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()")
+        .bind(claims.tenant_id).bind(&value).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(Json(body))
 }
