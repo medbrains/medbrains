@@ -8,7 +8,6 @@ import {
   Stack,
   Text,
   TextInput,
-  ThemeIcon,
 } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
@@ -16,7 +15,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
 import {
-  IconBuildingHospital,
   IconLock,
   IconUser,
 } from "@tabler/icons-react";
@@ -50,9 +48,7 @@ export function LoginPage() {
       <div className={classes.container}>
         <Card className={classes.card}>
           <Stack align="center" gap="sm" mb="xl">
-            <ThemeIcon variant="filled" size={48} radius="xl">
-              <IconBuildingHospital size={24} stroke={1.5} />
-            </ThemeIcon>
+            <img src="/logo/medbrains-mark.svg" alt="MedBrains" width={48} height={48} style={{ borderRadius: 12 }} />
             <Text size="xl" fw={700} c="var(--mb-text-primary)">
               MedBrains
             </Text>

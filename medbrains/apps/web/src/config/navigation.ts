@@ -531,6 +531,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             icon: "IconHistory",
             requiredPermission: "retrospective.list",
           },
+          {
+            i18nKey: "devices",
+            path: "/admin/devices",
+            icon: "IconPlug",
+            requiredPermission: "devices.list",
+          },
         ],
       },
     ],

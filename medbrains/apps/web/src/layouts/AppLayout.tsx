@@ -23,7 +23,6 @@ import { api } from "@medbrains/api";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import {
   IconBell,
-  IconBuildingHospital,
   IconChevronRight,
   IconLanguage,
   IconLayoutSidebarLeftCollapse,
@@ -232,9 +231,7 @@ export function AppLayout() {
               className={classes.logoArea}
               onClick={() => navigate("/dashboard")}
             >
-              <Box className={classes.logoIcon}>
-                <IconBuildingHospital size={16} stroke={2} color="white" />
-              </Box>
+              <img src="/logo/medbrains-mark.svg" alt="" width={30} height={30} style={{ borderRadius: 8 }} />
               <Text size="sm" fw={700} c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
                 MedBrains
               </Text>
@@ -306,7 +303,10 @@ export function AppLayout() {
                 <Menu.Item leftSection={<IconUser size={14} stroke={1.5} />}>
                   Profile
                 </Menu.Item>
-                <Menu.Item leftSection={<IconSettings size={14} stroke={1.5} />}>
+                <Menu.Item
+                  leftSection={<IconSettings size={14} stroke={1.5} />}
+                  onClick={() => navigate("/admin/settings")}
+                >
                   Settings
                 </Menu.Item>
                 <Menu.Divider />

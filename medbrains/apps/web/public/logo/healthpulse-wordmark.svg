@@ -1,0 +1,7 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 40" width="220" height="40">
+  <g stroke="#14b8a6" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(4,8)">
+    <path d="M3 12h4l2 -5l3 10l2 -5l2 2h4"></path>
+  </g>
+  <text x="36" y="27" font-family="Inter, -apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, Roboto, sans-serif" font-size="18" font-weight="700" letter-spacing="-0.03em" fill="#0f172a">HealthPulse</text>
+</svg>
