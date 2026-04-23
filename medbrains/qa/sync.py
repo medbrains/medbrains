@@ -2,138 +2,49 @@
 """
 Sync YAML test cases → Kiwi TCMS.
 
-Reads qa/test-cases/*.yml and creates/updates:
-  - Products → MedBrains
-  - Test Plans → one per module
-  - Test Cases → one per test entry
-
 Usage:
   python3 qa/sync.py
-  python3 qa/sync.py --dry-run        # preview without writing
-  python3 qa/sync.py --module auth    # sync only one module
+  python3 qa/sync.py --dry-run
+  python3 qa/sync.py --module auth
 
-Requires:
-  pip install tcms-api pyyaml
+Requires: pip install tcms-api pyyaml
 
-Environment:
-  TCMS_API_URL=https://localhost:8443/xml-rpc/  (default)
-  TCMS_USERNAME=admin
-  TCMS_PASSWORD=admin
+Config file: ~/.tcms.conf
+  [tcms]
+  url = https://localhost:9443/xml-rpc/
+  username = admin
+  password = admin
 """
 
 import argparse
 import os
 import ssl
 import sys
-import xmlrpc.client
 import yaml
 from pathlib import Path
 
+# Allow self-signed certs (Kiwi local dev)
+ssl._create_default_https_context = ssl._create_unverified_context
+
 QA_DIR = Path(__file__).parent / "test-cases"
-
-# ── Config ──
-
-TCMS_URL = os.environ.get("TCMS_API_URL", "https://localhost:8443/xml-rpc/")
-TCMS_USER = os.environ.get("TCMS_USERNAME", "admin")
-TCMS_PASS = os.environ.get("TCMS_PASSWORD", "admin")
 PRODUCT_NAME = "MedBrains"
 PRODUCT_VERSION = "0.1.0"
 
-# ── Kiwi XML-RPC Client ──
-
-class KiwiClient:
-    def __init__(self, url, username, password):
-        # Allow self-signed certs for local dev
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        self.server = xmlrpc.client.ServerProxy(
-            url,
-            context=ctx,
-            allow_none=True,
-        )
-        self.session_id = self.server.Auth.login(username, password)
-
-    def _call(self, method, *args):
-        parts = method.split(".")
-        obj = self.server
-        for p in parts:
-            obj = getattr(obj, p)
-        return obj(*args)
-
-    # ── Product ──
-
-    def get_or_create_product(self, name):
-        products = self._call("Product.filter", {"name": name})
-        if products:
-            return products[0]["id"]
-        result = self._call("Product.create", {"name": name, "classification_id": 1})
-        return result["id"]
-
-    def get_or_create_version(self, product_id, version):
-        versions = self._call("Version.filter", {"product": product_id, "value": version})
-        if versions:
-            return versions[0]["id"]
-        result = self._call("Version.create", {"product": product_id, "value": version})
-        return result["id"]
-
-    # ── Test Plan ──
-
-    def get_or_create_plan(self, name, product_id, version_id):
-        plans = self._call("TestPlan.filter", {"name": name, "product": product_id})
-        if plans:
-            return plans[0]["id"]
-        result = self._call("TestPlan.create", {
-            "name": name,
-            "product": product_id,
-            "product_version": version_id,
-            "type": 1,  # Unit
-            "text": f"Test plan for {name}",
-        })
-        return result["id"]
-
-    # ── Test Case ──
-
-    def find_case(self, summary, plan_id):
-        cases = self._call("TestCase.filter", {"summary": summary, "plan": plan_id})
-        return cases[0] if cases else None
-
-    def create_case(self, summary, plan_id, category_id, priority_id, notes="", is_automated=False):
-        result = self._call("TestCase.create", {
-            "summary": summary,
-            "category": category_id,
-            "priority": priority_id,
-            "plan": plan_id,
-            "notes": notes,
-            "is_automated": is_automated,
-            "case_status": 2,  # CONFIRMED
-        })
-        return result
-
-    def update_case(self, case_id, notes="", is_automated=False):
-        self._call("TestCase.update", case_id, {
-            "notes": notes,
-            "is_automated": is_automated,
-        })
-
-    # ── Lookups ──
-
-    def get_categories(self, product_id):
-        return self._call("Category.filter", {"product": product_id})
-
-    def get_or_create_category(self, product_id, name):
-        cats = self._call("Category.filter", {"product": product_id, "name": name})
-        if cats:
-            return cats[0]["id"]
-        result = self._call("Category.create", {"product": product_id, "name": name})
-        return result["id"]
-
-    def get_priorities(self):
-        return self._call("Priority.filter", {})
+# Priority map: YAML priority → Kiwi priority ID
+PRIORITY_MAP = {"P0": 1, "P1": 2, "P2": 3, "P3": 4}
 
 
-# ── YAML Loader ──
+def ensure_tcms_conf():
+    """Create ~/.tcms.conf if not exists."""
+    conf_path = os.path.expanduser("~/.tcms.conf")
+    if not os.path.exists(conf_path):
+        url = os.environ.get("TCMS_API_URL", "https://localhost:9443/xml-rpc/")
+        user = os.environ.get("TCMS_USERNAME", "admin")
+        pwd = os.environ.get("TCMS_PASSWORD", "admin")
+        with open(conf_path, "w") as f:
+            f.write(f"[tcms]\nurl = {url}\nusername = {user}\npassword = {pwd}\n")
+        print(f"Created {conf_path}")
+
 
 def load_test_cases(module_filter=None):
     modules = []
@@ -147,21 +58,9 @@ def load_test_cases(module_filter=None):
     return modules
 
 
-# ── Priority Mapping ──
-
-PRIORITY_MAP = {
-    "P0": 1,  # Highest
-    "P1": 2,
-    "P2": 3,
-    "P3": 4,
-}
-
-
-# ── Main ──
-
 def main():
     parser = argparse.ArgumentParser(description="Sync YAML test cases to Kiwi TCMS")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--module", help="Sync only this module")
     args = parser.parse_args()
 
@@ -184,50 +83,82 @@ def main():
                 print(f"    [{t['id']}] {t['summary']} ({t.get('priority','?')}, {auto})")
         return
 
-    # Connect to Kiwi
-    print(f"\nConnecting to Kiwi TCMS at {TCMS_URL}...")
+    # Ensure config file exists
+    ensure_tcms_conf()
+
+    # Import tcms_api (uses ~/.tcms.conf for auth)
     try:
-        client = KiwiClient(TCMS_URL, TCMS_USER, TCMS_PASS)
+        from tcms_api import TCMS
+    except ImportError:
+        print("ERROR: tcms-api not installed. Run: pip install tcms-api")
+        sys.exit(1)
+
+    print("\nConnecting to Kiwi TCMS...")
+    try:
+        rpc = TCMS().exec
     except Exception as e:
-        print(f"ERROR: Cannot connect to Kiwi TCMS: {e}")
-        print("Make sure Kiwi is running: docker compose up kiwi")
-        print("Default creds: admin / admin (set in Kiwi UI on first run)")
+        print(f"ERROR: {e}")
+        print("Check ~/.tcms.conf or set TCMS_API_URL/USERNAME/PASSWORD env vars")
         sys.exit(1)
 
     print("Connected.")
 
-    # Setup product
-    product_id = client.get_or_create_product(PRODUCT_NAME)
-    version_id = client.get_or_create_version(product_id, PRODUCT_VERSION)
-    print(f"Product: {PRODUCT_NAME} (id={product_id}, version={version_id})")
+    # Ensure classification exists
+    classifications = rpc.Classification.filter({})
+    if classifications:
+        classification_id = classifications[0]["id"]
+    else:
+        classification_id = rpc.Classification.create({"name": "Software"})["id"]
 
-    # Get priorities
-    priorities = client.get_priorities()
-    prio_map = {p["value"]: p["id"] for p in priorities}
+    # Get or create product
+    products = rpc.Product.filter({"name": PRODUCT_NAME})
+    if products:
+        product_id = products[0]["id"]
+    else:
+        product_id = rpc.Product.create({"name": PRODUCT_NAME, "classification": classification_id})["id"]
+
+    # Get or create version
+    versions = rpc.Version.filter({"product": product_id, "value": PRODUCT_VERSION})
+    if versions:
+        version_id = versions[0]["id"]
+    else:
+        version_id = rpc.Version.create({"product": product_id, "value": PRODUCT_VERSION})["id"]
+
+    print(f"Product: {PRODUCT_NAME} (id={product_id}, version={version_id})")
 
     created = 0
     updated = 0
 
     for mod in modules:
         mod_name = mod.get("module", "unknown")
-        description = mod.get("description", "")
         tests = mod.get("tests", [])
 
-        # Create plan for module
+        # Get or create plan
         plan_name = f"MedBrains — {mod_name}"
-        plan_id = client.get_or_create_plan(plan_name, product_id, version_id)
+        plans = rpc.TestPlan.filter({"name": plan_name, "product": product_id})
+        if plans:
+            plan_id = plans[0]["id"]
+        else:
+            plan_id = rpc.TestPlan.create({
+                "name": plan_name,
+                "product": product_id,
+                "product_version": version_id,
+                "type": 1,
+                "text": mod.get("description", f"Test plan for {mod_name}"),
+            })["id"]
+
         print(f"\n  Plan: {plan_name} (id={plan_id})")
 
-        # Create category for module
-        cat_id = client.get_or_create_category(product_id, mod_name)
+        # Get or create category
+        cats = rpc.Category.filter({"product": product_id, "name": mod_name})
+        cat_id = cats[0]["id"] if cats else rpc.Category.create({"product": product_id, "name": mod_name})["id"]
 
         for test in tests:
             summary = f"[{test['id']}] {test['summary']}"
-            priority_key = test.get("priority", "P1")
-            prio_id = PRIORITY_MAP.get(priority_key, 2)
+            prio_id = PRIORITY_MAP.get(test.get("priority", "P1"), 2)
             is_auto = test.get("automated", False)
 
-            # Build notes from steps + test_file
+            # Build notes
             notes_parts = []
             if test.get("layer"):
                 notes_parts.append(f"Layer: {test['layer']}")
@@ -239,14 +170,25 @@ def main():
                     notes_parts.append(f"  {i}. {step}")
             notes = "\n".join(notes_parts)
 
-            # Check if exists
-            existing = client.find_case(summary, plan_id)
+            # Check existing
+            existing = rpc.TestCase.filter({"summary": summary, "plan": plan_id})
             if existing:
-                client.update_case(existing["id"], notes=notes, is_automated=is_auto)
+                rpc.TestCase.update(existing[0]["id"], {
+                    "notes": notes,
+                    "is_automated": is_auto,
+                })
                 updated += 1
                 print(f"    Updated: {summary}")
             else:
-                client.create_case(summary, plan_id, cat_id, prio_id, notes=notes, is_automated=is_auto)
+                rpc.TestCase.create({
+                    "summary": summary,
+                    "category": cat_id,
+                    "priority": prio_id,
+                    "plan": plan_id,
+                    "notes": notes,
+                    "is_automated": is_auto,
+                    "case_status": 2,
+                })
                 created += 1
                 print(f"    Created: {summary}")
 
