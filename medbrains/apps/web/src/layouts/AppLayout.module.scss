@@ -1,4 +1,4 @@
-// ── Activity Rail + Expanded Sidebar ──
+// ── AppLayout: Sidebar + Header — Forest + Copper polish ──
 
 // ── Navbar modes ──
 
@@ -18,6 +18,14 @@
 .navContent {
   flex: 1;
   overflow-y: auto;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--mb-text-faint);
+    border-radius: 2px;
+    &:hover { background: var(--mb-text-muted); }
+  }
 }
 
 // ── Rail items (56px collapsed mode) ──
@@ -36,14 +44,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  color: var(--mb-text-secondary);
-  transition: background 150ms ease, color 150ms ease;
+  color: var(--mb-text-muted);
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
 
   &:hover {
-    background: var(--mb-bg-content, var(--mantine-color-gray-1));
+    background: var(--mb-bg-content);
     color: var(--mb-text-primary);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 }
 
@@ -52,6 +65,7 @@
   background: var(--mantine-color-primary-0, #f3f7f5);
   color: var(--mantine-color-primary-5, #1F4332);
 
+  // Signature sidebar indicator — 3px forest pill on left edge
   &::before {
     content: "";
     position: absolute;
@@ -61,18 +75,26 @@
     width: 3px;
     border-radius: 2px;
     background: var(--mantine-color-primary-5, #1F4332);
+    animation: indicatorSlideIn 200ms ease-out;
   }
 
   &:hover {
     background: var(--mantine-color-primary-0, #f3f7f5);
     color: var(--mantine-color-primary-5, #1F4332);
+    transform: none;
   }
+}
+
+@keyframes indicatorSlideIn {
+  from { opacity: 0; transform: scaleY(0.3); }
+  to { opacity: 1; transform: scaleY(1); }
 }
 
 // ── Dividers between groups ──
 
 .railDivider {
-  opacity: 0.5;
+  opacity: 0.4;
+  margin: 4px 0;
 }
 
 // ── Expanded items (240px mode) ──
@@ -83,10 +105,12 @@
   font-weight: 500;
   font-size: 13px;
   color: var(--mb-text-secondary);
+  transition: background 120ms ease, color 120ms ease, padding-left 120ms ease;
 
   &:hover {
-    background: var(--mb-bg-content, var(--mantine-color-gray-1));
+    background: var(--mb-bg-content);
     color: var(--mb-text-primary);
+    padding-left: 2px;
   }
 }
 
@@ -99,6 +123,7 @@
   &:hover {
     background: var(--mantine-color-primary-0, #f3f7f5);
     color: var(--mantine-color-primary-5, #1F4332);
+    padding-left: 0;
   }
 }
 
@@ -110,9 +135,10 @@
   font-weight: 500;
   color: var(--mb-text-secondary);
   padding-left: 28px;
+  transition: background 120ms ease, color 120ms ease;
 
   &:hover {
-    background: var(--mb-bg-content, var(--mantine-color-gray-1));
+    background: var(--mb-bg-content);
     color: var(--mb-text-primary);
   }
 }
@@ -155,17 +181,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 8px;
-  background: var(--mb-bg-content, var(--mantine-color-gray-0));
-  border: 1px solid var(--mantine-color-gray-3, #dee2e6);
+  background: var(--mb-bg-content);
+  border: 1px solid var(--mb-border);
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
-  min-width: 200px;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  min-width: 220px;
 
   &:hover {
-    background: var(--mantine-color-gray-1, #f1f3f5);
-    border-color: var(--mantine-color-gray-4, #ced4da);
+    background: var(--mb-card-bg);
+    border-color: var(--mb-text-faint);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   }
 
   @media (max-width: 768px) {
@@ -181,6 +208,15 @@
   gap: 8px;
   cursor: pointer;
   user-select: none;
+  transition: opacity 150ms ease;
+
+  &:hover {
+    opacity: 0.85;
+  }
+
+  &:active {
+    opacity: 0.7;
+  }
 }
 
 .logoIcon {

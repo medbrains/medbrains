@@ -359,18 +359,32 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 // ── TABLES — clean, professional data display ────────────────
 // ═══════════════════════════════════════════════════════════════
 
+.mantine-Table-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .mantine-Table-th {
   background: var(--mb-table-header-bg) !important;
   color: var(--mb-text-muted) !important;
   font-weight: 600 !important;
   font-size: 11px !important;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
+  font-family: var(--font-mono, "JetBrains Mono", monospace) !important;
   border-bottom: 1px solid var(--mb-table-border) !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  white-space: nowrap;
 }
 
 .mantine-Table-tr {
-  transition: background-color 0.1s ease;
+  transition: background-color 0.12s ease;
+}
+
+.mantine-Table-td {
+  border-bottom: 1px solid var(--mb-border-subtle) !important;
+  vertical-align: middle !important;
 }
 
 .mantine-Table-tbody .mantine-Table-tr {
@@ -381,10 +395,45 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
       animation-delay: #{$i * 30}ms;
     }
   }
+
+  // Last row — no bottom border
+  &:last-child .mantine-Table-td {
+    border-bottom: none !important;
+  }
 }
 
 .mantine-Table-tbody .mantine-Table-tr:hover {
   background-color: var(--mb-table-hover) !important;
+}
+
+// ── Mono styling for IDs, codes, UHIDs in tables ──
+.mono-cell {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 12px;
+  color: var(--mb-text-muted);
+  letter-spacing: 0.02em;
+}
+
+// ── Empty table state ──
+.table-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--mb-text-muted);
+  font-size: 14px;
+  animation: fadeIn 0.3s ease;
+}
+
+// ── Table wrapper for consistent card styling ──
+.table-card {
+  overflow: hidden;
+  border-radius: var(--radius-lg, 12px);
+
+  .mantine-Table-th:first-child {
+    border-top-left-radius: var(--radius-lg, 12px);
+  }
+  .mantine-Table-th:last-child {
+    border-top-right-radius: var(--radius-lg, 12px);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
