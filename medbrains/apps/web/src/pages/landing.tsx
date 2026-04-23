@@ -19,7 +19,6 @@ import {
   IconBed,
   IconBrandGithub,
   IconBrandOpenSource,
-  IconBuildingHospital,
   IconCertificate,
   IconCheck,
   IconFlask,
@@ -275,9 +274,7 @@ export function LandingPage() {
       <nav className={classes.navbar}>
         <div className={classes.navbarInner}>
           <div className={classes.navLogo}>
-            <ThemeIcon variant="filled" size={32} radius="sm" color="primary">
-              <IconBuildingHospital size={18} stroke={2} />
-            </ThemeIcon>
+            <img src="/logo/medbrains-mark.svg" alt="" width={32} height={32} style={{ borderRadius: 6 }} />
             <span className={classes.navLogoText}>MedBrains</span>
           </div>
 
@@ -466,9 +463,7 @@ export function LandingPage() {
           <div className={classes.footerGrid}>
             <div className={classes.footerBrand}>
               <Group gap={10}>
-                <ThemeIcon variant="filled" size={28} radius="sm" color="primary">
-                  <IconBuildingHospital size={16} stroke={2} />
-                </ThemeIcon>
+                <img src="/logo/medbrains-mark.svg" alt="" width={28} height={28} style={{ borderRadius: 5 }} />
                 <span className={classes.footerBrandName}>MedBrains</span>
               </Group>
               <span className={classes.footerBrandDesc}>

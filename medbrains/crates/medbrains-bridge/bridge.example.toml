@@ -1,0 +1,24 @@
+# MedBrains Bridge Agent Configuration
+# Copy to bridge.toml and edit for your environment
+
+agent_name = "Lab Bridge - Chemistry Wing"
+agent_key = "mbr_bridge_change_me_to_a_secure_key"
+api_base = "http://127.0.0.1:3000"
+
+# SQLite buffer for offline resilience
+buffer_path = "bridge_buffer.db"
+
+# Heartbeat interval (seconds)
+heartbeat_interval_secs = 30
+
+# Buffer drain retry interval (seconds)
+drain_interval_secs = 5
+
+# HL7 MLLP listener — set to receive HL7 v2 messages from lab analyzers
+hl7_listen = "0.0.0.0:2575"
+
+# Device instance ID (from MedBrains admin → Devices → your device)
+# device_instance_id = "uuid-of-device-instance"
+
+# Deployment mode: on_premise, cloud_sidecar, embedded
+deployment_mode = "on_premise"

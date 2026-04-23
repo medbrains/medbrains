@@ -1509,3 +1509,28 @@ pub mod inventory {
     pub const DISPOSE: &str = "inventory.dispose";
     pub const APPROVE: &str = "inventory.approve";
 }
+
+pub mod devices {
+    pub const LIST: &str = "devices.list";
+    pub const VIEW: &str = "devices.view";
+    pub const CREATE: &str = "devices.create";
+    pub const UPDATE: &str = "devices.update";
+    pub const DELETE: &str = "devices.delete";
+    pub const TEST: &str = "devices.test";
+    pub const INGEST: &str = "devices.ingest";
+
+    pub mod messages {
+        pub const VIEW: &str = "devices.messages.view";
+        pub const RETRY: &str = "devices.messages.retry";
+    }
+
+    pub mod agents {
+        pub const LIST: &str = "devices.agents.list";
+        pub const MANAGE: &str = "devices.agents.manage";
+    }
+
+    pub mod catalog {
+        pub const LIST: &str = "devices.catalog.list";
+        pub const MANAGE: &str = "devices.catalog.manage";
+    }
+}

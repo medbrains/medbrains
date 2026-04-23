@@ -20,6 +20,7 @@ pub mod cds;
 pub mod consent;
 pub mod cssd;
 pub mod dashboard;
+pub mod devices;
 pub mod diet;
 pub mod documents;
 pub mod emergency;
@@ -5796,10 +5797,35 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/incentive-calculations", get(it_security::list_incentive_calculations).post(it_security::calculate_incentive))
         .route("/api/incentive-calculations/{id}/approve", post(it_security::approve_incentive))
         .route("/api/incentive-calculations/{id}/paid", post(it_security::mark_incentive_paid))
+        // ── Device Integration ───────────────────────────────────────
+        // Adapter catalog (global knowledge base)
+        .route("/api/devices/manufacturers", get(devices::list_manufacturers))
+        .route("/api/devices/catalog", get(devices::list_adapter_catalog))
+        .route("/api/devices/catalog/{adapter_code}", get(devices::get_adapter))
+        .route("/api/devices/catalog/{adapter_code}/preview-config", get(devices::preview_config))
+        // Device instances (per-tenant CRUD)
+        .route("/api/devices/instances", get(devices::list_device_instances).post(devices::create_device_instance))
+        .route("/api/devices/instances/{id}", get(devices::get_device_instance).put(devices::update_device_instance).delete(devices::decommission_device))
+        .route("/api/devices/instances/{id}/test", post(devices::test_device_connection))
+        .route("/api/devices/instances/{id}/regenerate-config", post(devices::regenerate_config))
+        .route("/api/devices/instances/{id}/messages", get(devices::list_device_messages))
+        .route("/api/devices/instances/{id}/config-history", get(devices::list_config_history))
+        // Routing rules
+        .route("/api/devices/routing-rules", get(devices::list_routing_rules).post(devices::create_routing_rule))
+        .route("/api/devices/routing-rules/{id}", put(devices::update_routing_rule).delete(devices::delete_routing_rule))
+        // Bridge agents
+        .route("/api/devices/agents", get(devices::list_bridge_agents))
+        // Device data ingest (bridge agent calls)
+        .route("/api/device-ingest/{module}", post(devices::ingest_device_data))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
         .layer(from_fn_with_state(state.clone(), client_ip_middleware));
 
-    public.merge(protected).with_state(state)
+    // ── Bridge Agent Registration (no JWT auth — uses API key) ──
+    let bridge_routes = Router::new()
+        .route("/api/bridge/register", post(devices::register_bridge_agent))
+        .route("/api/bridge/heartbeat", post(devices::bridge_heartbeat));
+
+    public.merge(protected).merge(bridge_routes).with_state(state)
 }

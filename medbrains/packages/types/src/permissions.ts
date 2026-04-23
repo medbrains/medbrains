@@ -701,6 +701,21 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "command_center.transport.list", label: "View Transport Requests", description: "View patient transport requests", module: "command_center" },
   { code: "command_center.transport.manage", label: "Manage Transport Requests", description: "Create, assign, and complete transport requests", module: "command_center" },
   { code: "command_center.discharge.view", label: "View Discharge Coordinator", description: "View pending discharges and blockers", module: "command_center" },
+
+  // Devices
+  { code: "devices.list", label: "List Devices", description: "View connected device instances", module: "devices" },
+  { code: "devices.view", label: "View Device", description: "View device details and config", module: "devices" },
+  { code: "devices.create", label: "Add Device", description: "Register a new device instance", module: "devices" },
+  { code: "devices.update", label: "Update Device", description: "Modify device configuration", module: "devices" },
+  { code: "devices.delete", label: "Decommission Device", description: "Decommission a device", module: "devices" },
+  { code: "devices.test", label: "Test Connection", description: "Test device connectivity", module: "devices" },
+  { code: "devices.ingest", label: "Ingest Data", description: "Push data from bridge agent", module: "devices" },
+  { code: "devices.messages.view", label: "View Messages", description: "View device message log", module: "devices" },
+  { code: "devices.messages.retry", label: "Retry Messages", description: "Retry failed device messages", module: "devices" },
+  { code: "devices.agents.list", label: "List Bridge Agents", description: "View registered bridge agents", module: "devices" },
+  { code: "devices.agents.manage", label: "Manage Bridge Agents", description: "Register and configure bridge agents", module: "devices" },
+  { code: "devices.catalog.list", label: "Browse Adapter Catalog", description: "Browse available device adapters", module: "devices" },
+  { code: "devices.catalog.manage", label: "Manage Adapter Catalog", description: "Add or edit adapter profiles", module: "devices" },
 ];
 
 // ── Set of all valid codes (for validation) ──────────────
@@ -1469,6 +1484,27 @@ export const P = {
     },
     DISCHARGE: {
       VIEW: "command_center.discharge.view" as const,
+    },
+  },
+  DEVICES: {
+    LIST: "devices.list" as const,
+    VIEW: "devices.view" as const,
+    CREATE: "devices.create" as const,
+    UPDATE: "devices.update" as const,
+    DELETE: "devices.delete" as const,
+    TEST: "devices.test" as const,
+    INGEST: "devices.ingest" as const,
+    MESSAGES: {
+      VIEW: "devices.messages.view" as const,
+      RETRY: "devices.messages.retry" as const,
+    },
+    AGENTS: {
+      LIST: "devices.agents.list" as const,
+      MANAGE: "devices.agents.manage" as const,
+    },
+    CATALOG: {
+      LIST: "devices.catalog.list" as const,
+      MANAGE: "devices.catalog.manage" as const,
     },
   },
 } as const;

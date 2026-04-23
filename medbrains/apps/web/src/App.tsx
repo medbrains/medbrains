@@ -82,6 +82,7 @@ const DoctorSchedulesPage = lazy(() => import("./pages/admin/doctor-schedules").
 const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
 const DocumentsPage = lazy(() => import("./pages/documents").then((m) => ({ default: m.DocumentsPage })));
+const DevicesPage = lazy(() => import("./pages/admin/devices").then((m) => ({ default: m.DevicesPage })));
 const DynamicScreenPage = lazy(() => import("./components/ScreenRenderer/DynamicScreenPage").then((m) => ({ default: m.DynamicScreenPage })));
 
 export function App() {
@@ -172,6 +173,10 @@ export function App() {
               <Route path="users" element={<UsersPage />} />
               <Route path="roles" element={<RolesPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route
+                path="device-integrations"
+                element={<Navigate to="/admin/settings#device-integrations" replace />}
+              />
               <Route path="modules" element={<DynamicScreenPage screenCode="admin-modules" />} />
               <Route path="locations" element={<DynamicScreenPage screenCode="admin-locations" />} />
               <Route path="form-builder" element={<FormBuilderPage />} />
@@ -185,6 +190,7 @@ export function App() {
               <Route path="tv-displays" element={<TvDisplaysPage />} />
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />
+              <Route path="devices" element={<DevicesPage />} />
             </Route>
 
             {/* Dynamic screen routing — screens defined in Screen Builder */}

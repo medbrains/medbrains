@@ -37,6 +37,7 @@ pub mod consultation;
 pub mod cssd;
 pub mod dashboard;
 pub mod diet;
+pub mod device;
 pub mod document;
 pub mod department;
 pub mod emergency;

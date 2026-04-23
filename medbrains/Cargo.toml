@@ -6,6 +6,8 @@ members = [
     "crates/medbrains-db",
     "crates/medbrains-yottadb",
     "crates/medbrains-loadtest",
+    "crates/medbrains-adapter-sdk",
+    "crates/medbrains-bridge",
 ]
 
 [workspace.package]
