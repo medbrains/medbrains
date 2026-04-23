@@ -69,3 +69,9 @@ apps/web/playwright-report/
 
 # Generated smoke tests (regenerate via: make generate-smoke)
 apps/web/e2e/smoke/*.smoke.spec.ts
+# Allure Report (generated)
+qa/allure-results/
+qa/allure-report/
+
+qa/allure-*/
+qa/kiwi-results/

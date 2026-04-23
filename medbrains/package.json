@@ -13,6 +13,8 @@
   },
   "packageManager": "pnpm@10.30.3",
   "devDependencies": {
+    "allure": "^3.6.2",
+    "allure-vitest": "^3.7.1",
     "turbo": "^2.8.14"
   }
 }

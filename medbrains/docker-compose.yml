@@ -37,6 +37,40 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Kiwi TCMS (Test Case Management) ──
+  kiwi_db:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: kiwi
+      MYSQL_DATABASE: kiwi
+      MYSQL_USER: kiwi
+      MYSQL_PASSWORD: kiwi
+    volumes:
+      - kiwi_dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kiwi:
+    image: kiwitcms/kiwi:latest
+    ports:
+      - "9443:8443"
+    environment:
+      KIWI_DB_HOST: kiwi_db
+      KIWI_DB_PORT: "3306"
+      KIWI_DB_NAME: kiwi
+      KIWI_DB_USER: kiwi
+      KIWI_DB_PASSWORD: kiwi
+    depends_on:
+      kiwi_db:
+        condition: service_healthy
+    volumes:
+      - kiwi_uploads:/Kiwi/uploads
+
 volumes:
   pgdata:
   yottadata:
+  kiwi_dbdata:
+  kiwi_uploads:

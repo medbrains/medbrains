@@ -21,6 +21,7 @@
     "@medbrains/utils": "workspace:*"
   },
   "devDependencies": {
+    "allure-vitest": "^3.7.1",
     "vitest": "^4.0.18"
   }
 }

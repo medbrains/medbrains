@@ -1,0 +1,43 @@
+{
+  "name": "@qa/kiwi-reporter",
+  "version": "1.0.0",
+  "description": "Playwright reporter that pushes test results to Kiwi TCMS via XML-RPC",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./playwright": {
+      "import": "./dist/playwright-reporter.js",
+      "types": "./dist/playwright-reporter.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "xmlrpc": "^1.3.2",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/xmlrpc": "^1.3.0",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "UNLICENSED",
+  "private": true
+}

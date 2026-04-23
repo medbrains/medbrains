@@ -1,0 +1,12 @@
+module: Pharmacy
+plan: Pharmacy & Dispensing
+category: Clinical
+cases:
+  - summary: Dispense prescription
+    priority: High
+    automated: true
+    steps:
+      - action: Navigate to /pharmacy, select pending prescription
+        expected: Prescription details with drug list
+      - action: Click Dispense
+        expected: Stock decremented, prescription marked dispensed

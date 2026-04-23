@@ -19,6 +19,7 @@ test.describe("OPD Visit Flow", () => {
   });
 
   test("should create a new OPD encounter for a patient", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "OPD::Create new OPD visit" });
     await navigateTo(page, "/opd");
 
     // TODO: Navigate to /opd

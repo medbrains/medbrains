@@ -1,0 +1,51 @@
+module: Load Testing
+plan: Performance & Load
+category: Infrastructure
+cases:
+  - summary: Health check endpoint under load
+    priority: Medium
+    automated: true
+    notes: "Goose scenario: HealthCheck (weight 2)"
+    steps:
+      - action: 200 concurrent users hitting GET /api/health for 60s
+        expected: p95 < 50ms, zero errors
+
+  - summary: Auth flow under load
+    priority: Medium
+    automated: true
+    notes: "Goose scenario: AuthFlow (weight 3)"
+    steps:
+      - action: 100 concurrent users doing login → /me → logout
+        expected: p95 < 500ms, zero 500 errors
+
+  - summary: Patient browse under load
+    priority: High
+    automated: true
+    notes: "Goose scenario: PatientBrowse (weight 5)"
+    steps:
+      - action: 100 concurrent users listing + searching patients
+        expected: p95 < 500ms, zero 500 errors
+
+  - summary: Patient registration under load
+    priority: Medium
+    automated: true
+    notes: "Goose scenario: PatientRegistration (weight 2)"
+    steps:
+      - action: 50 concurrent users creating patients
+        expected: All UHIDs unique, p95 < 1000ms
+
+  - summary: Dashboard under load
+    priority: Medium
+    automated: true
+    notes: "Goose scenario: DashboardOverview (weight 3)"
+    steps:
+      - action: 100 concurrent users loading dashboard data
+        expected: p95 < 500ms
+
+  - summary: Master data reads under load
+    priority: Low
+    automated: true
+    notes: "Goose scenario: MasterDataReads (weight 1)"
+    steps:
+      - action: 50 concurrent users reading master data endpoints
+        expected: p95 < 200ms

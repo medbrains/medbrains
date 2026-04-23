@@ -68,6 +68,8 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.0.18",
+    "allure-playwright": "^3.7.1",
+    "allure-vitest": "^3.7.1",
     "jsdom": "^28.1.0",
     "postcss": "^8.5.8",
     "postcss-preset-mantine": "^1.17.0",

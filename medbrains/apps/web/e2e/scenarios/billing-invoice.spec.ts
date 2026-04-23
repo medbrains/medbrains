@@ -19,6 +19,7 @@ test.describe("Billing Invoice Flow", () => {
   });
 
   test("should create a new invoice", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "Billing::Generate OPD invoice" });
     await navigateTo(page, "/billing");
 
     // TODO: Navigate to /billing

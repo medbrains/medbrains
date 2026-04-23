@@ -6,7 +6,14 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: process.env.CI ? "github" : "html",
+  reporter: [
+    // Always generate Allure results
+    ["allure-playwright", { outputFolder: "../../qa/allure-results" }],
+    // Plus: GitHub annotations in CI, HTML locally
+    ...(process.env.CI
+      ? [["github" as const]]
+      : [["html" as const]]),
+  ],
   timeout: 30_000,
   expect: { timeout: 10_000 },
 

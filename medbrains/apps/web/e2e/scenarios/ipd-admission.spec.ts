@@ -19,6 +19,7 @@ test.describe("IPD Admission Flow", () => {
   });
 
   test("should admit a patient", async ({ page }) => {
+    test.info().annotations.push({ type: "tcms", description: "IPD::Admit patient to IPD" });
     await navigateTo(page, "/ipd");
 
     // TODO: Navigate to /ipd

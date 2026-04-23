@@ -1,0 +1,85 @@
+module: Authentication
+plan: Auth & Session Management
+category: Security
+cases:
+  - summary: Login with valid credentials
+    priority: High
+    automated: true
+    preconditions: Admin user seeded (admin/admin123)
+    steps:
+      - action: POST /api/auth/login with username=admin, password=admin123
+        expected: 200 OK with user object containing role=super_admin
+      - action: Check response cookies
+        expected: access_token, refresh_token, csrf cookies are set
+
+  - summary: Login with wrong password
+    priority: High
+    automated: true
+    steps:
+      - action: POST /api/auth/login with username=admin, password=wrong
+        expected: 401 Unauthorized
+
+  - summary: Login with nonexistent user
+    priority: High
+    automated: true
+    steps:
+      - action: POST /api/auth/login with username=nobody, password=test
+        expected: 401 Unauthorized
+
+  - summary: Access protected endpoint without auth
+    priority: High
+    automated: true
+    steps:
+      - action: GET /api/patients without cookies
+        expected: 401 Unauthorized
+
+  - summary: Get current user info via /me
+    priority: High
+    automated: true
+    preconditions: Authenticated as admin
+    steps:
+      - action: GET /api/auth/me with valid cookies
+        expected: 200 with user info, permissions array, field_access
+
+  - summary: Login page renders split-screen layout
+    priority: High
+    automated: false
+    steps:
+      - action: Navigate to /login
+        expected: Split-screen with dark forest manifesto panel (desktop)
+      - action: Check form panel
+        expected: Username, password fields, Sign In button, dev creds toggle
+
+  - summary: Login and redirect to dashboard
+    priority: High
+    automated: false
+    steps:
+      - action: Navigate to /login
+        expected: Login form visible
+      - action: Fill username=admin, password=admin123, click Sign In
+        expected: Redirect to /dashboard
+
+  - summary: CSRF token required on mutations
+    priority: Medium
+    automated: false
+    steps:
+      - action: Login to get cookies
+        expected: CSRF cookie set
+      - action: POST /api/patients without x-csrf-token header
+        expected: 403 Forbidden
+
+  - summary: Refresh token rotation
+    priority: Medium
+    automated: false
+    steps:
+      - action: Login to get refresh token
+        expected: refresh_token cookie set
+      - action: POST /api/auth/refresh
+        expected: New access + refresh tokens, old refresh revoked
+
+  - summary: Concurrent session limit (max 5)
+    priority: Low
+    automated: false
+    steps:
+      - action: Login 6 times from different clients
+        expected: Oldest session's refresh token revoked

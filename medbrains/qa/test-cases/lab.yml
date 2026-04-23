@@ -1,0 +1,26 @@
+module: Lab
+plan: Laboratory & LIS
+category: Diagnostics
+cases:
+  - summary: Create lab order
+    priority: High
+    automated: true
+    steps:
+      - action: Navigate to /lab, click New Order
+        expected: Order form with test selection
+      - action: Select patient, add tests (CBC, BMP), submit
+        expected: Order created with sample barcode
+
+  - summary: Enter lab results
+    priority: High
+    automated: false
+    steps:
+      - action: Open pending order, enter values for each parameter
+        expected: Values saved, flags calculated (normal/high/low)
+
+  - summary: Lab result from device ingest
+    priority: High
+    automated: true
+    steps:
+      - action: Bridge sends HL7 ORU with sample barcode matching lab order
+        expected: lab_result created automatically, order status=processing
