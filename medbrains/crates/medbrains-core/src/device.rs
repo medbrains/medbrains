@@ -436,3 +436,135 @@ pub struct DeviceIngestRequest {
     pub mapped_data: serde_json::Value,
     pub processing_duration_ms: Option<i32>,
 }
+
+// ═══════════════════════════════════════════════════════════════
+// ── Tests ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_adapter(verified: bool, quirks: serde_json::Value) -> DeviceAdapterCatalogRow {
+        DeviceAdapterCatalogRow {
+            id: Uuid::new_v4(),
+            adapter_code: "test_device".to_owned(),
+            manufacturer: "Test Corp".to_owned(),
+            manufacturer_code: "test".to_owned(),
+            model: "Model X".to_owned(),
+            model_code: "model_x".to_owned(),
+            device_category: "lab_chemistry".to_owned(),
+            device_subcategory: Some("clinical chemistry".to_owned()),
+            data_direction: "producer".to_owned(),
+            protocol: "hl7_v2".to_owned(),
+            transport: "tcp".to_owned(),
+            default_port: Some(2575),
+            default_baud_rate: None,
+            default_config: serde_json::json!({"timeout_ms": 5000}),
+            field_mappings: serde_json::json!([
+                {"device_field": "OBX.5", "target": "lab_results.value", "type": "numeric"}
+            ]),
+            data_transforms: serde_json::json!([]),
+            qc_recommendations: serde_json::json!({"westgard": true}),
+            known_quirks: quirks,
+            supported_tests: serde_json::json!(["CBC", "BMP"]),
+            adapter_version: "1.0.0".to_owned(),
+            sdk_version: "0.1.0".to_owned(),
+            wasm_hash: None,
+            wasm_size_bytes: None,
+            is_verified: verified,
+            contributed_by: "medbrains".to_owned(),
+            documentation_url: None,
+            is_active: true,
+        }
+    }
+
+    #[test]
+    fn generate_config_verified_high_confidence() {
+        let adapter = mock_adapter(true, serde_json::json!([]));
+        let config = generate_device_config(&adapter, Some("CHEM"));
+
+        assert_eq!(config.confidence, 0.95);
+        assert!(config.suggested_name.contains("Test Corp"));
+        assert!(config.suggested_name.contains("CHEM"));
+        assert!(config.suggested_code.contains("MODEL_X"));
+        assert!(config.warnings.is_empty() || config.warnings.iter().all(|w| !w.contains("not been verified")));
+    }
+
+    #[test]
+    fn generate_config_unverified_lower_confidence() {
+        let adapter = mock_adapter(false, serde_json::json!([]));
+        let config = generate_device_config(&adapter, None);
+
+        assert_eq!(config.confidence, 0.7);
+        assert!(config.warnings.iter().any(|w| w.contains("not been verified")));
+    }
+
+    #[test]
+    fn generate_config_applies_quirks() {
+        let quirks = serde_json::json!([
+            {
+                "id": "crlf_fix",
+                "description": "Uses CR instead of CRLF",
+                "auto_fix": true,
+                "config": {"segment_terminator": "\\r"}
+            },
+            {
+                "id": "manual_quirk",
+                "description": "Needs manual intervention",
+                "auto_fix": false,
+                "config": {"something": true}
+            }
+        ]);
+        let adapter = mock_adapter(true, quirks);
+        let config = generate_device_config(&adapter, None);
+
+        // Only auto_fix quirks should be applied
+        assert_eq!(config.applied_quirks.len(), 1);
+        assert_eq!(config.applied_quirks[0], "crlf_fix");
+
+        // Config should have the quirk override merged
+        let proto = config.protocol_config.as_object().unwrap();
+        assert_eq!(proto.get("segment_terminator").unwrap(), "\\r");
+        // Original config preserved
+        assert_eq!(proto.get("timeout_ms").unwrap(), 5000);
+    }
+
+    #[test]
+    fn generate_config_sets_default_port() {
+        let adapter = mock_adapter(true, serde_json::json!([]));
+        let config = generate_device_config(&adapter, None);
+
+        assert_eq!(config.default_port, Some(2575));
+        let proto = config.protocol_config.as_object().unwrap();
+        assert_eq!(proto.get("port").unwrap(), 2575);
+    }
+
+    #[test]
+    fn generate_config_copies_field_mappings() {
+        let adapter = mock_adapter(true, serde_json::json!([]));
+        let config = generate_device_config(&adapter, None);
+
+        let mappings = config.field_mappings.as_array().unwrap();
+        assert_eq!(mappings.len(), 1);
+        assert_eq!(mappings[0]["device_field"], "OBX.5");
+    }
+
+    #[test]
+    fn generate_config_no_department_code() {
+        let adapter = mock_adapter(true, serde_json::json!([]));
+        let config = generate_device_config(&adapter, None);
+
+        assert!(config.suggested_name.contains("GEN"));
+        assert!(config.suggested_code.contains("GEN"));
+    }
+
+    #[test]
+    fn generate_config_empty_quirks_no_warning() {
+        let adapter = mock_adapter(true, serde_json::json!([]));
+        let config = generate_device_config(&adapter, None);
+
+        // No "quirk(s) auto-applied" warning when quirks list is empty
+        assert!(config.applied_quirks.is_empty());
+    }
+}

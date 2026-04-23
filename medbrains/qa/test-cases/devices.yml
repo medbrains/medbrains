@@ -1,0 +1,128 @@
+module: devices
+description: Device integration — adapter catalog, instances, routing, bridge agents
+tests:
+  - id: DEV-001
+    summary: List adapter catalog returns seeded devices
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "crates/medbrains-server/tests/devices_test.rs::test_list_catalog"
+    steps:
+      - GET /api/devices/catalog
+      - Assert 200
+      - Assert array contains roche_cobas_6000, sysmex_xn1000
+
+  - id: DEV-002
+    summary: Search adapter catalog by manufacturer
+    layer: api
+    priority: P1
+    automated: true
+    test_file: "crates/medbrains-server/tests/devices_test.rs::test_search_catalog"
+    steps:
+      - GET /api/devices/catalog?q=roche
+      - Assert all results have manufacturer_code=roche
+
+  - id: DEV-003
+    summary: Filter catalog by category
+    layer: api
+    priority: P1
+    automated: true
+    steps:
+      - GET /api/devices/catalog?category=lab_hematology
+      - Assert all results have device_category=lab_hematology
+
+  - id: DEV-004
+    summary: Preview AI auto-config for known adapter
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "crates/medbrains-server/tests/devices_test.rs::test_preview_config"
+    steps:
+      - GET /api/devices/catalog/roche_cobas_6000/preview-config
+      - Assert confidence > 0.9
+      - Assert field_mappings not empty
+      - Assert default_port = 2575
+
+  - id: DEV-005
+    summary: Create device instance with AI auto-config
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "crates/medbrains-server/tests/devices_test.rs::test_create_device"
+    steps:
+      - POST /api/devices/instances with adapter_code=roche_cobas_6000
+      - Assert 200
+      - Assert ai_confidence > 0
+      - Assert config_source = ai_auto
+
+  - id: DEV-006
+    summary: List device instances
+    layer: api
+    priority: P0
+    automated: true
+    steps:
+      - GET /api/devices/instances
+      - Assert 200 array
+
+  - id: DEV-007
+    summary: Update device hostname/port
+    layer: api
+    priority: P1
+    automated: false
+    steps:
+      - PUT /api/devices/instances/{id} with hostname + port
+      - Assert updated values persisted
+
+  - id: DEV-008
+    summary: Decommission device
+    layer: api
+    priority: P1
+    automated: false
+    steps:
+      - DELETE /api/devices/instances/{id}
+      - Assert status = decommissioned
+
+  - id: DEV-009
+    summary: Device data ingest stores message
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "crates/medbrains-server/tests/devices_test.rs::test_ingest"
+    steps:
+      - POST /api/device-ingest/lab with simulated HL7 data
+      - Assert message stored in device_messages
+      - Assert device.message_count_24h incremented
+
+  - id: DEV-010
+    summary: Device data ingest routes to lab_results
+    layer: api
+    priority: P0
+    automated: false
+    steps:
+      - Create lab_order with sample_barcode
+      - POST /api/device-ingest/lab with matching barcode
+      - Assert lab_result created
+      - Assert order status = processing
+
+  - id: DEV-011
+    summary: Create routing rule
+    layer: api
+    priority: P1
+    automated: false
+    steps:
+      - POST /api/devices/routing-rules
+      - Assert rule created with correct target_module
+
+  - id: DEV-012
+    summary: Add Device wizard UI flow
+    layer: e2e
+    priority: P0
+    automated: false
+    steps:
+      - Navigate to /admin/devices
+      - Click Add Device
+      - Select adapter from catalog
+      - Review AI config (confidence badge visible)
+      - Fill hostname/port
+      - Save device
+      - Assert device appears in list

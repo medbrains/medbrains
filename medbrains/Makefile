@@ -3,6 +3,7 @@
        check check-backend check-frontend lint check-api \
        check-ui-api check-types check-all \
        smoke-test e2e-test generate-smoke generate-e2e \
+       test-rust test-unit test-ts test-all test-coverage \
        clean logs db-shell seed
 
 # Default
@@ -113,3 +114,21 @@ seed: db ## Start db and run backend (triggers auto-seed)
 	@sleep 5
 	@kill $$! 2>/dev/null || true
 	@echo "Seed complete. Default login: admin / admin123"
+
+# ── Testing ─────────────────────────────────────────────────
+
+test-rust: ## Run all Rust tests (unit + integration)
+	cargo test --workspace
+
+test-unit: ## Run Rust unit tests only (no DB needed)
+	cargo test -p medbrains-adapter-sdk
+	cargo test -p medbrains-core
+
+test-ts: ## Run TypeScript unit tests (Vitest)
+	pnpm run test
+
+test-all: check-all test-rust test-ts ## Run everything: static checks + all tests
+	@echo "All tests passed."
+
+test-coverage: ## Show QA coverage report from YAML registry
+	python3 qa/coverage-report.py

@@ -1,0 +1,94 @@
+module: patients
+description: Patient registration, search, UHID generation, demographics
+tests:
+  - id: PAT-001
+    summary: Register new patient with full demographics
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "apps/web/e2e/scenarios/patient-registration.spec.ts"
+    steps:
+      - POST /api/patients with full demographic data
+      - Assert 201
+      - Assert UHID generated
+
+  - id: PAT-002
+    summary: Search patients by name
+    layer: api
+    priority: P0
+    automated: true
+    test_file: "apps/web/e2e/smoke/patients.smoke.spec.ts"
+    steps:
+      - GET /api/patients?search=Kumar
+      - Assert matching patients returned
+
+  - id: PAT-003
+    summary: Get patient by ID
+    layer: api
+    priority: P0
+    automated: true
+    steps:
+      - GET /api/patients/{id}
+      - Assert 200 with full patient record
+
+  - id: PAT-004
+    summary: Update patient demographics
+    layer: api
+    priority: P1
+    automated: false
+    steps:
+      - PUT /api/patients/{id} with updated phone/address
+      - Assert changes persisted
+
+  - id: PAT-005
+    summary: Patient list pagination
+    layer: api
+    priority: P1
+    automated: false
+    steps:
+      - GET /api/patients?page=1&per_page=10
+      - Assert max 10 results
+      - Assert meta.total_count present
+
+  - id: PAT-006
+    summary: Duplicate UHID prevention
+    layer: api
+    priority: P0
+    automated: false
+    steps:
+      - Register two patients
+      - Assert different UHIDs assigned
+
+  - id: PAT-007
+    summary: Patient registration form UI
+    layer: e2e
+    priority: P0
+    automated: true
+    test_file: "apps/web/e2e/scenarios/patient-registration.spec.ts"
+    steps:
+      - Navigate to /patients
+      - Click Register Patient
+      - Fill required fields
+      - Submit
+      - Assert success notification
+
+  - id: PAT-008
+    summary: Patient search in table
+    layer: e2e
+    priority: P1
+    automated: false
+    steps:
+      - Navigate to /patients
+      - Type in search box
+      - Assert table filters in real-time
+
+  - id: PAT-009
+    summary: Patient list under load (100 concurrent users)
+    layer: load
+    priority: P2
+    automated: true
+    test_file: "crates/medbrains-loadtest/src/main.rs::PatientBrowse"
+    steps:
+      - 100 concurrent users querying /api/patients
+      - Assert p95 < 500ms
+      - Assert zero 500 errors
