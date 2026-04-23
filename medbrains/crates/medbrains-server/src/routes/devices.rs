@@ -742,12 +742,13 @@ pub async fn ingest_device_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &device.tenant_id).await?;
 
+    // Store message
     let msg_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO device_messages \
          (tenant_id, device_instance_id, direction, protocol, \
           parsed_payload, mapped_data, processing_status, target_module, \
           processing_duration_ms) \
-         VALUES ($1, $2, 'inbound', $3, $4, $5, 'delivered', $6, $7) RETURNING id",
+         VALUES ($1, $2, 'inbound', $3, $4, $5, 'received', $6, $7) RETURNING id",
     )
     .bind(device.tenant_id)
     .bind(body.device_instance_id)
@@ -759,16 +760,189 @@ pub async fn ingest_device_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Update device stats
     sqlx::query("UPDATE device_instances SET last_message_at = now(), message_count_24h = message_count_24h + 1 WHERE id = $1")
         .bind(body.device_instance_id)
         .execute(&mut *tx)
         .await?;
 
+    // ── Route data based on module ──
+    let mut routed_entity_id: Option<Uuid> = None;
+    let mut route_status = "delivered";
+
+    if module == "lab" {
+        match route_lab_data(&mut tx, device.tenant_id, &body.mapped_data).await {
+            Ok(ids) => {
+                routed_entity_id = ids.first().copied();
+                tracing::info!(results = ids.len(), "lab results created from device data");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "lab routing failed — message stored for manual review");
+                route_status = "mapped"; // stored but not fully routed
+            }
+        }
+    }
+    // Future: module == "vitals", "radiology", etc.
+
+    // Update message status + target entity
+    sqlx::query(
+        "UPDATE device_messages SET processing_status = $2::device_message_status, target_entity_id = $3 WHERE id = $1",
+    )
+    .bind(msg_id)
+    .bind(route_status)
+    .bind(routed_entity_id)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(serde_json::json!({
-        "status": "delivered",
+        "status": route_status,
         "message_id": msg_id,
         "module": module,
+        "routed_entity_id": routed_entity_id,
     })))
+}
+
+/// Route lab device data: extract OBX results, match to lab_order by sample barcode, create lab_results.
+async fn route_lab_data(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    mapped_data: &serde_json::Value,
+) -> Result<Vec<Uuid>, AppError> {
+    // Extract identifiers from mapped data
+    let identifiers = mapped_data.get("identifiers").unwrap_or(mapped_data);
+    let sample_barcode = identifiers
+        .get("sample_barcode").or_else(|| identifiers.get("order_id"))
+        .and_then(serde_json::Value::as_str);
+    let patient_id_str = identifiers.get("patient_id").and_then(serde_json::Value::as_str);
+
+    // Find matching lab order
+    let order_id: Option<Uuid> = if let Some(barcode) = sample_barcode {
+        sqlx::query_scalar("SELECT id FROM lab_orders WHERE sample_barcode = $1 AND tenant_id = $2 LIMIT 1")
+            .bind(barcode)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?
+    } else if let Some(pid) = patient_id_str {
+        // Fallback: find most recent pending order for this patient
+        sqlx::query_scalar(
+            "SELECT id FROM lab_orders WHERE patient_id = (SELECT id FROM patients WHERE uhid = $1 AND tenant_id = $2 LIMIT 1) \
+             AND status IN ('ordered', 'sample_collected', 'processing') \
+             ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(pid)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+    } else {
+        None
+    };
+
+    let order_id = order_id.ok_or_else(|| {
+        AppError::BadRequest(format!(
+            "No matching lab order found for barcode={} patient={}",
+            sample_barcode.unwrap_or("none"),
+            patient_id_str.unwrap_or("none"),
+        ))
+    })?;
+
+    // Extract OBX results from fields
+    let fields = mapped_data.get("fields").unwrap_or(mapped_data);
+    let mut created_ids = Vec::new();
+
+    // Strategy 1: structured OBX array
+    if let Some(serde_json::Value::Array(obx_list)) = mapped_data.get("results") {
+        for obx in obx_list {
+            let name = obx.get("test_code").or_else(|| obx.get("name"))
+                .and_then(serde_json::Value::as_str).unwrap_or("Unknown");
+            let value = obx.get("value").and_then(serde_json::Value::as_str).unwrap_or("");
+            let unit = obx.get("unit").and_then(serde_json::Value::as_str);
+            let range = obx.get("reference_range").and_then(serde_json::Value::as_str);
+            let flag_str = obx.get("abnormal_flag").and_then(serde_json::Value::as_str);
+
+            let flag = map_hl7_flag(flag_str);
+
+            let result_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, normal_range, flag) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag) RETURNING id",
+            )
+            .bind(tenant_id)
+            .bind(order_id)
+            .bind(name)
+            .bind(value)
+            .bind(unit)
+            .bind(range)
+            .bind(flag)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            created_ids.push(result_id);
+        }
+    }
+
+    // Strategy 2: flat HL7 fields — scan for OBX.* patterns
+    if created_ids.is_empty() {
+        if let serde_json::Value::Object(map) = fields {
+            // Find all OBX segments by looking for OBX.3 (test identifier) fields
+            let mut obx_indices: Vec<String> = Vec::new();
+            for key in map.keys() {
+                if key.starts_with("OBX.3") {
+                    obx_indices.push(key.clone());
+                }
+            }
+
+            // For simple single-OBX messages, OBX.3 = test code, OBX.5 = value
+            if obx_indices.is_empty() {
+                // Try direct OBX fields
+                if let (Some(test_code), Some(value)) = (
+                    map.get("OBX.3").and_then(serde_json::Value::as_str),
+                    map.get("OBX.5").and_then(serde_json::Value::as_str),
+                ) {
+                    let unit = map.get("OBX.6").and_then(serde_json::Value::as_str);
+                    let range = map.get("OBX.7").and_then(serde_json::Value::as_str);
+                    let flag_str = map.get("OBX.8").and_then(serde_json::Value::as_str);
+
+                    let result_id = sqlx::query_scalar::<_, Uuid>(
+                        "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, normal_range, flag) \
+                         VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag) RETURNING id",
+                    )
+                    .bind(tenant_id)
+                    .bind(order_id)
+                    .bind(test_code)
+                    .bind(value)
+                    .bind(unit)
+                    .bind(range)
+                    .bind(map_hl7_flag(flag_str))
+                    .fetch_one(&mut **tx)
+                    .await?;
+
+                    created_ids.push(result_id);
+                }
+            }
+        }
+    }
+
+    // Update order status to 'processing' if results were created
+    if !created_ids.is_empty() {
+        sqlx::query("UPDATE lab_orders SET status = 'processing' WHERE id = $1 AND status IN ('ordered', 'sample_collected')")
+            .bind(order_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+
+    Ok(created_ids)
+}
+
+/// Map HL7 abnormal flag codes to lab_result_flag enum values.
+fn map_hl7_flag(flag: Option<&str>) -> &'static str {
+    match flag {
+        Some("H") | Some("HH") => "high",
+        Some("L") | Some("LL") => "low",
+        Some("A") | Some("AA") => "abnormal",
+        Some("N") | Some("") | None => "normal",
+        Some("HU") => "critical_high",
+        Some("LU") => "critical_low",
+        _ => "normal",
+    }
 }
