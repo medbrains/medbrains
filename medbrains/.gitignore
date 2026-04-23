@@ -73,3 +73,5 @@ apps/web/e2e/smoke/*.smoke.spec.ts
 qa/allure-results/
 qa/allure-report/
 
+qa/allure-*/
+qa/kiwi-results/
