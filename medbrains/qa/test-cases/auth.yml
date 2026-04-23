@@ -1,109 +1,85 @@
-module: auth
-description: Authentication, session management, CSRF, permissions
-tests:
-  - id: AUTH-001
-    summary: Login with valid credentials
-    layer: api
-    priority: P0
+module: Authentication
+plan: Auth & Session Management
+category: Security
+cases:
+  - summary: Login with valid credentials
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/auth_test.rs::test_login_valid"
+    preconditions: Admin user seeded (admin/admin123)
     steps:
-      - POST /api/auth/login with admin/admin123
-      - Assert 200
-      - Assert body.user.role = super_admin
-      - Assert Set-Cookie headers contain access_token + refresh_token + csrf
+      - action: POST /api/auth/login with username=admin, password=admin123
+        expected: 200 OK with user object containing role=super_admin
+      - action: Check response cookies
+        expected: access_token, refresh_token, csrf cookies are set
 
-  - id: AUTH-002
-    summary: Login with wrong password
-    layer: api
-    priority: P0
+  - summary: Login with wrong password
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/auth_test.rs::test_login_invalid"
     steps:
-      - POST /api/auth/login with admin/wrong_password
-      - Assert 401 unauthorized
+      - action: POST /api/auth/login with username=admin, password=wrong
+        expected: 401 Unauthorized
 
-  - id: AUTH-003
-    summary: Login with nonexistent user
-    layer: api
-    priority: P0
+  - summary: Login with nonexistent user
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/auth_test.rs::test_login_no_user"
     steps:
-      - POST /api/auth/login with noone/password
-      - Assert 401 unauthorized
+      - action: POST /api/auth/login with username=nobody, password=test
+        expected: 401 Unauthorized
 
-  - id: AUTH-004
-    summary: Access protected endpoint without auth
-    layer: api
-    priority: P0
+  - summary: Access protected endpoint without auth
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/auth_test.rs::test_protected_no_auth"
     steps:
-      - GET /api/patients without cookies
-      - Assert 401
+      - action: GET /api/patients without cookies
+        expected: 401 Unauthorized
 
-  - id: AUTH-005
-    summary: /me returns current user info
-    layer: api
-    priority: P0
+  - summary: Get current user info via /me
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/auth_test.rs::test_me_endpoint"
+    preconditions: Authenticated as admin
     steps:
-      - Login as admin
-      - GET /api/auth/me with cookies
-      - Assert 200, body contains user info + permissions
+      - action: GET /api/auth/me with valid cookies
+        expected: 200 with user info, permissions array, field_access
 
-  - id: AUTH-006
-    summary: Login page renders split-screen
-    layer: e2e
-    priority: P0
-    automated: true
-    test_file: "apps/web/e2e/scenarios/auth.spec.ts::login page renders"
-    steps:
-      - Navigate to /login
-      - Assert manifesto panel visible (desktop)
-      - Assert form with username/password fields
-      - Assert dev credentials toggle
-
-  - id: AUTH-007
-    summary: Login flow end-to-end
-    layer: e2e
-    priority: P0
-    automated: true
-    test_file: "apps/web/e2e/scenarios/auth.spec.ts::login and redirect"
-    steps:
-      - Navigate to /login
-      - Fill username=admin, password=admin123
-      - Click Sign In
-      - Assert redirect to /dashboard
-
-  - id: AUTH-008
-    summary: CSRF token required on mutations
-    layer: api
-    priority: P1
+  - summary: Login page renders split-screen layout
+    priority: High
     automated: false
     steps:
-      - Login to get cookies
-      - POST /api/patients without x-csrf-token header
-      - Assert 403 CSRF error
+      - action: Navigate to /login
+        expected: Split-screen with dark forest manifesto panel (desktop)
+      - action: Check form panel
+        expected: Username, password fields, Sign In button, dev creds toggle
 
-  - id: AUTH-009
-    summary: Refresh token rotation
-    layer: api
-    priority: P1
+  - summary: Login and redirect to dashboard
+    priority: High
     automated: false
     steps:
-      - Login to get refresh token
-      - POST /api/auth/refresh with refresh token
-      - Assert new access + refresh tokens issued
-      - Assert old refresh token revoked
+      - action: Navigate to /login
+        expected: Login form visible
+      - action: Fill username=admin, password=admin123, click Sign In
+        expected: Redirect to /dashboard
 
-  - id: AUTH-010
-    summary: Concurrent session limit (max 5)
-    layer: api
-    priority: P2
+  - summary: CSRF token required on mutations
+    priority: Medium
     automated: false
     steps:
-      - Login 6 times from different sessions
-      - Assert oldest session revoked
+      - action: Login to get cookies
+        expected: CSRF cookie set
+      - action: POST /api/patients without x-csrf-token header
+        expected: 403 Forbidden
+
+  - summary: Refresh token rotation
+    priority: Medium
+    automated: false
+    steps:
+      - action: Login to get refresh token
+        expected: refresh_token cookie set
+      - action: POST /api/auth/refresh
+        expected: New access + refresh tokens, old refresh revoked
+
+  - summary: Concurrent session limit (max 5)
+    priority: Low
+    automated: false
+    steps:
+      - action: Login 6 times from different clients
+        expected: Oldest session's refresh token revoked

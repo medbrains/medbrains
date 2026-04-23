@@ -1,94 +1,69 @@
-module: patients
-description: Patient registration, search, UHID generation, demographics
-tests:
-  - id: PAT-001
-    summary: Register new patient with full demographics
-    layer: api
-    priority: P0
-    automated: true
-    test_file: "apps/web/e2e/scenarios/patient-registration.spec.ts"
-    steps:
-      - POST /api/patients with full demographic data
-      - Assert 201
-      - Assert UHID generated
-
-  - id: PAT-002
-    summary: Search patients by name
-    layer: api
-    priority: P0
-    automated: true
-    test_file: "apps/web/e2e/smoke/patients.smoke.spec.ts"
-    steps:
-      - GET /api/patients?search=Kumar
-      - Assert matching patients returned
-
-  - id: PAT-003
-    summary: Get patient by ID
-    layer: api
-    priority: P0
+module: Patients
+plan: Patient Management
+category: Clinical
+cases:
+  - summary: Register new patient with full demographics
+    priority: High
     automated: true
     steps:
-      - GET /api/patients/{id}
-      - Assert 200 with full patient record
+      - action: POST /api/patients with full demographic data
+        expected: 201, UHID generated
 
-  - id: PAT-004
-    summary: Update patient demographics
-    layer: api
-    priority: P1
+  - summary: Search patients by name
+    priority: High
+    automated: true
+    steps:
+      - action: GET /api/patients?search=Kumar
+        expected: Matching patients returned
+
+  - summary: Get patient by ID
+    priority: High
     automated: false
     steps:
-      - PUT /api/patients/{id} with updated phone/address
-      - Assert changes persisted
+      - action: GET /api/patients/{id}
+        expected: 200 with full patient record
 
-  - id: PAT-005
-    summary: Patient list pagination
-    layer: api
-    priority: P1
+  - summary: Update patient demographics
+    priority: Medium
     automated: false
     steps:
-      - GET /api/patients?page=1&per_page=10
-      - Assert max 10 results
-      - Assert meta.total_count present
+      - action: PUT /api/patients/{id} with updated phone/address
+        expected: Changes persisted
 
-  - id: PAT-006
-    summary: Duplicate UHID prevention
-    layer: api
-    priority: P0
+  - summary: Patient list pagination
+    priority: Medium
     automated: false
     steps:
-      - Register two patients
-      - Assert different UHIDs assigned
+      - action: GET /api/patients?page=1&per_page=10
+        expected: Max 10 results, meta.total_count present
 
-  - id: PAT-007
-    summary: Patient registration form UI
-    layer: e2e
-    priority: P0
+  - summary: Duplicate UHID prevention
+    priority: High
+    automated: false
+    steps:
+      - action: Register two patients
+        expected: Different UHIDs assigned
+
+  - summary: Patient registration form UI
+    priority: High
     automated: true
-    test_file: "apps/web/e2e/scenarios/patient-registration.spec.ts"
     steps:
-      - Navigate to /patients
-      - Click Register Patient
-      - Fill required fields
-      - Submit
-      - Assert success notification
+      - action: Navigate to /patients, click Register Patient
+        expected: Registration form opens
+      - action: Fill required fields, submit
+        expected: Success notification, patient in list
 
-  - id: PAT-008
-    summary: Patient search in table
-    layer: e2e
-    priority: P1
+  - summary: Patient search in table
+    priority: Medium
     automated: false
     steps:
-      - Navigate to /patients
-      - Type in search box
-      - Assert table filters in real-time
+      - action: Navigate to /patients, type in search box
+        expected: Table filters in real-time
 
-  - id: PAT-009
-    summary: Patient list under load (100 concurrent users)
-    layer: load
-    priority: P2
+  - summary: Patient list under load
+    priority: Low
     automated: true
-    test_file: "crates/medbrains-loadtest/src/main.rs::PatientBrowse"
+    notes: Load test with 100 concurrent users
     steps:
-      - 100 concurrent users querying /api/patients
-      - Assert p95 < 500ms
-      - Assert zero 500 errors
+      - action: 100 concurrent users querying /api/patients
+        expected: p95 < 500ms, zero 500 errors

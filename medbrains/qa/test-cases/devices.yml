@@ -1,128 +1,94 @@
-module: devices
-description: Device integration — adapter catalog, instances, routing, bridge agents
-tests:
-  - id: DEV-001
-    summary: List adapter catalog returns seeded devices
-    layer: api
-    priority: P0
-    automated: true
-    test_file: "crates/medbrains-server/tests/devices_test.rs::test_list_catalog"
-    steps:
-      - GET /api/devices/catalog
-      - Assert 200
-      - Assert array contains roche_cobas_6000, sysmex_xn1000
-
-  - id: DEV-002
-    summary: Search adapter catalog by manufacturer
-    layer: api
-    priority: P1
-    automated: true
-    test_file: "crates/medbrains-server/tests/devices_test.rs::test_search_catalog"
-    steps:
-      - GET /api/devices/catalog?q=roche
-      - Assert all results have manufacturer_code=roche
-
-  - id: DEV-003
-    summary: Filter catalog by category
-    layer: api
-    priority: P1
+module: Device Integration
+plan: Device Integration
+category: Devices
+cases:
+  - summary: List adapter catalog returns seeded devices
+    priority: High
     automated: true
     steps:
-      - GET /api/devices/catalog?category=lab_hematology
-      - Assert all results have device_category=lab_hematology
+      - action: GET /api/devices/catalog
+        expected: 200, array contains roche_cobas_6000, sysmex_xn1000
 
-  - id: DEV-004
-    summary: Preview AI auto-config for known adapter
-    layer: api
-    priority: P0
-    automated: true
-    test_file: "crates/medbrains-server/tests/devices_test.rs::test_preview_config"
-    steps:
-      - GET /api/devices/catalog/roche_cobas_6000/preview-config
-      - Assert confidence > 0.9
-      - Assert field_mappings not empty
-      - Assert default_port = 2575
-
-  - id: DEV-005
-    summary: Create device instance with AI auto-config
-    layer: api
-    priority: P0
-    automated: true
-    test_file: "crates/medbrains-server/tests/devices_test.rs::test_create_device"
-    steps:
-      - POST /api/devices/instances with adapter_code=roche_cobas_6000
-      - Assert 200
-      - Assert ai_confidence > 0
-      - Assert config_source = ai_auto
-
-  - id: DEV-006
-    summary: List device instances
-    layer: api
-    priority: P0
+  - summary: Search adapter catalog by manufacturer
+    priority: Medium
     automated: true
     steps:
-      - GET /api/devices/instances
-      - Assert 200 array
+      - action: GET /api/devices/catalog?q=roche
+        expected: All results have manufacturer_code=roche
 
-  - id: DEV-007
-    summary: Update device hostname/port
-    layer: api
-    priority: P1
+  - summary: Filter catalog by category
+    priority: Medium
     automated: false
     steps:
-      - PUT /api/devices/instances/{id} with hostname + port
-      - Assert updated values persisted
+      - action: GET /api/devices/catalog?category=lab_hematology
+        expected: All results have device_category=lab_hematology
 
-  - id: DEV-008
-    summary: Decommission device
-    layer: api
-    priority: P1
-    automated: false
-    steps:
-      - DELETE /api/devices/instances/{id}
-      - Assert status = decommissioned
-
-  - id: DEV-009
-    summary: Device data ingest stores message
-    layer: api
-    priority: P0
+  - summary: Preview AI auto-config for known adapter
+    priority: High
     automated: true
-    test_file: "crates/medbrains-server/tests/devices_test.rs::test_ingest"
     steps:
-      - POST /api/device-ingest/lab with simulated HL7 data
-      - Assert message stored in device_messages
-      - Assert device.message_count_24h incremented
+      - action: GET /api/devices/catalog/roche_cobas_6000/preview-config
+        expected: confidence > 0.9, field_mappings not empty, default_port=2575
 
-  - id: DEV-010
-    summary: Device data ingest routes to lab_results
-    layer: api
-    priority: P0
+  - summary: Create device instance with AI auto-config
+    priority: High
+    automated: true
+    steps:
+      - action: POST /api/devices/instances with adapter_code=roche_cobas_6000
+        expected: 200, ai_confidence > 0, config_source=ai_auto
+
+  - summary: List device instances
+    priority: High
     automated: false
     steps:
-      - Create lab_order with sample_barcode
-      - POST /api/device-ingest/lab with matching barcode
-      - Assert lab_result created
-      - Assert order status = processing
+      - action: GET /api/devices/instances
+        expected: 200, array of device instances
 
-  - id: DEV-011
-    summary: Create routing rule
-    layer: api
-    priority: P1
+  - summary: Update device hostname and port
+    priority: Medium
     automated: false
     steps:
-      - POST /api/devices/routing-rules
-      - Assert rule created with correct target_module
+      - action: PUT /api/devices/instances/{id} with hostname + port
+        expected: Updated values persisted
 
-  - id: DEV-012
-    summary: Add Device wizard UI flow
-    layer: e2e
-    priority: P0
+  - summary: Decommission device
+    priority: Medium
     automated: false
     steps:
-      - Navigate to /admin/devices
-      - Click Add Device
-      - Select adapter from catalog
-      - Review AI config (confidence badge visible)
-      - Fill hostname/port
-      - Save device
-      - Assert device appears in list
+      - action: DELETE /api/devices/instances/{id}
+        expected: status=decommissioned, is_active=false
+
+  - summary: Device data ingest stores message
+    priority: High
+    automated: true
+    steps:
+      - action: POST /api/device-ingest/lab with simulated HL7 data
+        expected: Message stored in device_messages, device message_count incremented
+
+  - summary: Device data ingest routes to lab_results
+    priority: High
+    automated: false
+    preconditions: Lab order with matching sample_barcode exists
+    steps:
+      - action: POST /api/device-ingest/lab with matching barcode
+        expected: lab_result created, order status=processing
+
+  - summary: Create routing rule
+    priority: Medium
+    automated: false
+    steps:
+      - action: POST /api/devices/routing-rules with target_module=lab
+        expected: Rule created, visible in list
+
+  - summary: Add Device wizard UI flow
+    priority: High
+    automated: false
+    steps:
+      - action: Navigate to /admin/devices, click Add Device
+        expected: Wizard opens with adapter search
+      - action: Select roche_cobas_6000
+        expected: AI config preview with confidence badge
+      - action: Fill hostname=192.168.1.100, port=2575
+        expected: Fields accept input
+      - action: Click Save
+        expected: Device appears in Connected Devices list

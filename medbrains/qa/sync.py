@@ -1,198 +1,216 @@
 #!/usr/bin/env python3
 """
-Sync YAML test cases → Kiwi TCMS.
+Sync YAML test-case definitions into Kiwi TCMS.
 
 Usage:
-  python3 qa/sync.py
-  python3 qa/sync.py --dry-run
-  python3 qa/sync.py --module auth
+    python sync.py                      # sync all YAML files
+    python sync.py test-cases/fees.yml  # sync one file
 
-Requires: pip install tcms-api pyyaml
-
-Config file: ~/.tcms.conf
-  [tcms]
-  url = https://localhost:9443/xml-rpc/
-  username = admin
-  password = admin
+Reads TCMS credentials from .env (TCMS_API_URL, TCMS_USERNAME, TCMS_PASSWORD).
 """
 
-import argparse
 import os
 import ssl
 import sys
-import yaml
 from pathlib import Path
 
-# Allow self-signed certs (Kiwi local dev)
-ssl._create_default_https_context = ssl._create_unverified_context
+import yaml
+from dotenv import load_dotenv
+from tcms_api import TCMS
 
-QA_DIR = Path(__file__).parent / "test-cases"
+load_dotenv(Path(__file__).parent / ".env")
+
 PRODUCT_NAME = "MedBrains"
 PRODUCT_VERSION = "0.1.0"
 
-# Priority map: YAML priority → Kiwi priority ID
-PRIORITY_MAP = {"P0": 1, "P1": 2, "P2": 3, "P3": 4}
+# Allow self-signed certs for local Kiwi
+ssl._create_default_https_context = ssl._create_unverified_context
+
+PRIORITY_MAP = {
+    "high": "P1",
+    "medium": "P3",
+    "low": "P5",
+    "critical": "P1",
+}
 
 
-def ensure_tcms_conf():
-    """Create ~/.tcms.conf if not exists."""
-    conf_path = os.path.expanduser("~/.tcms.conf")
-    if not os.path.exists(conf_path):
-        url = os.environ.get("TCMS_API_URL", "https://localhost:9443/xml-rpc/")
-        user = os.environ.get("TCMS_USERNAME", "admin")
-        pwd = os.environ.get("TCMS_PASSWORD", "admin")
-        with open(conf_path, "w") as f:
-            f.write(f"[tcms]\nurl = {url}\nusername = {user}\npassword = {pwd}\n")
-        print(f"Created {conf_path}")
+def ensure_product(rpc):
+    """Ensure product and version exist."""
+    products = rpc.exec.Product.filter({"name": PRODUCT_NAME})
+    if products:
+        product = products[0]
+    else:
+        classifications = rpc.exec.Classification.filter({"name": "Software"})
+        classification_id = classifications[0]["id"] if classifications else 1
+        product = rpc.exec.Product.create(
+            {"name": PRODUCT_NAME, "classification": classification_id}
+        )
+
+    versions = rpc.exec.Version.filter(
+        {"product": product["id"], "value": PRODUCT_VERSION}
+    )
+    if not versions:
+        rpc.exec.Version.create(
+            {"product": product["id"], "value": PRODUCT_VERSION}
+        )
+    return product
 
 
-def load_test_cases(module_filter=None):
-    modules = []
-    for yml_file in sorted(QA_DIR.glob("*.yml")):
-        with open(yml_file) as f:
-            data = yaml.safe_load(f)
-        mod = data.get("module", yml_file.stem)
-        if module_filter and mod != module_filter:
-            continue
-        modules.append(data)
-    return modules
+def ensure_category(rpc, product_id, name):
+    """Ensure test case category exists."""
+    cats = rpc.exec.Category.filter({"product": product_id, "name": name})
+    if cats:
+        return cats[0]
+    return rpc.exec.Category.create({"product": product_id, "name": name})
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Sync YAML test cases to Kiwi TCMS")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--module", help="Sync only this module")
-    args = parser.parse_args()
+def ensure_plan(rpc, product_id, name, version_id):
+    """Ensure test plan exists."""
+    plans = rpc.exec.TestPlan.filter({"product": product_id, "name": name})
+    if plans:
+        return plans[0]
+    plan_types = rpc.exec.PlanType.filter({})
+    type_id = plan_types[0]["id"] if plan_types else 1
+    return rpc.exec.TestPlan.create(
+        {
+            "product": product_id,
+            "name": name,
+            "product_version": version_id,
+            "type": type_id,
+            "text": f"Test plan for {name}",
+        }
+    )
 
-    modules = load_test_cases(args.module)
-    if not modules:
-        print("No test case files found in qa/test-cases/")
-        sys.exit(1)
 
-    total_cases = sum(len(m.get("tests", [])) for m in modules)
-    print(f"Found {len(modules)} module(s), {total_cases} test case(s)")
+def get_priority_id(rpc, name):
+    """Map priority name (High/Medium/Low) to Kiwi P1-P5."""
+    kiwi_name = PRIORITY_MAP.get(name.lower(), "P3")
+    priorities = rpc.exec.Priority.filter({"value": kiwi_name})
+    if priorities:
+        return priorities[0]["id"]
+    all_p = rpc.exec.Priority.filter({})
+    return all_p[0]["id"] if all_p else 1
 
-    if args.dry_run:
-        print("\n[DRY RUN] Would sync:")
-        for mod in modules:
-            name = mod.get("module", "?")
-            tests = mod.get("tests", [])
-            print(f"  Plan: {name} ({len(tests)} cases)")
-            for t in tests:
-                auto = "auto" if t.get("automated") else "manual"
-                print(f"    [{t['id']}] {t['summary']} ({t.get('priority','?')}, {auto})")
+
+def format_steps_as_text(steps, preconditions=""):
+    """Format steps into HTML text for Kiwi's `text` field (setup/actions)."""
+    parts = []
+    if preconditions:
+        parts.append(f"<p><strong>Preconditions:</strong> {preconditions}</p>")
+    parts.append("<table><tr><th>#</th><th>Action</th><th>Expected Result</th></tr>")
+    for i, step_def in enumerate(steps, 1):
+        if isinstance(step_def, str):
+            action, expected = step_def, ""
+        else:
+            action = step_def.get("action", step_def.get("step", ""))
+            expected = step_def.get("expected", "")
+        parts.append(f"<tr><td>{i}</td><td>{action}</td><td>{expected}</td></tr>")
+    parts.append("</table>")
+    return "\n".join(parts)
+
+
+def sync_file(rpc, product, version_id, filepath):
+    """Sync a single YAML file into Kiwi TCMS."""
+    with open(filepath) as f:
+        data = yaml.safe_load(f)
+
+    if not data:
+        print(f"  Skipping empty file: {filepath}")
         return
 
-    # Ensure config file exists
-    ensure_tcms_conf()
+    module_name = data.get("module", Path(filepath).stem)
+    plan_name = data.get("plan", module_name)
+    category_name = data.get("category", module_name)
 
-    # Import tcms_api (uses ~/.tcms.conf for auth)
-    try:
-        from tcms_api import TCMS
-    except ImportError:
-        print("ERROR: tcms-api not installed. Run: pip install tcms-api")
-        sys.exit(1)
+    print(f"  Module: {module_name}")
 
-    print("\nConnecting to Kiwi TCMS...")
-    try:
-        rpc = TCMS().exec
-    except Exception as e:
-        print(f"ERROR: {e}")
-        print("Check ~/.tcms.conf or set TCMS_API_URL/USERNAME/PASSWORD env vars")
-        sys.exit(1)
+    category = ensure_category(rpc, product["id"], category_name)
+    plan = ensure_plan(rpc, product["id"], plan_name, version_id)
 
-    print("Connected.")
-
-    # Ensure classification exists
-    classifications = rpc.Classification.filter({})
-    if classifications:
-        classification_id = classifications[0]["id"]
-    else:
-        classification_id = rpc.Classification.create({"name": "Software"})["id"]
-
-    # Get or create product
-    products = rpc.Product.filter({"name": PRODUCT_NAME})
-    if products:
-        product_id = products[0]["id"]
-    else:
-        product_id = rpc.Product.create({"name": PRODUCT_NAME, "classification": classification_id})["id"]
-
-    # Get or create version
-    versions = rpc.Version.filter({"product": product_id, "value": PRODUCT_VERSION})
-    if versions:
-        version_id = versions[0]["id"]
-    else:
-        version_id = rpc.Version.create({"product": product_id, "value": PRODUCT_VERSION})["id"]
-
-    print(f"Product: {PRODUCT_NAME} (id={product_id}, version={version_id})")
-
+    cases = data.get("cases", [])
     created = 0
     updated = 0
 
-    for mod in modules:
-        mod_name = mod.get("module", "unknown")
-        tests = mod.get("tests", [])
+    for case_def in cases:
+        summary = case_def["summary"]
+        priority = case_def.get("priority", "Medium")
+        priority_id = get_priority_id(rpc, priority)
+        steps = case_def.get("steps", [])
+        preconditions = case_def.get("preconditions", "")
+        text = format_steps_as_text(steps, preconditions)
 
-        # Get or create plan
-        plan_name = f"MedBrains — {mod_name}"
-        plans = rpc.TestPlan.filter({"name": plan_name, "product": product_id})
-        if plans:
-            plan_id = plans[0]["id"]
+        existing = rpc.exec.TestCase.filter(
+            {"summary": summary, "plan": plan["id"]}
+        )
+
+        if existing:
+            tc = existing[0]
+            rpc.exec.TestCase.update(
+                tc["id"],
+                {
+                    "priority": priority_id,
+                    "notes": case_def.get("notes", ""),
+                    "text": text,
+                },
+            )
+            updated += 1
         else:
-            plan_id = rpc.TestPlan.create({
-                "name": plan_name,
-                "product": product_id,
-                "product_version": version_id,
-                "type": 1,
-                "text": mod.get("description", f"Test plan for {mod_name}"),
-            })["id"]
-
-        print(f"\n  Plan: {plan_name} (id={plan_id})")
-
-        # Get or create category
-        cats = rpc.Category.filter({"product": product_id, "name": mod_name})
-        cat_id = cats[0]["id"] if cats else rpc.Category.create({"product": product_id, "name": mod_name})["id"]
-
-        for test in tests:
-            summary = f"[{test['id']}] {test['summary']}"
-            prio_id = PRIORITY_MAP.get(test.get("priority", "P1"), 2)
-            is_auto = test.get("automated", False)
-
-            # Build notes
-            notes_parts = []
-            if test.get("layer"):
-                notes_parts.append(f"Layer: {test['layer']}")
-            if test.get("test_file"):
-                notes_parts.append(f"File: {test['test_file']}")
-            if test.get("steps"):
-                notes_parts.append("Steps:")
-                for i, step in enumerate(test["steps"], 1):
-                    notes_parts.append(f"  {i}. {step}")
-            notes = "\n".join(notes_parts)
-
-            # Check existing
-            existing = rpc.TestCase.filter({"summary": summary, "plan": plan_id})
-            if existing:
-                rpc.TestCase.update(existing[0]["id"], {
-                    "notes": notes,
-                    "is_automated": is_auto,
-                })
-                updated += 1
-                print(f"    Updated: {summary}")
-            else:
-                rpc.TestCase.create({
+            tc = rpc.exec.TestCase.create(
+                {
                     "summary": summary,
-                    "category": cat_id,
-                    "priority": prio_id,
-                    "plan": plan_id,
-                    "notes": notes,
-                    "is_automated": is_auto,
-                    "case_status": 2,
-                })
-                created += 1
-                print(f"    Created: {summary}")
+                    "product": product["id"],
+                    "category": category["id"],
+                    "priority": priority_id,
+                    "case_status": 2,  # CONFIRMED
+                    "notes": case_def.get("notes", ""),
+                    "text": text,
+                    "is_automated": case_def.get("automated", False),
+                }
+            )
+            rpc.exec.TestPlan.add_case(plan["id"], tc["id"])
+            created += 1
 
-    print(f"\nDone. Created: {created}, Updated: {updated}")
+    print(f"    Created: {created}, Updated: {updated}, Total: {len(cases)}")
+
+
+def main():
+    rpc = TCMS(
+        url=os.getenv("TCMS_API_URL", "https://localhost:9443/xml-rpc/"),
+        username=os.getenv("TCMS_USERNAME", "admin"),
+        password=os.getenv("TCMS_PASSWORD", "admin"),
+    )
+
+    product = ensure_product(rpc)
+    versions = rpc.exec.Version.filter(
+        {"product": product["id"], "value": PRODUCT_VERSION}
+    )
+    version_id = versions[0]["id"]
+
+    qa_dir = Path(__file__).parent
+    if len(sys.argv) > 1:
+        files = [qa_dir / f for f in sys.argv[1:]]
+    else:
+        files = sorted(qa_dir.glob("test-cases/**/*.yml"))
+
+    print(f"Syncing {len(files)} test-case file(s) to Kiwi TCMS...")
+    print(f"Product: {PRODUCT_NAME} v{PRODUCT_VERSION}\n")
+
+    errors = []
+    for filepath in files:
+        print(f"Processing: {filepath.name}")
+        try:
+            sync_file(rpc, product, version_id, filepath)
+        except Exception as e:
+            print(f"    ERROR: {e}")
+            errors.append((filepath.name, str(e)))
+        print()
+
+    if errors:
+        print(f"\n{len(errors)} file(s) had errors:")
+        for name, err in errors:
+            print(f"  - {name}: {err}")
+
+    print("Done.")
 
 
 if __name__ == "__main__":

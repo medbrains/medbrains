@@ -1,0 +1,1 @@
+{"version":3,"file":"yaml-loader.d.ts","sourceRoot":"","sources":["../src/yaml-loader.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAa3C;;;;;;GAMG;AACH,wBAAgB,OAAO,CAAC,MAAM,EAAE,MAAM,EAAE,OAAO,EAAE,MAAM,GAAG,MAAM,CAE/D;AAyBD;;;;;GAKG;AACH,wBAAgB,YAAY,CAAC,YAAY,EAAE,MAAM,GAAG,GAAG,CAAC,MAAM,EAAE,QAAQ,CAAC,CA8BxE"}
