@@ -1,29 +1,136 @@
+// ── Login — Split-screen: dark forest manifesto + white form ──
+
+$forest: #1F4332;
+$forest-deep: #0d2417;
+$copper: #B8924A;
+
 .wrapper {
   min-height: 100vh;
   display: flex;
+  background: #ffffff;
+}
+
+// ── Left panel: dark forest with manifesto ──
+
+.manifesto {
+  flex: 1;
+  background: linear-gradient(160deg, $forest-deep 0%, $forest 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px;
+  position: relative;
+  overflow: hidden;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+// Subtle ECG line decoration in the background
+.manifestoEcg {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  opacity: 0.08;
+}
+
+.manifestoLogo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+.manifestoLogoText {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.manifestoTitle {
+  font-family: var(--font-display, "Fraunces Variable", Georgia, serif);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.15;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+
+  em {
+    font-style: italic;
+    font-weight: 500;
+    color: $copper;
+  }
+}
+
+.manifestoBody {
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 400px;
+}
+
+.manifestoStats {
+  display: flex;
+  gap: 32px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.manifestoStat {
+  display: flex;
+  flex-direction: column;
+}
+
+.manifestoStatValue {
+  font-family: var(--font-display, "Fraunces Variable", Georgia, serif);
+  font-size: 24px;
+  font-weight: 400;
+  color: #ffffff;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.manifestoStatLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  margin-top: 4px;
+}
+
+// ── Right panel: white form ──
+
+.formSide {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--mantine-color-body);
-  padding: 24px;
+  padding: 48px;
+  max-width: 560px;
+
+  @media (max-width: 900px) {
+    max-width: 100%;
+    padding: 24px;
+  }
 }
 
 .container {
   width: 100%;
-  max-width: 440px;
+  max-width: 400px;
 }
 
-// Card — white floating, no border, soft shadow (matches reference)
 .card {
-  background: var(--mb-card-bg, #ffffff);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  background: transparent;
+  box-shadow: none;
   border: none;
-  padding: 40px 36px;
-  border-radius: 12px;
-
-  @media (max-width: 480px) {
-    padding: 32px 24px;
-    border-radius: 12px;
-  }
+  padding: 0;
 }
 
 .formFooter {
@@ -33,7 +140,7 @@
 }
 
 .footer {
-  margin-top: 24px;
+  margin-top: 32px;
   text-align: center;
 }
 
@@ -42,7 +149,7 @@
   color: var(--mb-text-secondary);
 
   a {
-    color: var(--mantine-color-primary-5, #1F4332);
+    color: var(--mantine-color-primary-5, $forest);
     font-weight: 600;
     text-decoration: none;
 
@@ -72,11 +179,10 @@
   }
 }
 
-// Dev creds box — soft tinted bg, rounded pill (matches reference chip style)
 .devCreds {
   margin-top: 8px;
   padding: 10px 14px;
-  background: var(--mb-bg-content, #f0f0f2);
+  background: var(--mb-bg-content, #f7f8f6);
   border-radius: 14px;
   border: none;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -86,4 +192,5 @@
   font-size: 11px;
   color: var(--mb-text-muted);
   margin-top: 12px;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
 }
