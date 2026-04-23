@@ -117,18 +117,35 @@ seed: db ## Start db and run backend (triggers auto-seed)
 
 # ── Testing ─────────────────────────────────────────────────
 
-test-rust: ## Run all Rust tests (unit + integration)
-	cargo test --workspace
+test-rust: ## Run all Rust tests + export results
+	cargo test --workspace 2>&1 | python3 qa/reporters/cargo-kiwi-report.py
 
 test-unit: ## Run Rust unit tests only (no DB needed)
-	cargo test -p medbrains-adapter-sdk
-	cargo test -p medbrains-core
+	cargo test -p medbrains-adapter-sdk -p medbrains-core 2>&1 | python3 qa/reporters/cargo-kiwi-report.py
 
 test-ts: ## Run TypeScript unit tests (Vitest)
 	pnpm run test
 
-test-all: check-all test-rust test-ts ## Run everything: static checks + all tests
-	@echo "All tests passed."
+test-e2e: ## Run Playwright E2E tests (results go to Allure)
+	pnpm --filter @medbrains/web exec playwright test e2e/scenarios/
+
+test-all: test-rust test-ts ## Run Rust + TypeScript tests
+	@echo "All tests done. Results in qa/kiwi-results/"
+	@echo "Run 'python3 qa/sync.py' to push cases to Kiwi."
+
+kiwi-up: ## Start Kiwi TCMS
+	docker compose up -d kiwi
+	@echo "Kiwi TCMS: https://localhost:8443"
+
+kiwi-sync: ## Sync YAML test cases → Kiwi TCMS
+	python3 qa/sync.py
 
 test-coverage: ## Show QA coverage report from YAML registry
 	python3 qa/coverage-report.py
+
+test-report: ## Generate + open Allure report (after running tests)
+	npx allure generate --output qa/allure-report qa/allure-results
+	npx allure open qa/allure-report
+
+test-report-generate: ## Generate Allure report without opening
+	npx allure generate --output qa/allure-report qa/allure-results

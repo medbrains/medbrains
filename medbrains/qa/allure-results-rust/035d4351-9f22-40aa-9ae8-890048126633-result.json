@@ -1,0 +1,28 @@
+{
+  "uuid": "035d4351-9f22-40aa-9ae8-890048126633",
+  "historyId": "734dac77-0dfd-5ab3-ba64-474cd04881cd",
+  "name": "tests::get_field_missing_index",
+  "fullName": "tests::tests::get_field_missing_index",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281348,
+  "stop": 1776929281348,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

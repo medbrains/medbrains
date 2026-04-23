@@ -1,0 +1,28 @@
+{
+  "uuid": "700a2c28-d9ac-46bb-a944-9094f74efe1f",
+  "historyId": "5569346d-cca4-5a2e-87ea-4cd493807268",
+  "name": "tests::get_field_invalid_path",
+  "fullName": "tests::tests::get_field_invalid_path",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929055712,
+  "stop": 1776929055712,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

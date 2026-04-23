@@ -1,0 +1,28 @@
+{
+  "uuid": "91f29f11-3fca-4371-9fec-2eaf5a044826",
+  "historyId": "649fe7a4-3ac0-5477-b393-92374c4d2689",
+  "name": "tests::adapter_manifest_serialization",
+  "fullName": "tests::tests::adapter_manifest_serialization",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281352,
+  "stop": 1776929281352,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

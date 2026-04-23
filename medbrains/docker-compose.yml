@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: medbrains_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init-kiwi-db.sh:/docker-entrypoint-initdb.d/init-kiwi-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medbrains"]
       interval: 5s
@@ -37,6 +38,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Kiwi TCMS (Test Case Management) ──
+  kiwi:
+    image: kiwitcms/kiwi:latest
+    ports:
+      - "8443:8443"
+    environment:
+      KIWI_DB_ENGINE: django.db.backends.postgresql
+      KIWI_DB_HOST: postgres
+      KIWI_DB_PORT: "5432"
+      KIWI_DB_NAME: kiwi
+      KIWI_DB_USER: medbrains
+      KIWI_DB_PASSWORD: medbrains_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - kiwi_uploads:/Kiwi/uploads
+
 volumes:
   pgdata:
   yottadata:
+  kiwi_uploads:

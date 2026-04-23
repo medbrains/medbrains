@@ -1,0 +1,28 @@
+{
+  "uuid": "487c83dc-8d34-46ec-a169-735732650c44",
+  "historyId": "a5efdf43-3a00-5034-ada5-d3f7580b4351",
+  "name": "tests::field_mapping_serialization",
+  "fullName": "tests::tests::field_mapping_serialization",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281351,
+  "stop": 1776929281351,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

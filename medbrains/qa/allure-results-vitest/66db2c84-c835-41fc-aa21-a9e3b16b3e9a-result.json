@@ -1,0 +1,28 @@
+{
+  "uuid": "66db2c84-c835-41fc-aa21-a9e3b16b3e9a",
+  "historyId": "3e756ac1-1518-56a7-a080-88b902658034",
+  "name": "tests::mllp_roundtrip",
+  "fullName": "tests::tests::mllp_roundtrip",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929055711,
+  "stop": 1776929055711,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

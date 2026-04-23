@@ -1,0 +1,28 @@
+{
+  "uuid": "10fa6fa2-ef28-4d59-8e28-5bb2b8886e8e",
+  "historyId": "c0fad2d1-cb39-5317-8a15-a3c644acd0c4",
+  "name": "tests::parse_segments_msh_field_offset",
+  "fullName": "tests::tests::parse_segments_msh_field_offset",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281354,
+  "stop": 1776929281354,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

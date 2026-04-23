@@ -1,0 +1,28 @@
+{
+  "uuid": "445a7b7a-138f-488b-97dd-0f272354078e",
+  "historyId": "e22516a6-18c5-55be-bd12-a803ef353cd1",
+  "name": "tests::mllp_wrap_adds_framing",
+  "fullName": "tests::tests::mllp_wrap_adds_framing",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281353,
+  "stop": 1776929281353,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

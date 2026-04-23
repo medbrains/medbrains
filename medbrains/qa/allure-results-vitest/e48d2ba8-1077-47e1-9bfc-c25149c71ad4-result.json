@@ -1,0 +1,28 @@
+{
+  "uuid": "e48d2ba8-1077-47e1-9bfc-c25149c71ad4",
+  "historyId": "5e1b2d95-cf1b-5155-83bf-40ea990ef8b4",
+  "name": "device::tests::generate_config_sets_default_port",
+  "fullName": "device::device::tests::generate_config_sets_default_port",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929055715,
+  "stop": 1776929055715,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "device"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

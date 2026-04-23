@@ -1,0 +1,28 @@
+{
+  "uuid": "ed0d6947-55ff-4200-b114-2d9ff5b9e129",
+  "historyId": "5770bfb4-ad9a-571c-8709-1e18c0ede9a5",
+  "name": "device::tests::generate_config_applies_quirks",
+  "fullName": "device::device::tests::generate_config_applies_quirks",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929282515,
+  "stop": 1776929282515,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "device"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

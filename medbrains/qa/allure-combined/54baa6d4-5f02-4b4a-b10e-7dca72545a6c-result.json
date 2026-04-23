@@ -1,0 +1,28 @@
+{
+  "uuid": "54baa6d4-5f02-4b4a-b10e-7dca72545a6c",
+  "historyId": "d1eb5ff8-05e1-5208-994d-ccbee424341f",
+  "name": "tests::generate_ack_nak",
+  "fullName": "tests::tests::generate_ack_nak",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929281348,
+  "stop": 1776929281348,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "tests"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}

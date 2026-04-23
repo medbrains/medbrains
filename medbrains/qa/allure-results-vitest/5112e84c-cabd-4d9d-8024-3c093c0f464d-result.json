@@ -1,0 +1,28 @@
+{
+  "uuid": "5112e84c-cabd-4d9d-8024-3c093c0f464d",
+  "historyId": "bcb6aaac-10e3-5d26-acf1-0f5ca515edff",
+  "name": "device::tests::generate_config_verified_high_confidence",
+  "fullName": "device::device::tests::generate_config_verified_high_confidence",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1776929055715,
+  "stop": 1776929055715,
+  "labels": [
+    {
+      "name": "suite",
+      "value": "device"
+    },
+    {
+      "name": "parentSuite",
+      "value": "Rust"
+    },
+    {
+      "name": "framework",
+      "value": "cargo-test"
+    },
+    {
+      "name": "language",
+      "value": "rust"
+    }
+  ]
+}
