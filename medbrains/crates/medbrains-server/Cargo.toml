@@ -40,5 +40,9 @@ time = "0.3"
 futures = { workspace = true }
 ipnet = "2"
 
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full", "test-util"] }
+
 [lints]
 workspace = true
