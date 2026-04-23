@@ -89,7 +89,7 @@ const TRIP_STATUS_COLORS: Record<string, string> = {
   dispatched: "blue",
   en_route_pickup: "cyan",
   at_pickup: "teal",
-  en_route_drop: "indigo",
+  en_route_drop: "violet",
   at_drop: "violet",
   completed: "green",
   cancelled: "red",

@@ -1962,7 +1962,7 @@ function ChartsTab({ patientId }: { patientId: string }) {
   const tempSeries = [{ name: "Temp", color: "orange.6" }];
   const spo2Series = [{ name: "SpO2", color: "teal.6" }];
   const weightSeries = [
-    { name: "Weight", color: "indigo.6" },
+    { name: "Weight", color: "primary.4" },
     { name: "BMI", color: "violet.6" },
   ];
 
