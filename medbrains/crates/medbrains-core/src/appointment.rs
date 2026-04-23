@@ -89,6 +89,7 @@ pub struct Appointment {
     pub recurrence_group_id: Option<Uuid>,
     pub recurrence_index: Option<i32>,
     pub appointment_group_id: Option<Uuid>,
+    pub booking_source: Option<String>,
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
