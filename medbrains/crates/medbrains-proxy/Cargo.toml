@@ -1,0 +1,26 @@
+[package]
+name = "medbrains-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Pingora-based reverse proxy for MedBrains + all sites"
+
+[[bin]]
+name = "medbrains-proxy"
+path = "src/main.rs"
+
+[dependencies]
+pingora = { version = "0.5", features = ["lb", "proxy"] }
+pingora-proxy = "0.5"
+pingora-http = "0.5"
+pingora-core = "0.5"
+pingora-load-balancing = "0.5"
+
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+anyhow = "1"

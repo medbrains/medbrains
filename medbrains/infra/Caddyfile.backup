@@ -1,0 +1,31 @@
+email.alagappa.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:8080
+
+    # Optional: force HTTPS (Caddy handles ACME automatically)
+    tls admin@alagappa.org
+}
+
+autodiscover.email.alagappa.org {
+    reverse_proxy localhost:8080
+}
+
+charts.alagappa.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:8088
+}
+
+
+wiki.alagappa.org {
+
+    encode gzip
+
+    reverse_proxy 127.0.0.1:3333
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+}

@@ -8,6 +8,7 @@ members = [
     "crates/medbrains-loadtest",
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-bridge",
+    "crates/medbrains-proxy",
 ]
 
 [workspace.package]
