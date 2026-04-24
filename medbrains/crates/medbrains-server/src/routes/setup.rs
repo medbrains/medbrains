@@ -4521,3 +4521,111 @@ pub async fn import_config(
         roles_created,
     }))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Brand Entities (multi-entity branding)
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/setup/brand-entities
+pub async fn list_brand_entities(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (uuid::Uuid, String, String, Option<String>, Option<String>, Option<String>, bool, bool)>(
+        "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
+         FROM brand_entities ORDER BY is_default DESC, name",
+    ).fetch_all(&mut *tx).await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "code": r.1, "name": r.2, "short_name": r.3,
+        "logo_url": r.4, "registration_no": r.5, "is_default": r.6, "is_active": r.7
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// POST /api/setup/brand-entities
+pub async fn create_brand_entity(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let id = sqlx::query_scalar::<_, uuid::Uuid>(
+        "INSERT INTO brand_entities (tenant_id, code, name, short_name, logo_url, address, phone, email, registration_no, is_default) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body["code"].as_str().unwrap_or("hospital"))
+    .bind(body["name"].as_str().unwrap_or(""))
+    .bind(body["short_name"].as_str())
+    .bind(body["logo_url"].as_str())
+    .bind(body["address"].as_str())
+    .bind(body["phone"].as_str())
+    .bind(body["email"].as_str())
+    .bind(body["registration_no"].as_str())
+    .bind(body["is_default"].as_bool().unwrap_or(false))
+    .fetch_one(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "status": "created"})))
+}
+
+/// PUT /api/setup/brand-entities/{id}
+pub async fn update_brand_entity(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<uuid::Uuid>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE brand_entities SET \
+         name=COALESCE($2,name), short_name=COALESCE($3,short_name), \
+         logo_url=COALESCE($4,logo_url), address=COALESCE($5,address), \
+         phone=COALESCE($6,phone), email=COALESCE($7,email), \
+         registration_no=COALESCE($8,registration_no), is_default=COALESCE($9,is_default) \
+         WHERE id=$1",
+    )
+    .bind(id)
+    .bind(body["name"].as_str())
+    .bind(body["short_name"].as_str())
+    .bind(body["logo_url"].as_str())
+    .bind(body["address"].as_str())
+    .bind(body["phone"].as_str())
+    .bind(body["email"].as_str())
+    .bind(body["registration_no"].as_str())
+    .bind(body["is_default"].as_bool())
+    .execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "status": "updated"})))
+}
+
+/// DELETE /api/setup/brand-entities/{id}
+pub async fn delete_brand_entity(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query("UPDATE brand_entities SET is_active = false WHERE id = $1")
+        .bind(id).execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"status": "deactivated"})))
+}
