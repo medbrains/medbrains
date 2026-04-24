@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-adapter-sdk/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-bridge/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-server/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-proxy/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/medbrains/target" />
     </content>
     <orderEntry type="inheritedJdk" />

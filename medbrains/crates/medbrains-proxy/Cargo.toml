@@ -10,7 +10,7 @@ name = "medbrains-proxy"
 path = "src/main.rs"
 
 [dependencies]
-pingora = { version = "0.5", features = ["lb", "proxy"] }
+pingora = { version = "0.5", features = ["lb", "proxy", "rustls"] }
 pingora-proxy = "0.5"
 pingora-http = "0.5"
 pingora-core = "0.5"
