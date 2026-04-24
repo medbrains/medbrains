@@ -756,8 +756,9 @@ fn extract_device_fingerprint(headers: &HeaderMap) -> String {
 }
 
 /// Extract client IP from request headers (X-Forwarded-For, X-Real-IP, or fallback).
+/// Strips port if present (e.g., "1.2.3.4:12345" → "1.2.3.4").
 fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    headers
+    let raw = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.split(',').next())
@@ -767,7 +768,19 @@ fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
                 .get("x-real-ip")
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.trim().to_owned())
-        })
+        });
+
+    // Strip port suffix (inet type only accepts IP, not IP:port)
+    raw.map(|ip| {
+        if let Some(colon_pos) = ip.rfind(':') {
+            // Only strip if the part after colon is numeric (port)
+            // and it's not an IPv6 address
+            if !ip.contains('[') && ip[colon_pos + 1..].chars().all(|c| c.is_ascii_digit()) {
+                return ip[..colon_pos].to_owned();
+            }
+        }
+        ip
+    })
 }
 
 /// Resolve `department_ids` for a user from the database.
