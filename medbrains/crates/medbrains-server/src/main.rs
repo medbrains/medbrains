@@ -136,8 +136,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     );
 
-    // Build router with all routes
+    // Static file serving — SPA fallback for frontend dist
+    let static_dir = config.static_dir.clone().unwrap_or_else(|| "/var/www/medbrains".to_owned());
+    let spa_fallback = tower_http::services::ServeDir::new(&static_dir)
+        .not_found_service(tower_http::services::ServeFile::new(
+            format!("{static_dir}/index.html"),
+        ));
+
+    // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
+        .fallback_service(spa_fallback)
         .layer(hsts)
         .layer(no_frame)
         .layer(xss_filter)

@@ -27,6 +27,8 @@ struct RawConfig {
     /// Only trust X-Forwarded-For/X-Real-IP headers from these IPs.
     #[serde(default)]
     trusted_proxies: Option<String>,
+    #[serde(default)]
+    static_dir: Option<String>,
 }
 
 fn default_host() -> String {
@@ -63,6 +65,8 @@ pub struct AppConfig {
     pub secure_cookies: bool,
     /// Parsed trusted proxy CIDRs for X-Forwarded-For validation.
     pub trusted_proxies: Vec<ipnet::IpNet>,
+    /// Directory containing frontend static files (SPA dist)
+    pub static_dir: Option<String>,
 }
 
 impl AppConfig {
@@ -80,6 +84,7 @@ impl AppConfig {
                 cookie_domain: None,
                 secure_cookies: None,
                 trusted_proxies: None,
+                static_dir: None,
             }))
             .merge(Toml::file("config.toml"))
             .merge(Env::raw())
@@ -138,6 +143,7 @@ impl AppConfig {
             cookie_domain: raw.cookie_domain,
             secure_cookies: raw.secure_cookies.unwrap_or(false),
             trusted_proxies,
+            static_dir: raw.static_dir,
         })
     }
 
