@@ -1,8 +1,7 @@
-// ─── PageHeader — accent bar + card styling ───
+// ─── PageHeader — compact enterprise style ───
 
 .wrapper {
-  margin-bottom: var(--mantine-spacing-lg);
-  animation: pageEnter 0.2s ease-out;
+  margin-bottom: var(--mantine-spacing-md);
 }
 
 .card {
@@ -20,8 +19,7 @@
   background: linear-gradient(
     90deg,
     var(--mantine-color-primary-5) 0%,
-    var(--mantine-color-violet-5) 50%,
-    var(--mantine-color-teal-5) 100%
+    var(--mantine-color-primary-3) 100%
   );
 }
 
@@ -34,24 +32,24 @@
 }
 
 .inner {
-  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg);
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
 }
 
 .breadcrumbs {
-  margin-bottom: var(--mantine-spacing-xs);
+  margin-bottom: var(--mantine-spacing-3xs);
 }
 
 .titleRow {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--mantine-spacing-md);
 }
 
 .titleGroup {
   display: flex;
   align-items: center;
-  gap: var(--mantine-spacing-sm);
+  gap: var(--mantine-spacing-xs);
 }
 
 .textBlock {

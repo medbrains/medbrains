@@ -65,6 +65,8 @@ body {
 .mantine-AppShell-main {
   background: var(--mb-bg-content);
   animation: pageEnter 0.2s ease-out;
+  // Full-width content — no max-width constraint
+  max-width: 100%;
 }
 
 .mantine-AppShell-navbar {
@@ -566,6 +568,40 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 
 .page-content {
   animation: pageEnter 0.2s ease-out;
+  width: 100%;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── ENTERPRISE LAYOUT — full-width, dense, clinical-grade ────
+// ═══════════════════════════════════════════════════════════════
+
+// Cards inside module pages — tighter padding for data density
+.mantine-Tabs-panel .mantine-Card-root,
+.mantine-Tabs-panel .mantine-Paper-root {
+  padding: var(--mantine-spacing-md);
+}
+
+// Tables inside cards — edge-to-edge (no card padding on table)
+.mantine-Card-root > .mantine-Table-root,
+.mantine-Paper-root > .mantine-Table-root {
+  margin: calc(-1 * var(--mantine-spacing-md));
+  margin-top: 0;
+  width: calc(100% + 2 * var(--mantine-spacing-md));
+}
+
+// Tab list — compact, no bottom margin waste
+.mantine-Tabs-list {
+  gap: 4px;
+}
+
+// Page header — tighter bottom margin
+.page-header {
+  margin-bottom: var(--mantine-spacing-md);
+}
+
+// SimpleGrid inside modules — tighter gap
+.mantine-SimpleGrid-root {
+  --sg-spacing: var(--mantine-spacing-md);
 }
 
 .shimmer {

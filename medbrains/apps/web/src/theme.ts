@@ -271,16 +271,16 @@ export const theme = createTheme({
       defaultProps: {
         p: "md",
         shadow: "sm",
-        radius: "lg",
+        radius: "md",
         withBorder: false,
       },
     }),
 
     Card: Card.extend({
       defaultProps: {
-        p: "xl",
+        p: "md",
         shadow: "sm",
-        radius: "lg",
+        radius: "md",
         withBorder: false,
       },
     }),

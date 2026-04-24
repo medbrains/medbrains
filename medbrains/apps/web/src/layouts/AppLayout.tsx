@@ -217,7 +217,7 @@ export function AppLayout() {
         breakpoint: "sm",
         collapsed: { mobile: !mobileOpened, desktop: false },
       }}
-      padding="xl"
+      padding="md"
       transitionDuration={200}
       transitionTimingFunction="ease"
     >
