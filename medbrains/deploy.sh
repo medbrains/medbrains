@@ -228,19 +228,18 @@ fi
 
 # ── Setup PostgreSQL Database ──
 setup_database() {
-    echo -e "${YELLOW}🗄️ Setting up PostgreSQL database...${NC}"
+    echo -e "${YELLOW}🗄️ Setting up PostgreSQL database on RDS...${NC}"
 
-    ssh -i "$KEY_PATH" $EC2_USER@$EC2_HOST "
-# Check if medbrains DB exists
-if sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw medbrains; then
-    echo 'Database medbrains already exists'
-else
-    sudo -u postgres createuser --no-superuser --no-createdb --no-createrole medbrains 2>/dev/null || true
-    sudo -u postgres psql -c \"ALTER USER medbrains WITH PASSWORD 'medbrains_prod';\" 2>/dev/null || true
-    sudo -u postgres createdb -O medbrains medbrains
-    echo 'Database medbrains created'
-fi
-"
+    # Extract DB host from .env.production
+    if [ -f ".env.production" ]; then
+        DB_URL=$(grep DATABASE_URL .env.production | cut -d= -f2-)
+        # Create medbrains database if not exists (connect to postgres DB first)
+        BASE_URL=$(echo "$DB_URL" | sed 's|/medbrains?|/postgres?|')
+        PGPASSWORD=$(echo "$DB_URL" | grep -o '://[^:]*:\([^@]*\)@' | sed 's|://[^:]*:||;s|@||')
+        psql "$BASE_URL" -c "CREATE DATABASE medbrains;" 2>/dev/null && echo "Database created" || echo "Database already exists"
+    else
+        echo -e "${YELLOW}No .env.production found. Run './deploy.sh env' first.${NC}"
+    fi
 
     echo -e "${GREEN}✅ Database ready!${NC}"
 }
