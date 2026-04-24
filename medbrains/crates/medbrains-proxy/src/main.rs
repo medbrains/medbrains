@@ -1,41 +1,22 @@
-//! MedBrains Proxy — Pingora-based reverse proxy
-//!
-//! Replaces Caddy. Handles TLS termination + routing for all domains:
-//! - medbrains.alagappahospital.com → MedBrains (backend + static)
-//! - email.alagappa.org → Stalwart mail (8080)
-//! - charts.alagappa.org → Superset (8088)
-//! - wiki.alagappa.org → Wiki (3333)
-//!
-//! Config: proxy.toml
-//! Usage: medbrains-proxy -c proxy.toml
+//! MedBrains Proxy — Pingora with per-domain TLS
 
 use async_trait::async_trait;
 use pingora::prelude::*;
 use pingora_http::ResponseHeader;
 use pingora_proxy::{ProxyHttp, Session};
-use std::sync::Arc;
+use std::collections::HashMap;
 
 mod config;
-
 use config::ProxyConfig;
 
-/// Route entry — maps a domain to an upstream
-struct Route {
-    domain: String,
-    upstream: String,
-    static_root: Option<String>,
-    gzip: bool,
-}
-
-/// The proxy service
 struct MedBrainsProxy {
-    routes: Vec<Route>,
+    routes: HashMap<String, String>,
+    default_upstream: String,
 }
 
 #[async_trait]
 impl ProxyHttp for MedBrainsProxy {
     type CTX = ();
-
     fn new_ctx(&self) {}
 
     async fn upstream_peer(
@@ -43,7 +24,6 @@ impl ProxyHttp for MedBrainsProxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        // Get the Host header
         let host = session
             .req_header()
             .headers
@@ -54,72 +34,49 @@ impl ProxyHttp for MedBrainsProxy {
             .next()
             .unwrap_or("");
 
-        // Find matching route
-        let route = self
-            .routes
-            .iter()
-            .find(|r| r.domain == host);
-
-        let upstream = match route {
-            Some(r) => &r.upstream,
-            None => {
-                // Default: return 404 or first route
-                if let Some(first) = self.routes.first() {
-                    &first.upstream
-                } else {
-                    return Err(pingora::Error::new(pingora::ErrorType::ConnectNoRoute));
-                }
-            }
-        };
-
-        // Parse upstream address
+        let upstream = self.routes.get(host).unwrap_or(&self.default_upstream);
         let addr: std::net::SocketAddr = upstream
             .parse()
             .map_err(|_| pingora::Error::new(pingora::ErrorType::InternalError))?;
 
-        let peer = Box::new(HttpPeer::new(addr, false, String::new()));
-        Ok(peer)
+        Ok(Box::new(HttpPeer::new(addr, false, String::new())))
     }
 
     async fn upstream_request_filter(
         &self,
         session: &mut Session,
-        upstream_request: &mut RequestHeader,
+        req: &mut RequestHeader,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        // Add X-Forwarded headers
-        let client_ip = session.client_addr().map(|a| a.to_string()).unwrap_or_default();
-
-        upstream_request.insert_header("X-Real-IP", &client_ip)?;
-        upstream_request.insert_header("X-Forwarded-For", &client_ip)?;
-        upstream_request.insert_header("X-Forwarded-Proto", "https")?;
-
+        let ip = session.client_addr().map(|a| a.to_string()).unwrap_or_default();
+        req.insert_header("X-Real-IP", &ip)?;
+        req.insert_header("X-Forwarded-For", &ip)?;
+        req.insert_header("X-Forwarded-Proto", "https")?;
         Ok(())
     }
 
     async fn response_filter(
         &self,
         _session: &mut Session,
-        upstream_response: &mut ResponseHeader,
+        resp: &mut ResponseHeader,
         _ctx: &mut Self::CTX,
     ) -> Result<()>
     where
         Self::CTX: Send + Sync,
     {
-        // Security headers on all responses
-        upstream_response.insert_header("X-Content-Type-Options", "nosniff")?;
-        upstream_response.insert_header("X-Frame-Options", "SAMEORIGIN")?;
-        upstream_response.insert_header("X-XSS-Protection", "1; mode=block")?;
-        upstream_response.insert_header(
-            "Strict-Transport-Security",
-            "max-age=31536000; includeSubDomains",
-        )?;
-
+        resp.insert_header("X-Content-Type-Options", "nosniff")?;
+        resp.insert_header("X-Frame-Options", "SAMEORIGIN")?;
+        resp.insert_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")?;
         Ok(())
     }
 }
 
 fn main() {
+    // Install rustls crypto provider (required by rustls 0.23+)
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -127,59 +84,45 @@ fn main() {
         )
         .init();
 
-    // Load config
-    let config_path = std::env::args()
-        .nth(2)
-        .unwrap_or_else(|| "proxy.toml".to_owned());
+    let config_path = std::env::args().nth(2).unwrap_or_else(|| "proxy.toml".to_owned());
+    let cfg = ProxyConfig::load(&config_path).expect("Failed to load config");
 
-    let proxy_config = ProxyConfig::load(&config_path).expect("Failed to load proxy config");
+    let mut routes = HashMap::new();
+    let mut default_upstream = "127.0.0.1:3000".to_owned();
 
-    tracing::info!(
-        domains = proxy_config.routes.len(),
-        "starting MedBrains proxy"
-    );
+    for (i, r) in cfg.routes.iter().enumerate() {
+        tracing::info!(domain = %r.domain, upstream = %r.upstream, "route");
+        routes.insert(r.domain.clone(), r.upstream.clone());
+        if i == 0 { default_upstream = r.upstream.clone(); }
+    }
 
-    // Build routes
-    let routes: Vec<Route> = proxy_config
-        .routes
-        .iter()
-        .map(|r| {
-            tracing::info!(domain = %r.domain, upstream = %r.upstream, "route registered");
-            Route {
-                domain: r.domain.clone(),
-                upstream: r.upstream.clone(),
-                static_root: r.static_root.clone(),
-                gzip: r.gzip.unwrap_or(true),
-            }
-        })
-        .collect();
+    let proxy = MedBrainsProxy { routes, default_upstream };
 
-    let proxy = MedBrainsProxy { routes };
-
-    // Create Pingora server
     let mut server = Server::new(None).unwrap();
     server.bootstrap();
 
-    let mut proxy_service = http_proxy_service(&server.configuration, proxy);
+    let mut svc = http_proxy_service(&server.configuration, proxy);
 
-    // Listen on HTTP (80) and HTTPS (443)
-    proxy_service.add_tcp(&format!("0.0.0.0:{}", proxy_config.http_port.unwrap_or(80)));
+    // HTTP listener
+    let http_port = cfg.http_port.unwrap_or(80);
+    svc.add_tcp(&format!("0.0.0.0:{http_port}"));
 
-    if let Some(ref tls) = proxy_config.tls {
-        proxy_service.add_tls(
-            &format!("0.0.0.0:{}", proxy_config.https_port.unwrap_or(443)),
-            &tls.cert_path,
-            &tls.key_path,
-        );
+    // HTTPS — use first route's cert (SNI not supported in rustls backend)
+    // All domains share one cert. For per-domain certs, use wildcard or SAN cert.
+    let https_port = cfg.https_port.unwrap_or(443);
+    let first_tls = cfg.routes.iter().find(|r| r.cert_path.is_some());
+
+    if let Some(r) = first_tls {
+        let cert = r.cert_path.as_ref().unwrap();
+        let key = r.key_path.as_ref().unwrap();
+        let tls = pingora::listeners::tls::TlsSettings::intermediate(cert, key)
+            .expect("TLS init failed");
+
+        svc.add_tls_with_settings(&format!("0.0.0.0:{https_port}"), None, tls);
+        tracing::info!(https = https_port, cert = %cert, "HTTPS ready");
     }
 
-    server.add_service(proxy_service);
-
-    tracing::info!(
-        http = proxy_config.http_port.unwrap_or(80),
-        https = proxy_config.https_port.unwrap_or(443),
-        "proxy listening"
-    );
-
+    server.add_service(svc);
+    tracing::info!(http = http_port, domains = cfg.routes.len(), "proxy listening");
     server.run_forever();
 }

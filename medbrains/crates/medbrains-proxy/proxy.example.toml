@@ -1,38 +1,29 @@
-# MedBrains Proxy Configuration
-# Replaces Caddy — Pingora-based reverse proxy
+# MedBrains Proxy — Pingora with SNI multi-cert
+# Each route can have its own cert_path/key_path for proper SNI
 
 http_port = 80
 https_port = 443
 
-# TLS — use Let's Encrypt certs (certbot or acme.sh)
-# [tls]
-# cert_path = "/etc/letsencrypt/live/alagappahospital.com/fullchain.pem"
-# key_path = "/etc/letsencrypt/live/alagappahospital.com/privkey.pem"
-
-# ── MedBrains HMS ──
 [[routes]]
 domain = "medbrains.alagappahospital.com"
 upstream = "127.0.0.1:3000"
-static_root = "/var/www/medbrains"
-gzip = true
+cert_path = "/etc/letsencrypt/live/medbrains.alagappahospital.com/fullchain.pem"
+key_path = "/etc/letsencrypt/live/medbrains.alagappahospital.com/privkey.pem"
 
-# ── Stalwart Mail ──
 [[routes]]
 domain = "email.alagappa.org"
 upstream = "127.0.0.1:8080"
+cert_path = "/etc/letsencrypt/live/email.alagappa.org/fullchain.pem"
+key_path = "/etc/letsencrypt/live/email.alagappa.org/privkey.pem"
 
 [[routes]]
 domain = "autodiscover.email.alagappa.org"
 upstream = "127.0.0.1:8080"
 
-# ── Superset Charts ──
 [[routes]]
 domain = "charts.alagappa.org"
 upstream = "127.0.0.1:8088"
-gzip = true
 
-# ── Wiki ──
 [[routes]]
 domain = "wiki.alagappa.org"
 upstream = "127.0.0.1:3333"
-gzip = true

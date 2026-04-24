@@ -4,22 +4,17 @@ use serde::Deserialize;
 pub struct ProxyConfig {
     pub http_port: Option<u16>,
     pub https_port: Option<u16>,
-    pub tls: Option<TlsConfig>,
     pub routes: Vec<RouteConfig>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TlsConfig {
-    pub cert_path: String,
-    pub key_path: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RouteConfig {
     pub domain: String,
     pub upstream: String,
-    pub static_root: Option<String>,
     pub gzip: Option<bool>,
+    /// Per-domain TLS cert (for SNI)
+    pub cert_path: Option<String>,
+    pub key_path: Option<String>,
 }
 
 impl ProxyConfig {
