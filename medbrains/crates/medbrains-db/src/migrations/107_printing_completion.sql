@@ -66,8 +66,8 @@ INSERT INTO document_templates (
     version, is_active, is_default, print_format,
     header_layout, body_layout, footer_layout
 )
-SELECT t.id, vals.code, vals.name, vals.category, vals.module_code, vals.description,
-       1, true, false, 'a4_portrait',
+SELECT t.id, vals.code, vals.name, vals.category::document_template_category, vals.module_code, vals.description,
+       1, true, false, 'a4_portrait'::print_format,
        '{"logo": true, "hospital_name": true}'::jsonb,
        vals.body::jsonb,
        '{"page_number": true, "printed_date": true}'::jsonb

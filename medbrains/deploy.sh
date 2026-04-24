@@ -50,7 +50,7 @@ deploy_backend() {
 
     # Cross-compile for Linux x86_64
     cd "$SCRIPT_DIR"
-    cargo zigbuild --release --target=$TARGET_ARCH --bin medbrains-server
+    cargo zigbuild --release --target=$TARGET_ARCH -p medbrains-server
 
     BINARY_PATH="target/$TARGET_ARCH/release/$BINARY_NAME"
     if [ ! -f "$BINARY_PATH" ]; then
