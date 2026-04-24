@@ -802,3 +802,265 @@ pub async fn get_radiology_tat(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Phase 2: PACS/DICOM, Share Links, Dosimetry
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/radiology/dicom-studies
+pub async fn list_dicom_studies(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DicomStudyQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>, Option<String>)>(
+        "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
+         instance_count, viewer_url, orthanc_id \
+         FROM radiology_dicom_studies \
+         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         ORDER BY study_date DESC NULLS LAST LIMIT 100",
+    )
+    .bind(params.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "patient_id": r.1, "study_instance_uid": r.2, "modality": r.3,
+        "study_date": r.4, "study_description": r.5, "instance_count": r.6,
+        "viewer_url": r.7, "orthanc_id": r.8,
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DicomStudyQuery {
+    pub patient_id: Option<Uuid>,
+}
+
+/// GET /api/radiology/dicom-studies/{patient_id}/prior
+pub async fn get_prior_studies(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
+        "SELECT id, study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
+         FROM radiology_dicom_studies WHERE patient_id = $1 \
+         ORDER BY study_date DESC LIMIT 50",
+    )
+    .bind(patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "study_instance_uid": r.1, "modality": r.2,
+        "study_date": r.3, "study_description": r.4, "instance_count": r.5, "viewer_url": r.6,
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// POST /api/radiology/share-links
+pub async fn create_share_link(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let token = uuid::Uuid::new_v4().to_string();
+    let study_id = body["study_id"].as_str().and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
+    let hours = body["expires_hours"].as_i64().unwrap_or(72);
+    let expires = chrono::Utc::now() + chrono::Duration::hours(hours);
+
+    sqlx::query(
+        "INSERT INTO radiology_share_links (tenant_id, study_id, token, recipient_name, recipient_email, expires_at, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(claims.tenant_id).bind(study_id).bind(&token)
+    .bind(body["recipient_name"].as_str()).bind(body["recipient_email"].as_str())
+    .bind(expires).bind(claims.sub)
+    .execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({
+        "token": token,
+        "viewer_url": format!("/api/public/radiology/viewer/{token}"),
+        "expires_at": expires,
+    })))
+}
+
+/// GET /api/public/radiology/viewer/{token} — validate share link (public, no auth)
+pub async fn validate_share_link(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let row = sqlx::query_as::<_, (Uuid, Uuid, chrono::DateTime<chrono::Utc>)>(
+        "SELECT sl.id, sl.study_id, sl.expires_at FROM radiology_share_links sl WHERE sl.token = $1",
+    )
+    .bind(&token)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if row.2 < chrono::Utc::now() {
+        return Err(AppError::BadRequest("Share link has expired".into()));
+    }
+
+    // Increment access count
+    sqlx::query("UPDATE radiology_share_links SET accessed_count = accessed_count + 1, last_accessed = now() WHERE token = $1")
+        .bind(&token).execute(&state.db).await?;
+
+    // Get study info
+    let study = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
+        "SELECT study_instance_uid, viewer_url, study_description FROM radiology_dicom_studies WHERE id = $1",
+    )
+    .bind(row.1)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(serde_json::json!({
+        "study_uid": study.0,
+        "viewer_url": study.1,
+        "description": study.2,
+        "valid": true,
+    })))
+}
+
+/// GET /api/radiology/pacs-config
+pub async fn get_pacs_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let config: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='radiology' AND key='pacs_config'",
+    ).bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(config.unwrap_or(serde_json::json!({
+        "orthanc_url": "", "orthanc_username": "", "viewer_type": "ohif",
+        "auto_sync": false, "sync_interval_minutes": 15
+    }))))
+}
+
+/// PUT /api/radiology/pacs-config
+pub async fn update_pacs_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
+         VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
+         ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
+    ).bind(claims.tenant_id).bind(&body).execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(body))
+}
+
+/// GET /api/radiology/dosimetry
+pub async fn list_dosimetry_records(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, rust_decimal::Decimal, bool)>(
+        "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
+         d.dose_value, d.is_compliant \
+         FROM radiology_dosimetry_records d ORDER BY d.monitoring_period_end DESC LIMIT 100",
+    ).fetch_all(&mut *tx).await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "staff_id": r.1, "badge_number": r.2,
+        "period_start": r.3, "period_end": r.4, "dose_mSv": r.5, "is_compliant": r.6,
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// POST /api/radiology/dosimetry
+pub async fn create_dosimetry_record(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let dose: f64 = body["dose_value"].as_f64().unwrap_or(0.0);
+    let limit: f64 = body["annual_limit"].as_f64().unwrap_or(20.0);
+    let compliant = dose <= limit;
+
+    let id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO radiology_dosimetry_records \
+         (tenant_id, staff_id, badge_number, monitoring_period_start, monitoring_period_end, \
+          dose_value, annual_limit, is_compliant, notes, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body["staff_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
+    .bind(body["badge_number"].as_str().unwrap_or(""))
+    .bind(body["period_start"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(body["period_end"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(dose)
+    .bind(limit)
+    .bind(compliant)
+    .bind(body["notes"].as_str())
+    .bind(claims.sub)
+    .fetch_one(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "is_compliant": compliant})))
+}
+
+/// GET /api/radiology/download-package/{study_id}
+pub async fn get_download_package(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(study_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let study = sqlx::query_as::<_, (String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
+        "SELECT study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
+         FROM radiology_dicom_studies WHERE id = $1",
+    ).bind(study_id).fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({
+        "study_uid": study.0, "modality": study.1, "study_date": study.2,
+        "description": study.3, "instance_count": study.4, "viewer_url": study.5,
+        "download_instructions": "Use Orthanc API to download DICOM files, or share viewer link with patient.",
+    })))
+}

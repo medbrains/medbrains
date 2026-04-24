@@ -1677,6 +1677,13 @@ pub fn build_router(state: AppState) -> Router {
             "/api/radiology/analytics/tat",
             get(radiology::get_radiology_tat),
         )
+        // Radiology Phase 2: PACS + Dosimetry
+        .route("/api/radiology/dicom-studies", get(radiology::list_dicom_studies))
+        .route("/api/radiology/dicom-studies/{patient_id}/prior", get(radiology::get_prior_studies))
+        .route("/api/radiology/share-links", post(radiology::create_share_link))
+        .route("/api/radiology/pacs-config", get(radiology::get_pacs_config).put(radiology::update_pacs_config))
+        .route("/api/radiology/dosimetry", get(radiology::list_dosimetry_records).post(radiology::create_dosimetry_record))
+        .route("/api/radiology/download-package/{study_id}", get(radiology::get_download_package))
         // ── Pharmacy ────────────────────────────────────
         .route(
             "/api/pharmacy/orders",
@@ -5839,11 +5846,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/bridge/register", post(devices::register_bridge_agent))
         .route("/api/bridge/heartbeat", post(devices::bridge_heartbeat));
 
-    // ── Public appointment booking + kiosk check-in (no auth) ──
+    // ── Public endpoints (no auth) ──
     let public_booking = Router::new()
         .route("/api/public/appointments/slots", get(appointments::public_available_slots))
         .route("/api/public/appointments/book", post(appointments::public_book_appointment))
-        .route("/api/public/kiosk/checkin", post(appointments::kiosk_checkin));
+        .route("/api/public/kiosk/checkin", post(appointments::kiosk_checkin))
+        .route("/api/public/radiology/viewer/{token}", get(radiology::validate_share_link));
 
     // ── Reminder config (protected) — add to protected routes ──
     let reminder_routes = Router::new()
