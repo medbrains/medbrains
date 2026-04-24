@@ -7,6 +7,9 @@
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-yottadb/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-loadtest/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-adapter-sdk/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-bridge/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-server/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/medbrains/target" />
     </content>
     <orderEntry type="inheritedJdk" />

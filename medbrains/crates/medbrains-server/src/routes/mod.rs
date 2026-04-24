@@ -1530,6 +1530,15 @@ pub fn build_router(state: AppState) -> Router {
             "/api/lab/patients/{pid}/cumulative/{test_id}",
             get(lab::get_cumulative_report),
         )
+        // Phase 4 Lab routes
+        .route("/api/lab/analyzer-worklist", get(lab::get_analyzer_worklist))
+        .route("/api/lab/phlebotomy/{id}/assign", put(lab::assign_phlebotomist))
+        .route("/api/lab/reports/bulk-print", post(lab::bulk_print_reports))
+        .route("/api/lab/report-delivery-config", get(lab::get_report_delivery_config).put(lab::update_report_delivery_config))
+        .route("/api/lab/referral-doctors", get(lab::list_referral_doctors).post(lab::create_referral_doctor))
+        .route("/api/lab/referral-doctors/{id}", put(lab::update_referral_doctor))
+        .route("/api/lab/referral-payouts", get(lab::list_referral_payouts).post(lab::create_referral_payout))
+        .route("/api/lab/b2b-credit-summary", get(lab::get_b2b_credit_summary))
         // Phase 1 Lab routes
         .route(
             "/api/lab/orders",

@@ -3404,3 +3404,297 @@ pub async fn get_order_crossmatch(
         "crossmatch_requests": crossmatches
     })))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Phase 4: Analyzer Worklist, Referral, B2B Credit, Bulk Print
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/lab/analyzer-worklist — pending orders formatted for analyzer consumption
+pub async fn get_analyzer_worklist(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<AnalyzerWorklistQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, chrono::DateTime<chrono::Utc>)>(
+        "SELECT lo.id, lo.patient_id, lo.sample_barcode, \
+         COALESCE(p.first_name || ' ' || p.last_name, p.first_name), lo.created_at \
+         FROM lab_orders lo JOIN patients p ON p.id = lo.patient_id \
+         WHERE lo.status IN ('ordered', 'sample_collected') \
+         AND ($1::uuid IS NULL OR lo.department_id = $1) \
+         ORDER BY lo.priority DESC, lo.created_at ASC \
+         LIMIT 100",
+    )
+    .bind(params.department_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let worklist: Vec<serde_json::Value> = rows.iter().map(|r| {
+        serde_json::json!({
+            "order_id": r.0,
+            "patient_id": r.1,
+            "sample_barcode": r.2,
+            "patient_name": r.3,
+            "ordered_at": r.4,
+        })
+    }).collect();
+
+    tx.commit().await?;
+    Ok(Json(worklist))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AnalyzerWorklistQuery {
+    pub department_id: Option<Uuid>,
+}
+
+/// PUT /api/lab/phlebotomy/{id}/assign — assign phlebotomist
+pub async fn assign_phlebotomist(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AssignPhlebotomistRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query("UPDATE lab_phlebotomy_queue SET assigned_to = $2 WHERE id = $1")
+        .bind(id).bind(body.assigned_to).execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"status": "assigned"})))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AssignPhlebotomistRequest {
+    pub assigned_to: Uuid,
+}
+
+/// POST /api/lab/reports/bulk-print — batch print multiple reports
+pub async fn bulk_print_reports(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<BulkPrintRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::reports::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut dispatched = 0;
+    for order_id in &body.order_ids {
+        sqlx::query(
+            "INSERT INTO lab_report_dispatches (tenant_id, order_id, dispatch_method, dispatched_at, dispatched_by) \
+             VALUES ($1, $2, 'counter', now(), $3) ON CONFLICT DO NOTHING",
+        )
+        .bind(claims.tenant_id).bind(order_id).bind(claims.sub)
+        .execute(&mut *tx).await?;
+        dispatched += 1;
+    }
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"dispatched": dispatched, "total": body.order_ids.len()})))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BulkPrintRequest {
+    pub order_ids: Vec<Uuid>,
+}
+
+/// GET /api/lab/report-delivery-config
+pub async fn get_report_delivery_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let config: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='lab' AND key='report_delivery_config'",
+    ).bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(config.unwrap_or(serde_json::json!({
+        "sms_enabled": false, "whatsapp_enabled": false, "email_enabled": false,
+        "auto_dispatch": false, "default_method": "counter"
+    }))))
+}
+
+/// PUT /api/lab/report-delivery-config
+pub async fn update_report_delivery_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
+         VALUES (gen_random_uuid(),$1,'lab','report_delivery_config',$2) \
+         ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
+    ).bind(claims.tenant_id).bind(&body).execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(body))
+}
+
+/// GET /api/lab/referral-doctors
+pub async fn list_referral_doctors(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, Option<String>, Option<String>, Option<String>, Option<f64>, bool)>(
+        "SELECT id, name, phone, specialization, hospital_name, commission_pct, is_active \
+         FROM lab_referral_doctors ORDER BY name",
+    ).fetch_all(&mut *tx).await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "name": r.1, "phone": r.2, "specialization": r.3,
+        "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// POST /api/lab/referral-doctors
+pub async fn create_referral_doctor(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO lab_referral_doctors (tenant_id, name, phone, specialization, hospital_name, commission_pct) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body["name"].as_str().unwrap_or(""))
+    .bind(body["phone"].as_str())
+    .bind(body["specialization"].as_str())
+    .bind(body["hospital_name"].as_str())
+    .bind(body["commission_pct"].as_f64())
+    .fetch_one(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "status": "created"})))
+}
+
+/// PUT /api/lab/referral-doctors/{id}
+pub async fn update_referral_doctor(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE lab_referral_doctors SET \
+         name=COALESCE($2,name), phone=COALESCE($3,phone), \
+         specialization=COALESCE($4,specialization), hospital_name=COALESCE($5,hospital_name), \
+         commission_pct=COALESCE($6,commission_pct), is_active=COALESCE($7,is_active) \
+         WHERE id=$1",
+    )
+    .bind(id)
+    .bind(body["name"].as_str())
+    .bind(body["phone"].as_str())
+    .bind(body["specialization"].as_str())
+    .bind(body["hospital_name"].as_str())
+    .bind(body["commission_pct"].as_f64())
+    .bind(body["is_active"].as_bool())
+    .execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "status": "updated"})))
+}
+
+/// GET /api/lab/referral-payouts
+pub async fn list_referral_payouts(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, chrono::NaiveDate, chrono::NaiveDate, i32, rust_decimal::Decimal, rust_decimal::Decimal, String)>(
+        "SELECT p.id, p.referral_doctor_id, p.period_start, p.period_end, \
+         p.order_count, p.total_revenue, p.commission_amount, p.status::text \
+         FROM lab_referral_payouts p ORDER BY p.period_end DESC LIMIT 100",
+    ).fetch_all(&mut *tx).await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "referral_doctor_id": r.1, "period_start": r.2, "period_end": r.3,
+        "order_count": r.4, "total_revenue": r.5, "commission_amount": r.6, "status": r.7
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// POST /api/lab/referral-payouts
+pub async fn create_referral_payout(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO lab_referral_payouts (tenant_id, referral_doctor_id, period_start, period_end, order_count, total_revenue, commission_amount) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body["referral_doctor_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
+    .bind(body["period_start"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(body["period_end"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(body["order_count"].as_i64().unwrap_or(0) as i32)
+    .bind(body["total_revenue"].as_f64().unwrap_or(0.0))
+    .bind(body["commission_amount"].as_f64().unwrap_or(0.0))
+    .fetch_one(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"id": id, "status": "created"})))
+}
+
+/// GET /api/lab/b2b-credit-summary
+pub async fn get_b2b_credit_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, (Uuid, String, Option<rust_decimal::Decimal>, Option<rust_decimal::Decimal>, Option<i32>)>(
+        "SELECT id, name, credit_limit, credit_used, payment_terms_days \
+         FROM lab_b2b_clients WHERE is_active = true ORDER BY name",
+    ).fetch_all(&mut *tx).await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+        "id": r.0, "name": r.1, "credit_limit": r.2, "credit_used": r.3,
+        "credit_available": r.2.unwrap_or_default() - r.3.unwrap_or_default(),
+        "payment_terms_days": r.4
+    })).collect();
+
+    tx.commit().await?;
+    Ok(Json(result))
+}
