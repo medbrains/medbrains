@@ -184,6 +184,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/setup/device-settings",
             get(setup::get_secure_device_settings).put(setup::update_secure_device_setting),
         )
+        // Setup — brand entities (multi-entity branding)
+        .route("/api/setup/brand-entities", get(setup::list_brand_entities).post(setup::create_brand_entity))
+        .route("/api/setup/brand-entities/{id}", put(setup::update_brand_entity).delete(setup::delete_brand_entity))
         // Setup — facilities
         .route(
             "/api/setup/facilities",
