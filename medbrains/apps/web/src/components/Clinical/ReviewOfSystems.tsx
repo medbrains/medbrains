@@ -6,7 +6,9 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import type { ReviewOfSystems as ROSType, ROSSystem } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@medbrains/api";
+import type { ReviewOfSystems as ROSType, TenantSettingsRow } from "@medbrains/types";
 
 interface ReviewOfSystemsProps {
   data: ROSType;
@@ -14,7 +16,8 @@ interface ReviewOfSystemsProps {
   onUpdate: (ros: ROSType) => void;
 }
 
-const ROS_SYSTEMS: { key: keyof ROSType; label: string }[] = [
+/** Default ROS systems — used when no hospital config exists */
+const DEFAULT_ROS_SYSTEMS: { key: string; label: string }[] = [
   { key: "constitutional", label: "Constitutional" },
   { key: "eyes", label: "Eyes" },
   { key: "ent", label: "ENT (Ears/Nose/Throat)" },
@@ -31,9 +34,26 @@ const ROS_SYSTEMS: { key: keyof ROSType; label: string }[] = [
   { key: "allergic_immunologic", label: "Allergic / Immunologic" },
 ];
 
+/** Load ROS systems from hospital settings, fall back to defaults */
+function useRosSystems(): { key: string; label: string }[] {
+  const { data: settings = [] } = useQuery<TenantSettingsRow[]>({
+    queryKey: ["tenant-settings", "clinical"],
+    queryFn: () => api.getTenantSettings("clinical"),
+    staleTime: 600_000,
+  });
+
+  const custom = settings.find((s) => s.key === "ros_systems");
+  if (custom?.value && Array.isArray(custom.value)) {
+    return custom.value as { key: string; label: string }[];
+  }
+  return DEFAULT_ROS_SYSTEMS;
+}
+
 export function ReviewOfSystems({ data, canUpdate, onUpdate }: ReviewOfSystemsProps) {
-  const toggle = (key: keyof ROSType) => {
-    const current = data[key] as ROSSystem | undefined;
+  const ROS_SYSTEMS = useRosSystems();
+
+  const toggle = (key: string) => {
+    const current = data[key];
     const abnormal = !current?.abnormal;
     onUpdate({
       ...data,
@@ -41,15 +61,15 @@ export function ReviewOfSystems({ data, canUpdate, onUpdate }: ReviewOfSystemsPr
     });
   };
 
-  const setDetails = (key: keyof ROSType, details: string) => {
-    const current = data[key] as ROSSystem | undefined;
+  const setDetails = (key: string, details: string) => {
+    const current = data[key];
     onUpdate({
       ...data,
       [key]: { abnormal: current?.abnormal ?? true, details },
     });
   };
 
-  const abnormalCount = ROS_SYSTEMS.filter((s) => (data[s.key] as ROSSystem | undefined)?.abnormal).length;
+  const abnormalCount = ROS_SYSTEMS.filter((s) => (data[s.key])?.abnormal).length;
 
   return (
     <Stack gap="sm">
@@ -61,7 +81,7 @@ export function ReviewOfSystems({ data, canUpdate, onUpdate }: ReviewOfSystemsPr
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
         {ROS_SYSTEMS.map((sys) => {
-          const val = data[sys.key] as ROSSystem | undefined;
+          const val = data[sys.key];
           return (
             <Stack key={sys.key} gap={4}>
               <Checkbox

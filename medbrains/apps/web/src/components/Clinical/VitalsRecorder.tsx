@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@medbrains/api";
+import type { TenantSettingsRow } from "@medbrains/types";
 import {
   Badge,
   Button,
@@ -91,6 +94,18 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
   const localeConfig = useLocaleConfig();
   const [values, setValues] = useState<VitalValues>({});
   const [notes, setNotes] = useState("");
+
+  // Load hospital-configurable vital fields (if customized in settings)
+  const { data: clinicalSettings = [] } = useQuery<TenantSettingsRow[]>({
+    queryKey: ["tenant-settings", "clinical"],
+    queryFn: () => api.getTenantSettings("clinical"),
+    staleTime: 600_000,
+  });
+  const enabledVitals = useMemo(() => {
+    const cfg = clinicalSettings.find((s) => s.key === "vital_parameters");
+    if (cfg?.value && Array.isArray(cfg.value)) return new Set(cfg.value as string[]);
+    return null; // null = show all defaults
+  }, [clinicalSettings]);
 
   // Build vital configs dynamically based on locale
   const vitalConfigs = useMemo((): VitalConfig[] => {
@@ -202,6 +217,11 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
     ];
   }, [localeConfig.temperature_unit, localeConfig.weight_unit, localeConfig.height_unit]);
 
+  // Filter by hospital config (if set). null = show all.
+  const filteredVitalConfigs = enabledVitals
+    ? vitalConfigs.filter((v) => enabledVitals.has(v.key))
+    : vitalConfigs;
+
   // BMI calculation — convert display values to metric for computation
   const bmiValues = useMemo(() => {
     const rawWeight = values.weight;
@@ -249,7 +269,7 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
   return (
     <Stack gap="md">
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
-        {vitalConfigs.map((config) => {
+        {filteredVitalConfigs.map((config) => {
           const val = values[config.key];
           const level = getRangeLevel(config, val);
           const rangeLabel = getRangeLabel(config);

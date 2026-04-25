@@ -2798,22 +2798,8 @@ export interface ROSSystem {
   details?: string;
 }
 
-export interface ReviewOfSystems {
-  constitutional?: ROSSystem;
-  eyes?: ROSSystem;
-  ent?: ROSSystem;
-  cardiovascular?: ROSSystem;
-  respiratory?: ROSSystem;
-  gi?: ROSSystem;
-  genitourinary?: ROSSystem;
-  musculoskeletal?: ROSSystem;
-  skin?: ROSSystem;
-  neurological?: ROSSystem;
-  psychiatric?: ROSSystem;
-  endocrine?: ROSSystem;
-  hematologic?: ROSSystem;
-  allergic_immunologic?: ROSSystem;
-}
+/** Dynamic — keys are configurable per hospital via tenant_settings.clinical.ros_systems */
+export type ReviewOfSystems = Record<string, ROSSystem | undefined>;
 
 export interface PhysicalExamination {
   general?: string;
