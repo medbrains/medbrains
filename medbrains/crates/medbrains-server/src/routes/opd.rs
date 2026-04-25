@@ -1362,7 +1362,7 @@ pub async fn list_patient_diagnoses(
         "SELECT d.id, d.encounter_id, d.icd_code, d.description, d.is_primary, \
          d.severity, d.certainty, d.onset_date, d.resolved_date, \
          e.encounter_date, \
-         CASE WHEN u.id IS NOT NULL THEN u.first_name || ' ' || u.last_name ELSE NULL END AS doctor_name, \
+         u.full_name AS doctor_name, \
          d.created_at \
          FROM diagnoses d \
          JOIN encounters e ON d.encounter_id = e.id \
