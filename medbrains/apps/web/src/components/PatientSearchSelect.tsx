@@ -14,6 +14,8 @@ interface PatientSearchSelectProps {
   required?: boolean;
   size?: string;
   error?: string;
+  /** Patient IDs to exclude from results (e.g. current patient in merge) */
+  excludeIds?: string[];
 }
 
 function formatAge(dob: string | null): string {
