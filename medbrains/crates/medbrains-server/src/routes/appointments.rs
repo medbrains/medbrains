@@ -24,7 +24,7 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct CreateScheduleRequest {
     pub doctor_id: Uuid,
-    pub department_id: Uuid,
+    pub department_id: Option<Uuid>,
     pub day_of_week: i32,
     pub start_time: NaiveTime,
     pub end_time: NaiveTime,

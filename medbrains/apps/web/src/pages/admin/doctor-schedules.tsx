@@ -111,7 +111,7 @@ function ScheduleFormModal({
     mutationFn: () =>
       api.createSchedule({
         doctor_id: doctorId,
-        department_id: departmentId,
+        department_id: departmentId || undefined,
         day_of_week: parseInt(dayOfWeek!, 10),
         start_time: startTime!,
         end_time: endTime!,
@@ -175,6 +175,7 @@ function ScheduleFormModal({
             value={dayOfWeek}
             onChange={setDayOfWeek}
             required
+            comboboxProps={{ withinPortal: true }}
           />
         )}
         {editSchedule && (
@@ -193,6 +194,7 @@ function ScheduleFormModal({
             onChange={setStartTime}
             searchable
             required
+            comboboxProps={{ withinPortal: true }}
           />
           <Select
             label="End Time"
@@ -202,6 +204,7 @@ function ScheduleFormModal({
             onChange={setEndTime}
             searchable
             required
+            comboboxProps={{ withinPortal: true }}
           />
         </Group>
         <Group grow>
@@ -295,6 +298,22 @@ function ExceptionFormModal({
   return (
     <Modal opened={opened} onClose={onClose} title="Add Schedule Exception" size="md">
       <Stack gap="sm">
+        {/* Quick presets */}
+        <div>
+          <Text size="xs" fw={600} c="dimmed" mb={6}>Quick Presets</Text>
+          <Group gap={4} wrap="wrap">
+            {[
+              { label: "Tomorrow", fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setExceptionDate(d); setReason("Day off"); } },
+              { label: "This Saturday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
+              { label: "This Sunday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (7 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
+              { label: "Republic Day", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 0, 26); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Republic Day"); } },
+              { label: "Independence Day", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 7, 15); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Independence Day"); } },
+              { label: "Gandhi Jayanti", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 9, 2); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Gandhi Jayanti"); } },
+            ].map((p) => (
+              <Button key={p.label} size="compact-xs" variant="light" onClick={p.fn}>{p.label}</Button>
+            ))}
+          </Group>
+        </div>
         <DatePickerInput
           label="Date"
           placeholder="Pick date"
@@ -625,8 +644,8 @@ export function DoctorSchedulesPage() {
             value={viewMode}
             onChange={setViewMode}
             data={[
-              { value: "calendar", label: <Group gap={4}><IconCalendarEvent size={14} /><span>Calendar</span></Group> },
-              { value: "table", label: <Group gap={4}><IconList size={14} /><span>Table</span></Group> },
+              { value: "calendar", label: "Calendar" },
+              { value: "table", label: "Table" },
             ]}
           />
         </Group>
