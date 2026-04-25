@@ -2830,12 +2830,10 @@ pub async fn admit_from_opd(
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PharmacyDispatchStatusRow {
-    pub order_id: Uuid,
+    pub drug_name: String,
+    pub quantity_ordered: i32,
+    pub quantity_dispensed: i32,
     pub status: String,
-    pub dispensing_type: Option<String>,
-    pub total_items: Option<i64>,
-    pub created_at: DateTime<Utc>,
-    pub dispensed_at: Option<DateTime<Utc>>,
 }
 
 pub async fn pharmacy_dispatch_status(
@@ -2849,15 +2847,14 @@ pub async fn pharmacy_dispatch_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PharmacyDispatchStatusRow>(
-        "SELECT o.id AS order_id, o.status::text AS status, \
-         o.dispensing_type::text AS dispensing_type, \
-         COUNT(oi.id)::bigint AS total_items, \
-         o.created_at, o.dispensed_at \
+        "SELECT oi.drug_name, \
+         oi.quantity AS quantity_ordered, \
+         COALESCE(oi.quantity - COALESCE(oi.quantity_returned, 0), oi.quantity) AS quantity_dispensed, \
+         o.status::text \
          FROM pharmacy_orders o \
-         LEFT JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
+         JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
          WHERE o.encounter_id = $1 AND o.tenant_id = $2 \
-         GROUP BY o.id, o.status, o.dispensing_type, o.created_at, o.dispensed_at \
-         ORDER BY o.created_at DESC",
+         ORDER BY oi.drug_name",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
