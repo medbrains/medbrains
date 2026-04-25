@@ -8,6 +8,7 @@ import {
   Card,
   Drawer,
   Group,
+  Loader,
   Modal,
   NumberInput,
   SegmentedControl,
@@ -1506,7 +1507,18 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       </Group>
       <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
 
-      <Modal opened={reviewOpened} onClose={closeReview} title={`${reviewAction === "approved" ? "Approve" : reviewAction === "rejected" ? "Reject" : "Review"} Prescription`} size="sm">
+      {/* Prescription Detail Drawer */}
+      <Drawer
+        opened={Boolean(selectedId) && !reviewOpened}
+        onClose={() => setSelectedId(null)}
+        title="Prescription Detail"
+        position="right"
+        size="xl"
+      >
+        {selectedId && <RxDetailView rxQueueId={selectedId} canReview={canReview} onReview={(action) => { handleOpenReview(selectedId, action); }} />}
+      </Drawer>
+
+      <Modal opened={reviewOpened} onClose={closeReview} title={`${reviewAction === "approved" ? "Approve" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`} size="sm">
         <Stack>
           <Textarea label="Notes" value={reviewNotes} onChange={(e) => setReviewNotes(e.currentTarget.value)} />
           {reviewAction === "rejected" && (
@@ -1514,12 +1526,115 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
           )}
           <Group justify="flex-end">
             <Button variant="default" onClick={closeReview}>Cancel</Button>
-            <Button color={reviewAction === "rejected" ? "red" : "green"} loading={reviewMutation.isPending} onClick={handleSubmitReview}>
-              {reviewAction === "approved" ? "Approve" : "Reject"}
+            <Button color={reviewAction === "rejected" ? "danger" : reviewAction === "on_hold" ? "warning" : "success"} loading={reviewMutation.isPending} onClick={handleSubmitReview}>
+              {reviewAction === "approved" ? "Approve & Dispense" : reviewAction === "on_hold" ? "Put on Hold" : "Reject"}
             </Button>
           </Group>
         </Stack>
       </Modal>
+    </Stack>
+  );
+}
+
+/** Detail view for a single Rx queue entry — shows prescription items, allergies, 4 views */
+function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; canReview: boolean; onReview: (action: string) => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["pharmacy-rx-detail", rxQueueId],
+    queryFn: () => api.getRxDetail(rxQueueId),
+  });
+
+  if (isLoading) return <Loader />;
+  if (!data) return <Text c="dimmed">Not found</Text>;
+
+  const { prescription, items, allergies } = data as unknown as { prescription: Record<string, unknown>; items: unknown[]; allergies: unknown[] };
+  const rxItems = items as { drug_name: string; dosage: string; frequency: string; duration: string; route?: string; instructions?: string }[];
+  const allergyNames = (allergies as { allergen_name: string }[]).map((a) => a.allergen_name);
+  const patientId = prescription.patient_id as string;
+  const status = prescription.status as string;
+
+  // Build PrescriptionWithItems format for the 4-view component
+  const rxForViews: PrescriptionWithItems[] = [{
+    prescription: {
+      id: prescription.prescription_id as string,
+      tenant_id: prescription.tenant_id as string,
+      encounter_id: prescription.encounter_id as string,
+      doctor_id: prescription.doctor_id as string,
+      notes: null,
+      created_at: prescription.received_at as string,
+      updated_at: prescription.received_at as string,
+    },
+    items: rxItems.map((it, idx) => ({
+      id: `item-${idx}`,
+      tenant_id: prescription.tenant_id as string,
+      prescription_id: prescription.prescription_id as string,
+      drug_name: it.drug_name,
+      dosage: it.dosage,
+      frequency: it.frequency,
+      duration: it.duration,
+      route: it.route ?? null,
+      instructions: it.instructions ?? null,
+      created_at: prescription.received_at as string,
+    })),
+  }];
+
+  return (
+    <Stack>
+      {/* Allergy alert */}
+      {allergyNames.length > 0 && (
+        <Alert color="danger" variant="light" title="Drug Allergies" icon={<IconAlertTriangle size={16} />}>
+          <Group gap={6}>{allergyNames.map((a) => <Badge key={a} color="danger" size="sm">{a}</Badge>)}</Group>
+        </Alert>
+      )}
+
+      {/* Status + actions */}
+      <Group justify="space-between">
+        <Badge size="lg" color={rxStatusColors[status] ?? "gray"}>{status.replace(/_/g, " ")}</Badge>
+        {canReview && status === "pending_review" && (
+          <Group gap="xs">
+            <Button size="xs" color="success" leftSection={<IconCheck size={14} />} onClick={() => onReview("approved")}>Approve</Button>
+            <Button size="xs" color="warning" variant="light" leftSection={<IconClock size={14} />} onClick={() => onReview("on_hold")}>Hold</Button>
+            <Button size="xs" color="danger" variant="light" leftSection={<IconX size={14} />} onClick={() => onReview("rejected")}>Reject</Button>
+          </Group>
+        )}
+      </Group>
+
+      {/* Prescription items table */}
+      <Card withBorder>
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>#</Table.Th>
+              <Table.Th>Drug</Table.Th>
+              <Table.Th>Dosage</Table.Th>
+              <Table.Th>Frequency</Table.Th>
+              <Table.Th>Duration</Table.Th>
+              <Table.Th>Route</Table.Th>
+              <Table.Th>Instructions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rxItems.map((it, idx) => (
+              <Table.Tr key={idx}>
+                <Table.Td>{idx + 1}</Table.Td>
+                <Table.Td fw={600}>{it.drug_name}</Table.Td>
+                <Table.Td c="primary">{it.dosage}</Table.Td>
+                <Table.Td><Badge size="xs" variant="light">{it.frequency}</Badge></Table.Td>
+                <Table.Td>{it.duration}</Table.Td>
+                <Table.Td>{it.route ?? "—"}</Table.Td>
+                <Table.Td c="dimmed">{it.instructions ?? "—"}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Card>
+
+      {/* 4-view prescription display */}
+      <PrescriptionViews
+        prescriptions={rxForViews}
+        patientName={patientId.slice(0, 8)}
+        uhid=""
+        allergies={allergyNames}
+      />
     </Stack>
   );
 }
