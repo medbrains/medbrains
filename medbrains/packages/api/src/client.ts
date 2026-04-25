@@ -4342,9 +4342,10 @@ export const api = {
     }),
   getPharmacyOrder: (id: string) =>
     request<PharmacyOrderDetailResponse>(`/pharmacy/orders/${id}`),
-  dispenseOrder: (id: string) =>
+  dispenseOrder: (id: string, data?: { items?: unknown[]; witnessed_by?: string }) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
       method: "PUT",
+      body: JSON.stringify(data ?? {}),
     }),
   cancelPharmacyOrder: (id: string) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/cancel`, {
