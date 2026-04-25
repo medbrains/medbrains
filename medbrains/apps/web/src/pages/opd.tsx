@@ -670,8 +670,8 @@ function EncounterDetail({
 
         {/* ── Right: Clinical Workspace ── */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-      <Tabs defaultValue="vitals" orientation="horizontal">
-      <Tabs.List>
+      <Tabs defaultValue="vitals" orientation="vertical" style={{ flex: 1 }}>
+      <Tabs.List style={{ minWidth: 160 }}>
         <Tabs.Tab value="vitals">Vitals</Tabs.Tab>
         <Tabs.Tab value="consultation">Consultation</Tabs.Tab>
         <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>History</Tabs.Tab>
@@ -901,32 +901,63 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
         />
       )}
       {vitals.length > 0 && (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Temp</Table.Th>
-              <Table.Th>Pulse</Table.Th>
-              <Table.Th>BP</Table.Th>
-              <Table.Th>SpO2</Table.Th>
-              <Table.Th>Weight</Table.Th>
-              <Table.Th>BMI</Table.Th>
-              <Table.Th>Recorded</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {vitals.map((v: Vital) => (
-              <Table.Tr key={v.id}>
-                <Table.Td>{v.temperature ?? "—"}</Table.Td>
-                <Table.Td>{v.pulse ?? "—"}</Table.Td>
-                <Table.Td>{v.systolic_bp && v.diastolic_bp ? `${v.systolic_bp}/${v.diastolic_bp}` : "—"}</Table.Td>
-                <Table.Td>{v.spo2 ?? "—"}</Table.Td>
-                <Table.Td>{v.weight_kg ?? "—"}</Table.Td>
-                <Table.Td>{v.bmi ?? "—"}</Table.Td>
-                <Table.Td>{new Date(v.created_at).toLocaleString()}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Timeline active={0} bulletSize={28} lineWidth={2} color="primary">
+          {vitals.map((v: Vital, idx: number) => {
+            const prev = vitals[idx + 1] as Vital | undefined;
+            const trend = (curr: number | null, prevVal: number | null) => {
+              if (!curr || !prevVal) return "";
+              if (curr > prevVal) return " ↑";
+              if (curr < prevVal) return " ↓";
+              return " →";
+            };
+            return (
+              <Timeline.Item
+                key={v.id}
+                bullet={<IconHeartbeat size={14} />}
+                title={
+                  <Group gap="xs">
+                    <Text size="xs" fw={600}>{new Date(v.created_at).toLocaleString()}</Text>
+                    {idx === 0 && <Badge size="xs" color="success" variant="light">Latest</Badge>}
+                  </Group>
+                }
+              >
+                <Group gap="md" mt={4} wrap="wrap">
+                  {v.temperature != null && (
+                    <Badge variant="light" color={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="sm">
+                      🌡 {v.temperature}°C{trend(Number(v.temperature), prev?.temperature ? Number(prev.temperature) : null)}
+                    </Badge>
+                  )}
+                  {v.pulse != null && (
+                    <Badge variant="light" color={Number(v.pulse) > 100 ? "danger" : Number(v.pulse) < 60 ? "warning" : "primary"} size="sm">
+                      ❤ {v.pulse} bpm{trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
+                    </Badge>
+                  )}
+                  {v.systolic_bp != null && v.diastolic_bp != null && (
+                    <Badge variant="light" color={Number(v.systolic_bp) > 140 ? "danger" : Number(v.systolic_bp) < 90 ? "warning" : "primary"} size="sm">
+                      🩸 {v.systolic_bp}/{v.diastolic_bp} mmHg
+                    </Badge>
+                  )}
+                  {v.spo2 != null && (
+                    <Badge variant="light" color={Number(v.spo2) < 94 ? "danger" : "primary"} size="sm">
+                      💨 SpO₂ {v.spo2}%
+                    </Badge>
+                  )}
+                  {v.respiratory_rate != null && (
+                    <Badge variant="light" size="sm">
+                      🫁 RR {v.respiratory_rate}
+                    </Badge>
+                  )}
+                  {v.weight_kg != null && (
+                    <Badge variant="outline" size="sm">⚖ {v.weight_kg} kg</Badge>
+                  )}
+                  {v.bmi != null && (
+                    <Badge variant="outline" size="sm">BMI {v.bmi}</Badge>
+                  )}
+                </Group>
+              </Timeline.Item>
+            );
+          })}
+        </Timeline>
       )}
     </Stack>
   );
