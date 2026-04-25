@@ -36,7 +36,6 @@ import {
   IconPlus,
   IconPrinter,
   IconReceipt,
-  IconSearch,
   IconStethoscope,
   IconTrash,
   IconUser,
@@ -49,6 +48,7 @@ import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { PageHeader } from "../components/PageHeader";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { PrescriptionViews } from "../components/Clinical";
 import type {
   Patient,
@@ -88,7 +88,7 @@ const LAB_STATUS_COLORS: Record<string, string> = {
 };
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
-  draft: "slate",
+  draft: "gray",
   issued: "primary",
   partially_paid: "warning",
   paid: "success",
@@ -103,7 +103,7 @@ const APPT_STATUS_COLORS: Record<string, string> = {
   in_consultation: "orange",
   completed: "success",
   cancelled: "danger",
-  no_show: "slate",
+  no_show: "gray",
 };
 
 function formatDate(d: string | null): string {
@@ -249,7 +249,7 @@ function OverviewTab({ patient }: { patient: Patient }) {
                 </Badge>
               )}
               {patient.is_deceased && (
-                <Badge color="slate" variant="filled">
+                <Badge color="gray" variant="filled">
                   Deceased
                 </Badge>
               )}
@@ -348,7 +348,7 @@ function VisitsTab({ patientId }: { patientId: string }) {
             </Table.Td>
             <Table.Td>
               <Badge
-                color={STATUS_COLORS[v.status] ?? "slate"}
+                color={STATUS_COLORS[v.status] ?? "gray"}
                 variant="light"
                 size="sm"
               >
@@ -444,7 +444,7 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
             </Table.Td>
             <Table.Td>
               <Badge
-                color={LAB_STATUS_COLORS[o.status] ?? "slate"}
+                color={LAB_STATUS_COLORS[o.status] ?? "gray"}
                 variant="light"
                 size="sm"
               >
@@ -453,7 +453,7 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
             </Table.Td>
             <Table.Td>
               <Badge
-                color={o.priority === "stat" ? "danger" : o.priority === "urgent" ? "orange" : "slate"}
+                color={o.priority === "stat" ? "danger" : o.priority === "urgent" ? "orange" : "gray"}
                 variant="light"
                 size="sm"
               >
@@ -562,7 +562,7 @@ function BillingTab({ patientId }: { patientId: string }) {
               </Table.Td>
               <Table.Td>
                 <Badge
-                  color={INVOICE_STATUS_COLORS[inv.status] ?? "slate"}
+                  color={INVOICE_STATUS_COLORS[inv.status] ?? "gray"}
                   variant="light"
                   size="sm"
                 >
@@ -668,7 +668,7 @@ function AppointmentsTab({ patientId }: { patientId: string }) {
             </Table.Td>
             <Table.Td>
               <Badge
-                color={APPT_STATUS_COLORS[a.status] ?? "slate"}
+                color={APPT_STATUS_COLORS[a.status] ?? "gray"}
                 variant="light"
                 size="sm"
               >
@@ -946,8 +946,6 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
 function MergeTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [mergeReason, setMergeReason] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<Patient | null>(null);
   const [confirmOpen, confirmHandlers] = useDisclosure(false);
@@ -966,7 +964,6 @@ function MergeTab({ patient }: { patient: Patient }) {
       confirmHandlers.close();
       setSelectedTarget(null);
       setMergeReason("");
-      setSearchResults([]);
     },
   });
 
@@ -978,16 +975,6 @@ function MergeTab({ patient }: { patient: Patient }) {
       notifications.show({ title: "Unmerged", message: "Patient records separated", color: "success" });
     },
   });
-
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) return;
-    try {
-      const result = await api.listPatients({ page: 1, per_page: 5, search: searchTerm.trim() });
-      setSearchResults(result.patients.filter((p) => p.id !== patient.id));
-    } catch {
-      setSearchResults([]);
-    }
-  };
 
   if (isLoading) return <Loader size="sm" />;
 
@@ -1024,7 +1011,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                   <Table.Td><Text size="sm">{h.merged_patient_id.slice(0, 8)}...</Text></Table.Td>
                   <Table.Td><Text size="sm">{h.merge_reason}</Text></Table.Td>
                   <Table.Td>
-                    <Badge size="sm" color={h.unmerged_at ? "slate" : "success"}>
+                    <Badge size="sm" color={h.unmerged_at ? "gray" : "success"}>
                       {h.unmerged_at ? "Unmerged" : "Active"}
                     </Badge>
                   </Table.Td>
@@ -1051,32 +1038,51 @@ function MergeTab({ patient }: { patient: Patient }) {
           <Text size="sm" c="dimmed" mb="md">
             Search for a duplicate patient record and merge it into this one. The duplicate will be deactivated.
           </Text>
-          <Group>
-            <TextInput placeholder="Search by UHID, name or phone" value={searchTerm} onChange={(e) => setSearchTerm(e.currentTarget.value)} style={{ flex: 1 }} />
-            <Button size="sm" leftSection={<IconSearch size={14} />} onClick={handleSearch}>Search</Button>
-          </Group>
-          {searchResults.length > 0 && (
-            <Table mt="sm">
-              <Table.Tbody>
-                {searchResults.map((p) => (
-                  <Table.Tr key={p.id} style={{ cursor: "pointer", background: selectedTarget?.id === p.id ? "var(--mantine-color-orange-light)" : undefined }} onClick={() => setSelectedTarget(p)}>
-                    <Table.Td><Text size="sm" fw={500}>{p.uhid}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{p.first_name} {p.last_name}</Text></Table.Td>
-                    <Table.Td><Text size="sm" c="dimmed">{p.phone}</Text></Table.Td>
-                    <Table.Td><Badge size="xs" variant="light">{p.category}</Badge></Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
+          <PatientSearchSelect
+            value={selectedTarget?.id ?? ""}
+            onChange={(id) => {
+              if (!id) { setSelectedTarget(null); return; }
+              api.getPatient(id).then((p) => setSelectedTarget(p as Patient)).catch(() => setSelectedTarget(null));
+            }}
+            label="Search duplicate patient"
+            placeholder="Search by UHID, name or phone..."
+          />
           {selectedTarget && (
             <Stack gap="sm" mt="md">
-              <Alert color="orange">
-                Merging {selectedTarget.uhid} ({selectedTarget.first_name} {selectedTarget.last_name}) into {patient.uhid}
+              {/* Side-by-side comparison */}
+              <Card withBorder bg="var(--fc-panel, #f7f8f6)" p="md">
+                <Text size="xs" fw={700} c="dimmed" mb="sm" tt="uppercase" ff="var(--font-mono, monospace)" style={{ letterSpacing: "0.14em" }}>
+                  Compare Before Merging
+                </Text>
+                <SimpleGrid cols={2}>
+                  <Stack gap={4}>
+                    <Badge color="success" variant="light" size="sm" mb={4}>Surviving Record (this patient)</Badge>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>UHID</Text><Text size="sm" fw={600}>{patient.uhid}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Name</Text><Text size="sm">{patient.first_name} {patient.last_name}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Phone</Text><Text size="sm">{patient.phone ?? "—"}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>DOB</Text><Text size="sm">{patient.date_of_birth ?? "—"}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Gender</Text><Text size="sm">{patient.gender}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Category</Text><Badge size="xs" variant="light">{patient.category}</Badge></Group>
+                  </Stack>
+                  <Stack gap={4}>
+                    <Badge color="warning" variant="light" size="sm" mb={4}>Duplicate (will be deactivated)</Badge>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>UHID</Text><Text size="sm" fw={600}>{selectedTarget.uhid}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Name</Text><Text size="sm">{selectedTarget.first_name} {selectedTarget.last_name}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Phone</Text><Text size="sm">{selectedTarget.phone ?? "—"}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>DOB</Text><Text size="sm">{selectedTarget.date_of_birth ?? "—"}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Gender</Text><Text size="sm">{selectedTarget.gender}</Text></Group>
+                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Category</Text><Badge size="xs" variant="light">{selectedTarget.category}</Badge></Group>
+                  </Stack>
+                </SimpleGrid>
+              </Card>
+
+              <Alert color="warning" variant="light">
+                All visits, prescriptions, lab orders, and billing records from <b>{selectedTarget.uhid}</b> will be transferred to <b>{patient.uhid}</b>.
               </Alert>
               <Textarea label="Merge Reason" placeholder="Why are these records being merged?" value={mergeReason} onChange={(e) => setMergeReason(e.currentTarget.value)} required />
               <Group justify="flex-end">
-                <Button color="orange" disabled={!mergeReason.trim()} onClick={confirmHandlers.open}>
+                <Button variant="subtle" onClick={() => setSelectedTarget(null)}>Cancel</Button>
+                <Button color="warning" disabled={!mergeReason.trim()} onClick={confirmHandlers.open}>
                   Merge Records
                 </Button>
               </Group>
@@ -1583,7 +1589,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
                 <Text size="sm" fw={500}>{e.program_name}</Text>
                 <Text size="xs" c="dimmed">Enrolled: {e.enrollment_date}</Text>
               </div>
-              <Badge color={ENROLLMENT_STATUS_COLORS[e.status] ?? "slate"}>{e.status.replace(/_/g, " ")}</Badge>
+              <Badge color={ENROLLMENT_STATUS_COLORS[e.status] ?? "gray"}>{e.status.replace(/_/g, " ")}</Badge>
             </Group>
           ))}
         </Stack>
@@ -1730,7 +1736,7 @@ export function PatientDetailPage() {
         <Badge color="primary" variant="light">
           {patient.category}
         </Badge>
-        <Badge color="slate" variant="light">
+        <Badge color="gray" variant="light">
           {patient.financial_class}
         </Badge>
         {patient.blood_group && (
