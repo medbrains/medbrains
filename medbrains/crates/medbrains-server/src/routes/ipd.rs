@@ -1946,7 +1946,7 @@ pub async fn list_wards(
                w.ward_type, w.total_beds, w.gender_restriction, w.is_active, \
                COALESCE(( \
                    SELECT COUNT(*) FROM ward_bed_mappings wbm \
-                   JOIN bed_states bs ON bs.bed_id = wbm.bed_location_id AND bs.tenant_id = wbm.tenant_id \
+                   JOIN bed_states bs ON bs.location_id = wbm.bed_location_id AND bs.tenant_id = wbm.tenant_id \
                    WHERE wbm.ward_id = w.id AND wbm.is_active = true \
                          AND bs.status IN ('vacant_clean', 'vacant_dirty') \
                ), 0) AS vacant_beds \
@@ -2072,7 +2072,7 @@ pub async fn list_ward_beds(
          FROM ward_bed_mappings wbm \
          JOIN locations l ON l.id = wbm.bed_location_id \
          LEFT JOIN bed_types bt ON bt.id = wbm.bed_type_id \
-         LEFT JOIN bed_states bs ON bs.bed_id = wbm.bed_location_id AND bs.tenant_id = wbm.tenant_id \
+         LEFT JOIN bed_states bs ON bs.location_id = wbm.bed_location_id AND bs.tenant_id = wbm.tenant_id \
          LEFT JOIN admissions a ON a.id = bs.admission_id AND a.status = 'admitted'::admission_status \
          LEFT JOIN patients p ON p.id = a.patient_id \
          WHERE wbm.ward_id = $1 AND wbm.tenant_id = $2 AND wbm.is_active = true \
@@ -2263,13 +2263,13 @@ pub async fn bed_dashboard_beds(
 
     let where_clause = conditions.join(" AND ");
     let sql = format!(
-        "SELECT bs.id AS bed_state_id, bs.bed_id AS bed_location_id, \
+        "SELECT bs.id AS bed_state_id, bs.location_id AS bed_location_id, \
                l.name AS bed_name, bs.ward_id, w.name AS ward_name, \
                bs.status AS bed_status, \
                CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
                p.uhid AS patient_uhid, bs.admission_id \
          FROM bed_states bs \
-         JOIN locations l ON l.id = bs.bed_id \
+         JOIN locations l ON l.id = bs.location_id \
          LEFT JOIN wards w ON w.id = bs.ward_id \
          LEFT JOIN admissions a ON a.id = bs.admission_id \
              AND a.status = 'admitted'::admission_status \
@@ -4132,7 +4132,7 @@ pub async fn list_available_beds(
 
     let rows = sqlx::query_as::<_, AvailableBed>(
         "SELECT \
-           bs.bed_id, \
+           bs.location_id, \
            l.name AS bed_number, \
            w.id AS ward_id, \
            w.name AS ward_name, \
@@ -4140,7 +4140,7 @@ pub async fn list_available_beds(
            bt.name AS bed_type, \
            COALESCE(bs.is_isolation, false) AS is_isolation \
          FROM bed_states bs \
-         JOIN locations l ON l.id = bs.bed_id AND l.tenant_id = bs.tenant_id \
+         JOIN locations l ON l.id = bs.location_id AND l.tenant_id = bs.tenant_id \
          LEFT JOIN wards w ON w.id = bs.ward_id AND w.tenant_id = bs.tenant_id \
          LEFT JOIN locations parent_l ON parent_l.id = l.parent_id AND parent_l.tenant_id = bs.tenant_id \
          LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
@@ -4150,7 +4150,7 @@ pub async fn list_available_beds(
            AND ($2::uuid IS NULL OR bs.ward_id = $2) \
            AND NOT EXISTS ( \
              SELECT 1 FROM bed_reservations br \
-             WHERE br.bed_id = bs.bed_id AND br.tenant_id = bs.tenant_id \
+             WHERE br.bed_id = bs.location_id AND br.tenant_id = bs.tenant_id \
                AND br.status IN ('active', 'confirmed') \
                AND br.reserved_until > NOW() \
            ) \
