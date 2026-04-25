@@ -464,10 +464,11 @@ function OpdPageInner() {
       <Drawer
         opened={detailOpened}
         onClose={closeDetail}
-        title=""
         position="right"
         size="100%"
-        styles={{ body: { padding: 0, height: "calc(100vh - 48px)", overflow: "hidden" } }}
+        withCloseButton
+        title={<Button variant="subtle" size="xs" onClick={closeDetail} leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}>Back to Queue</Button>}
+        styles={{ header: { padding: "6px 12px", minHeight: 36, borderBottom: "1px solid var(--fc-rule, #e7ebe8)" }, body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" } }}
       >
         {selectedEntry && (
           <EncounterDetail
