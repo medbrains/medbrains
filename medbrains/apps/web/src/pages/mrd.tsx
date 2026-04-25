@@ -117,14 +117,14 @@ function RecordsTab() {
   const [createForm, setCreateForm] = useState<CreateMrdRecordRequest>({ patient_id: "" });
   const createMut = useMutation({
     mutationFn: (body: CreateMrdRecordRequest) => api.createMrdRecord(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-records"] }); closeCreate(); notifications.show({ title: "Created", message: "Medical record indexed", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-records"] }); closeCreate(); notifications.show({ title: "Created", message: "Medical record indexed", color: "success" }); },
   });
 
   // Issue
   const [issueForm, setIssueForm] = useState<IssueMrdRecordRequest>({});
   const issueMut = useMutation({
     mutationFn: (body: IssueMrdRecordRequest) => api.issueMrdRecord(selectedRecord?.id ?? "", body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-records"] }); closeIssue(); notifications.show({ title: "Issued", message: "Record issued", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-records"] }); closeIssue(); notifications.show({ title: "Issued", message: "Record issued", color: "success" }); },
   });
 
   // Movements
@@ -136,7 +136,7 @@ function RecordsTab() {
 
   const returnMut = useMutation({
     mutationFn: (movementId: string) => api.returnMrdRecord(selectedRecord?.id ?? "", movementId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-movements"] }); qc.invalidateQueries({ queryKey: ["mrd-records"] }); notifications.show({ title: "Returned", message: "Record returned", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-movements"] }); void qc.invalidateQueries({ queryKey: ["mrd-records"] }); notifications.show({ title: "Returned", message: "Record returned", color: "success" }); },
   });
 
   const columns: Column<MrdMedicalRecord>[] = [
@@ -151,13 +151,13 @@ function RecordsTab() {
         <Group gap={4}>
           {canManage && (
             <Tooltip label="Issue">
-              <ActionIcon variant="light" onClick={() => { setSelectedRecord(r); setIssueForm({}); openIssue(); }}>
+              <ActionIcon variant="light" onClick={() => { setSelectedRecord(r); setIssueForm({}); openIssue(); }} aria-label="Go forward">
                 <IconArrowRight size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           <Tooltip label="Movements">
-            <ActionIcon variant="light" color="primary" onClick={() => { setSelectedRecord(r); openMovements(); }}>
+            <ActionIcon variant="light" color="primary" onClick={() => { setSelectedRecord(r); openMovements(); }} aria-label="Arrow Back">
               <IconArrowBack size={16} />
             </ActionIcon>
           </Tooltip>
@@ -243,7 +243,7 @@ function BirthsTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateMrdBirthRequest) => api.createMrdBirth(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-births"] }); closeCreate(); notifications.show({ title: "Registered", message: "Birth registered", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-births"] }); closeCreate(); notifications.show({ title: "Registered", message: "Birth registered", color: "success" }); },
   });
 
   const columns: Column<MrdBirthRegister>[] = [
@@ -265,7 +265,7 @@ function BirthsTab() {
 
       <Drawer opened={createOpen} onClose={closeCreate} title="Register Birth" position="right" size="md">
         <Stack>
-          <TextInput label="Mother Patient ID" required value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
+          <PatientSearchSelect label="Mother Patient" value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <TextInput label="Birth Date" required placeholder="YYYY-MM-DD" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.currentTarget.value })} />
           <Select label="Baby Gender" data={["male", "female", "ambiguous"]} required value={form.baby_gender} onChange={(v) => setForm({ ...form, baby_gender: v ?? "" })} />
           <NumberInput label="Baby Weight (grams)" value={form.baby_weight_grams ?? undefined} onChange={(v) => setForm({ ...form, baby_weight_grams: v ? Number(v) : undefined })} />
@@ -304,7 +304,7 @@ function DeathsTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateMrdDeathRequest) => api.createMrdDeath(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-deaths"] }); closeCreate(); notifications.show({ title: "Registered", message: "Death registered", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-deaths"] }); closeCreate(); notifications.show({ title: "Registered", message: "Death registered", color: "success" }); },
   });
 
   const columns: Column<MrdDeathRegister>[] = [
@@ -448,7 +448,7 @@ function RetentionTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateMrdRetentionPolicyRequest) => api.createMrdRetentionPolicy(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mrd-retention"] }); closeCreate(); notifications.show({ title: "Created", message: "Retention policy created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mrd-retention"] }); closeCreate(); notifications.show({ title: "Created", message: "Retention policy created", color: "success" }); },
   });
 
   const columns: Column<MrdRetentionPolicy>[] = [

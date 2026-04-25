@@ -61,6 +61,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Shared admission selector ──────────────────────────────
@@ -213,7 +214,7 @@ function InfusionTracker({
       return api.createIcuFlowsheet(admissionId, { infusions: updated as Record<string, unknown>[] });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-flowsheets", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-flowsheets", admissionId] });
       notifications.show({ title: "Infusion added", message: "", color: "success" });
       setAdding(false);
       setInfForm({});
@@ -321,7 +322,7 @@ function FlowsheetsTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuFlowsheetRequest) =>
       api.createIcuFlowsheet(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-flowsheets", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-flowsheets", admissionId] });
       notifications.show({ title: "Flowsheet recorded", message: "", color: "success" });
       close();
       setForm({});
@@ -419,7 +420,7 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuVentilatorRequest) =>
       api.createIcuVentilatorRecord(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-ventilator", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-ventilator", admissionId] });
       notifications.show({ title: "Ventilator record saved", message: "", color: "success" });
       close();
       setForm({ mode: "cmv" });
@@ -614,7 +615,7 @@ function ScoresTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuScoreRequest) =>
       api.createIcuScore(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-scores", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-scores", admissionId] });
       notifications.show({ title: "Score recorded", message: "", color: "success" });
       close();
       setForm({ score_type: "sofa", score_value: 0 });
@@ -684,7 +685,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuDeviceRequest) =>
       api.createIcuDevice(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-devices", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-devices", admissionId] });
       notifications.show({ title: "Device tracked", message: "", color: "success" });
       close();
       setForm({ device_type: "central_line" });
@@ -695,7 +696,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
     mutationFn: (deviceId: string) =>
       api.removeIcuDevice(admissionId, deviceId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-devices", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-devices", admissionId] });
       notifications.show({ title: "Device removed", message: "", color: "primary" });
     },
   });
@@ -715,7 +716,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuBundleCheckRequest) =>
       api.createIcuBundleCheck(admissionId, selectedDevice?.id ?? "", data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-bundle-checks", selectedDevice?.id] });
+      void qc.invalidateQueries({ queryKey: ["icu-bundle-checks", selectedDevice?.id] });
       notifications.show({ title: "Bundle check saved", message: "", color: "success" });
       setBundleForm({ is_compliant: true, still_needed: true });
     },
@@ -732,13 +733,13 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       render: (d: IcuDevice) => (
         <Group gap="xs">
           <Tooltip label="Bundle Checks">
-            <ActionIcon variant="subtle" onClick={() => { setSelectedDevice(d); openBundle(); }}>
+            <ActionIcon variant="subtle" onClick={() => { setSelectedDevice(d); openBundle(); }} aria-label="Report Medical">
               <IconReportMedical size={16} />
             </ActionIcon>
           </Tooltip>
           {canManage && d.is_active && (
             <Tooltip label="Remove Device">
-              <ActionIcon variant="subtle" color="danger" onClick={() => removeMut.mutate(d.id)}>
+              <ActionIcon variant="subtle" color="danger" onClick={() => removeMut.mutate(d.id)} aria-label="Delete">
                 <IconTrash size={16} />
               </ActionIcon>
             </Tooltip>
@@ -834,7 +835,7 @@ function NutritionTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuNutritionRequest) =>
       api.createIcuNutrition(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-nutrition", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-nutrition", admissionId] });
       notifications.show({ title: "Nutrition recorded", message: "", color: "success" });
       close();
       setForm({ route: "enteral" });
@@ -1094,7 +1095,7 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateIcuNeonatalRequest) =>
       api.createIcuNeonatalRecord(admissionId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["icu-neonatal", admissionId] });
+      void qc.invalidateQueries({ queryKey: ["icu-neonatal", admissionId] });
       notifications.show({ title: "Neonatal record saved", message: "", color: "success" });
       close();
       setForm({});
@@ -1152,7 +1153,7 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
             <TextInput label="Hearing Screen" value={form.hearing_screen_result ?? ""} onChange={(e) => setForm({ ...form, hearing_screen_result: e.currentTarget.value || undefined })} />
             <TextInput label="Sepsis Screen" value={form.sepsis_screen_result ?? ""} onChange={(e) => setForm({ ...form, sepsis_screen_result: e.currentTarget.value || undefined })} />
           </Group>
-          <TextInput label="Mother Patient ID" value={form.mother_patient_id ?? ""} onChange={(e) => setForm({ ...form, mother_patient_id: e.currentTarget.value || undefined })} />
+          <PatientSearchSelect label="Mother Patient" value={form.mother_patient_id ?? ""} onChange={(id) => setForm({ ...form, mother_patient_id: id || undefined })} />
           <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
         </Stack>

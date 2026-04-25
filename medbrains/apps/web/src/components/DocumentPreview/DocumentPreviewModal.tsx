@@ -79,7 +79,7 @@ export function DocumentPreviewModal({
         context: context ?? {},
       }),
     onSuccess: (doc: DocumentOutput) => {
-      queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({
         title: "Document Generated",
         message: `${doc.document_number} created`,
@@ -99,8 +99,8 @@ export function DocumentPreviewModal({
   const printMutation = useMutation({
     mutationFn: (id: string) => api.recordDocumentPrint(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
-      queryClient.invalidateQueries({ queryKey: ["document-output"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-output"] });
     },
   });
 
@@ -128,7 +128,7 @@ export function DocumentPreviewModal({
     mutationFn: (id: string) =>
       api.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({
         title: "Document Voided",
         message: "Document has been voided",
@@ -193,10 +193,10 @@ export function DocumentPreviewModal({
                     Print
                   </Button>
                 )}
-                <ActionIcon variant="light" title="Download">
+                <ActionIcon variant="light" title="Download" aria-label="Download">
                   <IconDownload size={16} />
                 </ActionIcon>
-                <ActionIcon variant="light" title="Add Signature">
+                <ActionIcon variant="light" title="Add Signature" aria-label="Signature">
                   <IconSignature size={16} />
                 </ActionIcon>
                 {canVoid && (
@@ -206,6 +206,7 @@ export function DocumentPreviewModal({
                     title="Void Document"
                     onClick={() => voidMutation.mutate(doc.id)}
                     loading={voidMutation.isPending}
+                    aria-label="Block"
                   >
                     <IconBan size={16} />
                   </ActionIcon>

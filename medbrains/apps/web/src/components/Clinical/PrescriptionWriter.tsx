@@ -116,7 +116,7 @@ export function PrescriptionWriter({
   const saveTemplateMut = useMutation({
     mutationFn: (data: CreatePrescriptionTemplateRequest) => api.createPrescriptionTemplate(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
       notifications.show({ title: "Template saved", message: `"${templateName}" saved`, color: "success" });
       closeSaveTemplate();
       setTemplateName(""); setTemplateDesc(""); setTemplateShared(false);
@@ -127,7 +127,7 @@ export function PrescriptionWriter({
   const deleteTemplateMut = useMutation({
     mutationFn: (id: string) => api.deletePrescriptionTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
       notifications.show({ title: "Deleted", message: "Template removed", color: "warning" });
     },
   });
@@ -194,7 +194,7 @@ export function PrescriptionWriter({
               <Menu.Dropdown>
                 {templates.map((tpl: PrescriptionTemplate) => (
                   <Menu.Item key={tpl.id} leftSection={<IconBookmark size={14} />}
-                    rightSection={<ActionIcon variant="subtle" color="danger" size="xs" onClick={(e) => { e.stopPropagation(); deleteTemplateMut.mutate(tpl.id); }}><IconTrash size={12} /></ActionIcon>}
+                    rightSection={<ActionIcon variant="subtle" color="danger" size="xs" onClick={(e) => { e.stopPropagation(); deleteTemplateMut.mutate(tpl.id); }} aria-label="Delete"><IconTrash size={12} /></ActionIcon>}
                     onClick={() => handleLoadTemplate(tpl)}>
                     <Text size="sm" fw={500}>{tpl.name}</Text>
                     <Text size="xs" c="dimmed">{tpl.items.length} items{tpl.is_shared ? " · Shared" : ""}</Text>
@@ -283,10 +283,10 @@ function ExistingPrescriptionCard({ rx, onPrint, onSendToPharmacy }: {
         </Group>
         <Group gap={4}>
           {onSendToPharmacy && (
-            <Tooltip label="Send to Pharmacy"><ActionIcon variant="subtle" color="teal" size="sm" onClick={() => onSendToPharmacy(rx.prescription.id)}><IconMedicineSyrup size={14} /></ActionIcon></Tooltip>
+            <Tooltip label="Send to Pharmacy"><ActionIcon variant="subtle" color="teal" size="sm" onClick={() => onSendToPharmacy(rx.prescription.id)} aria-label="Medicine Syrup"><IconMedicineSyrup size={14} /></ActionIcon></Tooltip>
           )}
           {onPrint && (
-            <Tooltip label={t("prescription.print")}><ActionIcon variant="subtle" size="sm" onClick={() => onPrint(rx)}><IconPrinter size={14} /></ActionIcon></Tooltip>
+            <Tooltip label={t("prescription.print")}><ActionIcon variant="subtle" size="sm" onClick={() => onPrint(rx)} aria-label="Print"><IconPrinter size={14} /></ActionIcon></Tooltip>
           )}
         </Group>
       </Group>

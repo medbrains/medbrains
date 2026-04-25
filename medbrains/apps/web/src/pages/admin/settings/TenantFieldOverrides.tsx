@@ -94,7 +94,7 @@ function OverrideEditModal({
         message: "Field override saved",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["tenant-field-overrides"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-field-overrides"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -237,7 +237,7 @@ export function TenantFieldOverrides() {
         message: "Field override removed",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["tenant-field-overrides"] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-field-overrides"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -326,6 +326,7 @@ export function TenantFieldOverrides() {
             variant="subtle"
             color="primary"
             onClick={() => openEdit(row)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -333,6 +334,7 @@ export function TenantFieldOverrides() {
             variant="subtle"
             color="danger"
             onClick={() => deleteMutation.mutate(row.field_code)}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

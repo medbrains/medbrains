@@ -166,7 +166,7 @@ function BookAppointmentModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       handleClose();
     },
     onError: (err: Error) => {
@@ -392,7 +392,7 @@ export function AppointmentsPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -412,7 +412,7 @@ export function AppointmentsPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -431,7 +431,7 @@ export function AppointmentsPage() {
         message: "Appointment marked as no-show.",
         color: "warning",
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -454,7 +454,7 @@ export function AppointmentsPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setCancelTarget(null);
       setCancelReason("");
     },
@@ -483,7 +483,7 @@ export function AppointmentsPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setRescheduleTarget(null);
       setRescheduleDate(null);
       setRescheduleSlot(null);
@@ -601,6 +601,7 @@ export function AppointmentsPage() {
                                 onClick={() =>
                                   checkInMutation.mutate(appt.id)
                                 }
+                                aria-label="Login"
                               >
                                 <IconLogin size={16} />
                               </ActionIcon>
@@ -611,6 +612,7 @@ export function AppointmentsPage() {
                                 onClick={() =>
                                   noShowMutation.mutate(appt.id)
                                 }
+                                aria-label="Call"
                               >
                                 <IconPhone size={16} />
                               </ActionIcon>
@@ -628,6 +630,7 @@ export function AppointmentsPage() {
                                 setRescheduleDate(null);
                                 setRescheduleSlot(null);
                               }}
+                              aria-label="Calendar Event"
                             >
                               <IconCalendarEvent size={16} />
                             </ActionIcon>
@@ -642,6 +645,7 @@ export function AppointmentsPage() {
                               onClick={() =>
                                 completeMutation.mutate(appt.id)
                               }
+                              aria-label="Confirm"
                             >
                               <IconCheck size={16} />
                             </ActionIcon>
@@ -654,6 +658,7 @@ export function AppointmentsPage() {
                               color="danger"
                               title="Cancel"
                               onClick={() => setCancelTarget(appt)}
+                              aria-label="Close"
                             >
                               <IconX size={16} />
                             </ActionIcon>

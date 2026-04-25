@@ -52,6 +52,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
 
@@ -146,7 +147,7 @@ function AccessControlTab() {
   const [zoneForm, setZoneForm] = useState<CreateSecurityZoneRequest>({ name: "", zone_code: "" });
   const createZoneMut = useMutation({
     mutationFn: (d: CreateSecurityZoneRequest) => api.createSecurityZone(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-zones"] }); closeZone(); notifications.show({ title: "Zone Created", message: "Security zone added", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-zones"] }); closeZone(); notifications.show({ title: "Zone Created", message: "Security zone added", color: "success" }); },
   });
 
   const zoneColumns: Column<SecurityZone>[] = [
@@ -163,11 +164,11 @@ function AccessControlTab() {
   const [cardForm, setCardForm] = useState<CreateSecurityAccessCardRequest>({ employee_id: "", card_number: "" });
   const createCardMut = useMutation({
     mutationFn: (d: CreateSecurityAccessCardRequest) => api.createSecurityAccessCard(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-cards"] }); closeCard(); notifications.show({ title: "Card Issued", message: "Access card created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-cards"] }); closeCard(); notifications.show({ title: "Card Issued", message: "Access card created", color: "success" }); },
   });
   const deactivateCardMut = useMutation({
     mutationFn: (id: string) => api.deactivateSecurityAccessCard(id, "Manual deactivation"),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-cards"] }); notifications.show({ title: "Card Deactivated", message: "Access card deactivated", color: "orange" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-cards"] }); notifications.show({ title: "Card Deactivated", message: "Access card deactivated", color: "orange" }); },
   });
 
   const cardColumns: Column<SecurityAccessCard>[] = [
@@ -179,7 +180,7 @@ function AccessControlTab() {
     ...(canManage ? [{
       key: "actions" as const, label: "Actions", render: (r: SecurityAccessCard) => r.is_active ? (
         <Tooltip label="Deactivate">
-          <ActionIcon color="danger" variant="light" onClick={() => deactivateCardMut.mutate(r.id)}>
+          <ActionIcon color="danger" variant="light" onClick={() => deactivateCardMut.mutate(r.id)} aria-label="Close">
             <IconX size={16} />
           </ActionIcon>
         </Tooltip>
@@ -193,7 +194,7 @@ function AccessControlTab() {
   const [logForm, setLogForm] = useState<CreateSecurityAccessLogRequest>({ zone_id: "" });
   const createLogMut = useMutation({
     mutationFn: (d: CreateSecurityAccessLogRequest) => api.createSecurityAccessLog(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-access-logs"] }); closeLog(); notifications.show({ title: "Log Recorded", message: "Access log entry created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-access-logs"] }); closeLog(); notifications.show({ title: "Log Recorded", message: "Access log entry created", color: "success" }); },
   });
 
   const logColumns: Column<SecurityAccessLog>[] = [
@@ -284,7 +285,7 @@ function CctvTab() {
   const [form, setForm] = useState<CreateSecurityCameraRequest>({ name: "" });
   const createMut = useMutation({
     mutationFn: (d: CreateSecurityCameraRequest) => api.createSecurityCamera(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-cameras"] }); close(); notifications.show({ title: "Camera Added", message: "Camera registered", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-cameras"] }); close(); notifications.show({ title: "Camera Added", message: "Camera registered", color: "success" }); },
   });
 
   const columns: Column<SecurityCamera>[] = [
@@ -338,11 +339,11 @@ function IncidentsTab() {
   const [form, setForm] = useState<CreateSecurityIncidentRequest>({ category: "", description: "" });
   const createMut = useMutation({
     mutationFn: (d: CreateSecurityIncidentRequest) => api.createSecurityIncident(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-incidents"] }); close(); notifications.show({ title: "Incident Reported", message: "Security incident created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-incidents"] }); close(); notifications.show({ title: "Incident Reported", message: "Security incident created", color: "success" }); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateSecurityIncidentRequest }) => api.updateSecurityIncident(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-incidents"] }); notifications.show({ title: "Incident Updated", message: "Status updated", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-incidents"] }); notifications.show({ title: "Incident Updated", message: "Status updated", color: "success" }); },
   });
 
   const columns: Column<SecurityIncident>[] = [
@@ -356,13 +357,13 @@ function IncidentsTab() {
     ...(canUpdate ? [{
       key: "actions" as const, label: "Actions", render: (r: SecurityIncident) => r.status === "reported" ? (
         <Tooltip label="Start Investigation">
-          <ActionIcon color="warning" variant="light" onClick={() => updateMut.mutate({ id: r.id, body: { status: "investigating" } })}>
+          <ActionIcon color="warning" variant="light" onClick={() => updateMut.mutate({ id: r.id, body: { status: "investigating" } })} aria-label="Edit">
             <IconPencil size={16} />
           </ActionIcon>
         </Tooltip>
       ) : r.status === "investigating" ? (
         <Tooltip label="Resolve">
-          <ActionIcon color="success" variant="light" onClick={() => updateMut.mutate({ id: r.id, body: { status: "resolved" } })}>
+          <ActionIcon color="success" variant="light" onClick={() => updateMut.mutate({ id: r.id, body: { status: "resolved" } })} aria-label="Confirm">
             <IconCheck size={16} />
           </ActionIcon>
         </Tooltip>
@@ -413,15 +414,15 @@ function PatientSafetyTab() {
 
   const createTagMut = useMutation({
     mutationFn: (d: CreateSecurityPatientTagRequest) => api.createSecurityPatientTag(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-patient-tags"] }); close(); notifications.show({ title: "Tag Activated", message: "Patient safety tag activated", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-patient-tags"] }); close(); notifications.show({ title: "Tag Activated", message: "Patient safety tag activated", color: "success" }); },
   });
   const deactivateTagMut = useMutation({
     mutationFn: (id: string) => api.deactivateSecurityPatientTag(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-patient-tags"] }); notifications.show({ title: "Tag Deactivated", message: "Patient tag deactivated", color: "orange" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-patient-tags"] }); notifications.show({ title: "Tag Deactivated", message: "Patient tag deactivated", color: "orange" }); },
   });
   const resolveAlertMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: ResolveSecurityTagAlertRequest }) => api.resolveSecurityTagAlert(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-tag-alerts"] }); notifications.show({ title: "Alert Resolved", message: "Tag alert resolved", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-tag-alerts"] }); notifications.show({ title: "Alert Resolved", message: "Tag alert resolved", color: "success" }); },
   });
 
   const tagColumns: Column<SecurityPatientTag>[] = [
@@ -434,7 +435,7 @@ function PatientSafetyTab() {
     ...(canManage ? [{
       key: "actions" as const, label: "Actions", render: (r: SecurityPatientTag) => r.alert_status !== "deactivated" ? (
         <Tooltip label="Deactivate Tag">
-          <ActionIcon color="danger" variant="light" onClick={() => deactivateTagMut.mutate(r.id)}>
+          <ActionIcon color="danger" variant="light" onClick={() => deactivateTagMut.mutate(r.id)} aria-label="Close">
             <IconX size={16} />
           </ActionIcon>
         </Tooltip>
@@ -452,12 +453,12 @@ function PatientSafetyTab() {
       key: "actions" as const, label: "Actions", render: (r: SecurityTagAlert) => !r.is_resolved ? (
         <Group gap="xs">
           <Tooltip label="Resolve">
-            <ActionIcon color="success" variant="light" onClick={() => resolveAlertMut.mutate({ id: r.id, body: { was_false_alarm: false } })}>
+            <ActionIcon color="success" variant="light" onClick={() => resolveAlertMut.mutate({ id: r.id, body: { was_false_alarm: false } })} aria-label="Confirm">
               <IconCheck size={16} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="False Alarm">
-            <ActionIcon color="warning" variant="light" onClick={() => resolveAlertMut.mutate({ id: r.id, body: { was_false_alarm: true, resolution_notes: "False alarm" } })}>
+            <ActionIcon color="warning" variant="light" onClick={() => resolveAlertMut.mutate({ id: r.id, body: { was_false_alarm: true, resolution_notes: "False alarm" } })} aria-label="Close">
               <IconX size={16} />
             </ActionIcon>
           </Tooltip>
@@ -479,7 +480,7 @@ function PatientSafetyTab() {
 
       <Drawer opened={opened} onClose={close} title="Activate Patient Safety Tag" position="right" size="md">
         <Stack>
-          <TextInput label="Patient ID" required value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
+          <PatientSearchSelect value={form.patient_id} onChange={(id) => setForm({ ...form, patient_id: id })} required />
           <Select label="Tag Type" required data={TAG_TYPES} value={form.tag_type || null} onChange={(v) => setForm({ ...form, tag_type: (v as CreateSecurityPatientTagRequest["tag_type"]) ?? "infant_rfid" })} />
           <TextInput label="Tag Identifier" value={form.tag_identifier ?? ""} onChange={(e) => setForm({ ...form, tag_identifier: e.currentTarget.value })} />
           <Select label="Allowed Zone" data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))} value={form.allowed_zone_id ?? null} onChange={(v) => setForm({ ...form, allowed_zone_id: v ?? undefined })} />
@@ -504,7 +505,7 @@ function CodeDebriefsTab() {
   const [form, setForm] = useState<CreateSecurityCodeDebriefRequest>({ code_activation_id: "" });
   const createMut = useMutation({
     mutationFn: (d: CreateSecurityCodeDebriefRequest) => api.createSecurityCodeDebrief(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sec-debriefs"] }); close(); notifications.show({ title: "Debrief Created", message: "Code debrief recorded", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["sec-debriefs"] }); close(); notifications.show({ title: "Debrief Created", message: "Code debrief recorded", color: "success" }); },
   });
 
   const columns: Column<SecurityCodeDebrief>[] = [

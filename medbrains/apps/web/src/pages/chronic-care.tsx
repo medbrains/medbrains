@@ -194,7 +194,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
   const createMut = useMutation({
     mutationFn: (data: CreateChronicProgramRequest) => api.createChronicProgram(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["chronic-programs"] });
+      void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
       close();
       setEditing(null);
       notifications.show({ title: "Program saved", message: "Chronic program created", color: "success" });
@@ -204,7 +204,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteChronicProgram(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["chronic-programs"] });
+      void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
       notifications.show({ title: "Deleted", message: "Program removed", color: "orange" });
     },
   });
@@ -243,12 +243,13 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
                   setEditing(r);
                   open();
                 }}
+                aria-label="Edit"
               >
                 <IconPencil size={14} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Delete">
-              <ActionIcon variant="subtle" size="sm" color="danger" onClick={() => deleteMut.mutate(r.id)}>
+              <ActionIcon variant="subtle" size="sm" color="danger" onClick={() => deleteMut.mutate(r.id)} aria-label="Delete">
                 <IconTrash size={14} />
               </ActionIcon>
             </Tooltip>
@@ -300,7 +301,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         onSave={(data) => {
           if (editing) {
             api.updateChronicProgram(editing.id, data).then(() => {
-              qc.invalidateQueries({ queryKey: ["chronic-programs"] });
+              void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
               close();
               setEditing(null);
             });
@@ -495,7 +496,7 @@ function EnrollDrawer({
   const createMut = useMutation({
     mutationFn: (data: CreateChronicEnrollmentRequest) => api.createEnrollment(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["chronic-enrollments"] });
+      void qc.invalidateQueries({ queryKey: ["chronic-enrollments"] });
       onClose();
       notifications.show({ title: "Enrolled", message: "Patient enrolled in program", color: "success" });
     },

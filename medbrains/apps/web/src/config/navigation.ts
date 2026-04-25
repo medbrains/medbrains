@@ -38,6 +38,7 @@ import {
   IconReport,
   IconReportMedical,
   IconScale,
+  IconSchool,
   IconScissors,
   IconSettings,
   IconShieldCheck,
@@ -107,6 +108,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconRadioactive,
   IconReceipt,
   IconReport,
+  IconSchool,
   IconScissors,
   IconSettings,
   IconShieldCheck,
@@ -305,6 +307,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "front_office.queue.list",
       },
       { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
+      {
+        i18nKey: "lms",
+        path: "/lms",
+        icon: "IconSchool",
+        requiredPermission: "lms.my_learning.view",
+      },
       {
         i18nKey: "bme",
         path: "/bme",

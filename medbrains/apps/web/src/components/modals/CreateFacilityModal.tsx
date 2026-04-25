@@ -50,7 +50,7 @@ export function CreateFacilityModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
       if (onCreated) {
         onCreated(created);
       } else {

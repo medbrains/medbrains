@@ -3633,7 +3633,7 @@ pub async fn list_referral_payouts(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, chrono::NaiveDate, chrono::NaiveDate, i32, rust_decimal::Decimal, rust_decimal::Decimal, String)>(
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, NaiveDate, NaiveDate, i32, Decimal, Decimal, String)>(
         "SELECT p.id, p.referral_doctor_id, p.period_start, p.period_end, \
          p.order_count, p.total_revenue, p.commission_amount, p.status::text \
          FROM lab_referral_payouts p ORDER BY p.period_end DESC LIMIT 100",
@@ -3664,8 +3664,8 @@ pub async fn create_referral_payout(
     )
     .bind(claims.tenant_id)
     .bind(body["referral_doctor_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
-    .bind(body["period_start"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
-    .bind(body["period_end"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(body["period_start"].as_str().and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(body["period_end"].as_str().and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
     .bind(body["order_count"].as_i64().unwrap_or(0) as i32)
     .bind(body["total_revenue"].as_f64().unwrap_or(0.0))
     .bind(body["commission_amount"].as_f64().unwrap_or(0.0))
@@ -3684,7 +3684,7 @@ pub async fn get_b2b_credit_summary(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, String, Option<rust_decimal::Decimal>, Option<rust_decimal::Decimal>, Option<i32>)>(
+    let rows = sqlx::query_as::<_, (Uuid, String, Option<Decimal>, Option<Decimal>, Option<i32>)>(
         "SELECT id, name, credit_limit, credit_used, payment_terms_days \
          FROM lab_b2b_clients WHERE is_active = true ORDER BY name",
     ).fetch_all(&mut *tx).await?;

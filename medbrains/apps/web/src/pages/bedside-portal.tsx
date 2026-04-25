@@ -116,7 +116,7 @@ export function BedsidePortalPage() {
     onSuccess: () => {
       notifications.show({ title: "Request Sent", message: "A nurse has been notified.", color: "green" });
       setRequestNote("");
-      queryClient.invalidateQueries({ queryKey: ["bedside", "nurse-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["bedside", "nurse-requests"] });
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to send request.", color: "red" });
@@ -135,7 +135,7 @@ export function BedsidePortalPage() {
     onSuccess: () => {
       notifications.show({ title: "Thank You", message: "Your feedback has been recorded.", color: "green" });
       setFeedbackComment("");
-      queryClient.invalidateQueries({ queryKey: ["bedside", "feedback"] });
+      void queryClient.invalidateQueries({ queryKey: ["bedside", "feedback"] });
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to submit feedback.", color: "red" });

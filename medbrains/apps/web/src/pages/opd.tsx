@@ -212,7 +212,7 @@ function OpdPageInner() {
   const createMutation = useMutation({
     mutationFn: (data: CreateEncounterRequest) => api.createEncounter(data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({ title: "Visit created", message: "Patient added to queue", color: "success" });
       emit("encounter.created", { patient_id: variables.patient_id, department_id: variables.department_id });
       closeCreate();
@@ -229,27 +229,27 @@ function OpdPageInner() {
   const callMutation = useMutation({
     mutationFn: (id: string) => api.callQueueEntry(id),
     onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("patient.called", { queue_entry_id: id });
     },
   });
   const startMutation = useMutation({
     mutationFn: (id: string) => api.startConsultation(id),
     onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("consultation.started", { queue_entry_id: id });
     },
   });
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeQueueEntry(id),
     onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("encounter.completed", { queue_entry_id: id });
     },
   });
   const noShowMutation = useMutation({
     mutationFn: (id: string) => api.markNoShow(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["opd-queue"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["opd-queue"] }),
   });
 
   const columns = [
@@ -876,7 +876,7 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
   const createMutation = useMutation({
     mutationFn: (data: CreateVitalRequest) => api.createVital(encounterId, data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["vitals", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["vitals", encounterId] });
       emit("vitals.recorded", { encounter_id: encounterId, ...variables });
       setShowForm(false);
     },
@@ -969,7 +969,7 @@ function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canU
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       emit("consultation.saved", { encounter_id: encounterId });
     },
   });
@@ -978,7 +978,7 @@ function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canU
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       emit("consultation.saved", { encounter_id: encounterId });
     },
   });
@@ -1033,13 +1033,13 @@ function HistoryTab({ encounterId, canUpdate }: { encounterId: string; canUpdate
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const handleUpdate = (data: Partial<UpdateConsultationRequest>) => {
@@ -1077,13 +1077,13 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const handleUpdate = (ros: ROSType) => {
@@ -1117,13 +1117,13 @@ function PhysicalExamTab({ encounterId, canUpdate }: { encounterId: string; canU
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const handleUpdate = (exam: PhysicalExamination, generalAppearance?: string) => {
@@ -1161,13 +1161,13 @@ function DiagnosesTab({ encounterId, canUpdate }: { encounterId: string; canUpda
   const createMutation = useMutation({
     mutationFn: (data: CreateDiagnosisRequest) => api.createDiagnosis(encounterId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteDiagnosis(encounterId, id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] }),
   });
 
   return (
@@ -1237,7 +1237,7 @@ function InvestigationsTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateLabOrderRequest) => api.createLabOrder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
       notifications.show({ title: "Investigation ordered", message: "Lab order placed successfully", color: "success" });
       emit("lab.ordered", { encounter_id: encounterId, patient_id: patientId });
       setSelectedTestId(null);
@@ -1254,7 +1254,7 @@ function InvestigationsTab({
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.cancelLabOrder(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
       notifications.show({ title: "Order cancelled", message: "Lab order has been cancelled", color: "warning" });
     },
   });
@@ -1461,7 +1461,7 @@ function FollowUpTab({
   const bookMutation = useMutation({
     mutationFn: (data: BookAppointmentRequest) => api.bookAppointment(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       notifications.show({
         title: "Follow-up scheduled",
         message: `Appointment booked for ${selectedDate}`,
@@ -1624,7 +1624,7 @@ function PrescriptionsTab({
   const createMutation = useMutation({
     mutationFn: (data: CreatePrescriptionRequest) => api.createPrescription(encounterId, data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
       emit("prescription.created", { encounter_id: encounterId, item_count: variables.items.length });
     },
   });
@@ -1774,7 +1774,7 @@ function CertificatesTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateMedicalCertificateRequest) => api.createCertificate(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
       notifications.show({ title: "Certificate created", message: "Medical certificate generated", color: "success" });
       closeCreate();
       resetForm();
@@ -2216,7 +2216,7 @@ function ProceduresTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateProcedureOrderRequest) => api.createProcedureOrder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
       notifications.show({ title: "Procedure ordered", message: "Procedure order placed", color: "success" });
       emit("procedure.ordered", { encounter_id: encounterId, patient_id: patientId });
       setSelectedProcId(null);
@@ -2233,7 +2233,7 @@ function ProceduresTab({
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.cancelProcedureOrder(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
       notifications.show({ title: "Cancelled", message: "Procedure order cancelled", color: "warning" });
     },
   });
@@ -2423,7 +2423,7 @@ function ReferralsTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateReferralRequest) => api.createReferral(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-referrals", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-referrals", patientId] });
       notifications.show({ title: "Referral created", message: "Patient referred successfully", color: "success" });
       closeCreate();
       setToDeptId(null);
@@ -2589,7 +2589,7 @@ function RemindersTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateReminderRequest) => api.createReminder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reminders", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] });
       notifications.show({ title: "Reminder created", message: title, color: "success" });
       setShowForm(false);
       setTitle("");
@@ -2603,12 +2603,12 @@ function RemindersTab({
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeReminder(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.cancelReminder(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
   });
 
   const handleCreate = () => {
@@ -2791,7 +2791,7 @@ function FeedbackTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateFeedbackRequest) => api.createFeedback(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feedback", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["feedback", patientId] });
       notifications.show({ title: "Feedback recorded", message: "Thank you for the feedback", color: "success" });
       setShowForm(false);
       setRating(null);
@@ -2946,7 +2946,7 @@ function ConsentsTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateConsentRequest) => api.createProcedureConsent(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       notifications.show({ title: "Consent created", message: procedureName, color: "success" });
       setShowForm(false);
       setProcedureName("");
@@ -2965,7 +2965,7 @@ function ConsentsTab({
   const signMutation = useMutation({
     mutationFn: (id: string) => api.signProcedureConsent(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       notifications.show({ title: "Consent signed", message: "Consent has been signed", color: "success" });
     },
   });
@@ -3134,7 +3134,7 @@ function DocketTab() {
   const generateMutation = useMutation({
     mutationFn: (date?: string) => api.generateDoctorDocket(date),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["docket", selectedDate] });
+      void queryClient.invalidateQueries({ queryKey: ["docket", selectedDate] });
       notifications.show({ title: "Docket generated", message: `Summary for ${selectedDate}`, color: "success" });
     },
     onError: () => {
@@ -3237,7 +3237,7 @@ function PreAuthTab({
   const createMutation = useMutation({
     mutationFn: (data: CreatePreAuthRequest) => api.createPreAuthRequest(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pre-auth", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["pre-auth", patientId] });
       notifications.show({ title: "Submitted", message: "Pre-authorization request submitted", color: "success" });
       close();
       setInsurer("");
@@ -3540,7 +3540,7 @@ function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; p
   const admitMutation = useMutation({
     mutationFn: (data: AdmitFromOpdRequest) => api.admitFromOpd(encounterId, data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({
         title: "Patient admitted to IPD",
         message: `${patientName} admitted. ${result.vitals_copied} vitals, ${result.diagnoses_copied} diagnoses, ${result.prescriptions_copied} prescriptions copied.`,
@@ -3675,8 +3675,8 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
   const bookGroupMutation = useMutation({
     mutationFn: (data: BookAppointmentGroupRequest) => api.bookAppointmentGroup(data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({
         title: "Group appointment booked",
         message: `${(result as unknown[]).length} appointments created`,

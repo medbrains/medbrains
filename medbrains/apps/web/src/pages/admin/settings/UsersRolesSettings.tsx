@@ -205,7 +205,7 @@ function UserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -237,8 +237,8 @@ function UserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
-      queryClient.invalidateQueries({ queryKey: ["user-facilities"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-facilities"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -479,7 +479,7 @@ function DeleteUserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -623,6 +623,7 @@ function UsersTab() {
             variant="subtle"
             color="primary"
             onClick={() => openEdit(row)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -630,6 +631,7 @@ function UsersTab() {
             variant="subtle"
             color="danger"
             onClick={() => openDelete(row)}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>
@@ -715,7 +717,7 @@ function RoleModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -737,7 +739,7 @@ function RoleModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -833,7 +835,7 @@ function DeleteRoleModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -959,6 +961,7 @@ function RolesTab() {
               variant="subtle"
               color="primary"
               onClick={() => openEdit(row)}
+              aria-label="Edit"
             >
               <IconPencil size={16} />
             </ActionIcon>
@@ -966,6 +969,7 @@ function RolesTab() {
               variant="subtle"
               color="danger"
               onClick={() => openDelete(row)}
+              aria-label="Delete"
             >
               <IconTrash size={16} />
             </ActionIcon>

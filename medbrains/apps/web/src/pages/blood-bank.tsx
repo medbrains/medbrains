@@ -165,7 +165,7 @@ function DonorsTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateDonorRequest) => api.createBloodDonor(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "donors"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "donors"] });
       closeCreate();
       notifications.show({ title: "Donor registered", message: "New blood donor added", color: "success" });
     },
@@ -182,7 +182,7 @@ function DonorsTab() {
       label: "",
       render: (d: BloodDonor) => (
         <Tooltip label="View details">
-          <ActionIcon variant="subtle" onClick={() => setDetailDonor(d)}>
+          <ActionIcon variant="subtle" onClick={() => setDetailDonor(d)} aria-label="View details">
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -304,7 +304,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
   const donateMut = useMutation({
     mutationFn: (d: CreateDonationRequest) => api.createDonation(donor.id, d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeDonate();
       notifications.show({ title: "Donation recorded", message: "Blood donation has been recorded", color: "success" });
     },
@@ -314,7 +314,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
     mutationFn: ({ donationId, data }: { donationId: string; data: UpdateDonationRequest }) =>
       api.updateDonation(donationId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "donations", donor.id] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "donations", donor.id] });
       setReactionDonation(null);
       notifications.show({ title: "Reaction documented", message: "Adverse reaction has been recorded", color: "orange" });
     },
@@ -619,7 +619,7 @@ function InventoryTab() {
     mutationFn: ({ id, status, discard_reason }: { id: string; status: string; discard_reason?: string }) =>
       api.updateComponentStatus(id, { status: status as BloodComponent["status"], discard_reason }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
       setDiscardComponent(null);
       notifications.show({ title: "Status updated", message: "Component status changed", color: "success" });
     },
@@ -652,7 +652,7 @@ function InventoryTab() {
           )}
           {canDiscard(c) && (
             <Tooltip label="Discard component">
-              <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => setDiscardComponent(c)}>
+              <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => setDiscardComponent(c)} aria-label="Delete">
                 <IconTrash size={14} />
               </ActionIcon>
             </Tooltip>
@@ -744,7 +744,7 @@ function InventoryTab() {
         <CreateComponentForm
           onSubmit={(d) => {
             api.createBloodComponent(d).then(() => {
-              qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
+              void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
               closeCreate();
               notifications.show({ title: "Component added", message: "Blood component registered", color: "success" });
             });
@@ -901,7 +901,7 @@ function CrossmatchTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateCrossmatchRequestBody) => api.createCrossmatchRequest(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       closeCreate();
       notifications.show({ title: "Request created", message: "Crossmatch request submitted", color: "success" });
     },
@@ -911,7 +911,7 @@ function CrossmatchTab() {
     mutationFn: ({ id, status, result }: { id: string; status: string; result?: string }) =>
       api.updateCrossmatchRequest(id, { status: status as CrossmatchRequest["status"], result }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       notifications.show({ title: "Updated", message: "Crossmatch request updated", color: "success" });
     },
   });
@@ -1028,7 +1028,7 @@ function TransfusionsTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateTransfusionRequest) => api.createTransfusion(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeCreate();
       notifications.show({ title: "Transfusion recorded", message: "Blood transfusion started", color: "success" });
     },
@@ -1042,7 +1042,7 @@ function TransfusionsTab() {
         reaction_details: data.reaction_details,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "transfusions"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "transfusions"] });
       setReactionId(null);
       notifications.show({ title: "Reaction recorded", message: "Transfusion reaction has been reported", color: "orange" });
     },
@@ -1310,7 +1310,7 @@ function ReturnsAndMsbosTab() {
   const createReturnMut = useMutation({
     mutationFn: (d: any) => api.createBbReturn(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeReturn();
       notifications.show({ title: "Return created", message: "Blood return recorded", color: "success" });
     },
@@ -1326,7 +1326,7 @@ function ReturnsAndMsbosTab() {
   const createMsbosMut = useMutation({
     mutationFn: (d: any) => api.createBbMsbos(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "msbos"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "msbos"] });
       closeMsbos();
       notifications.show({ title: "MSBOS added", message: "Guideline saved", color: "success" });
     },
@@ -1477,7 +1477,7 @@ function ColdChainTab() {
   const createDeviceMut = useMutation({
     mutationFn: (d: any) => api.createBbDevice(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain-devices"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain-devices"] });
       closeDevice();
       notifications.show({ title: "Device added", message: "Cold chain device registered", color: "success" });
     },
@@ -1490,7 +1490,7 @@ function ColdChainTab() {
   const addReadingMut = useMutation({
     mutationFn: (d: any) => api.addBbReading(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain"] });
       closeReading();
       notifications.show({ title: "Reading logged", message: "Temperature reading recorded", color: "success" });
     },
@@ -1665,7 +1665,7 @@ function LookbackSection() {
   const createMut = useMutation({
     mutationFn: (d: any) => api.createBbLookback(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
       closeCreate();
       notifications.show({ title: "Lookback created", message: "Lookback event recorded", color: "success" });
     },
@@ -1674,7 +1674,7 @@ function LookbackSection() {
   const updateMut = useMutation({
     mutationFn: ({ id, ...data }: any) => api.updateBbLookback(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
       notifications.show({ title: "Updated", message: "Lookback event updated", color: "success" });
     },
   });
@@ -1815,7 +1815,7 @@ function RecruitmentSection() {
   const createMut = useMutation({
     mutationFn: (d: any) => api.createBbCampaign(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
       closeCreate();
       notifications.show({ title: "Campaign created", message: "Recruitment campaign added", color: "success" });
     },
@@ -1824,7 +1824,7 @@ function RecruitmentSection() {
   const updateMut = useMutation({
     mutationFn: ({ id, ...data }: any) => api.updateBbCampaign(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
+      void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
       notifications.show({ title: "Updated", message: "Campaign status updated", color: "success" });
     },
   });

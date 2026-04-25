@@ -213,12 +213,12 @@ function EquipmentTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateBmeEquipmentRequest) => api.createBmeEquipment(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-equipment"] }); close(); notifications.show({ message: "Equipment created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-equipment"] }); close(); notifications.show({ message: "Equipment created" }); },
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => api.updateBmeEquipment(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-equipment"] }); close(); setEditItem(null); notifications.show({ message: "Equipment updated" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-equipment"] }); close(); setEditItem(null); notifications.show({ message: "Equipment updated" }); },
   });
 
   function openCreate() { setEditItem(null); setForm({ name: "" }); open(); }
@@ -242,7 +242,7 @@ function EquipmentTab() {
     { key: "status", label: "Status", render: (r) => statusBadge(r.status) },
     { key: "warranty_end", label: "Warranty Until", render: (r) => <Text size="sm">{fmtDate(r.warranty_end_date)}</Text> },
     { key: "actions", label: "", render: (r) => canUpdate ? (
-      <Tooltip label="Edit"><ActionIcon variant="subtle" size="sm" onClick={() => openEdit(r)}><IconPencil size={16} /></ActionIcon></Tooltip>
+      <Tooltip label="Edit"><ActionIcon variant="subtle" size="sm" onClick={() => openEdit(r)} aria-label="Edit"><IconPencil size={16} /></ActionIcon></Tooltip>
     ) : null },
   ];
 
@@ -313,17 +313,17 @@ function PmTab() {
 
   const createPmMut = useMutation({
     mutationFn: (body: CreateBmePmScheduleRequest) => api.createBmePmSchedule(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] }); closePm(); notifications.show({ message: "PM schedule created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] }); closePm(); notifications.show({ message: "PM schedule created" }); },
   });
 
   const createWoMut = useMutation({
     mutationFn: (body: CreateBmeWorkOrderRequest) => api.createBmeWorkOrder(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-work-orders"] }); closeWo(); notifications.show({ message: "Work order created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-work-orders"] }); closeWo(); notifications.show({ message: "Work order created" }); },
   });
 
   const updateWoMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateBmeWorkOrderStatusRequest }) => api.updateBmeWorkOrderStatus(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-work-orders"] }); qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] }); qc.invalidateQueries({ queryKey: ["bme-stats"] }); notifications.show({ message: "Work order updated" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-work-orders"] }); void qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] }); void qc.invalidateQueries({ queryKey: ["bme-stats"] }); notifications.show({ message: "Work order updated" }); },
   });
 
   const pmColumns: Column<BmePmSchedule>[] = [
@@ -346,7 +346,7 @@ function PmTab() {
     { key: "scheduled", label: "Scheduled", render: (r) => <Text size="sm">{fmtDate(r.scheduled_date)}</Text> },
     { key: "actions", label: "", render: (r) => canManage && r.status !== "completed" && r.status !== "cancelled" ? (
       <Tooltip label="Mark Completed">
-        <ActionIcon variant="subtle" color="success" size="sm" onClick={() => updateWoMut.mutate({ id: r.id, body: { status: "completed" } })}>
+        <ActionIcon variant="subtle" color="success" size="sm" onClick={() => updateWoMut.mutate({ id: r.id, body: { status: "completed" } })} aria-label="Confirm">
           <IconCheck size={16} />
         </ActionIcon>
       </Tooltip>
@@ -484,7 +484,7 @@ function CalibrationTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateBmeCalibrationRequest) => api.createBmeCalibration(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-calibrations"] }); close(); notifications.show({ message: "Calibration recorded" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-calibrations"] }); close(); notifications.show({ message: "Calibration recorded" }); },
   });
 
   const calibrationAlerts = useMemo(() => {
@@ -593,12 +593,12 @@ function ContractsTab() {
 
   const createContractMut = useMutation({
     mutationFn: (body: CreateBmeContractRequest) => api.createBmeContract(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-contracts"] }); closeContract(); notifications.show({ message: "Contract created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-contracts"] }); closeContract(); notifications.show({ message: "Contract created" }); },
   });
 
   const createEvalMut = useMutation({
     mutationFn: (body: CreateBmeVendorEvaluationRequest) => api.createBmeVendorEvaluation(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-vendor-evaluations"] }); closeEval(); notifications.show({ message: "Evaluation saved" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-vendor-evaluations"] }); closeEval(); notifications.show({ message: "Evaluation saved" }); },
   });
 
   const { data: workOrders = [] } = useQuery({
@@ -802,12 +802,12 @@ function BreakdownsTab() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateBmeBreakdownRequest) => api.createBmeBreakdown(body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-breakdowns"] }); qc.invalidateQueries({ queryKey: ["bme-stats"] }); close(); notifications.show({ message: "Breakdown reported" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-breakdowns"] }); void qc.invalidateQueries({ queryKey: ["bme-stats"] }); close(); notifications.show({ message: "Breakdown reported" }); },
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateBmeBreakdownStatusRequest }) => api.updateBmeBreakdownStatus(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bme-breakdowns"] }); qc.invalidateQueries({ queryKey: ["bme-stats"] }); notifications.show({ message: "Status updated" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bme-breakdowns"] }); void qc.invalidateQueries({ queryKey: ["bme-stats"] }); notifications.show({ message: "Status updated" }); },
   });
 
   function nextStatus(current: string): string | null {
@@ -831,7 +831,7 @@ function BreakdownsTab() {
       if (!canManage || !ns) return null;
       return (
         <Tooltip label={`Move to ${ns.replace(/_/g, " ")}`}>
-          <ActionIcon variant="subtle" color="primary" size="sm" onClick={() => updateMut.mutate({ id: r.id, body: { status: ns as UpdateBmeBreakdownStatusRequest["status"] } })}>
+          <ActionIcon variant="subtle" color="primary" size="sm" onClick={() => updateMut.mutate({ id: r.id, body: { status: ns as UpdateBmeBreakdownStatusRequest["status"] } })} aria-label="Confirm">
             <IconCheck size={16} />
           </ActionIcon>
         </Tooltip>

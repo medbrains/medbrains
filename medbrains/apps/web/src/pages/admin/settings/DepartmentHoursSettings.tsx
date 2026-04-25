@@ -88,7 +88,7 @@ export function DepartmentHoursSettings() {
       data: Record<string, unknown>;
     }) => api.updateDepartment(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
       notifications.show({
         title: "Operating hours updated",
@@ -237,6 +237,7 @@ export function DepartmentHoursSettings() {
                     size="sm"
                     onClick={() => openEditModal(dept)}
                     title="Edit operating hours"
+                    aria-label="Time"
                   >
                     <IconClock size={16} />
                   </ActionIcon>

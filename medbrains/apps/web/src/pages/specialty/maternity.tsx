@@ -41,7 +41,7 @@ export function MaternityPage() {
 
   const createReg = useMutation({
     mutationFn: (data: CreateMaternityRegistrationRequest) => api.createMaternityRegistration(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["maternity-regs"] }); regHandlers.close(); notifications.show({ title: "Created", message: "Maternity registration created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["maternity-regs"] }); regHandlers.close(); notifications.show({ title: "Created", message: "Maternity registration created", color: "success" }); },
   });
 
   const regCols: Column<MaternityRegistration>[] = [
@@ -54,7 +54,7 @@ export function MaternityPage() {
     { key: "blood", label: "Blood Group", render: (r) => <Text size="sm">{r.blood_group ?? "—"}</Text> },
     {
       key: "actions", label: "", render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setSelectedRegId(r.id)}>
+        <ActionIcon variant="subtle" onClick={() => setSelectedRegId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       ),
@@ -81,7 +81,7 @@ export function MaternityPage() {
     { key: "onset", label: "Onset", render: (r) => <Text size="sm">{r.labor_onset_time ? new Date(r.labor_onset_time).toLocaleString() : "—"}</Text> },
     {
       key: "actions", label: "", render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setSelectedLaborId(r.id)}>
+        <ActionIcon variant="subtle" onClick={() => setSelectedLaborId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       ),

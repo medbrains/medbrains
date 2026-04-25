@@ -51,7 +51,7 @@ export function CreateDepartmentModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
       if (onCreated) {
         onCreated(created);
       } else {

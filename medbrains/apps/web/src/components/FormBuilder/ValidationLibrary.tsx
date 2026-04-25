@@ -218,7 +218,7 @@ export function ValidationLibrary({
 
                           {isApplied ? (
                             <Tooltip label="Already applied">
-                              <ActionIcon size="sm" variant="subtle" color="success" disabled>
+                              <ActionIcon size="sm" variant="subtle" color="success" disabled aria-label="Confirm">
                                 <IconCheck size={14} />
                               </ActionIcon>
                             </Tooltip>
@@ -229,6 +229,7 @@ export function ValidationLibrary({
                                 variant="light"
                                 color="primary"
                                 onClick={() => handleApply(template)}
+                                aria-label="Add"
                               >
                                 <IconPlus size={14} />
                               </ActionIcon>

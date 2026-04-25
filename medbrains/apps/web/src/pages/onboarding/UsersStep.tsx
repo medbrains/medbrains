@@ -205,6 +205,7 @@ export function UsersStep({ onNext, onBack }: Props) {
                 variant="subtle"
                 color="danger"
                 onClick={() => removeRole(r.local_id)}
+                aria-label="Delete"
               >
                 <IconTrash size={16} />
               </ActionIcon>
@@ -234,6 +235,7 @@ export function UsersStep({ onNext, onBack }: Props) {
               variant="subtle"
               color="danger"
               onClick={() => removeUser(u.local_id)}
+              aria-label="Delete"
             >
               <IconTrash size={16} />
             </ActionIcon>

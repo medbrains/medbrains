@@ -46,7 +46,7 @@ function MessagesTab() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.createCommMessage(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-messages"] }); close(); notifications.show({ title: "Queued", message: "Message queued", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-messages"] }); close(); notifications.show({ title: "Queued", message: "Message queued", color: "green" }); },
   });
 
   const cols: Column<CommMessageRow>[] = [
@@ -99,12 +99,12 @@ function ClinicalTab() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.createClinicalMessage(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-clinical"] }); close(); notifications.show({ title: "Sent", message: "Clinical message sent", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-clinical"] }); close(); notifications.show({ title: "Sent", message: "Clinical message sent", color: "green" }); },
   });
 
   const ackMut = useMutation({
     mutationFn: (id: string) => api.acknowledgeClinicalMessage(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-clinical"] }); notifications.show({ title: "Acknowledged", message: "Message acknowledged", color: "blue" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-clinical"] }); notifications.show({ title: "Acknowledged", message: "Message acknowledged", color: "blue" }); },
   });
 
   const cols: Column<CommClinicalMessageRow>[] = [
@@ -115,7 +115,7 @@ function ClinicalTab() {
     { key: "body", label: "Body", render: (r) => <Text size="sm" lineClamp={1}>{r.body}</Text> },
     { key: "is_read", label: "Read", render: (r) => <Badge size="xs" color={r.is_read ? "green" : "gray"}>{r.is_read ? "Yes" : "No"}</Badge> },
     { key: "actions", label: "", render: (r) => !r.acknowledged_at && canAck ? (
-      <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => ackMut.mutate(r.id)}><IconCheck size={14} /></ActionIcon>
+      <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => ackMut.mutate(r.id)} aria-label="Confirm"><IconCheck size={14} /></ActionIcon>
     ) : null },
   ];
 
@@ -154,12 +154,12 @@ function AlertsTab() {
 
   const ackMut = useMutation({
     mutationFn: (id: string) => api.acknowledgeCommAlert(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-alerts"] }); notifications.show({ title: "Acknowledged", message: "Alert acknowledged", color: "blue" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-alerts"] }); notifications.show({ title: "Acknowledged", message: "Alert acknowledged", color: "blue" }); },
   });
 
   const resolveMut = useMutation({
     mutationFn: (id: string) => api.resolveCommAlert(id, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-alerts"] }); notifications.show({ title: "Resolved", message: "Alert resolved", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-alerts"] }); notifications.show({ title: "Resolved", message: "Alert resolved", color: "green" }); },
   });
 
   const active = data.filter((a) => a.status === "triggered" || a.status === "acknowledged");
@@ -176,8 +176,8 @@ function AlertsTab() {
       if (!canManage) return null;
       return (
         <Group gap={4}>
-          {r.status === "triggered" && <Tooltip label="Acknowledge"><ActionIcon variant="subtle" color="blue" size="sm" onClick={() => ackMut.mutate(r.id)}><IconCheck size={14} /></ActionIcon></Tooltip>}
-          {(r.status === "triggered" || r.status === "acknowledged") && <Tooltip label="Resolve"><ActionIcon variant="subtle" color="green" size="sm" onClick={() => resolveMut.mutate(r.id)}><IconX size={14} /></ActionIcon></Tooltip>}
+          {r.status === "triggered" && <Tooltip label="Acknowledge"><ActionIcon variant="subtle" color="blue" size="sm" onClick={() => ackMut.mutate(r.id)} aria-label="Confirm"><IconCheck size={14} /></ActionIcon></Tooltip>}
+          {(r.status === "triggered" || r.status === "acknowledged") && <Tooltip label="Resolve"><ActionIcon variant="subtle" color="green" size="sm" onClick={() => resolveMut.mutate(r.id)} aria-label="Close"><IconX size={14} /></ActionIcon></Tooltip>}
         </Group>
       );
     }},
@@ -215,12 +215,12 @@ function ComplaintsTab() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.createComplaint(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-complaints"] }); close(); notifications.show({ title: "Registered", message: "Complaint registered", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-complaints"] }); close(); notifications.show({ title: "Registered", message: "Complaint registered", color: "green" }); },
   });
 
   const resolveMut = useMutation({
     mutationFn: (id: string) => api.resolveComplaint(id, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-complaints"] }); notifications.show({ title: "Resolved", message: "Complaint resolved", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-complaints"] }); notifications.show({ title: "Resolved", message: "Complaint resolved", color: "green" }); },
   });
 
   const cols: Column<CommComplaintRow>[] = [
@@ -236,7 +236,7 @@ function ComplaintsTab() {
       return <Badge size="sm" color={r.sla_breached ? "red" : remaining < 4 ? "orange" : "green"}>{r.sla_breached ? "Breached" : `${Math.round(remaining)}h`}</Badge>;
     }},
     { key: "actions", label: "", render: (r) => canManage && r.status !== "resolved" && r.status !== "closed" ? (
-      <Tooltip label="Resolve"><ActionIcon variant="subtle" color="green" size="sm" onClick={() => resolveMut.mutate(r.id)}><IconCheck size={14} /></ActionIcon></Tooltip>
+      <Tooltip label="Resolve"><ActionIcon variant="subtle" color="green" size="sm" onClick={() => resolveMut.mutate(r.id)} aria-label="Confirm"><IconCheck size={14} /></ActionIcon></Tooltip>
     ) : null },
   ];
 
@@ -286,7 +286,7 @@ function FeedbackTab() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.createCommFeedback(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-feedback"] }); qc.invalidateQueries({ queryKey: ["comm-feedback-stats"] }); close(); notifications.show({ title: "Recorded", message: "Feedback recorded", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-feedback"] }); void qc.invalidateQueries({ queryKey: ["comm-feedback-stats"] }); close(); notifications.show({ title: "Recorded", message: "Feedback recorded", color: "green" }); },
   });
 
   const cols: Column<CommFeedbackSurveyRow>[] = [
@@ -344,7 +344,7 @@ function ConfigTab() {
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.createCommTemplate(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["comm-templates"] }); close(); notifications.show({ title: "Created", message: "Template created", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["comm-templates"] }); close(); notifications.show({ title: "Created", message: "Template created", color: "green" }); },
   });
 
   const cols: Column<CommTemplateRow>[] = [

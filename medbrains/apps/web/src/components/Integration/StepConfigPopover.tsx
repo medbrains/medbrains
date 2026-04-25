@@ -70,6 +70,7 @@ export function StepConfigPopover({
                 onDelete();
                 setOpened(false);
               }}
+              aria-label="Delete"
             >
               <IconTrash size={12} />
             </ActionIcon>

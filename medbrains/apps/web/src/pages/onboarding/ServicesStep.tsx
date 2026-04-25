@@ -139,6 +139,7 @@ export function ServicesStep({ onNext, onBack }: Props) {
               variant="subtle"
               color="danger"
               onClick={() => removeService(svc.local_id)}
+              aria-label="Delete"
             >
               <IconTrash size={16} />
             </ActionIcon>

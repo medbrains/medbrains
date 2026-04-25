@@ -68,7 +68,7 @@ function ApprovalQueueTab() {
     mutationFn: (params: { id: string; data?: ApproveRejectRequest }) =>
       api.approveRetroEntry(params.id, params.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
+      void queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
       setReviewId(null);
       setReviewNotes("");
     },
@@ -78,7 +78,7 @@ function ApprovalQueueTab() {
     mutationFn: (params: { id: string; data?: ApproveRejectRequest }) =>
       api.rejectRetroEntry(params.id, params.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
+      void queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
       setReviewId(null);
       setReviewNotes("");
     },
@@ -340,7 +340,7 @@ function SettingsTab() {
         requires_approval: approval,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["retro-settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["retro-settings"] });
     },
   });
 

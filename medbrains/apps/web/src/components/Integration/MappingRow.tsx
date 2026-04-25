@@ -231,6 +231,7 @@ export function MappingRow({
             size="xs"
             style={{ cursor: "grab", marginTop: 4 }}
             {...listeners}
+            aria-label="Drag to reorder"
           >
             <IconGripVertical size={14} />
           </ActionIcon>
@@ -258,6 +259,7 @@ export function MappingRow({
                       color="slate"
                       size="xs"
                       onClick={() => handleRemoveSource(si)}
+                      aria-label="Minus"
                     >
                       <IconMinus size={12} />
                     </ActionIcon>
@@ -269,6 +271,7 @@ export function MappingRow({
                     color="primary"
                     size="xs"
                     onClick={handleAddSource}
+                    aria-label="Add"
                   >
                     <IconPlus size={12} />
                   </ActionIcon>
@@ -355,6 +358,7 @@ export function MappingRow({
               size="xs"
               onClick={toggleMultiSource}
               mt={4}
+              aria-label="Layers Linked"
             >
               <IconLayersLinked size={14} />
             </ActionIcon>
@@ -366,6 +370,7 @@ export function MappingRow({
             size="xs"
             onClick={onDelete}
             mt={4}
+            aria-label="Delete"
           >
             <IconTrash size={14} />
           </ActionIcon>

@@ -178,7 +178,7 @@ function DisplaysTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateTvDisplayRequest) => api.createTvDisplay(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
+      void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display created", color: "success" });
       close();
     },
@@ -190,7 +190,7 @@ function DisplaysTab({
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTvDisplayRequest }) => api.updateTvDisplay(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
+      void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display updated", color: "success" });
       close();
     },
@@ -202,7 +202,7 @@ function DisplaysTab({
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteTvDisplay(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
+      void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display deleted", color: "success" });
     },
     onError: () => {
@@ -266,6 +266,7 @@ function DisplaysTab({
                   setSelectedDisplay(row);
                   open();
                 }}
+                aria-label="Edit"
               >
                 <IconPencil size={16} />
               </ActionIcon>
@@ -277,6 +278,7 @@ function DisplaysTab({
                 variant="subtle"
                 color="danger"
                 onClick={() => deleteMutation.mutate(row.id)}
+                aria-label="Delete"
               >
                 <IconTrash size={16} />
               </ActionIcon>
@@ -447,7 +449,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const generateMutation = useMutation({
     mutationFn: (data: CreateQueueTokenRequest) => api.createQueueToken(data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       notifications.show({
         title: "Token Generated",
         message: `Token ${result.token_number} created successfully`,
@@ -463,8 +465,8 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const callMutation = useMutation({
     mutationFn: (id: string) => api.callQueueToken(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
-      queryClient.invalidateQueries({ queryKey: ["queue-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
       notifications.show({ title: "Success", message: "Token called", color: "success" });
     },
   });
@@ -472,8 +474,8 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeQueueToken(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
-      queryClient.invalidateQueries({ queryKey: ["queue-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
       notifications.show({ title: "Success", message: "Token completed", color: "success" });
     },
   });
@@ -481,8 +483,8 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const noShowMutation = useMutation({
     mutationFn: (id: string) => api.noShowQueueToken(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
-      queryClient.invalidateQueries({ queryKey: ["queue-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
+      void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
       notifications.show({ title: "Success", message: "Token marked as no-show", color: "warning" });
     },
   });
@@ -538,6 +540,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                   color="primary"
                   onClick={() => callMutation.mutate(row.id)}
                   loading={callMutation.isPending}
+                  aria-label="Play"
                 >
                   <IconPlayerPlay size={16} />
                 </ActionIcon>
@@ -551,6 +554,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                     color="success"
                     onClick={() => completeMutation.mutate(row.id)}
                     loading={completeMutation.isPending}
+                    aria-label="Confirm"
                   >
                     <IconCheck size={16} />
                   </ActionIcon>
@@ -561,6 +565,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                     color="danger"
                     onClick={() => noShowMutation.mutate(row.id)}
                     loading={noShowMutation.isPending}
+                    aria-label="User Off"
                   >
                     <IconUserOff size={16} />
                   </ActionIcon>
@@ -634,8 +639,8 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
           variant="subtle"
           leftSection={<IconRefresh size={16} />}
           onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
-            queryClient.invalidateQueries({ queryKey: ["queue-state"] });
+            void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
+            void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
           }}
         >
           Refresh

@@ -716,6 +716,26 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "devices.agents.manage", label: "Manage Bridge Agents", description: "Register and configure bridge agents", module: "devices" },
   { code: "devices.catalog.list", label: "Browse Adapter Catalog", description: "Browse available device adapters", module: "devices" },
   { code: "devices.catalog.manage", label: "Manage Adapter Catalog", description: "Add or edit adapter profiles", module: "devices" },
+
+  // LMS
+  { code: "lms.courses.list", label: "List Courses", description: "View LMS course catalog", module: "lms" },
+  { code: "lms.courses.view", label: "View Course", description: "View course details and modules", module: "lms" },
+  { code: "lms.courses.create", label: "Create Course", description: "Create new LMS courses", module: "lms" },
+  { code: "lms.courses.update", label: "Update Course", description: "Edit LMS courses and modules", module: "lms" },
+  { code: "lms.courses.delete", label: "Delete Course", description: "Delete LMS courses", module: "lms" },
+  { code: "lms.enrollments.list", label: "List Enrollments", description: "View course enrollments", module: "lms" },
+  { code: "lms.enrollments.create", label: "Assign Courses", description: "Enroll users in courses", module: "lms" },
+  { code: "lms.enrollments.update", label: "Update Enrollment", description: "Modify enrollment status", module: "lms" },
+  { code: "lms.quizzes.list", label: "List Quizzes", description: "View quiz definitions", module: "lms" },
+  { code: "lms.quizzes.create", label: "Create Quiz", description: "Create quizzes and questions", module: "lms" },
+  { code: "lms.quizzes.attempt", label: "Attempt Quiz", description: "Take quizzes for enrolled courses", module: "lms" },
+  { code: "lms.paths.list", label: "List Learning Paths", description: "View learning path definitions", module: "lms" },
+  { code: "lms.paths.create", label: "Create Learning Path", description: "Create learning paths", module: "lms" },
+  { code: "lms.paths.update", label: "Update Learning Path", description: "Edit learning paths", module: "lms" },
+  { code: "lms.certificates.list", label: "List Certificates", description: "View issued certificates", module: "lms" },
+  { code: "lms.certificates.create", label: "Issue Certificate", description: "Issue course certificates", module: "lms" },
+  { code: "lms.compliance.view", label: "View Compliance", description: "View training compliance dashboard", module: "lms" },
+  { code: "lms.my_learning.view", label: "My Learning", description: "View own enrolled courses and progress", module: "lms" },
 ];
 
 // ── Set of all valid codes (for validation) ──────────────
@@ -1506,6 +1526,26 @@ export const P = {
       LIST: "devices.catalog.list" as const,
       MANAGE: "devices.catalog.manage" as const,
     },
+  },
+  LMS: {
+    COURSES_LIST: "lms.courses.list" as const,
+    COURSES_VIEW: "lms.courses.view" as const,
+    COURSES_CREATE: "lms.courses.create" as const,
+    COURSES_UPDATE: "lms.courses.update" as const,
+    COURSES_DELETE: "lms.courses.delete" as const,
+    ENROLLMENTS_LIST: "lms.enrollments.list" as const,
+    ENROLLMENTS_CREATE: "lms.enrollments.create" as const,
+    ENROLLMENTS_UPDATE: "lms.enrollments.update" as const,
+    QUIZZES_LIST: "lms.quizzes.list" as const,
+    QUIZZES_CREATE: "lms.quizzes.create" as const,
+    QUIZZES_ATTEMPT: "lms.quizzes.attempt" as const,
+    PATHS_LIST: "lms.paths.list" as const,
+    PATHS_CREATE: "lms.paths.create" as const,
+    PATHS_UPDATE: "lms.paths.update" as const,
+    CERTIFICATES_LIST: "lms.certificates.list" as const,
+    CERTIFICATES_CREATE: "lms.certificates.create" as const,
+    COMPLIANCE_VIEW: "lms.compliance.view" as const,
+    MY_LEARNING_VIEW: "lms.my_learning.view" as const,
   },
 } as const;
 

@@ -258,7 +258,7 @@ function CreateScreenModal({ opened, onClose }: { opened: boolean; onClose: () =
   const mutation = useMutation({
     mutationFn: () => api.adminCreateScreen(form),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
       notifications.show({
         title: "Screen created",
         message: `Screen "${form.name}" created as draft.`,
@@ -532,9 +532,9 @@ function ScreenBuilderEditor({ screenId, onBack }: { screenId: string; onBack: (
       }
 
       markClean();
-      queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
       notifications.show({
         title: "Screen saved",
         message: `${state.screen.name} has been saved`,
@@ -562,9 +562,9 @@ function ScreenBuilderEditor({ screenId, onBack }: { screenId: string; onBack: (
         color: "success",
       });
       hasLoadedRef.current = null;
-      queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
       publishModalHandlers.close();
       setPublishSummary("");
     },
@@ -582,9 +582,9 @@ function ScreenBuilderEditor({ screenId, onBack }: { screenId: string; onBack: (
         color: "primary",
       });
       hasLoadedRef.current = null;
-      queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screen-sidecars", screenId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-screens"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });

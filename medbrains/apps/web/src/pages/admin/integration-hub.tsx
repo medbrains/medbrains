@@ -70,17 +70,17 @@ export function IntegrationHubPage() {
       const newStatus: PipelineStatus = pipeline.status === "active" ? "paused" : "active";
       return api.updatePipelineStatus(pipeline.id, { status: newStatus });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const deletePipeline = useMutation({
     mutationFn: (id: string) => api.deletePipeline(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const triggerPipeline = useMutation({
     mutationFn: (id: string) => api.triggerPipeline(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const columns = [
@@ -137,6 +137,7 @@ export function IntegrationHubPage() {
                 size="sm"
                 color="primary"
                 onClick={() => triggerPipeline.mutate(row.id)}
+                aria-label="Play"
               >
                 <IconPlayerPlay size={14} />
               </ActionIcon>
@@ -150,6 +151,7 @@ export function IntegrationHubPage() {
                 setExecPipelineId(row.id);
                 openExec();
               }}
+              aria-label="History"
             >
               <IconHistory size={14} />
             </ActionIcon>
@@ -161,6 +163,7 @@ export function IntegrationHubPage() {
                   variant="subtle"
                   size="sm"
                   onClick={() => navigate(`/admin/integration-builder/${row.id}`)}
+                  aria-label="Edit"
                 >
                   <IconPencil size={14} />
                 </ActionIcon>
@@ -188,6 +191,7 @@ export function IntegrationHubPage() {
                 size="sm"
                 color="danger"
                 onClick={() => deletePipeline.mutate(row.id)}
+                  aria-label="Delete"
               >
                 <IconTrash size={14} />
               </ActionIcon>

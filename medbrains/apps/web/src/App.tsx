@@ -60,6 +60,7 @@ const OccupationalHealthPage = lazy(() => import("./pages/occupational-health").
 const UtilizationReviewPage = lazy(() => import("./pages/utilization-review").then((m) => ({ default: m.UtilizationReviewPage })));
 const CaseManagementPage = lazy(() => import("./pages/case-management").then((m) => ({ default: m.CaseManagementPage })));
 const SchedulingPage = lazy(() => import("./pages/scheduling").then((m) => ({ default: m.SchedulingPage })));
+const LmsPage = lazy(() => import("./pages/lms").then((m) => ({ default: m.LmsPage })));
 const RetrospectivePage = lazy(() => import("./pages/retrospective").then((m) => ({ default: m.RetrospectivePage })));
 const SpecialtyIndexPage = lazy(() => import("./pages/specialty").then((m) => ({ default: m.SpecialtyIndexPage })));
 const CathLabPage = lazy(() => import("./pages/specialty/cath-lab").then((m) => ({ default: m.CathLabPage })));
@@ -147,6 +148,7 @@ export function App() {
             <Route path="utilization-review" element={<UtilizationReviewPage />} />
             <Route path="case-management" element={<CaseManagementPage />} />
             <Route path="scheduling" element={<SchedulingPage />} />
+            <Route path="lms" element={<LmsPage />} />
             <Route path="retrospective" element={<RetrospectivePage />} />
             <Route path="specialty">
               <Route index element={<SpecialtyIndexPage />} />

@@ -46,7 +46,7 @@ export function DrugInteractionsSettings() {
   const createMutation = useMutation({
     mutationFn: (data: CreateDrugInteractionRequest) => api.createDrugInteraction(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
       notifications.show({ title: "Created", message: "Drug interaction rule added", color: "success" });
       handleClose();
     },
@@ -58,7 +58,7 @@ export function DrugInteractionsSettings() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteDrugInteraction(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
       notifications.show({ title: "Deleted", message: "Interaction rule removed", color: "warning" });
     },
   });
@@ -119,7 +119,7 @@ export function DrugInteractionsSettings() {
               <Table.Td><Text size="xs" c="dimmed" lineClamp={1}>{row.management ?? "—"}</Text></Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(row.id)}>
+                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(row.id)} aria-label="Delete">
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>

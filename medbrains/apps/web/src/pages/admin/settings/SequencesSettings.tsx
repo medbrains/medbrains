@@ -73,7 +73,7 @@ export function SequencesSettings() {
     mutationFn: (data: { seq_type: string; prefix: string; pad_width: number }) =>
       api.createSequence(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
         title: "Sequence created",
         message: `Sequence "${form.seq_type}" has been added.`,
@@ -97,7 +97,7 @@ export function SequencesSettings() {
     mutationFn: (data: { seqType: string; prefix: string; pad_width: number }) =>
       api.updateSequence(data.seqType, { prefix: data.prefix, pad_width: data.pad_width }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
         title: "Sequence updated",
         message: `Sequence "${form.seq_type}" has been updated.`,
@@ -120,7 +120,7 @@ export function SequencesSettings() {
   const deleteMutation = useMutation({
     mutationFn: (seqType: string) => api.deleteSequence(seqType),
     onSuccess: (_data, seqType) => {
-      queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
         title: "Sequence deleted",
         message: `Sequence "${seqType}" has been removed.`,
@@ -276,6 +276,7 @@ export function SequencesSettings() {
                       color="primary"
                       onClick={() => openEditModal(row)}
                       title="Edit sequence"
+                      aria-label="Edit"
                     >
                       <IconPencil size={16} />
                     </ActionIcon>
@@ -285,6 +286,7 @@ export function SequencesSettings() {
                       onClick={() => handleDelete(row.seq_type)}
                       loading={deleteMutation.isPending}
                       title="Delete sequence"
+                      aria-label="Delete"
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

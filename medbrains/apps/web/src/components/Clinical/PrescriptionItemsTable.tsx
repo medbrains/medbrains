@@ -77,6 +77,7 @@ export function PrescriptionItemsTable({
                     color="danger"
                     size="xs"
                     onClick={() => onRemoveItem(idx)}
+                    aria-label="Close"
                   >
                     <IconX size={12} />
                   </ActionIcon>

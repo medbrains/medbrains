@@ -149,8 +149,8 @@ function ReviewsTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateUrReviewRequest) => api.createUrReview(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ur-reviews"] });
-      qc.invalidateQueries({ queryKey: ["ur-analytics"] });
+      void qc.invalidateQueries({ queryKey: ["ur-reviews"] });
+      void qc.invalidateQueries({ queryKey: ["ur-analytics"] });
       notifications.show({ title: "Review Created", message: "Utilization review has been created", color: "success" });
       setForm(emptyForm);
       close();
@@ -220,7 +220,7 @@ function ReviewsTab() {
       render: (r) => (
         <Group gap="xs">
           {canUpdate && (
-            <ActionIcon variant="subtle" onClick={() => aiMut.mutate(r.id)} title="AI Extract">
+            <ActionIcon variant="subtle" onClick={() => aiMut.mutate(r.id)} title="AI Extract" aria-label="Edit">
               <IconPencil size={16} />
             </ActionIcon>
           )}
@@ -671,7 +671,7 @@ function PayerLogTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateUrCommunicationRequest) => api.createUrCommunication(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ur-communications"] });
+      void qc.invalidateQueries({ queryKey: ["ur-communications"] });
       notifications.show({ title: "Communication Logged", message: "Payer communication recorded", color: "success" });
       setForm(emptyForm);
       close();
@@ -823,7 +823,7 @@ function StatusTrackingTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateUrConversionRequest) => api.createUrConversion(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ur-conversions"] });
+      void qc.invalidateQueries({ queryKey: ["ur-conversions"] });
       notifications.show({ title: "Conversion Created", message: "Status conversion recorded", color: "success" });
       setForm(emptyForm);
       close();

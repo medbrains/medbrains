@@ -156,7 +156,7 @@ function VerificationTab() {
   const runMut = useMutation({
     mutationFn: (d: RunVerificationRequest) => api.runVerification(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-verifications"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-verifications"] });
       notifications.show({ title: "Verification", message: "Verification completed", color: "success" });
       close();
     },
@@ -244,7 +244,7 @@ function VerificationTab() {
             key: "actions",
             label: "",
             render: (r: InsuranceVerification) => (
-              <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)}>
+              <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Document">
                 <IconFileText size={16} />
               </ActionIcon>
             ),
@@ -397,7 +397,7 @@ function PriorAuthTab() {
   const createMut = useMutation({
     mutationFn: (d: CreatePriorAuthRequestBody) => api.createPriorAuth(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       notifications.show({ title: "Prior Auth", message: "Created successfully", color: "success" });
       close();
     },
@@ -407,8 +407,8 @@ function PriorAuthTab() {
   const submitMut = useMutation({
     mutationFn: (id: string) => api.submitPriorAuth(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
       notifications.show({ title: "Prior Auth", message: "Submitted successfully", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Submit failed", color: "danger" }),
@@ -417,8 +417,8 @@ function PriorAuthTab() {
   const cancelMut = useMutation({
     mutationFn: (id: string) => api.cancelPriorAuth(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
       notifications.show({ title: "Prior Auth", message: "Cancelled", color: "warning" });
     },
   });
@@ -430,8 +430,8 @@ function PriorAuthTab() {
   const respondMut = useMutation({
     mutationFn: (d: { id: string; body: RespondPriorAuthRequest }) => api.respondPriorAuth(d.id, d.body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
-      qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
       notifications.show({ title: "Prior Auth", message: "Response recorded", color: "success" });
       setRespondId(null);
     },
@@ -531,7 +531,7 @@ function PriorAuthTab() {
             label: "",
             render: (r: PriorAuthRequestRow) => (
               <Group gap={4}>
-                <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)}>
+                <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Document">
                   <IconFileText size={16} />
                 </ActionIcon>
                 {canSubmit && (r.status === "draft" || r.status === "pending_info") && (
@@ -540,6 +540,7 @@ function PriorAuthTab() {
                     color="primary"
                     onClick={() => submitMut.mutate(r.id)}
                     loading={submitMut.isPending}
+                    aria-label="Send"
                   >
                     <IconSend size={16} />
                   </ActionIcon>
@@ -828,7 +829,7 @@ function AppealsTab() {
   const createMut = useMutation({
     mutationFn: (d: CreateAppealRequest) => api.createAppeal(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
       notifications.show({ title: "Appeal", message: "Created successfully", color: "success" });
       close();
     },
@@ -838,7 +839,7 @@ function AppealsTab() {
   const updateMut = useMutation({
     mutationFn: (d: { id: string; body: UpdateAppealRequest }) => api.updateAppeal(d.id, d.body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
       notifications.show({ title: "Appeal", message: "Updated", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
@@ -922,6 +923,7 @@ function AppealsTab() {
                     variant="subtle"
                     color="primary"
                     onClick={() => updateMut.mutate({ id: r.id, body: { status: "submitted" } })}
+                    aria-label="Send"
                   >
                     <IconSend size={16} />
                   </ActionIcon>
@@ -992,7 +994,7 @@ function RulesTab() {
   const createMut = useMutation({
     mutationFn: (d: CreatePaRuleRequest) => api.createPaRule(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["insurance-rules"] });
+      void qc.invalidateQueries({ queryKey: ["insurance-rules"] });
       notifications.show({ title: "PA Rule", message: "Created", color: "success" });
       close();
     },
@@ -1001,7 +1003,7 @@ function RulesTab() {
 
   const toggleMut = useMutation({
     mutationFn: (d: { id: string; is_active: boolean }) => api.updatePaRule(d.id, { is_active: d.is_active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["insurance-rules"] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["insurance-rules"] }),
   });
 
   return (

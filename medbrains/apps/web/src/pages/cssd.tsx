@@ -54,6 +54,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Label Maps ──────────────────────────────────────────
@@ -135,7 +136,7 @@ function InstrumentsTab() {
   const createInstrMut = useMutation({
     mutationFn: (data: CreateCssdInstrumentRequest) => api.createCssdInstrument(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-instruments"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-instruments"] });
       notifications.show({ title: "Instrument added", message: "", color: "success" });
       closeInstr();
       setInstrForm({ barcode: "", name: "" });
@@ -146,7 +147,7 @@ function InstrumentsTab() {
   const createSetMut = useMutation({
     mutationFn: (data: CreateCssdSetRequest) => api.createCssdSet(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-sets"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-sets"] });
       notifications.show({ title: "Set created", message: "", color: "success" });
       closeSet();
       setSetForm({ set_code: "", set_name: "" });
@@ -251,7 +252,7 @@ function SterilizationTab() {
   const createLoadMut = useMutation({
     mutationFn: (data: CreateCssdLoadRequest) => api.createCssdLoad(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-loads"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-loads"] });
       notifications.show({ title: "Load created", message: "", color: "success" });
       closeLoad();
       setLoadForm({ sterilizer_id: "", method: "steam" });
@@ -262,7 +263,7 @@ function SterilizationTab() {
     mutationFn: ({ id, status }: { id: string; status: LoadStatus }) =>
       api.updateCssdLoadStatus(id, { status }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-loads"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-loads"] });
       notifications.show({ title: "Load status updated", message: "", color: "primary" });
     },
   });
@@ -282,7 +283,7 @@ function SterilizationTab() {
     mutationFn: (data: RecordCssdIndicatorRequest) =>
       api.recordCssdIndicator(selectedLoad?.id ?? "", data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-indicators", selectedLoad?.id] });
+      void qc.invalidateQueries({ queryKey: ["cssd-indicators", selectedLoad?.id] });
       notifications.show({ title: "Indicator recorded", message: "", color: "success" });
       setIndicatorForm({ indicator_type: "chemical", result_pass: true });
     },
@@ -300,20 +301,20 @@ function SterilizationTab() {
       render: (l: CssdSterilizationLoad) => (
         <Group gap="xs">
           <Tooltip label="Details & Indicators">
-            <ActionIcon variant="subtle" onClick={() => { setSelectedLoad(l); openDetail(); }}>
+            <ActionIcon variant="subtle" onClick={() => { setSelectedLoad(l); openDetail(); }} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
           {canCreate && l.status === "loading" && (
             <Tooltip label="Start Cycle">
-              <ActionIcon variant="subtle" color="primary" onClick={() => updateStatusMut.mutate({ id: l.id, status: "running" })}>
+              <ActionIcon variant="subtle" color="primary" onClick={() => updateStatusMut.mutate({ id: l.id, status: "running" })} aria-label="Fire">
                 <IconFlame size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {canCreate && l.status === "running" && (
             <Tooltip label="Complete">
-              <ActionIcon variant="subtle" color="success" onClick={() => updateStatusMut.mutate({ id: l.id, status: "completed" })}>
+              <ActionIcon variant="subtle" color="success" onClick={() => updateStatusMut.mutate({ id: l.id, status: "completed" })} aria-label="Edit">
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
@@ -457,7 +458,7 @@ function IssuanceTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateCssdIssuanceRequest) => api.createCssdIssuance(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack issued", message: "", color: "success" });
       close();
       setForm({ issued_to_department: "" });
@@ -467,7 +468,7 @@ function IssuanceTab() {
   const returnMut = useMutation({
     mutationFn: (id: string) => api.returnCssdIssuance(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack returned", message: "", color: "primary" });
     },
   });
@@ -475,7 +476,7 @@ function IssuanceTab() {
   const recallMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => api.recallCssdIssuance(id, reason),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack recalled", message: "", color: "orange" });
     },
   });
@@ -497,12 +498,12 @@ function IssuanceTab() {
           {canCreate && !i.returned_at && !i.is_recalled && (
             <>
               <Tooltip label="Return">
-                <ActionIcon variant="subtle" color="primary" onClick={() => returnMut.mutate(i.id)}>
+                <ActionIcon variant="subtle" color="primary" onClick={() => returnMut.mutate(i.id)} aria-label="Arrow Back">
                   <IconArrowBack size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Recall">
-                <ActionIcon variant="subtle" color="danger" onClick={() => recallMut.mutate({ id: i.id, reason: "Quality concern" })}>
+                <ActionIcon variant="subtle" color="danger" onClick={() => recallMut.mutate({ id: i.id, reason: "Quality concern" })} aria-label="Warning">
                   <IconAlertTriangle size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -526,7 +527,7 @@ function IssuanceTab() {
       <Drawer opened={opened} onClose={close} title="Issue Sterile Pack" position="right" size="sm">
         <Stack>
           <TextInput label="Department" required value={form.issued_to_department} onChange={(e) => setForm({ ...form, issued_to_department: e.currentTarget.value })} />
-          <TextInput label="Patient ID (optional)" value={form.issued_to_patient_id ?? ""} onChange={(e) => setForm({ ...form, issued_to_patient_id: e.currentTarget.value || undefined })} />
+          <PatientSearchSelect value={form.issued_to_patient_id ?? ""} onChange={(id) => setForm({ ...form, issued_to_patient_id: id || undefined })} label="Patient (optional)" />
           <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Issue</Button>
         </Stack>
@@ -553,7 +554,7 @@ function EquipmentTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateCssdSterilizerRequest) => api.createCssdSterilizer(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
       notifications.show({ title: "Sterilizer added", message: "", color: "success" });
       close();
       setForm({ name: "" });
@@ -572,8 +573,8 @@ function EquipmentTab() {
     mutationFn: (data: CreateCssdMaintenanceRequest) =>
       api.createCssdMaintenanceLog(selectedSterilizer?.id ?? "", data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cssd-maintenance", selectedSterilizer?.id] });
-      qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
+      void qc.invalidateQueries({ queryKey: ["cssd-maintenance", selectedSterilizer?.id] });
+      void qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
       notifications.show({ title: "Maintenance logged", message: "", color: "success" });
       setMaintForm({ maintenance_type: "" });
     },
@@ -590,7 +591,7 @@ function EquipmentTab() {
       label: "Actions",
       render: (s: CssdSterilizer) => (
         <Tooltip label="Maintenance Logs">
-          <ActionIcon variant="subtle" onClick={() => { setSelectedSterilizer(s); openMaint(); }}>
+          <ActionIcon variant="subtle" onClick={() => { setSelectedSterilizer(s); openMaint(); }} aria-label="Settings">
             <IconSettings size={16} />
           </ActionIcon>
         </Tooltip>

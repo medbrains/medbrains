@@ -144,6 +144,7 @@ function FieldDetailDrawer({
                 <ActionIcon
                   variant="light"
                   onClick={() => onEdit(detail)}
+                  aria-label="Edit"
                 >
                   <IconPencil size={16} />
                 </ActionIcon>
@@ -302,7 +303,7 @@ function FieldEditModal({
         message: "New field has been created",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-fields"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-fields"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -323,8 +324,8 @@ function FieldEditModal({
         message: "Field has been updated",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-fields"] });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({ queryKey: ["admin-fields"] });
+      void queryClient.invalidateQueries({
         queryKey: ["admin-field-detail", editingField?.field.id],
       });
       onClose();
@@ -587,6 +588,7 @@ export function FieldMasterList() {
             variant="subtle"
             color="primary"
             onClick={() => openDetail(row)}
+            aria-label="View details"
           >
             <IconEye size={16} />
           </ActionIcon>
@@ -598,6 +600,7 @@ export function FieldMasterList() {
               setAuditFieldName(row.name);
               setAuditOpen(true);
             }}
+            aria-label="Time"
           >
             <IconClock size={16} />
           </ActionIcon>

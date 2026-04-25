@@ -45,7 +45,7 @@ export function ModulesSettings() {
       status: string;
     }) => api.updateModule(code, { status }),
     onSuccess: (updated: ModuleConfig) => {
-      queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
       const label = updated.status === "enabled" ? "enabled" : "disabled";
       notifications.show({
         title: `Module ${label}`,

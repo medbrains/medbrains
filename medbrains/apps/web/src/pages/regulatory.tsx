@@ -65,6 +65,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const severityColors: Record<string, string> = {
@@ -332,8 +333,8 @@ function SelfAssessmentView() {
     mutationFn: (data: { standard_id: string; compliance: ComplianceStatusType; evidence_summary?: string }) =>
       api.updateAccreditationCompliance(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accreditation-compliance"] });
-      qc.invalidateQueries({ queryKey: ["regulatory-dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["accreditation-compliance"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-dashboard"] });
       notifications.show({ title: "Assessment updated", message: "", color: "success" });
     },
   });
@@ -490,7 +491,7 @@ function ChecklistsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateChecklistRequest) => api.createChecklist(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
       notifications.show({ title: "Checklist created", message: "", color: "success" });
       close();
     },
@@ -577,7 +578,7 @@ function ChecklistListView({
   const autoPopulateMut = useMutation({
     mutationFn: (id: string) => api.autoPopulateChecklist(id),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
       notifications.show({ title: "Auto-populated", message: `${result.updated} item(s) updated`, color: "teal" });
     },
     onError: () => {
@@ -795,7 +796,7 @@ function AdrTab() {
   const createAdrMut = useMutation({
     mutationFn: (data: CreateAdrRequest) => api.createAdrReport(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
       notifications.show({ title: "ADR Report created", message: "", color: "success" });
       closeAdr();
     },
@@ -804,7 +805,7 @@ function AdrTab() {
   const createMvMut = useMutation({
     mutationFn: (data: CreateMvRequest) => api.createMvReport(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
       notifications.show({ title: "Materiovigilance Report created", message: "", color: "success" });
       closeMv();
     },
@@ -813,7 +814,7 @@ function AdrTab() {
   const submitAdrMut = useMutation({
     mutationFn: (id: string) => api.submitAdrToPvpi(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
       notifications.show({ title: "Submitted to PvPI", message: "", color: "primary" });
     },
   });
@@ -821,7 +822,7 @@ function AdrTab() {
   const submitMvMut = useMutation({
     mutationFn: (id: string) => api.submitMvToCdsco(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
       notifications.show({ title: "Submitted to CDSCO", message: "", color: "primary" });
     },
   });
@@ -877,7 +878,7 @@ function AdrTab() {
             r.submitted_to_pvpi
               ? <Badge color="success" size="sm">Submitted</Badge>
               : r.status === "draft" && canCreateAdr
-                ? <ActionIcon variant="light" color="primary" onClick={() => submitAdrMut.mutate(r.id)}><IconSend size={14} /></ActionIcon>
+                ? <ActionIcon variant="light" color="primary" onClick={() => submitAdrMut.mutate(r.id)} aria-label="Send"><IconSend size={14} /></ActionIcon>
                 : <Text size="sm" c="dimmed">-</Text>
           )},
           { key: "date", label: "Date", render: (r) => <Text size="sm">{r.reaction_date}</Text> },
@@ -899,7 +900,7 @@ function AdrTab() {
             r.submitted_to_cdsco
               ? <Badge color="success" size="sm">Submitted</Badge>
               : r.status === "draft" && canCreateMv
-                ? <ActionIcon variant="light" color="primary" onClick={() => submitMvMut.mutate(r.id)}><IconSend size={14} /></ActionIcon>
+                ? <ActionIcon variant="light" color="primary" onClick={() => submitMvMut.mutate(r.id)} aria-label="Send"><IconSend size={14} /></ActionIcon>
                 : <Text size="sm" c="dimmed">-</Text>
           )},
           { key: "date", label: "Date", render: (r) => <Text size="sm">{r.event_date}</Text> },
@@ -1017,7 +1018,7 @@ function PcpndtTab() {
   const createMut = useMutation({
     mutationFn: (data: CreatePcpndtRequest) => api.createPcpndtForm(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-pcpndt"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-pcpndt"] });
       notifications.show({ title: "PCPNDT Form created", message: "Gender disclosure blocked by default", color: "success" });
       close();
     },
@@ -1071,7 +1072,7 @@ function PcpndtTab() {
 
       <Drawer opened={opened} onClose={close} title="New PCPNDT Form F" position="right" size="md">
         <Stack gap="sm">
-          <TextInput label="Patient ID" required value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
+          <PatientSearchSelect value={form.patient_id} onChange={(id) => setForm({ ...form, patient_id: id })} required />
           <TextInput label="Performing Doctor ID" required value={form.performing_doctor_id} onChange={(e) => setForm({ ...form, performing_doctor_id: e.currentTarget.value })} />
           <TextInput label="Referral Doctor ID" value={form.referral_doctor_id ?? ""} onChange={(e) => setForm({ ...form, referral_doctor_id: e.currentTarget.value || undefined })} />
           <Select
@@ -1138,7 +1139,7 @@ function CalendarTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateCalendarEventRequest) => api.createCalendarEvent(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
       notifications.show({ title: "Calendar event created", message: "", color: "success" });
       close();
     },
@@ -1147,7 +1148,7 @@ function CalendarTab() {
   const completeMut = useMutation({
     mutationFn: (id: string) => api.updateCalendarEvent(id, { status: "completed" }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
       notifications.show({ title: "Marked complete", message: "", color: "success" });
     },
   });
@@ -1293,7 +1294,7 @@ function CalendarListView({
           { key: "actions", label: "Actions", render: (r) => (
             r.status !== "completed" && canManage ? (
               <Group gap={4}>
-                <ActionIcon variant="light" color="success" onClick={() => completeMut.mutate(r.id)} title="Mark complete">
+                <ActionIcon variant="light" color="success" onClick={() => completeMut.mutate(r.id)} title="Mark complete" aria-label="Checklist">
                   <IconChecklist size={14} />
                 </ActionIcon>
               </Group>
@@ -1532,7 +1533,7 @@ function SubmissionsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateRegulatorySubmissionRequest) => api.createRegulatorySubmission(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-submissions"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-submissions"] });
       notifications.show({ title: "Submission recorded", message: "", color: "success" });
       close();
       setForm({ submission_type: "", submitted_to: "", submitted_at: new Date().toISOString().slice(0, 10) });
@@ -1625,7 +1626,7 @@ function MockSurveysTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateChecklistRequest) => api.createMockSurvey(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["regulatory-mock-surveys"] });
+      void qc.invalidateQueries({ queryKey: ["regulatory-mock-surveys"] });
       notifications.show({ title: "Mock survey created", message: "", color: "success" });
       close();
     },

@@ -126,6 +126,7 @@ function FormDetailDrawer({
                   variant="light"
                   color="violet"
                   onClick={() => navigate(`/admin/form-builder/${detail.id}`)}
+                  aria-label="Pencil Code"
                 >
                   <IconPencilCode size={16} />
                 </ActionIcon>
@@ -133,6 +134,7 @@ function FormDetailDrawer({
               <ActionIcon
                 variant="light"
                 onClick={() => onEdit(detail)}
+                aria-label="Edit"
               >
                 <IconPencil size={16} />
               </ActionIcon>
@@ -302,7 +304,7 @@ function FormEditModal({
         message: "New form has been created",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -323,8 +325,8 @@ function FormEditModal({
         message: "Form has been updated",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({
         queryKey: ["admin-form-detail", editingForm?.id],
       });
       onClose();
@@ -452,7 +454,7 @@ export function FormMasterList() {
         message: "Form is now active and locked.",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
       setPublishForm(null);
       setPublishSummary("");
     },
@@ -473,7 +475,7 @@ export function FormMasterList() {
         message: "Form is now a draft. You can edit it.",
         color: "primary",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
       setNewVersionForm(null);
     },
     onError: (err: Error) => {
@@ -556,6 +558,7 @@ export function FormMasterList() {
                 variant="subtle"
                 color="success"
                 onClick={() => setPublishForm(row)}
+                aria-label="Upload"
               >
                 <IconUpload size={16} />
               </ActionIcon>
@@ -567,6 +570,7 @@ export function FormMasterList() {
                 variant="subtle"
                 color="primary"
                 onClick={() => setNewVersionForm(row)}
+                aria-label="Git Branch"
               >
                 <IconGitBranch size={16} />
               </ActionIcon>
@@ -577,6 +581,7 @@ export function FormMasterList() {
               variant="subtle"
               color="slate"
               onClick={() => openHistory(row)}
+              aria-label="History"
             >
               <IconHistory size={16} />
             </ActionIcon>
@@ -586,6 +591,7 @@ export function FormMasterList() {
               variant="subtle"
               color="primary"
               onClick={() => openDetail(row)}
+              aria-label="View details"
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -595,6 +601,7 @@ export function FormMasterList() {
               variant="subtle"
               color="violet"
               onClick={() => navigate(`/admin/form-builder/${row.id}`)}
+              aria-label="Pencil Code"
             >
               <IconPencilCode size={16} />
             </ActionIcon>

@@ -244,6 +244,7 @@ export function ConditionBuilder({ condition, onChange }: ConditionBuilderProps)
             variant="subtle"
             color="danger"
             onClick={() => removeRow(index)}
+            aria-label="Delete"
           >
             <IconTrash size={12} />
           </ActionIcon>

@@ -293,6 +293,7 @@ export function DiagnosisPanel({
                 color="danger"
                 size="sm"
                 onClick={() => onDelete(d.id)}
+                aria-label="Delete"
               >
                 <IconTrash size={14} />
               </ActionIcon>

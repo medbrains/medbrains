@@ -122,7 +122,7 @@ export function IntegrationBuilderPage() {
     onSuccess: (data) => {
       loadPipeline(data);
       markClean();
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["integration", "pipelines"],
       });
       notifications.show({
@@ -158,7 +158,7 @@ export function IntegrationBuilderPage() {
     },
     onSuccess: (data) => {
       loadPipeline(data);
-      queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] });
+      void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] });
       notifications.show({
         title: "Status Updated",
         message: `Pipeline is now ${data.status}`,
@@ -191,6 +191,7 @@ export function IntegrationBuilderPage() {
                 variant="subtle"
                 size="md"
                 onClick={() => navigate("/admin/integration-hub")}
+                aria-label="Go back"
               >
                 <IconArrowLeft size={18} />
               </ActionIcon>
@@ -246,12 +247,12 @@ export function IntegrationBuilderPage() {
           {/* Right side: Actions */}
           <Group gap={6}>
             <Tooltip label="Undo (Ctrl+Z)">
-              <ActionIcon variant="subtle" size="md" disabled={!canUndo()} onClick={undo}>
+              <ActionIcon variant="subtle" size="md" disabled={!canUndo()} onClick={undo} aria-label="Arrow Back Up">
                 <IconArrowBackUp size={18} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Redo (Ctrl+Shift+Z)">
-              <ActionIcon variant="subtle" size="md" disabled={!canRedo()} onClick={redo}>
+              <ActionIcon variant="subtle" size="md" disabled={!canRedo()} onClick={redo} aria-label="Arrow Forward Up">
                 <IconArrowForwardUp size={18} />
               </ActionIcon>
             </Tooltip>

@@ -80,7 +80,7 @@ export function ColumnEditor({
             style={{ flex: 1 }}
           />
           <Tooltip label="Remove">
-            <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => handleRemove(i)}>
+            <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => handleRemove(i)} aria-label="Delete">
               <IconTrash size={14} />
             </ActionIcon>
           </Tooltip>
@@ -88,7 +88,7 @@ export function ColumnEditor({
       ))}
 
       <Group mt="xs">
-        <ActionIcon variant="light" size="sm" onClick={handleAdd}>
+        <ActionIcon variant="light" size="sm" onClick={handleAdd} aria-label="Add">
           <IconPlus size={14} />
         </ActionIcon>
         <Text size="xs" c="dimmed">

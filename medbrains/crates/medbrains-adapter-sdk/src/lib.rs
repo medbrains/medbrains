@@ -214,7 +214,7 @@ pub mod hl7 {
     pub fn parse_segments(raw: &str) -> Vec<MessageSegment> {
         let separator = if raw.len() > 3 { &raw[3..4] } else { "|" };
 
-        raw.split(|c| c == '\r' || c == '\n')
+        raw.split(['\r', '\n'])
             .filter(|line| line.len() >= 3)
             .map(|line| {
                 let parts: Vec<&str> = line.split(separator).collect();

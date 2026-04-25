@@ -180,7 +180,7 @@ function FacilityModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -202,7 +202,7 @@ function FacilityModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -399,7 +399,7 @@ export function FacilitiesSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-facilities"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -479,6 +479,7 @@ export function FacilitiesSettings() {
             variant="subtle"
             color="primary"
             onClick={() => openEdit(facility)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -487,6 +488,7 @@ export function FacilitiesSettings() {
             color="danger"
             onClick={() => handleDelete(facility)}
             loading={deleteMutation.isPending}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

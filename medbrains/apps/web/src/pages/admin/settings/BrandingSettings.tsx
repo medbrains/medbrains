@@ -106,7 +106,7 @@ export function BrandingSettings() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["setup-branding"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-branding"] });
       notifications.show({
         title: "Branding saved",
         message: "Your branding settings have been updated successfully.",

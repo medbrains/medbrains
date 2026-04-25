@@ -192,6 +192,7 @@ export function WidgetPropertyPanel() {
                 variant="subtle"
                 size="sm"
                 onClick={() => duplicateWidget(widget.clientId)}
+                aria-label="Copy"
               >
                 <IconCopy size={14} />
               </ActionIcon>
@@ -202,6 +203,7 @@ export function WidgetPropertyPanel() {
                 variant="subtle"
                 size="sm"
                 onClick={() => removeWidget(widget.clientId)}
+                aria-label="Delete"
               >
                 <IconTrash size={14} />
               </ActionIcon>

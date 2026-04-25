@@ -446,7 +446,7 @@ function OptionsEditor({
             onChange={(e) => updateOption(index, e.currentTarget.value)}
             style={{ flex: 1 }}
           />
-          <ActionIcon size="sm" variant="subtle" color="danger" onClick={() => removeOption(index)}>
+          <ActionIcon size="sm" variant="subtle" color="danger" onClick={() => removeOption(index)} aria-label="Delete">
             <IconTrash size={12} />
           </ActionIcon>
         </Group>
@@ -462,7 +462,7 @@ function OptionsEditor({
           }}
           style={{ flex: 1 }}
         />
-        <ActionIcon size="sm" variant="light" color="primary" onClick={addOption}>
+        <ActionIcon size="sm" variant="light" color="primary" onClick={addOption} aria-label="Add">
           <IconPlus size={12} />
         </ActionIcon>
       </Group>
@@ -537,7 +537,7 @@ function FieldProperties({ field }: { field: FormBuilderFieldNode }) {
             withArrow
             position="left"
           >
-            <ActionIcon variant="subtle" size="xs" color="primary">
+            <ActionIcon variant="subtle" size="xs" color="primary" aria-label="Info">
               <IconInfoCircle size={16} />
             </ActionIcon>
           </Tooltip>
@@ -884,7 +884,7 @@ function ValidationRuleRow({
         onChange={(e) => updateRule({ message: e.currentTarget.value })}
         style={{ flex: 2 }}
       />
-      <ActionIcon size="sm" variant="subtle" color="danger" onClick={onRemove}>
+      <ActionIcon size="sm" variant="subtle" color="danger" onClick={onRemove} aria-label="Delete">
         <IconTrash size={12} />
       </ActionIcon>
     </Group>

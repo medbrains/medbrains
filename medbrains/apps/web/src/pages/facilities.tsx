@@ -244,11 +244,11 @@ function MgpsTab() {
 
   const createReading = useMutation({
     mutationFn: () => api.createFmsGasReading(gasForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-gas-readings"] }); closeReading(); notifications.show({ title: "Success", message: "Gas reading recorded" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-gas-readings"] }); closeReading(); notifications.show({ title: "Success", message: "Gas reading recorded" }); },
   });
   const createCompliance = useMutation({
     mutationFn: () => api.createFmsGasCompliance(compForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-gas-compliance"] }); closeCompliance(); notifications.show({ title: "Success", message: "Compliance record created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-gas-compliance"] }); closeCompliance(); notifications.show({ title: "Success", message: "Compliance record created" }); },
   });
 
   const readingCols: Column<FmsGasReading>[] = [
@@ -334,11 +334,11 @@ function FireSafetyTab() {
 
   const createEquip = useMutation({
     mutationFn: () => api.createFmsFireEquipment(equipForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-fire-equipment"] }); closeEquip(); notifications.show({ title: "Success", message: "Equipment added" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-fire-equipment"] }); closeEquip(); notifications.show({ title: "Success", message: "Equipment added" }); },
   });
   const createDrill = useMutation({
     mutationFn: () => api.createFmsFireDrill(drillForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-fire-drills"] }); closeDrill(); notifications.show({ title: "Success", message: "Drill recorded" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-fire-drills"] }); closeDrill(); notifications.show({ title: "Success", message: "Drill recorded" }); },
   });
 
   const equipCols: Column<FmsFireEquipment>[] = [
@@ -440,11 +440,11 @@ function WaterQualityTab() {
 
   const createTest = useMutation({
     mutationFn: () => api.createFmsWaterTest(testForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-water-tests"] }); closeTest(); notifications.show({ title: "Success", message: "Test result recorded" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-water-tests"] }); closeTest(); notifications.show({ title: "Success", message: "Test result recorded" }); },
   });
   const createSched = useMutation({
     mutationFn: () => api.createFmsWaterSchedule(schedForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-water-schedules"] }); closeSched(); notifications.show({ title: "Success", message: "Schedule created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-water-schedules"] }); closeSched(); notifications.show({ title: "Success", message: "Schedule created" }); },
   });
 
   const testCols: Column<FmsWaterTest>[] = [
@@ -521,7 +521,7 @@ function EnergyTab() {
 
   const createReading = useMutation({
     mutationFn: () => api.createFmsEnergyReading(form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-energy-readings"] }); closeReading(); notifications.show({ title: "Success", message: "Reading recorded" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-energy-readings"] }); closeReading(); notifications.show({ title: "Success", message: "Reading recorded" }); },
   });
 
   const cols: Column<FmsEnergyReading>[] = [
@@ -673,19 +673,19 @@ function WorkOrdersTab() {
 
   const createWo = useMutation({
     mutationFn: () => api.createFmsWorkOrder(form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-work-orders"] }); closeCreate(); notifications.show({ title: "Success", message: "Work order created" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-work-orders"] }); closeCreate(); notifications.show({ title: "Success", message: "Work order created" }); },
   });
   const updateStatus = useMutation({
     mutationFn: () => {
       if (!selectedWo) return Promise.reject(new Error("No WO selected"));
       return api.updateFmsWorkOrderStatus(selectedWo.id, statusForm);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fms-work-orders"] }); closeStatus(); notifications.show({ title: "Success", message: "Status updated" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["fms-work-orders"] }); closeStatus(); notifications.show({ title: "Success", message: "Status updated" }); },
   });
   const schedulePm = useMutation({
     mutationFn: () => api.schedulePm(pmForm),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["fms-work-orders"] });
+      void qc.invalidateQueries({ queryKey: ["fms-work-orders"] });
       closePm();
       notifications.show({ title: "PM Scheduled", message: `${(res as { created: number }).created} work order(s) created` });
     },
@@ -701,7 +701,7 @@ function WorkOrdersTab() {
     { key: "requested_at", label: "Requested", render: (r) => <Text size="sm">{new Date(r.requested_at).toLocaleDateString()}</Text> },
     { key: "actions", label: "", render: (r) => canManage && r.status !== "completed" && r.status !== "cancelled" ? (
       <Tooltip label="Update Status">
-        <ActionIcon variant="subtle" onClick={() => { setSelectedWo(r); setStatusForm({ status: r.status === "open" ? "assigned" : "in_progress" }); openStatus(); }}>
+        <ActionIcon variant="subtle" onClick={() => { setSelectedWo(r); setStatusForm({ status: r.status === "open" ? "assigned" : "in_progress" }); openStatus(); }} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       </Tooltip>

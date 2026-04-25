@@ -186,7 +186,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
   const scoreBatchMut = useMutation({
     mutationFn: () => api.scoreBatch({ appointment_ids: [] }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
       notifications.show({
         title: "Batch Scoring Complete",
         message: "Today's appointments have been scored",
@@ -206,7 +206,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
     mutationFn: (appointmentId: string) =>
       api.scoreAppointment({ appointment_id: appointmentId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
       notifications.show({
         title: "Scored",
         message: "Appointment prediction scored",
@@ -274,6 +274,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
                 size="sm"
                 onClick={() => scoreOneMut.mutate(r.appointment_id)}
                 loading={scoreOneMut.isPending}
+                aria-label="Play"
               >
                 <IconPlayerPlay size={14} />
               </ActionIcon>
@@ -358,7 +359,7 @@ function WaitlistTab({
   const createMut = useMutation({
     mutationFn: (d: CreateWaitlistRequest) => api.createWaitlistEntry(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       closeCreate();
       resetCreateForm();
       notifications.show({ title: "Created", message: "Waitlist entry created", color: "success" });
@@ -369,7 +370,7 @@ function WaitlistTab({
     mutationFn: ({ id, appointmentId }: { id: string; appointmentId: string }) =>
       api.offerSlot(id, { offered_appointment_id: appointmentId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       closeOffer();
       setOfferTarget(null);
       setOfferedAppointmentId("");
@@ -381,7 +382,7 @@ function WaitlistTab({
     mutationFn: ({ id, accept }: { id: string; accept: boolean }) =>
       api.respondToOffer(id, { accept }),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       notifications.show({
         title: variables.accept ? "Accepted" : "Declined",
         message: variables.accept ? "Offer accepted, slot booked" : "Offer declined",
@@ -393,7 +394,7 @@ function WaitlistTab({
   const autoFillMut = useMutation({
     mutationFn: () => api.autoFillSlots(),
     onSuccess: (result: AutoFillResult) => {
-      qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       notifications.show({
         title: "Auto-Fill Complete",
         message: result.message,
@@ -511,6 +512,7 @@ function WaitlistTab({
                       setOfferedAppointmentId("");
                       openOffer();
                     }}
+                    aria-label="Play"
                   >
                     <IconPlayerPlay size={14} />
                   </ActionIcon>
@@ -524,6 +526,7 @@ function WaitlistTab({
                       title="Accept"
                       onClick={() => respondMut.mutate({ id: r.id, accept: true })}
                       loading={respondMut.isPending}
+                      aria-label="Confirm"
                     >
                       <IconCheck size={14} />
                     </ActionIcon>
@@ -534,6 +537,7 @@ function WaitlistTab({
                       title="Decline"
                       onClick={() => respondMut.mutate({ id: r.id, accept: false })}
                       loading={respondMut.isPending}
+                      aria-label="Close"
                     >
                       <IconX size={14} />
                     </ActionIcon>
@@ -687,7 +691,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
   const createMut = useMutation({
     mutationFn: (d: CreateOverbookingRuleRequest) => api.createOverbookingRule(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
       resetForm();
       notifications.show({ title: "Created", message: "Overbooking rule created", color: "success" });
@@ -698,7 +702,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
     mutationFn: ({ id, data }: { id: string; data: UpdateOverbookingRuleRequest }) =>
       api.updateOverbookingRule(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
       setEditing(null);
       resetForm();
@@ -709,7 +713,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteOverbookingRule(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       notifications.show({ title: "Deleted", message: "Overbooking rule removed", color: "danger" });
     },
   });
@@ -809,7 +813,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             label: "Actions",
             render: (r: SchedulingOverbookingRule) => (
               <Group gap="xs" wrap="nowrap">
-                <ActionIcon variant="subtle" color="primary" size="sm" onClick={() => openEdit(r)}>
+                <ActionIcon variant="subtle" color="primary" size="sm" onClick={() => openEdit(r)} aria-label="Edit">
                   <IconPencil size={14} />
                 </ActionIcon>
                 <ActionIcon
@@ -818,6 +822,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
                   size="sm"
                   onClick={() => deleteMut.mutate(r.id)}
                   loading={deleteMut.isPending}
+                  aria-label="Delete"
                 >
                   <IconTrash size={14} />
                 </ActionIcon>
@@ -1031,7 +1036,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
         message: `${result.created} recurring slot(s) created`,
         color: "success",
       });
-      qc.invalidateQueries({ queryKey: ["scheduling-conflicts"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-conflicts"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Error", message: err.message, color: "danger" });
@@ -1082,7 +1087,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
           : "No eligible waitlist entry found for this slot",
         color: result.promoted ? "success" : "warning",
       });
-      qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
+      void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Error", message: err.message, color: "danger" });

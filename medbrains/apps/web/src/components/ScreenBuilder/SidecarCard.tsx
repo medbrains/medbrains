@@ -56,6 +56,7 @@ export function SidecarCard({ sidecar, isLocked }: { sidecar: SidecarNode; isLoc
                 e.stopPropagation();
                 removeSidecar(sidecar.clientId);
               }}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>

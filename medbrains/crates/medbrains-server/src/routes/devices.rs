@@ -220,7 +220,7 @@ pub async fn create_device_instance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let iq = format!(
+    let _iq = format!(
         "INSERT INTO device_instances \
          (tenant_id, adapter_code, name, code, facility_id, department_id, \
           serial_number, hostname, port, credentials, \
@@ -231,7 +231,7 @@ pub async fn create_device_instance(
          RETURNING {}", INSTANCE_SELECT.trim_start_matches("SELECT ").split(" FROM ").next().unwrap_or("*")
     );
 
-    let rq = format!("{INSTANCE_SELECT} WHERE id = (SELECT id FROM device_instances WHERE tenant_id = $1 AND code = $2)");
+    let _rq = format!("{INSTANCE_SELECT} WHERE id = (SELECT id FROM device_instances WHERE tenant_id = $1 AND code = $2)");
 
     // Use a simpler approach: insert then fetch
     sqlx::query(
@@ -804,7 +804,7 @@ pub async fn ingest_device_data(
     })))
 }
 
-/// Route lab device data: extract OBX results, match to lab_order by sample barcode, create lab_results.
+/// Route lab device data: extract OBX results, match to `lab_order` by sample barcode, create `lab_results`.
 async fn route_lab_data(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -934,13 +934,13 @@ async fn route_lab_data(
     Ok(created_ids)
 }
 
-/// Map HL7 abnormal flag codes to lab_result_flag enum values.
+/// Map HL7 abnormal flag codes to `lab_result_flag` enum values.
 fn map_hl7_flag(flag: Option<&str>) -> &'static str {
     match flag {
-        Some("H") | Some("HH") => "high",
-        Some("L") | Some("LL") => "low",
-        Some("A") | Some("AA") => "abnormal",
-        Some("N") | Some("") | None => "normal",
+        Some("H" | "HH") => "high",
+        Some("L" | "LL") => "low",
+        Some("A" | "AA") => "abnormal",
+        Some("N" | "") | None => "normal",
         Some("HU") => "critical_high",
         Some("LU") => "critical_low",
         _ => "normal",

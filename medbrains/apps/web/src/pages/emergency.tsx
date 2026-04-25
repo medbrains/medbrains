@@ -73,13 +73,13 @@ const ARRIVAL_MODES = [
 ];
 
 const CODE_TYPES = [
-  { value: "primary", label: "Code Blue (Cardiac Arrest)" },
-  { value: "warning", label: "Code Yellow (Mass Casualty)" },
-  { value: "danger", label: "Code Pink (Child Abduction)" },
-  { value: "orange", label: "Code Orange (Hazmat)" },
-  { value: "danger", label: "Code Red (Fire)" },
-  { value: "silver", label: "Code Silver (Active Threat)" },
-  { value: "black", label: "Code Black (Bomb Threat)" },
+  { value: "code_blue", label: "Code Blue (Cardiac Arrest)" },
+  { value: "code_yellow", label: "Code Yellow (Mass Casualty)" },
+  { value: "code_pink", label: "Code Pink (Child Abduction)" },
+  { value: "code_orange", label: "Code Orange (Hazmat)" },
+  { value: "code_red", label: "Code Red (Fire)" },
+  { value: "code_silver", label: "Code Silver (Active Threat)" },
+  { value: "code_black", label: "Code Black (Bomb Threat)" },
 ];
 
 const MLC_CASE_TYPES = [
@@ -269,7 +269,7 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
   const [form, setForm] = useState<CreateErVisitRequest>({ patient_id: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateErVisitRequest) => api.createErVisit(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["er-visits"] }); close(); notifications.show({ title: "Success", message: "ER visit registered" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["er-visits"] }); close(); notifications.show({ title: "Success", message: "ER visit registered" }); },
   });
 
   // Admit from ER
@@ -278,7 +278,7 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
     mutationFn: ({ visitId, data: d }: { visitId: string; data: AdmitFromErRequest }) =>
       api.admitFromEr(visitId, d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["er-visits"] });
+      void qc.invalidateQueries({ queryKey: ["er-visits"] });
       notifications.show({ title: "Patient Admitted", message: "Patient has been admitted to IPD from ER", color: "success" });
       setAdmitForm({});
       setAdmitVisitId(null);
@@ -477,7 +477,7 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
   const createMut = useMutation({
     mutationFn: (d: CreateCodeActivationRequest) => api.createCodeActivation(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["er-codes"] });
+      void qc.invalidateQueries({ queryKey: ["er-codes"] });
       close();
       setCrashCart({});
       notifications.show({ title: "Code Activated", message: `${form.code_type.toUpperCase()} activated`, color: "danger" });
@@ -486,7 +486,7 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
 
   const deactivateMut = useMutation({
     mutationFn: (id: string) => api.deactivateCode(id, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["er-codes"] }); notifications.show({ title: "Code Deactivated", message: "Code has been deactivated" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["er-codes"] }); notifications.show({ title: "Code Deactivated", message: "Code has been deactivated" }); },
   });
 
   const handleCreate = () => {
@@ -686,7 +686,7 @@ function MlcCaseDetail({
   const createDocMut = useMutation({
     mutationFn: (data: CreateMlcDocumentRequest) => api.createMlcDocument(mlcCase.id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["mlc-documents", mlcCase.id] });
+      void qc.invalidateQueries({ queryKey: ["mlc-documents", mlcCase.id] });
       notifications.show({ title: "Document Created", message: "MLC document saved successfully" });
     },
   });
@@ -1140,7 +1140,7 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
   const [form, setForm] = useState<CreateMlcCaseRequest>({ patient_id: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateMlcCaseRequest) => api.createMlcCase(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mlc-cases"] }); close(); notifications.show({ title: "Success", message: "MLC case registered" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mlc-cases"] }); close(); notifications.show({ title: "Success", message: "MLC case registered" }); },
   });
 
   const mlcStatusColor = (s: string) => {
@@ -1232,7 +1232,7 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
   const [form, setForm] = useState<CreateMassCasualtyEventRequest>({ event_name: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateMassCasualtyEventRequest) => api.createMassCasualtyEvent(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mass-casualty"] }); close(); notifications.show({ title: "Code Yellow", message: "Mass casualty event activated", color: "danger" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mass-casualty"] }); close(); notifications.show({ title: "Code Yellow", message: "Mass casualty event activated", color: "danger" }); },
   });
 
   const mcStatusColor = (s: string) => {

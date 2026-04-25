@@ -1534,3 +1534,44 @@ pub mod devices {
         pub const MANAGE: &str = "devices.catalog.manage";
     }
 }
+
+pub mod lms {
+    pub mod courses {
+        pub const LIST: &str = "lms.courses.list";
+        pub const VIEW: &str = "lms.courses.view";
+        pub const CREATE: &str = "lms.courses.create";
+        pub const UPDATE: &str = "lms.courses.update";
+        pub const DELETE: &str = "lms.courses.delete";
+    }
+
+    pub mod enrollments {
+        pub const LIST: &str = "lms.enrollments.list";
+        pub const CREATE: &str = "lms.enrollments.create";
+        pub const UPDATE: &str = "lms.enrollments.update";
+    }
+
+    pub mod quizzes {
+        pub const LIST: &str = "lms.quizzes.list";
+        pub const CREATE: &str = "lms.quizzes.create";
+        pub const ATTEMPT: &str = "lms.quizzes.attempt";
+    }
+
+    pub mod paths {
+        pub const LIST: &str = "lms.paths.list";
+        pub const CREATE: &str = "lms.paths.create";
+        pub const UPDATE: &str = "lms.paths.update";
+    }
+
+    pub mod certificates {
+        pub const LIST: &str = "lms.certificates.list";
+        pub const CREATE: &str = "lms.certificates.create";
+    }
+
+    pub mod compliance {
+        pub const VIEW: &str = "lms.compliance.view";
+    }
+
+    pub mod my_learning {
+        pub const VIEW: &str = "lms.my_learning.view";
+    }
+}

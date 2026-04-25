@@ -49,7 +49,7 @@ impl ClientIp {
 /// - Docker: `172.17.0.0/16`
 /// - Kubernetes: `10.0.0.0/8`
 /// - AWS ALB/ELB: Varies by region, consult AWS documentation
-/// - Cloudflare: See https://www.cloudflare.com/ips/
+/// - Cloudflare: See <https://www.cloudflare.com/ips>/
 pub async fn client_ip_middleware(
     State(state): State<AppState>,
     mut request: Request,

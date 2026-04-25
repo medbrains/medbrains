@@ -479,6 +479,7 @@ function CanvasWidget({
                     e.stopPropagation();
                     duplicateWidget(widget.clientId);
                   }}
+                  aria-label="Copy"
                 >
                   <IconCopy size={12} />
                 </ActionIcon>
@@ -492,6 +493,7 @@ function CanvasWidget({
                     e.stopPropagation();
                     removeWidget(widget.clientId);
                   }}
+                  aria-label="Delete"
                 >
                   <IconTrash size={12} />
                 </ActionIcon>

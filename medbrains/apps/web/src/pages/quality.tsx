@@ -248,7 +248,7 @@ function IndicatorsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateQualityIndicatorRequest) => api.createQualityIndicator(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-indicators"] });
+      void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       notifications.show({ title: "Indicator created", message: "", color: "success" });
       close();
       setForm({ code: "", name: "", category: "", frequency: "monthly" });
@@ -258,8 +258,8 @@ function IndicatorsTab() {
   const calculateMut = useMutation({
     mutationFn: (id: string) => api.calculateIndicator(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-indicators"] });
-      qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
+      void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
+      void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
       notifications.show({ title: "Indicator calculated", message: "Value auto-computed", color: "teal" });
     },
     onError: () => {
@@ -288,7 +288,7 @@ function IndicatorsTab() {
       notes: recordForm.notes || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
+      void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
       notifications.show({ title: "Value recorded", message: "", color: "success" });
       closeRecord();
     },
@@ -311,6 +311,7 @@ function IndicatorsTab() {
               variant="subtle"
               color="teal"
               onClick={() => setTrendIndicator(trendIndicator?.id === i.id ? null : i)}
+              aria-label="Trending up"
             >
               <IconTrendingUp size={16} />
             </ActionIcon>
@@ -322,6 +323,7 @@ function IndicatorsTab() {
                 color="orange"
                 loading={calculateMut.isPending}
                 onClick={() => calculateMut.mutate(i.id)}
+                aria-label="Calculate"
               >
                 <IconCalculator size={16} />
               </ActionIcon>
@@ -333,7 +335,8 @@ function IndicatorsTab() {
                 setSelectedIndicator(i);
                 setRecordForm({ ...recordForm, indicator_id: i.id });
                 openRecord();
-              }}>
+              }}
+                aria-label="Chart">
                 <IconChartBar size={16} />
               </ActionIcon>
             </Tooltip>
@@ -559,7 +562,7 @@ function DocumentsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateQualityDocumentRequest) => api.createQualityDocument(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-documents"] });
+      void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       notifications.show({ title: "Document created", message: "", color: "success" });
       close();
       setForm({ document_number: "", title: "", category: "" });
@@ -569,7 +572,7 @@ function DocumentsTab() {
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.updateDocumentStatus(id, { status }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-documents"] });
+      void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       notifications.show({ title: "Status updated", message: "", color: "success" });
     },
   });
@@ -618,7 +621,7 @@ function DocumentsTab() {
           {d.status === "released" && (
             <>
               <Tooltip label="Acknowledge">
-                <ActionIcon variant="subtle" color="teal" onClick={() => acknowledgeMut.mutate(d.id)}>
+                <ActionIcon variant="subtle" color="teal" onClick={() => acknowledgeMut.mutate(d.id)} aria-label="Checklist">
                   <IconChecklist size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -634,7 +637,7 @@ function DocumentsTab() {
                 </Badge>
               </Tooltip>
               <Tooltip label="Version History">
-                <ActionIcon variant="subtle" color="violet" onClick={() => { setVersionDocCode(d.document_number); openVersionModal(); }}>
+                <ActionIcon variant="subtle" color="violet" onClick={() => { setVersionDocCode(d.document_number); openVersionModal(); }} aria-label="History">
                   <IconHistory size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -818,7 +821,7 @@ function IncidentsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateQualityIncidentRequest) => api.createQualityIncident(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-incidents"] });
+      void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident reported", message: "", color: "success" });
       closeCreate();
       setForm({ title: "", incident_type: "", severity: "minor", incident_date: new Date().toISOString().slice(0, 10) });
@@ -838,7 +841,7 @@ function IncidentsTab() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.updateQualityIncident(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-incidents"] });
+      void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident updated", message: "", color: "success" });
     },
   });
@@ -854,7 +857,7 @@ function IncidentsTab() {
   const createMortalityMut = useMutation({
     mutationFn: (data: CreateMortalityReviewRequest) => api.createMortalityReview(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-incidents"] });
+      void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Mortality review created", message: "", color: "success" });
       closeMortality();
       setMortalityForm({ patient_id: "", death_date: "", primary_diagnosis: "" });
@@ -871,7 +874,7 @@ function IncidentsTab() {
   const createCapaMut = useMutation({
     mutationFn: (data: CreateCapaRequest) => api.createCapa(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-capa"] });
+      void qc.invalidateQueries({ queryKey: ["quality-capa"] });
       notifications.show({ title: "CAPA created", message: "", color: "success" });
       setCapaForm({ incident_id: "", capa_type: "corrective", assigned_to: "", due_date: "" });
     },
@@ -891,7 +894,7 @@ function IncidentsTab() {
       render: (i: QualityIncident) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedIncident(i); openDetail(); }}>
+            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedIncident(i); openDetail(); }} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -947,7 +950,7 @@ function IncidentsTab() {
           <TextInput label="Department ID" value={form.department_id ?? ""} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value || undefined })} />
           <TextInput label="Location" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.currentTarget.value || undefined })} />
           <TextInput label="Incident Date" type="date" required value={form.incident_date} onChange={(e) => setForm({ ...form, incident_date: e.currentTarget.value })} />
-          <TextInput label="Patient ID (optional)" value={form.patient_id ?? ""} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value || undefined })} />
+          <PatientSearchSelect label="Patient (optional)" value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id || undefined })} />
           <Textarea label="Immediate Action Taken" value={form.immediate_action ?? ""} onChange={(e) => setForm({ ...form, immediate_action: e.currentTarget.value || undefined })} />
           <Switch label="Report Anonymously" checked={form.is_anonymous ?? false} onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Submit Report</Button>
@@ -1026,7 +1029,7 @@ function IncidentsTab() {
                         <Table.Td>{new Date(c.due_date).toLocaleDateString()}</Table.Td>
                         <Table.Td>
                           <Tooltip label="View Effectiveness">
-                            <ActionIcon variant="subtle" color="primary" onClick={() => setSelectedCapa(c)}>
+                            <ActionIcon variant="subtle" color="primary" onClick={() => setSelectedCapa(c)} aria-label="View details">
                               <IconEye size={16} />
                             </ActionIcon>
                           </Tooltip>
@@ -1229,7 +1232,7 @@ function CommitteesTab() {
   const createCommitteeMut = useMutation({
     mutationFn: (data: CreateQualityCommitteeRequest) => api.createQualityCommittee(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-committees"] });
+      void qc.invalidateQueries({ queryKey: ["quality-committees"] });
       notifications.show({ title: "Committee created", message: "", color: "success" });
       closeCommittee();
       setCommitteeForm({ name: "", code: "", committee_type: "", meeting_frequency: "monthly" });
@@ -1244,7 +1247,7 @@ function CommitteesTab() {
   const createMeetingMut = useMutation({
     mutationFn: (data: CreateMeetingRequest) => api.createCommitteeMeeting(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-meetings"] });
+      void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
       notifications.show({ title: "Meeting scheduled", message: "", color: "success" });
       closeMeeting();
       setMeetingForm({ committee_id: "", scheduled_date: "" });
@@ -1254,7 +1257,7 @@ function CommitteesTab() {
   const autoScheduleMut = useMutation({
     mutationFn: (committeeId: string) => api.autoScheduleMeetings(committeeId, { months_ahead: 6 }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-meetings"] });
+      void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
       notifications.show({ title: "Meetings auto-scheduled", message: "Scheduled for the next 6 months", color: "teal" });
     },
     onError: () => {
@@ -1275,7 +1278,7 @@ function CommitteesTab() {
       render: (c: QualityCommittee) => (
         <Group gap="xs">
           <Tooltip label="View Meetings">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedCommittee(c); }}>
+            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedCommittee(c); }} aria-label="Calendar Event">
               <IconCalendarEvent size={16} />
             </ActionIcon>
           </Tooltip>
@@ -1285,7 +1288,8 @@ function CommitteesTab() {
                 setSelectedCommittee(c);
                 setMeetingForm({ committee_id: c.id, scheduled_date: "" });
                 openMeeting();
-              }}>
+              }}
+                aria-label="Add">
                 <IconPlus size={16} />
               </ActionIcon>
             </Tooltip>
@@ -1297,6 +1301,7 @@ function CommitteesTab() {
                 color="primary"
                 loading={autoScheduleMut.isPending}
                 onClick={() => autoScheduleMut.mutate(c.id)}
+                aria-label="Calendar Event"
               >
                 <IconCalendarEvent size={16} />
               </ActionIcon>
@@ -1493,7 +1498,7 @@ function AccreditationTab() {
   const createStandardMut = useMutation({
     mutationFn: (data: CreateAccreditationStandardRequest) => api.createAccreditationStandard(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-standards"] });
+      void qc.invalidateQueries({ queryKey: ["quality-standards"] });
       notifications.show({ title: "Standard added", message: "", color: "success" });
       closeStandard();
       setStandardForm({ body: "nabh", standard_code: "", standard_name: "" });
@@ -1508,7 +1513,7 @@ function AccreditationTab() {
   const updateComplianceMut = useMutation({
     mutationFn: (data: UpdateComplianceRequest) => api.updateAccreditationCompliance(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-compliance"] });
+      void qc.invalidateQueries({ queryKey: ["quality-compliance"] });
       notifications.show({ title: "Compliance updated", message: "", color: "success" });
       closeCompliance();
     },
@@ -1571,7 +1576,8 @@ function AccreditationTab() {
                   target_date: existing?.target_date,
                 });
                 openCompliance();
-              }}>
+              }}
+                aria-label="Mark complete">
                 <IconClipboardCheck size={16} />
               </ActionIcon>
             </Tooltip>
@@ -1754,7 +1760,7 @@ function AuditsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateQualityAuditRequest) => api.createQualityAudit(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-audits"] });
+      void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({ title: "Audit created", message: "", color: "success" });
       closeCreate();
       setForm({ audit_type: "internal", title: "", audit_date: new Date().toISOString().slice(0, 10) });
@@ -1773,7 +1779,7 @@ function AuditsTab() {
   const scheduleAuditsMut = useMutation({
     mutationFn: (data: ScheduleAuditsRequest) => api.scheduleAudits(data),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["quality-audits"] });
+      void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({ title: "Audits scheduled", message: `${result.count} audit(s) created`, color: "teal" });
       closeSchedule();
     },
@@ -1796,8 +1802,8 @@ function AuditsTab() {
   const createFindingMut = useMutation({
     mutationFn: (data: CreateAuditFindingRequest) => api.createAuditFinding(selectedAudit!.id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
-      qc.invalidateQueries({ queryKey: ["quality-audits"] });
+      void qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
+      void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({ title: "Finding added", message: "", color: "success" });
       closeFinding();
       setFindingForm({ finding_type: "non_conformity", description: "", severity: "minor" });
@@ -1827,7 +1833,7 @@ function AuditsTab() {
       render: (a: QualityAudit) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedAudit(a); openDetail(); }}>
+            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedAudit(a); openDetail(); }} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>

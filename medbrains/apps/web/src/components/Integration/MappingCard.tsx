@@ -195,6 +195,7 @@ function SortableSourceChip({
                       e.stopPropagation();
                       onUngroup(source.id);
                     }}
+                    aria-label="Braces Off"
                   >
                     <IconBracesOff size={10} />
                   </ActionIcon>
@@ -208,6 +209,7 @@ function SortableSourceChip({
                   e.stopPropagation();
                   onRemove(source.id);
                 }}
+                aria-label="Close"
               >
                 <IconX size={10} />
               </ActionIcon>
@@ -244,6 +246,7 @@ function SortableSourceChip({
               e.stopPropagation();
               onRemove(source.id);
             }}
+            aria-label="Close"
           >
             <IconX size={10} />
           </ActionIcon>
@@ -587,6 +590,7 @@ export function MappingCard({
             e.stopPropagation();
             onDelete();
           }}
+          aria-label="Delete"
         >
           <IconTrash size={12} />
         </ActionIcon>

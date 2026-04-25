@@ -22,6 +22,8 @@ use crate::{
 struct DataFilters {
     /// Effective department IDs to filter by. Empty = no filtering.
     department_ids: Vec<Uuid>,
+    /// The viewer's user ID — used for "my_*" queries (e.g. my patients today).
+    user_id: Option<Uuid>,
 }
 
 /// Resolve the effective data filters for a widget, merging the widget's
@@ -38,6 +40,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
             // No department filtering — hospital-wide view
             DataFilters {
                 department_ids: Vec::new(),
+                user_id: Some(claims.sub),
             }
         }
         "custom" => {
@@ -57,6 +60,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
             if is_bypass_role(claims) || claims.department_ids.is_empty() {
                 DataFilters {
                     department_ids: widget_dept_ids,
+                    user_id: Some(claims.sub),
                 }
             } else {
                 // Intersect: only keep widget departments that the user actually has access to
@@ -66,6 +70,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                     .collect();
                 DataFilters {
                     department_ids: intersected,
+                    user_id: Some(claims.sub),
                 }
             }
         }
@@ -75,10 +80,12 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 // Bypass roles see everything
                 DataFilters {
                     department_ids: Vec::new(),
+                    user_id: Some(claims.sub),
                 }
             } else {
                 DataFilters {
                     department_ids: claims.department_ids.clone(),
+                    user_id: Some(claims.sub),
                 }
             }
         }
@@ -192,6 +199,32 @@ pub struct CreateWidgetTemplateRequest {
     pub default_width: Option<i32>,
     pub default_height: Option<i32>,
     pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddWidgetRequest {
+    pub widget_type: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub config: serde_json::Value,
+    pub data_source: serde_json::Value,
+    pub position_x: Option<i32>,
+    pub position_y: Option<i32>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub permission_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToggleVisibilityRequest {
+    pub is_visible: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WidgetAccessRequest {
+    pub widget_overrides: serde_json::Value,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1522,6 +1555,255 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"wards": rows}))
         }
 
+        // ── Role-specific: Doctor "my_*" queries ──
+        ("patients", "my_patients_today") => {
+            let uid = filters.user_id.unwrap_or_default();
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM encounters
+                 WHERE doctor_id = $1 AND encounter_date = CURRENT_DATE",
+            )
+            .bind(uid)
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "My Patients Today"}))
+        }
+        ("opd", "my_queue") => {
+            let uid = filters.user_id.unwrap_or_default();
+            let rows = sqlx::query_as::<_, OpdTokenRow>(
+                "SELECT q.id, q.token_number AS token_no,
+                        p.first_name || ' ' || p.last_name AS patient_name,
+                        NULL::text AS doctor_name,
+                        q.status::text
+                 FROM opd_queues q
+                 JOIN encounters e ON e.id = q.encounter_id
+                 JOIN patients p ON p.id = e.patient_id
+                 WHERE q.doctor_id = $1 AND q.queue_date = CURRENT_DATE
+                   AND q.status = 'waiting'
+                 ORDER BY q.token_number LIMIT 20",
+            )
+            .bind(uid)
+            .fetch_all(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows, "value": rows.len()}))
+        }
+        ("lab", "my_pending") => {
+            let uid = filters.user_id.unwrap_or_default();
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM lab_orders
+                 WHERE ordered_by = $1
+                   AND status NOT IN ('completed', 'cancelled')",
+            )
+            .bind(uid)
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "My Pending Labs"}))
+        }
+        ("opd", "my_appointments") => {
+            let uid = filters.user_id.unwrap_or_default();
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r ORDER BY r.scheduled_time), '[]'::json) FROM (
+                 SELECT a.id::text, p.first_name || ' ' || p.last_name AS patient_name,
+                        a.scheduled_time::text, a.visit_type, a.status::text
+                 FROM appointments a
+                 JOIN patients p ON p.id = a.patient_id
+                 WHERE a.doctor_id = $1 AND a.appointment_date = CURRENT_DATE
+                 ORDER BY a.scheduled_time LIMIT 20
+                 ) r",
+            )
+            .bind(uid)
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
+
+        // ── Role-specific: Nurse ward queries ──
+        ("ipd", "my_ward_patients") => {
+            let count = if has_dept_filter {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM admissions a
+                     JOIN encounters e ON e.id = a.encounter_id
+                     WHERE a.status = 'admitted'
+                       AND e.department_id = ANY($1)",
+                )
+                .bind(&filters.department_ids)
+                .fetch_one(&mut **tx)
+                .await?
+            } else {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM admissions WHERE status = 'admitted'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+            };
+            Ok(serde_json::json!({"value": count, "label": "Ward Patients"}))
+        }
+        ("ipd", "medication_schedule") => {
+            // Return placeholder — real MAR integration depends on nursing module
+            Ok(serde_json::json!({
+                "items": [],
+                "value": 0,
+                "label": "Medication Schedule"
+            }))
+        }
+
+        // ── Role-specific: Lab technician ──
+        ("lab", "tat_today") => {
+            let avg_minutes = sqlx::query_scalar::<_, Option<f64>>(
+                "SELECT EXTRACT(EPOCH FROM AVG(updated_at - created_at)) / 60.0
+                 FROM lab_orders
+                 WHERE status = 'completed' AND updated_at >= CURRENT_DATE",
+            )
+            .fetch_one(&mut **tx)
+            .await?
+            .unwrap_or(0.0);
+            Ok(serde_json::json!({"value": avg_minutes.round() as i64, "label": "Avg TAT (min)"}))
+        }
+        ("lab", "phlebotomy_queue") => {
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r ORDER BY r.created_at), '[]'::json) FROM (
+                 SELECT lo.id::text, p.first_name || ' ' || p.last_name AS patient_name,
+                        lo.status::text, lo.created_at::text AS ordered_at
+                 FROM lab_orders lo
+                 JOIN patients p ON p.id = lo.patient_id
+                 WHERE lo.status IN ('ordered', 'sample_collected')
+                 ORDER BY lo.created_at LIMIT 20
+                 ) r",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
+
+        // ── Role-specific: Pharmacist ──
+        ("pharmacy", "pending_prescriptions") => {
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM pharmacy_orders WHERE status = 'ordered'",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "Pending Rx"}))
+        }
+        ("pharmacy", "today_dispensed") => {
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM pharmacy_orders
+                 WHERE status = 'dispensed' AND updated_at >= CURRENT_DATE",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "Dispensed Today"}))
+        }
+        ("pharmacy", "stock_alerts") => {
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
+                 SELECT generic_name AS label, 'Low Stock' AS subtitle,
+                        'alert-circle' AS icon, 'orange' AS color
+                 FROM pharmacy_catalog
+                 WHERE current_stock <= reorder_level AND is_active = true
+                 UNION ALL
+                 SELECT generic_name AS label,
+                        'Expiring ' || TO_CHAR(expiry_date, 'DD Mon YYYY') AS subtitle,
+                        'clock' AS icon, 'red' AS color
+                 FROM pharmacy_batches
+                 WHERE expiry_date <= CURRENT_DATE + INTERVAL '90 days'
+                   AND expiry_date > CURRENT_DATE AND quantity > 0
+                 LIMIT 20
+                 ) r",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
+        ("pharmacy", "ndps_recent") => {
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r ORDER BY r.created_at DESC), '[]'::json) FROM (
+                 SELECT n.id::text, pc.generic_name AS drug_name,
+                        n.action::text, n.quantity, n.balance_after AS balance,
+                        n.created_at::text
+                 FROM pharmacy_ndps_register n
+                 JOIN pharmacy_catalog pc ON pc.id = n.drug_id
+                 ORDER BY n.created_at DESC LIMIT 10
+                 ) r",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
+
+        // ── Role-specific: Billing ──
+        ("billing", "today_collections") => {
+            let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                "SELECT SUM(amount) FROM payments WHERE payment_date >= CURRENT_DATE",
+            )
+            .fetch_one(&mut **tx)
+            .await?
+            .unwrap_or_default();
+            Ok(serde_json::json!({"value": total.to_string(), "label": "Today's Collections"}))
+        }
+        ("billing", "day_close_status") => {
+            let status = sqlx::query_scalar::<_, Option<String>>(
+                "SELECT status::text FROM day_end_closes
+                 WHERE close_date = CURRENT_DATE
+                 ORDER BY created_at DESC LIMIT 1",
+            )
+            .fetch_optional(&mut **tx)
+            .await?
+            .flatten()
+            .unwrap_or_else(|| "not_started".to_owned());
+            Ok(serde_json::json!({"value": status, "label": "Day Close"}))
+        }
+        ("billing", "revenue_mtd") => {
+            let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                "SELECT SUM(total_amount) FROM invoices
+                 WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)
+                   AND status != 'cancelled'",
+            )
+            .fetch_one(&mut **tx)
+            .await?
+            .unwrap_or_default();
+            Ok(serde_json::json!({"value": total.to_string(), "label": "Revenue MTD"}))
+        }
+
+        // ── Role-specific: Facilities ──
+        ("facilities", "open_work_orders") => {
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM fms_work_orders
+                 WHERE status IN ('open', 'assigned', 'in_progress')",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "Open Work Orders"}))
+        }
+        ("facilities", "equipment_pm_due") => {
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r ORDER BY r.next_due_date), '[]'::json) FROM (
+                 SELECT pm.id::text,
+                        e.name AS label,
+                        'Due ' || TO_CHAR(pm.next_due_date, 'DD Mon') AS subtitle,
+                        'settings' AS icon,
+                        CASE WHEN pm.next_due_date <= CURRENT_DATE THEN 'red' ELSE 'orange' END AS color
+                 FROM bme_pm_schedules pm
+                 JOIN bme_equipment e ON e.id = pm.equipment_id
+                 WHERE pm.next_due_date <= CURRENT_DATE + INTERVAL '7 days'
+                   AND pm.is_active = true
+                 ORDER BY pm.next_due_date LIMIT 15
+                 ) r",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
+
+        // ── Role-specific: Admin/CEO ──
+        ("system", "staff_on_duty") => {
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM attendance_records
+                 WHERE attendance_date = CURRENT_DATE AND check_in IS NOT NULL",
+            )
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"value": count, "label": "Staff on Duty"}))
+        }
+
         // ── Fallback ──
         _ => Ok(serde_json::json!({
             "error": "unknown_query",
@@ -1675,6 +1957,300 @@ pub struct RecentActivityRow {
     pub activity_type: String,
     pub description: String,
     pub occurred_at: chrono::DateTime<Utc>,
+}
+
+// ══════════════════════════════════════════════════════════
+//  Self-service personal dashboard widget management
+// ══════════════════════════════════════════════════════════
+
+/// POST /api/dashboards/my/widgets — add a widget to the user's personal dashboard.
+/// If no personal dashboard exists, auto-personalizes (clones the role-matched one).
+pub async fn my_add_widget(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Json(req): Json<AddWidgetRequest>,
+) -> Result<Json<DashboardWidget>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Find or create personal dashboard
+    let dashboard_id = ensure_personal_dashboard(&mut tx, &claims).await?;
+
+    let widget = sqlx::query_as::<_, DashboardWidget>(
+        "INSERT INTO dashboard_widgets
+         (dashboard_id, widget_type, title, subtitle, icon, color, config, data_source,
+          position_x, position_y, width, height, permission_code, sort_order)
+         VALUES ($1, $2::widget_type, $3, $4, $5, $6, $7::jsonb, $8::jsonb,
+                 $9, $10, $11, $12, $13,
+                 COALESCE((SELECT MAX(sort_order) + 1 FROM dashboard_widgets WHERE dashboard_id = $1), 0))
+         RETURNING *",
+    )
+    .bind(dashboard_id)
+    .bind(&req.widget_type)
+    .bind(&req.title)
+    .bind(&req.subtitle)
+    .bind(&req.icon)
+    .bind(&req.color)
+    .bind(&req.config)
+    .bind(&req.data_source)
+    .bind(req.position_x.unwrap_or(0))
+    .bind(req.position_y.unwrap_or(0))
+    .bind(req.width.unwrap_or(4))
+    .bind(req.height.unwrap_or(2))
+    .bind(&req.permission_code)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(widget))
+}
+
+/// DELETE /api/dashboards/my/widgets/{wid} — remove a widget from personal dashboard.
+pub async fn my_remove_widget(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(widget_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Only allow deleting from own personal dashboard
+    let deleted = sqlx::query_scalar::<_, i64>(
+        "WITH personal AS (
+            SELECT id FROM dashboards WHERE user_id = $1 AND is_active = true LIMIT 1
+         )
+         DELETE FROM dashboard_widgets
+         WHERE id = $2 AND dashboard_id IN (SELECT id FROM personal)
+         RETURNING 1::bigint",
+    )
+    .bind(claims.sub)
+    .bind(widget_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if deleted.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"deleted": true})))
+}
+
+/// PATCH /api/dashboards/my/widgets/{wid}/visibility — toggle widget visibility.
+pub async fn my_toggle_widget(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(widget_id): Path<Uuid>,
+    Json(req): Json<ToggleVisibilityRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE dashboard_widgets SET is_visible = $1
+         WHERE id = $2 AND dashboard_id IN (
+             SELECT id FROM dashboards WHERE user_id = $3 AND is_active = true
+         )",
+    )
+    .bind(req.is_visible)
+    .bind(widget_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"is_visible": req.is_visible})))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Admin per-user / per-role widget access
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/admin/users/{id}/widget-access
+pub async fn admin_get_user_widget_access(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::admin::users::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let access = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(access_matrix->'widget_access', '{}'::jsonb) FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or_else(|| serde_json::json!({}));
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"widget_access": access})))
+}
+
+/// PUT /api/admin/users/{id}/widget-access
+pub async fn admin_set_user_widget_access(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+    Json(req): Json<WidgetAccessRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::admin::users::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE users SET access_matrix = jsonb_set(
+            COALESCE(access_matrix, '{}'::jsonb),
+            '{widget_access}',
+            $1::jsonb
+         )
+         WHERE id = $2",
+    )
+    .bind(&req.widget_overrides)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"updated": true})))
+}
+
+/// GET /api/admin/roles/{id}/widget-access
+pub async fn admin_get_role_widget_access(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(role_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::admin::roles::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let defaults = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(widget_access_defaults, '{}'::jsonb) FROM roles WHERE id = $1",
+    )
+    .bind(role_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or_else(|| serde_json::json!({}));
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"widget_access_defaults": defaults})))
+}
+
+/// PUT /api/admin/roles/{id}/widget-access
+pub async fn admin_set_role_widget_access(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(role_id): Path<Uuid>,
+    Json(req): Json<WidgetAccessRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::admin::roles::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE roles SET widget_access_defaults = $1::jsonb WHERE id = $2",
+    )
+    .bind(&req.widget_overrides)
+    .bind(role_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"updated": true})))
+}
+
+/// Ensure a personal dashboard exists for the user; create by cloning the best-match
+/// shared dashboard if needed. Returns the personal dashboard ID.
+async fn ensure_personal_dashboard(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+) -> Result<Uuid, AppError> {
+    // Check for existing personal dashboard
+    let existing = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM dashboards WHERE user_id = $1 AND is_active = true LIMIT 1",
+    )
+    .bind(claims.sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(id) = existing {
+        return Ok(id);
+    }
+
+    // Find best shared dashboard (role-matched or default)
+    let source_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM dashboards
+         WHERE user_id IS NULL AND is_active = true AND tenant_id = $1
+         ORDER BY
+           CASE WHEN role_codes @> to_jsonb($2::text) THEN 0 ELSE 1 END,
+           is_default DESC
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(&claims.role)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let new_id = if let Some(src) = source_id {
+        // Clone the source dashboard as personal
+        let new_dash_id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO dashboards (tenant_id, user_id, code, name, description,
+                    is_default, role_codes, layout_config, cloned_from, created_by)
+             SELECT tenant_id, $1, code || '-' || $1::text, name || ' (Personal)',
+                    description, false, '[]'::jsonb, layout_config, id, $1
+             FROM dashboards WHERE id = $2
+             RETURNING id",
+        )
+        .bind(claims.sub)
+        .bind(src)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        // Clone widgets
+        sqlx::query(
+            "INSERT INTO dashboard_widgets
+             (dashboard_id, widget_type, title, subtitle, icon, color, config, data_source,
+              position_x, position_y, width, height, min_width, min_height,
+              refresh_interval, is_visible, permission_code, sort_order, data_filters)
+             SELECT $1, widget_type, title, subtitle, icon, color, config, data_source,
+                    position_x, position_y, width, height, min_width, min_height,
+                    refresh_interval, is_visible, permission_code, sort_order, data_filters
+             FROM dashboard_widgets WHERE dashboard_id = $2",
+        )
+        .bind(new_dash_id)
+        .bind(src)
+        .execute(&mut **tx)
+        .await?;
+
+        new_dash_id
+    } else {
+        // No source — create empty personal dashboard
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO dashboards (tenant_id, user_id, code, name, description,
+                    is_default, role_codes, layout_config)
+             VALUES ($1, $2, 'personal-' || $2::text, 'My Dashboard', 'Personal dashboard',
+                     false, '[]'::jsonb, '{\"columns\": 12, \"row_height\": 80, \"gap\": 16}'::jsonb)
+             RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
+        .fetch_one(&mut **tx)
+        .await?
+    };
+
+    Ok(new_id)
 }
 
 // ── Internal query row types ────────────────────────────

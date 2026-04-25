@@ -41,7 +41,7 @@ export function PmrPage() {
 
   const createPlan = useMutation({
     mutationFn: (data: CreateRehabPlanRequest) => api.createRehabPlan(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["rehab-plans"] }); planHandlers.close(); notifications.show({ title: "Created", message: "Rehab plan created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["rehab-plans"] }); planHandlers.close(); notifications.show({ title: "Created", message: "Rehab plan created", color: "success" }); },
   });
 
   const planCols: Column<RehabPlan>[] = [

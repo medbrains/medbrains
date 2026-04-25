@@ -63,7 +63,7 @@ function KeyValueEditor({ entries, onChange, label }: KeyValueEditorProps) {
             onChange={(e) => onChange({ ...entries, [key]: e.currentTarget.value })}
             style={{ flex: 1 }}
           />
-          <ActionIcon size="sm" variant="subtle" color="danger" onClick={() => removePair(key)}>
+          <ActionIcon size="sm" variant="subtle" color="danger" onClick={() => removePair(key)} aria-label="Delete">
             <IconTrash size={12} />
           </ActionIcon>
         </Group>
@@ -84,7 +84,7 @@ function KeyValueEditor({ entries, onChange, label }: KeyValueEditorProps) {
           onKeyDown={(e) => { if (e.key === "Enter") addPair(); }}
           style={{ flex: 1 }}
         />
-        <ActionIcon size="sm" variant="light" color="primary" onClick={addPair}>
+        <ActionIcon size="sm" variant="light" color="primary" onClick={addPair} aria-label="Add">
           <IconPlus size={12} />
         </ActionIcon>
       </Group>

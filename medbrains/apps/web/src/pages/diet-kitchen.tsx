@@ -19,6 +19,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import {
   IconPlus,
   IconToolsKitchen2,
@@ -112,7 +113,7 @@ function DietOrdersTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateDietOrderRequest) => api.createDietOrder(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["diet-orders"] });
+      void qc.invalidateQueries({ queryKey: ["diet-orders"] });
       notifications.show({ title: "Success", message: "Diet order created", color: "success" });
       close();
       setForm({});
@@ -146,7 +147,7 @@ function DietOrdersTab() {
       <DataTable columns={columns} data={orders} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No diet orders" />
       <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="md">
         <Stack>
-          <TextInput label="Patient ID" required value={form.patient_id ?? ""} onChange={(e) => setForm((p) => ({ ...p, patient_id: e.currentTarget.value }))} />
+          <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm((p) => ({ ...p, patient_id: id }))} required />
           <TextInput label="Admission ID" value={form.admission_id ?? ""} onChange={(e) => setForm((p) => ({ ...p, admission_id: e.currentTarget.value || undefined }))} />
           <Select label="Template" data={templates.map((t) => ({ value: t.id, label: `${t.name} (${t.diet_type})` }))} clearable onChange={(v) => setForm((p) => ({ ...p, template_id: v ?? undefined }))} />
           <Select label="Diet Type" data={DIET_TYPES} value={form.diet_type ?? "regular"} onChange={(v) => setForm((p) => ({ ...p, diet_type: (v as CreateDietOrderRequest["diet_type"]) ?? undefined }))} />
@@ -180,7 +181,7 @@ function DietTemplatesTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateDietTemplateRequest) => api.createDietTemplate(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["diet-templates"] });
+      void qc.invalidateQueries({ queryKey: ["diet-templates"] });
       notifications.show({ title: "Success", message: "Template created", color: "success" });
       close();
       setForm({});
@@ -292,7 +293,7 @@ function KitchenTab() {
   const createMenuMut = useMutation({
     mutationFn: (data: CreateKitchenMenuRequest) => api.createKitchenMenu(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kitchen-menus"] });
+      void qc.invalidateQueries({ queryKey: ["kitchen-menus"] });
       notifications.show({ title: "Success", message: "Menu created", color: "success" });
       closeMenu();
       setMenuForm({});
@@ -302,7 +303,7 @@ function KitchenTab() {
   const createPrepMut = useMutation({
     mutationFn: (data: CreateMealPrepRequest) => api.createMealPrep(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["meal-preps"] });
+      void qc.invalidateQueries({ queryKey: ["meal-preps"] });
       notifications.show({ title: "Success", message: "Meal prep created", color: "success" });
       closePrep();
       setPrepForm({});
@@ -312,7 +313,7 @@ function KitchenTab() {
   const updatePrepMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateMealPrepStatusRequest }) => api.updateMealPrepStatus(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["meal-preps"] });
+      void qc.invalidateQueries({ queryKey: ["meal-preps"] });
       notifications.show({ title: "Success", message: "Status updated", color: "success" });
     },
   });
@@ -351,6 +352,7 @@ function KitchenTab() {
               size="sm"
               loading={updatePrepMut.isPending}
               onClick={() => updatePrepMut.mutate({ id: r.id, data: { status: nextStatus as UpdateMealPrepStatusRequest["status"] } })}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -501,7 +503,7 @@ function InventoryTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateKitchenInventoryRequest) => api.createKitchenInventoryItem(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kitchen-inventory"] });
+      void qc.invalidateQueries({ queryKey: ["kitchen-inventory"] });
       notifications.show({ title: "Success", message: "Item added", color: "success" });
       close();
       setForm({});
@@ -567,7 +569,7 @@ function AuditsTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateKitchenAuditRequest) => api.createKitchenAudit(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kitchen-audits"] });
+      void qc.invalidateQueries({ queryKey: ["kitchen-audits"] });
       notifications.show({ title: "Success", message: "Audit recorded", color: "success" });
       close();
       setForm({});

@@ -140,6 +140,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
             variant="subtle"
             color="danger"
             onClick={() => removeFacility(f.local_id)}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

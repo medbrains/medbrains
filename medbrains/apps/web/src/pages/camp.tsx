@@ -208,7 +208,7 @@ function CampsTab() {
   const createMut = useMutation({
     mutationFn: () => api.createCamp(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camps"] });
+      void qc.invalidateQueries({ queryKey: ["camps"] });
       createHandlers.close();
       setForm({ name: "", camp_type: "general_health", scheduled_date: "" });
       notifications.show({ title: "Camp Created", message: "Camp planned successfully", color: "success" });
@@ -218,7 +218,7 @@ function CampsTab() {
   const approveMut = useMutation({
     mutationFn: (id: string) => api.approveCamp(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camps"] });
+      void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Approved", message: "Camp approved", color: "success" });
     },
   });
@@ -226,7 +226,7 @@ function CampsTab() {
   const activateMut = useMutation({
     mutationFn: (id: string) => api.activateCamp(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camps"] });
+      void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Activated", message: "Camp is now active", color: "success" });
     },
   });
@@ -234,7 +234,7 @@ function CampsTab() {
   const completeMut = useMutation({
     mutationFn: (id: string) => api.completeCamp(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camps"] });
+      void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Completed", message: "Camp marked as completed", color: "teal" });
     },
   });
@@ -242,7 +242,7 @@ function CampsTab() {
   const cancelMut = useMutation({
     mutationFn: (id: string) => api.cancelCamp(id, {}),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camps"] });
+      void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Cancelled", message: "Camp cancelled", color: "danger" });
     },
   });
@@ -288,6 +288,7 @@ function CampsTab() {
                 setSelectedCamp(r);
                 detailHandlers.open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -299,6 +300,7 @@ function CampsTab() {
                 color="primary"
                 size="sm"
                 onClick={() => approveMut.mutate(r.id)}
+                aria-label="Confirm"
               >
                 <IconCheck size={14} />
               </ActionIcon>
@@ -311,6 +313,7 @@ function CampsTab() {
                 color="success"
                 size="sm"
                 onClick={() => activateMut.mutate(r.id)}
+                aria-label="Play"
               >
                 <IconPlayerPlay size={14} />
               </ActionIcon>
@@ -323,6 +326,7 @@ function CampsTab() {
                 color="teal"
                 size="sm"
                 onClick={() => completeMut.mutate(r.id)}
+                aria-label="Confirm"
               >
                 <IconCheck size={14} />
               </ActionIcon>
@@ -335,6 +339,7 @@ function CampsTab() {
                 color="danger"
                 size="sm"
                 onClick={() => cancelMut.mutate(r.id)}
+                aria-label="Close"
               >
                 <IconX size={14} />
               </ActionIcon>
@@ -426,7 +431,7 @@ function CampDetail({ camp }: { camp: Camp }) {
         role_in_camp: teamForm.role_in_camp,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-team", camp.id] });
+      void qc.invalidateQueries({ queryKey: ["camp-team", camp.id] });
       addHandlers.close();
       setTeamForm({ employee_id: "", role_in_camp: "volunteer" });
     },
@@ -434,7 +439,7 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const removeMut = useMutation({
     mutationFn: (memberId: string) => api.removeCampTeamMember(camp.id, memberId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["camp-team", camp.id] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["camp-team", camp.id] }),
   });
 
   const teamCols: Column<CampTeamMember>[] = [
@@ -446,7 +451,7 @@ function CampDetail({ camp }: { camp: Camp }) {
       label: "",
       render: (r) =>
         canUpdate ? (
-          <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeMut.mutate(r.id)}>
+          <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeMut.mutate(r.id)} aria-label="Delete">
             <IconTrash size={14} />
           </ActionIcon>
         ) : null,
@@ -530,7 +535,7 @@ function RegistrationsTab() {
   const createMut = useMutation({
     mutationFn: () => api.createCampRegistration({ ...form, camp_id: selectedCampId ?? "" }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-registrations"] });
+      void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       createHandlers.close();
       setForm({ camp_id: "", person_name: "" });
       notifications.show({ title: "Registered", message: "Participant registered", color: "success" });
@@ -638,7 +643,7 @@ function ScreeningsTab() {
   const scrMut = useMutation({
     mutationFn: () => api.createCampScreening(scrForm),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-screenings"] });
+      void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
       scrHandlers.close();
       setScrForm({ registration_id: "" });
       notifications.show({ title: "Screening Recorded", message: "Screening saved", color: "success" });
@@ -648,7 +653,7 @@ function ScreeningsTab() {
   const labMut = useMutation({
     mutationFn: () => api.createCampLabSample(labForm),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
+      void qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
       labHandlers.close();
       setLabForm({ registration_id: "", sample_type: "blood" });
       notifications.show({ title: "Sample Recorded", message: "Lab sample recorded", color: "success" });
@@ -823,8 +828,8 @@ function FollowupsTab() {
   const createMut = useMutation({
     mutationFn: () => api.createCampFollowup(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-followups"] });
-      qc.invalidateQueries({ queryKey: ["camp-stats"] });
+      void qc.invalidateQueries({ queryKey: ["camp-followups"] });
+      void qc.invalidateQueries({ queryKey: ["camp-stats"] });
       createHandlers.close();
       setForm({ registration_id: "", followup_date: "", followup_type: "phone_call" });
       notifications.show({ title: "Follow-up Created", message: "Follow-up scheduled", color: "success" });
@@ -835,8 +840,8 @@ function FollowupsTab() {
     mutationFn: ({ id, data }: { id: string; data: UpdateCampFollowupRequest }) =>
       api.updateCampFollowup(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["camp-followups"] });
-      qc.invalidateQueries({ queryKey: ["camp-stats"] });
+      void qc.invalidateQueries({ queryKey: ["camp-followups"] });
+      void qc.invalidateQueries({ queryKey: ["camp-stats"] });
     },
   });
 
@@ -878,6 +883,7 @@ function FollowupsTab() {
                 onClick={() =>
                   completeMut.mutate({ id: r.id, data: { status: "completed" } })
                 }
+                aria-label="Confirm"
               >
                 <IconCheck size={14} />
               </ActionIcon>
@@ -890,6 +896,7 @@ function FollowupsTab() {
                 onClick={() =>
                   completeMut.mutate({ id: r.id, data: { status: "missed" } })
                 }
+                aria-label="Close"
               >
                 <IconX size={14} />
               </ActionIcon>

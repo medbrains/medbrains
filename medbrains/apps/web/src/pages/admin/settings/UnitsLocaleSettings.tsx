@@ -72,7 +72,7 @@ export function UnitsLocaleSettings() {
         icon: <IconCheck size={16} />,
         autoClose: 2000,
       });
-      queryClient.invalidateQueries({ queryKey: ["tenant-settings", variables.category] });
+      void queryClient.invalidateQueries({ queryKey: ["tenant-settings", variables.category] });
 
       // Update locale store in real-time
       const allRows = [

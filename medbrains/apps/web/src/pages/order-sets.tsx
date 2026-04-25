@@ -178,7 +178,7 @@ function TemplatesTab({
     mutationFn: (data: CreateOrderSetTemplateRequest) =>
       api.createOrderSetTemplate(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-templates"] });
+      void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({ title: "Created", message: "Order set template created", color: "success" });
       close();
       setForm({ name: "", context: "general" });
@@ -188,7 +188,7 @@ function TemplatesTab({
   const approveMut = useMutation({
     mutationFn: (id: string) => api.approveOrderSetTemplate(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-templates"] });
+      void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({ title: "Approved", message: "Template approved for clinical use", color: "success" });
     },
   });
@@ -196,7 +196,7 @@ function TemplatesTab({
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteOrderSetTemplate(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-templates"] });
+      void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({ title: "Deactivated", message: "Template deactivated", color: "warning" });
     },
   });
@@ -204,7 +204,7 @@ function TemplatesTab({
   const versionMut = useMutation({
     mutationFn: (id: string) => api.createOrderSetVersion(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-templates"] });
+      void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({ title: "New Version", message: "New version created", color: "primary" });
     },
   });
@@ -256,6 +256,7 @@ function TemplatesTab({
                 variant="subtle"
                 color="success"
                 onClick={() => approveMut.mutate(r.id)}
+                aria-label="Confirm"
               >
                 <IconCheck size={14} />
               </ActionIcon>
@@ -268,6 +269,7 @@ function TemplatesTab({
                 variant="subtle"
                 color="primary"
                 onClick={() => versionMut.mutate(r.id)}
+                aria-label="Copy"
               >
                 <IconCopy size={14} />
               </ActionIcon>
@@ -280,6 +282,7 @@ function TemplatesTab({
                 variant="subtle"
                 color="danger"
                 onClick={() => deleteMut.mutate(r.id)}
+                aria-label="Delete"
               >
                 <IconTrash size={14} />
               </ActionIcon>
@@ -414,7 +417,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
     mutationFn: (data: AddOrderSetItemRequest) =>
       api.addOrderSetItem(selectedTemplateId!, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
+      void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
       notifications.show({ title: "Added", message: "Item added to template", color: "success" });
       closeItem();
       setItemForm({ item_type: "lab" });
@@ -425,7 +428,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
     mutationFn: (itemId: string) =>
       api.deleteOrderSetItem(selectedTemplateId!, itemId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
+      void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
       notifications.show({ title: "Removed", message: "Item removed from template", color: "warning" });
     },
   });
@@ -488,6 +491,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
               variant="subtle"
               color="danger"
               onClick={() => deleteItemMut.mutate(r.id)}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>
@@ -749,6 +753,7 @@ function ActivationsTab() {
               setDetailId(r.id);
               openDetail();
             }}
+            aria-label="List Details"
           >
             <IconListDetails size={14} />
           </ActionIcon>

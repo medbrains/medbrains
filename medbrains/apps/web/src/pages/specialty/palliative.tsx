@@ -41,22 +41,22 @@ export function PalliativePage() {
 
   const createDnr = useMutation({
     mutationFn: (data: CreateDnrOrderRequest) => api.createDnrOrder(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dnr-orders"] }); dnrHandlers.close(); notifications.show({ title: "Created", message: "DNR order created (48hr review)", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["dnr-orders"] }); dnrHandlers.close(); notifications.show({ title: "Created", message: "DNR order created (48hr review)", color: "success" }); },
   });
 
   const revokeDnr = useMutation({
     mutationFn: (id: string) => api.revokeDnrOrder(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dnr-orders"] }); notifications.show({ title: "Revoked", message: "DNR order revoked", color: "warning" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["dnr-orders"] }); notifications.show({ title: "Revoked", message: "DNR order revoked", color: "warning" }); },
   });
 
   const createPain = useMutation({
     mutationFn: (data: CreatePainAssessmentRequest) => api.createPainAssessment(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pain-assessments"] }); painHandlers.close(); notifications.show({ title: "Created", message: "Pain assessment recorded", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["pain-assessments"] }); painHandlers.close(); notifications.show({ title: "Created", message: "Pain assessment recorded", color: "success" }); },
   });
 
   const createMort = useMutation({
     mutationFn: (data: CreateMortuaryRecordRequest) => api.createMortuaryRecord(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortuary-records"] }); mortuaryHandlers.close(); notifications.show({ title: "Created", message: "Mortuary record created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mortuary-records"] }); mortuaryHandlers.close(); notifications.show({ title: "Created", message: "Mortuary record created", color: "success" }); },
   });
 
   const dnrCols: Column<DnrOrder>[] = [
@@ -67,7 +67,7 @@ export function PalliativePage() {
     { key: "authorized", label: "Authorized By", render: (r) => <Text size="sm">{r.authorized_by.slice(0, 8)}</Text> },
     {
       key: "actions", label: "", render: (r) => r.status === "active" && canDnr ? (
-        <ActionIcon variant="subtle" color="danger" onClick={() => revokeDnr.mutate(r.id)}><IconX size={16} /></ActionIcon>
+        <ActionIcon variant="subtle" color="danger" onClick={() => revokeDnr.mutate(r.id)} aria-label="Close"><IconX size={16} /></ActionIcon>
       ) : null,
     },
   ];

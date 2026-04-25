@@ -57,7 +57,7 @@ export function FieldTooltip({ description, uiHint, clauses }: FieldTooltipProps
       position="top-end"
       events={{ hover: true, focus: true, touch: true }}
     >
-      <ActionIcon variant="subtle" size="xs" color="slate">
+      <ActionIcon variant="subtle" size="xs" color="slate" aria-label="Info">
         <IconInfoCircle size={14} />
       </ActionIcon>
     </Tooltip>

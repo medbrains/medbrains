@@ -345,7 +345,7 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
   const createMutation = useMutation({
     mutationFn: (data: CreateAdmissionRequest) => api.createAdmission(data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({ title: "Admitted", message: "Patient admitted successfully", color: "success" });
       emit("admission.created", { patient_id: variables.patient_id, department_id: variables.department_id });
       onClose();
@@ -604,7 +604,7 @@ function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; t
   const createMutation = useMutation({
     mutationFn: (data: CreateNursingTaskRequest) => api.createNursingTask(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       setShowForm(false);
       setForm({});
     },
@@ -613,7 +613,7 @@ function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; t
   const toggleMutation = useMutation({
     mutationFn: ({ taskId, completed }: { taskId: string; completed: boolean }) =>
       api.updateNursingTask(admissionId, taskId, { is_completed: completed }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
   });
 
   return (
@@ -696,7 +696,7 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
         plan: plan || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-progress-notes", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-progress-notes", admissionId] });
       setShowForm(false);
       setSubjective("");
       setObjective("");
@@ -776,7 +776,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
         risk_level: riskLevel || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-assessments", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-assessments", admissionId] });
       setShowForm(false);
       setScoreValue("");
       setRiskLevel("");
@@ -1062,7 +1062,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
   const createMutation = useMutation({
     mutationFn: (d: CreateAttenderRequest) => api.createAttender(admissionId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] });
       setShowForm(false);
       setName("");
       setRelationship("");
@@ -1077,7 +1077,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
 
   const deleteMutation = useMutation({
     mutationFn: (attenderId: string) => api.deleteAttender(admissionId, attenderId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
   });
 
   const attenders = (data ?? []) as AdmissionAttender[];
@@ -1184,7 +1184,7 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
   const createMutation = useMutation({
     mutationFn: (d: CreateDischargeSummaryRequest) => api.createDischargeSummary(admissionId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
     },
   });
@@ -1192,7 +1192,7 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
   const updateMutation = useMutation({
     mutationFn: (d: UpdateDischargeSummaryRequest) => api.updateDischargeSummary(admissionId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
     },
   });
@@ -1200,7 +1200,7 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
   const finalizeMutation = useMutation({
     mutationFn: () => api.finalizeDischargeSummary(admissionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       notifications.show({ title: "Finalized", message: "Discharge summary finalized", color: "success" });
     },
   });
@@ -1310,8 +1310,8 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
   const transferMutation = useMutation({
     mutationFn: () => api.transferBed(admissionId, { bed_id: bedId, notes: notes || undefined }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({ title: "Transferred", message: "Bed transfer recorded", color: "success" });
       emit("transfer.completed", { admission_id: admissionId, new_bed_id: bedId });
       setBedId("");
@@ -1360,8 +1360,8 @@ function DischargeTab({ admissionId, canDischarge, status }: { admissionId: stri
         discharge_summary: summary || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({ title: "Discharged", message: "Patient discharged", color: "success" });
       emit("discharge.completed", { admission_id: admissionId, discharge_type: dischargeType });
     },
@@ -1509,7 +1509,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   const mutation = useMutation({
     mutationFn: (d: CreateWardRequest) => api.createWard(d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
       onClose();
       setCode("");
       setName("");
@@ -1570,7 +1570,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
   const mutation = useMutation({
     mutationFn: (d: UpdateWardRequest) => api.updateWard(ward?.id ?? "", d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
       onClose();
     },
   });
@@ -1629,8 +1629,8 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
   const assignMutation = useMutation({
     mutationFn: () => api.assignBedToWard(wardId, { bed_location_id: bedLocationId, bed_type_id: bedTypeId || undefined }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
-      queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
       setBedLocationId("");
       setBedTypeId("");
     },
@@ -1639,8 +1639,8 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
   const removeMutation = useMutation({
     mutationFn: (mappingId: string) => api.removeBedFromWard(wardId, mappingId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
-      queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
     },
   });
 
@@ -1720,7 +1720,7 @@ function IpTypeConfigSection() {
     mutationFn: ({ id, ...rest }: { id: string; billing_alert_threshold?: number; auto_billing_enabled?: boolean }) =>
       api.updateIpType(id, rest),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-ip-types"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-ip-types"] });
       notifications.show({ title: "Updated", message: "IP type configuration updated", color: "success" });
       setEditingId(null);
     },
@@ -1837,8 +1837,8 @@ function BedDashboardTab() {
     mutationFn: ({ bedId, status }: { bedId: string; status: string }) =>
       api.updateBedStatus(bedId, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
     },
   });
 
@@ -2183,7 +2183,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateClinicalDocRequest) => api.createClinicalDoc(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({ title: "Created", message: "Clinical documentation saved", color: "success" });
       setShowForm(false);
       setDocType(null);
@@ -2195,7 +2195,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   const resolveMutation = useMutation({
     mutationFn: (docId: string) => api.resolveClinicalDoc(admissionId, docId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({ title: "Resolved", message: "Documentation marked as resolved", color: "success" });
     },
   });
@@ -2203,7 +2203,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   const restraintMutation = useMutation({
     mutationFn: (data: CreateRestraintCheckRequest) => api.createRestraintCheck(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({ title: "Recorded", message: "Restraint check logged", color: "success" });
       setShowRestraintForm(null);
       setRestraintStatus(null);
@@ -2406,7 +2406,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
       items: [{ item_label: newLabel, category: newCategory || undefined }],
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
       notifications.show({ title: "Added", message: "Checklist item added", color: "success" });
       setNewLabel("");
       setNewCategory("");
@@ -2417,7 +2417,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
       api.toggleChecklistItem(admissionId, itemId, { is_completed: completed }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
     },
   });
 
@@ -2510,7 +2510,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateTransferRequest) => api.createTransfer(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({ title: "Recorded", message: "Transfer logged", color: "success" });
       setShowForm(false);
       setTransferType(null);
@@ -2604,7 +2604,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
   const initMutation = useMutation({
     mutationFn: () => api.initiateDischargeTat(admissionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
       notifications.show({ title: "Initiated", message: "Discharge TAT tracking started", color: "success" });
     },
   });
@@ -2612,7 +2612,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.updateDischargeTat(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
       notifications.show({ title: "Updated", message: "Discharge milestone recorded", color: "success" });
     },
   });
@@ -2956,8 +2956,8 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
   const linkMutation = useMutation({
     mutationFn: (mlcCaseId: string) => api.linkMlc(admissionId, { mlc_case_id: mlcCaseId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-mlc", admissionId] });
-      queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-mlc", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       notifications.show({ title: "Linked", message: "MLC case linked to admission", color: "success" });
       setMlcIdInput("");
     },
@@ -3279,7 +3279,7 @@ function DeathSummaryTab({ admissionId, patientId, status }: { admissionId: stri
   const createMutation = useMutation({
     mutationFn: (d: CreateDeathSummaryRequest) => api.createDeathSummary(admissionId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-death-summary", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-death-summary", admissionId] });
       notifications.show({ title: "Created", message: "Death summary recorded", color: "success" });
       setShowForm(false);
     },
@@ -3408,7 +3408,7 @@ function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string
   const createMutation = useMutation({
     mutationFn: (d: CreateBirthRecordRequest) => api.createBirthRecord(admissionId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd-birth-records", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-birth-records", admissionId] });
       notifications.show({ title: "Created", message: "Birth record saved", color: "success" });
       setShowForm(false);
       setDob(""); setTob(""); setGender(null); setWeightGrams(""); setLengthCm("");
@@ -3680,9 +3680,9 @@ function BedTransferModal({ admissionId, opened, onClose }: { admissionId: strin
   const transferMutation = useMutation({
     mutationFn: (data: BedTransferRequest) => api.bedTransfer(admissionId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
       notifications.show({ title: "Transferred", message: "Bed transfer completed", color: "success" });
       onClose();
       setToBedId("");

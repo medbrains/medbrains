@@ -2024,6 +2024,9 @@ export interface WidgetDataSource {
 
 export type DataFilterScope = "auto" | "all" | "custom";
 
+/** Maps widget template UUIDs to "visible" or "hidden" for per-role/per-user overrides. */
+export type WidgetAccessMap = Record<string, "visible" | "hidden">;
+
 export interface WidgetDataFilters {
   scope?: DataFilterScope;
   department_ids?: string[];
@@ -23427,4 +23430,236 @@ export interface UpdateRoutingRuleRequest {
   reject_duplicates?: boolean;
   priority?: number;
   is_active?: boolean;
+}
+
+// ══════════════════════════════════════════════════════════
+//  LMS (Learning Management System)
+// ══════════════════════════════════════════════════════════
+
+export type LmsContentType = "text" | "video" | "document" | "slides" | "scorm" | "external_link";
+export type LmsEnrollmentStatus = "assigned" | "in_progress" | "completed" | "expired" | "cancelled";
+export type LmsQuestionType = "single_choice" | "multiple_choice" | "true_false" | "fill_blank";
+
+export interface LmsCourse {
+  id: string;
+  tenant_id: string;
+  code: string;
+  title: string;
+  description?: string;
+  category: string;
+  duration_hours?: number;
+  is_mandatory: boolean;
+  target_roles: string[];
+  thumbnail_url?: string;
+  content_type: LmsContentType;
+  is_active: boolean;
+  created_by?: string;
+  training_program_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LmsCourseModule {
+  id: string;
+  course_id: string;
+  title: string;
+  description?: string;
+  sort_order: number;
+  content: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LmsQuiz {
+  id: string;
+  course_id: string;
+  title: string;
+  description?: string;
+  pass_percentage: number;
+  max_attempts: number;
+  time_limit_minutes?: number;
+  shuffle_questions: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LmsQuizQuestion {
+  id: string;
+  quiz_id: string;
+  question_text: string;
+  question_type: LmsQuestionType;
+  options: { key: string; text: string }[];
+  correct_answer?: unknown;
+  explanation?: string;
+  points: number;
+  sort_order: number;
+}
+
+export interface LmsQuizQuestionPublic {
+  id: string;
+  quiz_id: string;
+  question_text: string;
+  question_type: LmsQuestionType;
+  options: { key: string; text: string }[];
+  points: number;
+  sort_order: number;
+}
+
+export interface LmsEnrollment {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  course_id: string;
+  assigned_by?: string;
+  assigned_at: string;
+  due_date?: string;
+  started_at?: string;
+  completed_at?: string;
+  status: LmsEnrollmentStatus;
+  progress_percentage: number;
+  last_module_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnrollmentWithCourse {
+  id: string;
+  user_id: string;
+  course_id: string;
+  course_title: string;
+  course_code: string;
+  category: string;
+  is_mandatory: boolean;
+  status: LmsEnrollmentStatus;
+  progress_percentage: number;
+  due_date?: string;
+  assigned_at: string;
+  completed_at?: string;
+}
+
+export interface LmsQuizAttempt {
+  id: string;
+  enrollment_id: string;
+  quiz_id: string;
+  started_at: string;
+  completed_at?: string;
+  score?: number;
+  max_score?: number;
+  passed?: boolean;
+  answers: unknown[];
+  created_at: string;
+}
+
+export interface LmsLearningPath {
+  id: string;
+  tenant_id: string;
+  code: string;
+  title: string;
+  description?: string;
+  target_roles: string[];
+  is_mandatory: boolean;
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LmsLearningPathCourse {
+  id: string;
+  path_id: string;
+  course_id: string;
+  sort_order: number;
+  is_required: boolean;
+}
+
+export interface PathCourseRow {
+  id: string;
+  course_id: string;
+  course_title: string;
+  course_code: string;
+  sort_order: number;
+  is_required: boolean;
+}
+
+export interface LmsCertificate {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  course_id?: string;
+  path_id?: string;
+  enrollment_id?: string;
+  certificate_no: string;
+  issued_at: string;
+  expires_at?: string;
+  issued_by?: string;
+  training_record_id?: string;
+  created_at: string;
+}
+
+export interface CourseWithModules {
+  course: LmsCourse;
+  modules: LmsCourseModule[];
+  quizzes: LmsQuiz[];
+}
+
+export interface LearningPathWithCourses {
+  path: LmsLearningPath;
+  courses: PathCourseRow[];
+}
+
+export interface LmsComplianceRow {
+  course_id: string;
+  course_title: string;
+  is_mandatory: boolean;
+  total_enrolled: number;
+  completed: number;
+  overdue: number;
+}
+
+export interface QuizAttemptStart {
+  attempt_id: string;
+  quiz: LmsQuiz;
+  questions: LmsQuizQuestionPublic[];
+}
+
+export interface QuizAttemptResult {
+  attempt: LmsQuizAttempt;
+  passed: boolean;
+  score: number;
+  max_score: number;
+  pass_percentage: number;
+}
+
+// ── AI Course Generation ──────────────────────────────────
+
+export interface AiGeneratedCourse {
+  title: string;
+  description: string;
+  category: string;
+  duration_hours: number;
+  is_mandatory: boolean;
+  modules: AiGeneratedModule[];
+  quiz: AiGeneratedQuiz;
+}
+
+export interface AiGeneratedModule {
+  title: string;
+  description: string;
+  content: Record<string, unknown>;
+}
+
+export interface AiGeneratedQuiz {
+  title: string;
+  pass_percentage: number;
+  questions: AiGeneratedQuestion[];
+}
+
+export interface AiGeneratedQuestion {
+  question_text: string;
+  question_type: string;
+  options: { key: string; text: string }[];
+  correct_answer: string;
+  explanation: string;
 }

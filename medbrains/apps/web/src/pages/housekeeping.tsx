@@ -261,27 +261,27 @@ function RoomBedTab({
 
   const createTaskM = useMutation({
     mutationFn: (data: CreateCleaningTaskRequest) => api.createCleaningTask(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); taskDrawerH.close(); notifications.show({ title: "Task Created", message: "Cleaning task created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); taskDrawerH.close(); notifications.show({ title: "Task Created", message: "Cleaning task created", color: "success" }); },
   });
 
   const updateStatusM = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.updateCleaningTaskStatus(id, { status }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); },
   });
 
   const verifyM = useMutation({
     mutationFn: (id: string) => api.verifyCleaningTask(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); notifications.show({ title: "Verified", message: "Task verified", color: "teal" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] }); notifications.show({ title: "Verified", message: "Task verified", color: "teal" }); },
   });
 
   const createTurnaroundM = useMutation({
     mutationFn: (data: CreateTurnaroundRequest) => api.createTurnaround(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] }); turnaroundDrawerH.close(); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] }); turnaroundDrawerH.close(); },
   });
 
   const completeTurnaroundM = useMutation({
     mutationFn: (id: string) => api.completeTurnaround(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] }); notifications.show({ title: "Room Ready", message: "Turnaround completed", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] }); notifications.show({ title: "Room Ready", message: "Turnaround completed", color: "success" }); },
   });
 
   return (
@@ -311,7 +311,7 @@ function RoomBedTab({
                 label: "Actions",
                 render: (r: RoomTurnaround) => !r.ready_at ? (
                   <Tooltip label="Mark Ready">
-                    <ActionIcon color="success" variant="light" onClick={() => completeTurnaroundM.mutate(r.id)}>
+                    <ActionIcon color="success" variant="light" onClick={() => completeTurnaroundM.mutate(r.id)} aria-label="Confirm">
                       <IconCheck size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -347,21 +347,21 @@ function RoomBedTab({
               <Group gap={4}>
                 {r.status === "pending" && (
                   <Tooltip label="Start">
-                    <ActionIcon variant="light" color="primary" onClick={() => updateStatusM.mutate({ id: r.id, status: "in_progress" })}>
+                    <ActionIcon variant="light" color="primary" onClick={() => updateStatusM.mutate({ id: r.id, status: "in_progress" })} aria-label="Wash">
                       <IconWash size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 {r.status === "in_progress" && (
                   <Tooltip label="Complete">
-                    <ActionIcon variant="light" color="success" onClick={() => updateStatusM.mutate({ id: r.id, status: "completed" })}>
+                    <ActionIcon variant="light" color="success" onClick={() => updateStatusM.mutate({ id: r.id, status: "completed" })} aria-label="Confirm">
                       <IconCheck size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 {r.status === "completed" && (
                   <Tooltip label="Verify">
-                    <ActionIcon variant="light" color="teal" onClick={() => verifyM.mutate(r.id)}>
+                    <ActionIcon variant="light" color="teal" onClick={() => verifyM.mutate(r.id)} aria-label="Confirm">
                       <IconCheck size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -421,17 +421,17 @@ function SchedulesTab({
 
   const createSchedM = useMutation({
     mutationFn: (data: CreateCleaningScheduleRequest) => api.createCleaningSchedule(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "schedules"] }); schedDrawerH.close(); notifications.show({ title: "Schedule Created", message: "Cleaning schedule created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "schedules"] }); schedDrawerH.close(); notifications.show({ title: "Schedule Created", message: "Cleaning schedule created", color: "success" }); },
   });
 
   const createPestM = useMutation({
     mutationFn: (data: CreatePestControlScheduleRequest) => api.createPestControlSchedule(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "pest-schedules"] }); pestDrawerH.close(); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "pest-schedules"] }); pestDrawerH.close(); },
   });
 
   const createPestLogM = useMutation({
     mutationFn: (data: CreatePestControlLogRequest) => api.createPestControlLog(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "pest-logs"] }); pestLogDrawerH.close(); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "pest-logs"] }); pestLogDrawerH.close(); },
   });
 
   return (
@@ -561,22 +561,22 @@ function LinenTab({
 
   const createLinenM = useMutation({
     mutationFn: (data: CreateLinenItemRequest) => api.createLinenItem(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "linen"] }); linenDrawerH.close(); notifications.show({ title: "Item Added", message: "Linen item created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "linen"] }); linenDrawerH.close(); notifications.show({ title: "Item Added", message: "Linen item created", color: "success" }); },
   });
 
   const createMovementM = useMutation({
     mutationFn: (data: CreateLinenMovementRequest) => api.createLinenMovement(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "movements"] }); movementDrawerH.close(); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "movements"] }); movementDrawerH.close(); },
   });
 
   const createBatchM = useMutation({
     mutationFn: (data: CreateLaundryBatchRequest) => api.createLaundryBatch(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] }); batchDrawerH.close(); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] }); batchDrawerH.close(); },
   });
 
   const completeBatchM = useMutation({
     mutationFn: (id: string) => api.completeLaundryBatch(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] }); notifications.show({ title: "Batch Complete", message: "Laundry batch completed", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] }); notifications.show({ title: "Batch Complete", message: "Laundry batch completed", color: "success" }); },
   });
 
   return (
@@ -691,7 +691,7 @@ function LinenTab({
                 label: "Actions",
                 render: (r: LaundryBatch) => r.status !== "completed" ? (
                   <Tooltip label="Complete Batch">
-                    <ActionIcon color="success" variant="light" onClick={() => completeBatchM.mutate(r.id)}>
+                    <ActionIcon color="success" variant="light" onClick={() => completeBatchM.mutate(r.id)} aria-label="Confirm">
                       <IconCheck size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -756,7 +756,7 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
 
   const upsertParM = useMutation({
     mutationFn: (data: UpsertParLevelRequest) => api.upsertParLevel(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["housekeeping", "par-levels"] }); parDrawerH.close(); notifications.show({ title: "Par Level Updated", message: "Par level saved", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["housekeeping", "par-levels"] }); parDrawerH.close(); notifications.show({ title: "Par Level Updated", message: "Par level saved", color: "success" }); },
   });
 
   return (
@@ -861,7 +861,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
   const createBiowasteMut = useMutation({
     mutationFn: (data: CreateBiowasteRecordRequest) => api.createBiowasteRecord(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["housekeeping", "biowaste"] });
+      void qc.invalidateQueries({ queryKey: ["housekeeping", "biowaste"] });
       manifestDrawerH.close();
       notifications.show({ title: "Transport Manifest Saved", message: "BMW transport record created", color: "success" });
       setManifestForm({
@@ -888,7 +888,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
   const sharpReplacementMut = useMutation({
     mutationFn: (data: SharpReplacementRequest) => api.createSharpReplacement(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["housekeeping", "bmw-schedule"] });
+      void qc.invalidateQueries({ queryKey: ["housekeeping", "bmw-schedule"] });
       sharpModalH.close();
       setSharpForm({ location_id: "", container_type: "", notes: "" });
       notifications.show({ title: "Sharp Container Replaced", message: "Replacement record created", color: "success" });

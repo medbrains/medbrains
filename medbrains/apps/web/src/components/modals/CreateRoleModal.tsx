@@ -39,7 +39,7 @@ export function CreateRoleModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
       if (onCreated) {
         onCreated(created);
       } else {

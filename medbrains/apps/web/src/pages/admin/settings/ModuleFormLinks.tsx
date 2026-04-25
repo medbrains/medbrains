@@ -59,7 +59,7 @@ function LinkFormModal({
         message: "Form linked to module",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-module-links"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-module-links"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -159,7 +159,7 @@ export function ModuleFormLinks() {
         message: "Form unlinked from module",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-module-links"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-module-links"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -273,6 +273,7 @@ export function ModuleFormLinks() {
                         color="danger"
                         onClick={() => deleteMutation.mutate(link)}
                         loading={deleteMutation.isPending}
+                        aria-label="Delete"
                       >
                         <IconTrash size={16} />
                       </ActionIcon>

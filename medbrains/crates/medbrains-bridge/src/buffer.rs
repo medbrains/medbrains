@@ -73,7 +73,7 @@ impl MessageBuffer {
                 parsed_payload: row.get(4)?,
                 mapped_data: row.get(5)?,
                 processing_duration_ms: row.get(6)?,
-                retry_count: row.get(7)?,
+                _retry_count: row.get(7)?,
             })
         })?;
         let mut result = Vec::new();
@@ -100,16 +100,6 @@ impl MessageBuffer {
         Ok(())
     }
 
-    /// Count pending messages.
-    pub fn count(&self) -> Result<i64> {
-        let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM pending_messages WHERE retry_count < 100",
-            [],
-            |row| row.get(0),
-        )?;
-        Ok(count)
-    }
 }
 
 pub struct BufferedMessage {
@@ -120,5 +110,5 @@ pub struct BufferedMessage {
     pub parsed_payload: String,
     pub mapped_data: String,
     pub processing_duration_ms: Option<i32>,
-    pub retry_count: i32,
+    pub _retry_count: i32,
 }

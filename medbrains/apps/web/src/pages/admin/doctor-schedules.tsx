@@ -125,7 +125,7 @@ function ScheduleFormModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
+      void queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -149,7 +149,7 @@ function ScheduleFormModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
+      void queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -284,7 +284,7 @@ function ExceptionFormModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["doctor-exceptions"] });
+      void queryClient.invalidateQueries({ queryKey: ["doctor-exceptions"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -427,7 +427,7 @@ export function DoctorSchedulesPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
+      void queryClient.invalidateQueries({ queryKey: ["doctor-schedules"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -443,7 +443,7 @@ export function DoctorSchedulesPage() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["doctor-exceptions"] });
+      void queryClient.invalidateQueries({ queryKey: ["doctor-exceptions"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -761,6 +761,7 @@ export function DoctorSchedulesPage() {
                                 setEditSchedule(s);
                                 setScheduleModal(true);
                               }}
+                              aria-label="Edit"
                             >
                               <IconPencil size={16} />
                             </ActionIcon>
@@ -769,6 +770,7 @@ export function DoctorSchedulesPage() {
                               color="danger"
                               title="Delete"
                               onClick={() => deleteMutation.mutate(s.id)}
+                              aria-label="Delete"
                             >
                               <IconTrash size={16} />
                             </ActionIcon>
@@ -842,6 +844,7 @@ export function DoctorSchedulesPage() {
                       color="danger"
                       title="Remove"
                       onClick={() => deleteExceptionMutation.mutate(ex.id)}
+                      aria-label="Delete"
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

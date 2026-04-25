@@ -123,7 +123,7 @@ function ServiceModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-services"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-services"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -151,7 +151,7 @@ function ServiceModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-services"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-services"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -297,7 +297,7 @@ export function ServicesSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-services"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-services"] });
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
@@ -420,6 +420,7 @@ export function ServicesSettings() {
                       variant="subtle"
                       color="primary"
                       onClick={() => openEdit(service)}
+                      aria-label="Edit"
                     >
                       <IconPencil size={16} />
                     </ActionIcon>
@@ -427,6 +428,7 @@ export function ServicesSettings() {
                       variant="subtle"
                       color="danger"
                       onClick={() => setDeleteTarget(service)}
+                      aria-label="Delete"
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

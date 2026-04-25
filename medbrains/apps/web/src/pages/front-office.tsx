@@ -246,7 +246,7 @@ function VisitorManagementTab({
   const createVisitor = useMutation({
     mutationFn: (data: CreateVisitorRequest) => api.createVisitor(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "visitors"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "visitors"] });
       visitorDrawerHandlers.close();
       notifications.show({ message: "Visitor registered", color: "success" });
       setVName(""); setVPhone(""); setVIdType(null); setVIdNumber("");
@@ -257,7 +257,7 @@ function VisitorManagementTab({
   const createPass = useMutation({
     mutationFn: (data: CreateVisitorPassRequest) => api.createVisitorPass(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
       passDrawerHandlers.close();
       notifications.show({ message: "Pass issued", color: "success" });
     },
@@ -266,7 +266,7 @@ function VisitorManagementTab({
   const revokePass = useMutation({
     mutationFn: (id: string) => api.revokeVisitorPass(id, { reason: "Revoked by staff" }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
       notifications.show({ message: "Pass revoked", color: "orange" });
     },
   });
@@ -274,7 +274,7 @@ function VisitorManagementTab({
   const checkIn = useMutation({
     mutationFn: (passId: string) => api.checkInVisitor(passId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked in", color: "success" });
     },
   });
@@ -282,7 +282,7 @@ function VisitorManagementTab({
   const checkOut = useMutation({
     mutationFn: (passId: string) => api.checkOutVisitor(passId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked out", color: "primary" });
     },
   });
@@ -306,6 +306,7 @@ function VisitorManagementTab({
               variant="light"
               color="primary"
               onClick={() => { setSelectedRegistration(r.id); passDrawerHandlers.open(); }}
+              aria-label="QR code"
             >
               <IconQrcode size={16} />
             </ActionIcon>
@@ -330,17 +331,17 @@ function VisitorManagementTab({
           {r.status === "active" && canManagePasses && (
             <>
               <Tooltip label="Check In">
-                <ActionIcon variant="light" color="success" onClick={() => checkIn.mutate(r.id)}>
+                <ActionIcon variant="light" color="success" onClick={() => checkIn.mutate(r.id)} aria-label="Confirm">
                   <IconCheck size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Check Out">
-                <ActionIcon variant="light" color="primary" onClick={() => checkOut.mutate(r.id)}>
+                <ActionIcon variant="light" color="primary" onClick={() => checkOut.mutate(r.id)} aria-label="Time">
                   <IconClock size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Revoke">
-                <ActionIcon variant="light" color="danger" onClick={() => revokePass.mutate(r.id)}>
+                <ActionIcon variant="light" color="danger" onClick={() => revokePass.mutate(r.id)} aria-label="Close">
                   <IconX size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -491,7 +492,7 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
   const createRule = useMutation({
     mutationFn: (data: UpsertQueuePriorityRequest) => api.upsertQueuePriorityRule(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "queue-priority"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "queue-priority"] });
       ruleDrawerHandlers.close();
       notifications.show({ message: "Priority rule added", color: "success" });
     },
@@ -500,7 +501,7 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
   const createConfig = useMutation({
     mutationFn: (data: UpsertDisplayConfigRequest) => api.upsertQueueDisplayConfig(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "display-config"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "display-config"] });
       configDrawerHandlers.close();
       notifications.show({ message: "Display config saved", color: "success" });
     },
@@ -509,7 +510,7 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
   const createHours = useMutation({
     mutationFn: (data: UpsertVisitingHoursRequest) => api.upsertVisitingHours(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "visiting-hours"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "visiting-hours"] });
       hoursDrawerHandlers.close();
       notifications.show({ message: "Visiting hours saved", color: "success" });
     },
@@ -687,7 +688,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
   const createEnquiry = useMutation({
     mutationFn: (data: CreateEnquiryRequest) => api.createEnquiry(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
       drawerHandlers.close();
       notifications.show({ message: "Enquiry logged", color: "success" });
       setEName(""); setEPhone(""); setEType("general"); setEResponse("");
@@ -697,7 +698,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
   const resolveEnquiry = useMutation({
     mutationFn: (id: string) => api.resolveEnquiry(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
+      void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
       notifications.show({ message: "Enquiry resolved", color: "success" });
     },
   });
@@ -720,7 +721,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       render: (r: FrontOfficeEnquiryLog) =>
         !r.resolved && canManage ? (
           <Tooltip label="Mark Resolved">
-            <ActionIcon variant="light" color="success" onClick={() => resolveEnquiry.mutate(r.id)}>
+            <ActionIcon variant="light" color="success" onClick={() => resolveEnquiry.mutate(r.id)} aria-label="Confirm">
               <IconCheck size={16} />
             </ActionIcon>
           </Tooltip>

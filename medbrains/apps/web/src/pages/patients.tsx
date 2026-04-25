@@ -512,7 +512,7 @@ function IdentifiersTab({ patient, canUpdate }: { patient: Patient; canUpdate: b
       api.createPatientIdentifier(patient.id, data),
     onSuccess: () => {
       notifications.show({ title: "Identifier added", message: "ID document recorded", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "identifiers"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "identifiers"] });
       closeModal();
       resetForm();
     },
@@ -525,7 +525,7 @@ function IdentifiersTab({ patient, canUpdate }: { patient: Patient; canUpdate: b
     mutationFn: (id: string) => api.deletePatientIdentifier(patient.id, id),
     onSuccess: () => {
       notifications.show({ title: "Deleted", message: "Identifier removed", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "identifiers"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "identifiers"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -697,7 +697,7 @@ function AddressesTab({ patient, canUpdate }: { patient: Patient; canUpdate: boo
       api.createPatientAddress(patient.id, data),
     onSuccess: () => {
       notifications.show({ title: "Address added", message: "Address recorded", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "addresses"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "addresses"] });
       closeModal();
       resetForm();
     },
@@ -710,7 +710,7 @@ function AddressesTab({ patient, canUpdate }: { patient: Patient; canUpdate: boo
     mutationFn: (id: string) => api.deletePatientAddress(patient.id, id),
     onSuccess: () => {
       notifications.show({ title: "Deleted", message: "Address removed", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "addresses"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "addresses"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -889,7 +889,7 @@ function ContactsTab({ patient, canUpdate }: { patient: Patient; canUpdate: bool
       api.createPatientContact(patient.id, data),
     onSuccess: () => {
       notifications.show({ title: "Contact added", message: "Contact person recorded", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "contacts"] });
       closeModal();
       resetForm();
     },
@@ -902,7 +902,7 @@ function ContactsTab({ patient, canUpdate }: { patient: Patient; canUpdate: bool
     mutationFn: (id: string) => api.deletePatientContact(patient.id, id),
     onSuccess: () => {
       notifications.show({ title: "Deleted", message: "Contact removed", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "contacts"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -1061,7 +1061,7 @@ function AllergiesTab({ patient, canUpdate }: { patient: Patient; canUpdate: boo
       api.createPatientAllergy(patient.id, data),
     onSuccess: () => {
       notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "allergies"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "allergies"] });
       closeModal();
       resetForm();
     },
@@ -1074,7 +1074,7 @@ function AllergiesTab({ patient, canUpdate }: { patient: Patient; canUpdate: boo
     mutationFn: (id: string) => api.deletePatientAllergy(patient.id, id),
     onSuccess: () => {
       notifications.show({ title: "Deleted", message: "Allergy removed", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "allergies"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "allergies"] });
     },
     onError: (err: Error) => {
       notifications.show({ title: "Failed", message: err.message, color: "danger" });
@@ -1253,7 +1253,7 @@ function ConsentsTab({ patient, canUpdate }: { patient: Patient; canUpdate: bool
       api.createPatientConsent(patient.id, data),
     onSuccess: () => {
       notifications.show({ title: "Consent recorded", message: "Consent status saved", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "consents"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", patient.id, "consents"] });
       closeModal();
       resetForm();
     },
@@ -1451,7 +1451,7 @@ function FamilyLinksTab({
     mutationFn: (data: CreateFamilyLinkRequest) =>
       api.createFamilyLink(patient.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["patients", patient.id, "family-links"],
       });
       notifications.show({
@@ -1467,7 +1467,7 @@ function FamilyLinksTab({
     mutationFn: (linkId: string) =>
       api.deleteFamilyLink(patient.id, linkId),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["patients", patient.id, "family-links"],
       });
     },
@@ -1683,7 +1683,7 @@ function DocumentsTab({
     mutationFn: (data: CreateDocumentRequest) =>
       api.createPatientDocument(patient.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["patients", patient.id, "documents"],
       });
       notifications.show({
@@ -1699,7 +1699,7 @@ function DocumentsTab({
     mutationFn: (docId: string) =>
       api.deletePatientDocument(patient.id, docId),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["patients", patient.id, "documents"],
       });
     },
@@ -1851,7 +1851,7 @@ function PhotoUpdateButton({
   const photoMutation = useMutation({
     mutationFn: (url: string) => api.updatePatientPhoto(patient.id, url),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
       notifications.show({
         title: "Photo updated",
         message: "Patient photo has been updated",
@@ -1930,7 +1930,7 @@ function PatientEditForm({
         message: `${patient.uhid} has been updated`,
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
       onSaved();
     },
     onError: (err: Error) => {
@@ -2007,7 +2007,7 @@ export function PatientsPage() {
         message: `UHID: ${patient.uhid}`,
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
       setDrawerOpen(false);
     },
     onError: (err: Error) => {

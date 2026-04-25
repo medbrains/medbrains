@@ -105,6 +105,7 @@ export function LocationsStep({ onNext, onBack }: Props) {
             variant="subtle"
             color="danger"
             onClick={() => removeLocation(loc.local_id)}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

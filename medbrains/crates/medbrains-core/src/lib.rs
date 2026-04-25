@@ -58,6 +58,7 @@ pub mod integration;
 pub mod ipd;
 pub mod it_security;
 pub mod lab;
+pub mod lms;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod ot;

@@ -149,6 +149,7 @@ export function DashboardList() {
               onClick={() =>
                 navigate(`/admin/dashboard-builder/${row.id}`)
               }
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -158,6 +159,7 @@ export function DashboardList() {
               variant="subtle"
               size="sm"
               onClick={() => duplicateMutation.mutate(row.id)}
+              aria-label="Copy"
             >
               <IconCopy size={14} />
             </ActionIcon>
@@ -168,6 +170,7 @@ export function DashboardList() {
               color="danger"
               size="sm"
               onClick={() => deleteMutation.mutate(row.id)}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>

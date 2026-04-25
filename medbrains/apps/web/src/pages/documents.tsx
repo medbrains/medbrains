@@ -166,7 +166,7 @@ function TemplatesTab() {
   const createMutation = useMutation({
     mutationFn: (data: CreateDocumentTemplateRequest) => api.createDocumentTemplate(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({ title: "Template Created", message: "Document template created", color: "success" });
       closeDrawer();
       resetForm();
@@ -180,7 +180,7 @@ function TemplatesTab() {
     mutationFn: ({ id, data }: { id: string; data: UpdateDocumentTemplateRequest }) =>
       api.updateDocumentTemplate(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({ title: "Template Updated", message: "Document template updated", color: "success" });
       closeDrawer();
       resetForm();
@@ -193,7 +193,7 @@ function TemplatesTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteDocumentTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({ title: "Template Deleted", message: "Document template deleted", color: "orange" });
     },
   });
@@ -201,7 +201,7 @@ function TemplatesTab() {
   const setDefaultMutation = useMutation({
     mutationFn: (id: string) => api.setDefaultTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({ title: "Default Set", message: "Template set as default", color: "success" });
     },
   });
@@ -413,7 +413,7 @@ function TemplatesTab() {
       render: (row: DocumentTemplate) => (
         <Group gap={4}>
           {canUpdate && (
-            <ActionIcon variant="subtle" size="sm" onClick={() => openEdit(row)}>
+            <ActionIcon variant="subtle" size="sm" onClick={() => openEdit(row)} aria-label="Edit">
               <IconPencil size={14} />
             </ActionIcon>
           )}
@@ -423,6 +423,7 @@ function TemplatesTab() {
               size="sm"
               color="danger"
               onClick={() => deleteMutation.mutate(row.id)}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>
@@ -639,7 +640,7 @@ function OutputsTab() {
   const voidMutation = useMutation({
     mutationFn: (id: string) => api.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({ title: "Document Voided", message: "Document has been voided", color: "orange" });
     },
   });
@@ -721,6 +722,7 @@ function OutputsTab() {
             variant="subtle"
             size="sm"
             onClick={() => setPreviewDocId(row.id)}
+            aria-label="View details"
           >
             <IconEye size={14} />
           </ActionIcon>
@@ -731,6 +733,7 @@ function OutputsTab() {
               color="danger"
               onClick={() => voidMutation.mutate(row.id)}
               loading={voidMutation.isPending}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>
@@ -822,7 +825,7 @@ function ReviewScheduleTab() {
   const createMutation = useMutation({
     mutationFn: (data: CreateReviewScheduleRequest) => api.createReviewSchedule(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
       notifications.show({ title: "Schedule Created", message: "Review schedule added", color: "success" });
       closeDrawer();
     },
@@ -834,7 +837,7 @@ function ReviewScheduleTab() {
   const markReviewedMutation = useMutation({
     mutationFn: (id: string) => api.markReviewed(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
       notifications.show({ title: "Reviewed", message: "Schedule marked as reviewed", color: "success" });
     },
   });

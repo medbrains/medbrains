@@ -881,7 +881,7 @@ pub async fn create_share_link(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let token = uuid::Uuid::new_v4().to_string();
+    let token = Uuid::new_v4().to_string();
     let study_id = body["study_id"].as_str().and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
     let hours = body["expires_hours"].as_i64().unwrap_or(72);
@@ -991,7 +991,7 @@ pub async fn list_dosimetry_records(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, rust_decimal::Decimal, bool)>(
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
         "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
          d.dose_value, d.is_compliant \
          FROM radiology_dosimetry_records d ORDER BY d.monitoring_period_end DESC LIMIT 100",

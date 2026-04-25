@@ -66,7 +66,7 @@ export function StepperZoneConfig({ zone }: { zone: ZoneNode }) {
             label=""
           />
           <Tooltip label="Remove step">
-            <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => removeStep(i)}>
+            <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => removeStep(i)} aria-label="Delete">
               <IconTrash size={14} />
             </ActionIcon>
           </Tooltip>
@@ -74,7 +74,7 @@ export function StepperZoneConfig({ zone }: { zone: ZoneNode }) {
       ))}
 
       <Group mt="xs">
-        <ActionIcon variant="light" size="sm" onClick={addStep}>
+        <ActionIcon variant="light" size="sm" onClick={addStep} aria-label="Add">
           <IconPlus size={14} />
         </ActionIcon>
         <Text size="xs" c="dimmed">

@@ -86,6 +86,7 @@ export function ZoneCard({ zone, isLocked }: { zone: ZoneNode; isLocked: boolean
                 e.stopPropagation();
                 duplicateZone(zone.clientId);
               }}
+              aria-label="Copy"
             >
               <IconCopy size={14} />
             </ActionIcon>
@@ -99,6 +100,7 @@ export function ZoneCard({ zone, isLocked }: { zone: ZoneNode; isLocked: boolean
                 e.stopPropagation();
                 removeZone(zone.clientId);
               }}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>

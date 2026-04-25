@@ -68,7 +68,7 @@ export function EndoscopyPage() {
   const createProc = useMutation({
     mutationFn: (data: CreateEndoscopyProcedureRequest) => api.createEndoscopyProcedure(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["endo-procedures"] });
+      void qc.invalidateQueries({ queryKey: ["endo-procedures"] });
       procHandlers.close();
       notifications.show({ title: "Created", message: "Procedure recorded", color: "success" });
     },
@@ -80,7 +80,7 @@ export function EndoscopyPage() {
   const createScope = useMutation({
     mutationFn: (data: CreateEndoscopyScopeRequest) => api.createEndoscopyScope(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["endo-scopes"] });
+      void qc.invalidateQueries({ queryKey: ["endo-scopes"] });
       scopeHandlers.close();
       notifications.show({ title: "Created", message: "Scope registered", color: "success" });
     },

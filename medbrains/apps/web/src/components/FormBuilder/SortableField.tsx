@@ -205,7 +205,7 @@ export function SortableField({ field, sectionId }: SortableFieldProps) {
               position="top"
               events={{ hover: true, focus: true, touch: true }}
             >
-              <ActionIcon variant="transparent" size={14} color="dimmed">
+              <ActionIcon variant="transparent" size={14} color="dimmed" aria-label="Info">
                 <IconInfoCircle size={12} />
               </ActionIcon>
             </Tooltip>
@@ -235,6 +235,7 @@ export function SortableField({ field, sectionId }: SortableFieldProps) {
               e.stopPropagation();
               removeField(field.id);
             }}
+            aria-label="Delete"
           >
             <IconTrash size={12} />
           </ActionIcon>

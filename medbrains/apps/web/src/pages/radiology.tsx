@@ -120,7 +120,7 @@ function RadiologyOrdersTab() {
     mutationFn: (id: string) =>
       api.cancelRadiologyOrder(id, { cancellation_reason: "Cancelled by user" }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order cancelled", message: "", color: "danger" });
     },
   });
@@ -129,7 +129,7 @@ function RadiologyOrdersTab() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.updateRadiologyOrderStatus(id, status),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
     },
   });
 
@@ -173,13 +173,13 @@ function RadiologyOrdersTab() {
       render: (o: RadiologyOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => setDetailId(o.id)}>
+            <ActionIcon variant="subtle" onClick={() => setDetailId(o.id)} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
           {o.status === "ordered" && canCancel && (
             <Tooltip label="Cancel">
-              <ActionIcon variant="subtle" color="danger" onClick={() => cancelMutation.mutate(o.id)}>
+              <ActionIcon variant="subtle" color="danger" onClick={() => cancelMutation.mutate(o.id)} aria-label="Close">
                 <IconX size={16} />
               </ActionIcon>
             </Tooltip>
@@ -269,7 +269,7 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyOrderRequest) => api.createRadiologyOrder(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order created", message: "", color: "success" });
       emit("radiology.order.created", {});
       setForm({});
@@ -387,8 +387,8 @@ function OrderDetailDrawer({
         status: "preliminary",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-order", id] });
-      qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-order", id] });
+      void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Report created", message: "", color: "success" });
       emit("radiology.report.created", { orderId: id });
       setFindings("");
@@ -401,8 +401,8 @@ function OrderDetailDrawer({
   const verifyMutation = useMutation({
     mutationFn: (reportId: string) => api.verifyRadiologyReport(reportId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-order", id] });
-      qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-order", id] });
+      void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Report verified", message: "", color: "success" });
     },
   });
@@ -554,7 +554,7 @@ function ModalitiesTab() {
   const createMutation = useMutation({
     mutationFn: () => api.createRadiologyModality({ code, name, description: description || undefined }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
       notifications.show({ title: "Modality created", message: "", color: "success" });
       setCode("");
       setName("");
@@ -566,7 +566,7 @@ function ModalitiesTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteRadiologyModality(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
       notifications.show({ title: "Modality deleted", message: "", color: "danger" });
     },
   });
@@ -624,7 +624,7 @@ function ModalitiesTab() {
               <Table.Td>{m.is_active ? <Badge color="success" size="xs">Active</Badge> : <Badge color="slate" size="xs">Inactive</Badge>}</Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(m.id)}>
+                  <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(m.id)} aria-label="Close">
                     <IconX size={16} />
                   </ActionIcon>
                 </Table.Td>
@@ -661,7 +661,7 @@ function AppointmentsTab() {
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyAppointmentRequest) => api.createRadiologyAppointment(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["radiology-appointments"] });
+      void qc.invalidateQueries({ queryKey: ["radiology-appointments"] });
       notifications.show({ title: "Appointment created", message: "", color: "success" });
       setForm({});
       createHandlers.close();

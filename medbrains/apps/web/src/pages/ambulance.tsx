@@ -135,12 +135,12 @@ function FleetTab() {
 
   const createMut = useMutation({
     mutationFn: (d: CreateAmbulanceRequest) => api.createAmbulance(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); notifications.show({ title: "Ambulance added", message: "Fleet updated", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); notifications.show({ title: "Ambulance added", message: "Fleet updated", color: "green" }); },
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: { id: string } & Record<string, unknown>) => api.updateAmbulance(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); setEditing(null); notifications.show({ title: "Updated", message: "Ambulance updated", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); setEditing(null); notifications.show({ title: "Updated", message: "Ambulance updated", color: "green" }); },
   });
 
   const columns: Column<AmbulanceRow>[] = [
@@ -172,7 +172,7 @@ function FleetTab() {
     },
     {
       key: "actions", label: "", render: (r) => canUpdate ? (
-        <ActionIcon variant="subtle" size="sm" onClick={() => { setEditing(r); setForm(r); open(); }}>
+        <ActionIcon variant="subtle" size="sm" onClick={() => { setEditing(r); setForm(r); open(); }} aria-label="Edit">
           <IconPencil size={14} />
         </ActionIcon>
       ) : null,
@@ -263,12 +263,12 @@ function TripsTab() {
 
   const createMut = useMutation({
     mutationFn: (d: CreateAmbulanceTripRequest) => api.createAmbulanceTrip(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulance-trips"] }); qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); notifications.show({ title: "Trip created", message: "Trip booked", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulance-trips"] }); void qc.invalidateQueries({ queryKey: ["ambulances"] }); close(); notifications.show({ title: "Trip created", message: "Trip booked", color: "green" }); },
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.updateAmbulanceTripStatus(id, { status: status as AmbulanceTripRow["status"] }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulance-trips"] }); qc.invalidateQueries({ queryKey: ["ambulances"] }); notifications.show({ title: "Status updated", message: "Trip status changed", color: "blue" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulance-trips"] }); void qc.invalidateQueries({ queryKey: ["ambulances"] }); notifications.show({ title: "Status updated", message: "Trip status changed", color: "blue" }); },
   });
 
   const getNextStatus = (current: string): string | null => {
@@ -306,13 +306,13 @@ function TripsTab() {
         return (
           <Group gap={4}>
             <Tooltip label={next.replace(/_/g, " ")}>
-              <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => statusMut.mutate({ id: r.id, status: next })}>
+              <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => statusMut.mutate({ id: r.id, status: next })} aria-label="Play">
                 <IconPlayerPlay size={14} />
               </ActionIcon>
             </Tooltip>
             {r.status !== "completed" && r.status !== "cancelled" && (
               <Tooltip label="Cancel">
-                <ActionIcon variant="subtle" color="red" size="sm" onClick={() => statusMut.mutate({ id: r.id, status: "cancelled" })}>
+                <ActionIcon variant="subtle" color="red" size="sm" onClick={() => statusMut.mutate({ id: r.id, status: "cancelled" })} aria-label="Close">
                   <IconX size={14} />
                 </ActionIcon>
               </Tooltip>
@@ -372,7 +372,7 @@ function DriversTab() {
 
   const createMut = useMutation({
     mutationFn: (d: CreateAmbulanceDriverRequest) => api.createAmbulanceDriver(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulance-drivers"] }); close(); notifications.show({ title: "Driver added", message: "Driver registered", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulance-drivers"] }); close(); notifications.show({ title: "Driver added", message: "Driver registered", color: "green" }); },
   });
 
   const columns: Column<AmbulanceDriverRow>[] = [
@@ -442,12 +442,12 @@ function MaintenanceTab() {
 
   const createMut = useMutation({
     mutationFn: (d: CreateAmbulanceMaintenanceRequest) => api.createAmbulanceMaintenance(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] }); close(); notifications.show({ title: "Scheduled", message: "Maintenance scheduled", color: "green" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] }); close(); notifications.show({ title: "Scheduled", message: "Maintenance scheduled", color: "green" }); },
   });
 
   const updateStatusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.updateAmbulanceMaintenance(id, { status: status as AmbulanceMaintenanceRow["status"] }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] }); notifications.show({ title: "Updated", message: "Maintenance updated", color: "blue" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] }); notifications.show({ title: "Updated", message: "Maintenance updated", color: "blue" }); },
   });
 
   const columns: Column<AmbulanceMaintenanceRow>[] = [

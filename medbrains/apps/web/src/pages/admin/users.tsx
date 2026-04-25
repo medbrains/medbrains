@@ -316,7 +316,7 @@ function UserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -338,7 +338,7 @@ function UserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -563,7 +563,7 @@ function DeleteUserModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -858,7 +858,7 @@ function UserPermissionOverrideDrawer({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -1236,7 +1236,7 @@ function BulkImportModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-users"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
       setJsonInput("");
       setParseError(null);
       onClose();
@@ -1448,6 +1448,7 @@ export function UsersPage() {
                 variant="subtle"
                 color="primary"
                 onClick={() => openEdit(row)}
+                aria-label="Edit"
               >
                 <IconPencil size={16} />
               </ActionIcon>
@@ -1459,6 +1460,7 @@ export function UsersPage() {
                 variant="subtle"
                 color="violet"
                 onClick={() => openPermissions(row)}
+                aria-label="Security"
               >
                 <IconShield size={16} />
               </ActionIcon>
@@ -1470,6 +1472,7 @@ export function UsersPage() {
                 variant="subtle"
                 color="danger"
                 onClick={() => openDelete(row)}
+                aria-label="Delete"
               >
                 <IconTrash size={16} />
               </ActionIcon>

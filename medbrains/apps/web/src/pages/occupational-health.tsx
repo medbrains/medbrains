@@ -272,8 +272,8 @@ function ScreeningsPanel() {
       return api.createOccScreening(payload);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-screenings"] });
-      qc.invalidateQueries({ queryKey: ["occ-screenings-due"] });
+      void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
+      void qc.invalidateQueries({ queryKey: ["occ-screenings-due"] });
       createHandlers.close();
       setForm({ employee_id: "", screening_type: "pre_employment", screening_date: "" });
       setPreEmpForm({
@@ -301,8 +301,8 @@ function ScreeningsPanel() {
       return api.updateOccScreening(selected.id, editForm);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-screenings"] });
-      qc.invalidateQueries({ queryKey: ["occ-screenings-due"] });
+      void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
+      void qc.invalidateQueries({ queryKey: ["occ-screenings-due"] });
       editHandlers.close();
       setSelected(null);
       notifications.show({
@@ -374,6 +374,7 @@ function ScreeningsPanel() {
                 certHandlers.open();
               }}
               title="Generate Certificate"
+              aria-label="Certificate"
             >
               <IconCertificate size={14} />
             </ActionIcon>
@@ -391,6 +392,7 @@ function ScreeningsPanel() {
                 });
                 editHandlers.open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -836,7 +838,7 @@ function DrugScreensPanel() {
   const createMut = useMutation({
     mutationFn: () => api.createDrugScreen(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-drug-screens"] });
+      void qc.invalidateQueries({ queryKey: ["occ-drug-screens"] });
       createHandlers.close();
       setForm({ employee_id: "" });
       notifications.show({
@@ -856,7 +858,7 @@ function DrugScreensPanel() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-drug-screens"] });
+      void qc.invalidateQueries({ queryKey: ["occ-drug-screens"] });
       editHandlers.close();
       setSelected(null);
       notifications.show({
@@ -928,6 +930,7 @@ function DrugScreensPanel() {
                 });
                 editHandlers.open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -1060,8 +1063,8 @@ function VaccinationsPanel() {
         is_compliant: formCompliant,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-vaccinations"] });
-      qc.invalidateQueries({ queryKey: ["occ-vaccination-compliance"] });
+      void qc.invalidateQueries({ queryKey: ["occ-vaccinations"] });
+      void qc.invalidateQueries({ queryKey: ["occ-vaccination-compliance"] });
       createHandlers.close();
       setForm({ employee_id: "", vaccine_name: "", administered_date: "" });
       setFormCompliant(true);
@@ -1292,7 +1295,7 @@ function InjuriesPanel() {
         is_osha_recordable: formOsha,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-injuries"] });
+      void qc.invalidateQueries({ queryKey: ["occ-injuries"] });
       createHandlers.close();
       setForm({ employee_id: "", injury_date: "", injury_type: "other" });
       setFormOsha(false);
@@ -1310,7 +1313,7 @@ function InjuriesPanel() {
       return api.updateInjury(selected.id, editForm);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-injuries"] });
+      void qc.invalidateQueries({ queryKey: ["occ-injuries"] });
       editHandlers.close();
       setSelected(null);
       notifications.show({
@@ -1401,6 +1404,7 @@ function InjuriesPanel() {
                 });
                 editHandlers.open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -1632,7 +1636,7 @@ function HazardRegistryPanel() {
   const createMut = useMutation({
     mutationFn: () => api.createOccHealthHazard(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["occ-health-hazards"] });
+      void qc.invalidateQueries({ queryKey: ["occ-health-hazards"] });
       createHandlers.close();
       setForm({
         hazard_type: "biological",
@@ -1896,7 +1900,7 @@ function ReturnToWorkPanel() {
         message: "Return-to-work clearance issued successfully. A screening record has been created.",
         color: "success",
       });
-      qc.invalidateQueries({ queryKey: ["occ-screenings"] });
+      void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
       setForm({
         employee_id: "",
         clearance_date: new Date().toISOString().slice(0, 10),

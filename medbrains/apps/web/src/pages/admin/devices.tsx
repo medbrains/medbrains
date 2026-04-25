@@ -445,7 +445,7 @@ function RoutingRulesTab() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteRoutingRule(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices", "routing-rules"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["devices", "routing-rules"] }),
   });
 
   return (
@@ -571,7 +571,7 @@ function AddRoutingRuleModal({ opened, onClose }: { opened: boolean; onClose: ()
       target_entity: targetEntity,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["devices", "routing-rules"] });
+      void queryClient.invalidateQueries({ queryKey: ["devices", "routing-rules"] });
       setName(""); setAdapterCode(""); setMatchField(""); setTargetEntity("");
       onClose();
     },
@@ -648,7 +648,7 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
   const createMutation = useMutation({
     mutationFn: (data: CreateDeviceInstanceRequest) => api.createDeviceInstance(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      void queryClient.invalidateQueries({ queryKey: ["devices"] });
       resetAndClose();
     },
   });

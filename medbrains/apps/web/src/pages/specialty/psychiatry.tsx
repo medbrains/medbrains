@@ -85,7 +85,7 @@ export function PsychiatryPage() {
   const createPat = useMutation({
     mutationFn: (data: CreatePsychPatientRequest) => api.createPsychPatient(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["psych-patients"] });
+      void qc.invalidateQueries({ queryKey: ["psych-patients"] });
       patHandlers.close();
       notifications.show({ title: "Created", message: "Psychiatric patient registered", color: "success" });
     },
@@ -94,7 +94,7 @@ export function PsychiatryPage() {
   const releaseRestraint = useMutation({
     mutationFn: (id: string) => api.releaseRestraint(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["psych-restraints"] });
+      void qc.invalidateQueries({ queryKey: ["psych-restraints"] });
       notifications.show({ title: "Released", message: "Restraint released", color: "success" });
     },
   });
@@ -107,7 +107,7 @@ export function PsychiatryPage() {
     { key: "nominated", label: "Nominated Rep", render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None"}</Text> },
     {
       key: "actions", label: "", render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setSelectedId(r.id)}>
+        <ActionIcon variant="subtle" onClick={() => setSelectedId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       ),
@@ -137,7 +137,7 @@ export function PsychiatryPage() {
     { key: "released", label: "Released", render: (r) => r.released_at ? <Badge color="success">Yes</Badge> : <Badge color="danger">Active</Badge> },
     {
       key: "actions", label: "", render: (r) => !r.released_at && canRestraint ? (
-        <ActionIcon variant="subtle" color="success" onClick={() => releaseRestraint.mutate(r.id)}>
+        <ActionIcon variant="subtle" color="success" onClick={() => releaseRestraint.mutate(r.id)} aria-label="Shield Off">
           <IconShieldOff size={16} />
         </ActionIcon>
       ) : null,

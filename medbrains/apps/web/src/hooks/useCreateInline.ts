@@ -20,7 +20,7 @@ export function useCreateInline<T>({ queryKey }: UseCreateInlineOptions) {
 
   const onCreated = useCallback(
     (entity: T) => {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
       setPendingSelect(entity);
       setCreateModalOpened(false);
     },

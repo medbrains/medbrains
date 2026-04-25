@@ -255,7 +255,7 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
   const dispenseMutation = useMutation({
     mutationFn: (id: string) => api.dispenseOrder(id),
     onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       notifications.show({ title: "Dispensed", message: "Order dispensed successfully", color: "success" });
       emit("order.dispensed", { order_id: id });
     },
@@ -264,7 +264,7 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.cancelPharmacyOrder(id),
     onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       emit("order.cancelled", { order_id: id });
     },
   });
@@ -380,7 +380,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
   const createMutation = useMutation({
     mutationFn: (data: CreateOtcSaleRequest) => api.createOtcSale(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       notifications.show({ title: "OTC Sale", message: "Walk-in sale recorded", color: "teal" });
       onClose();
       setNotes("");
@@ -442,7 +442,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyOrderRequest) => api.createPharmacyOrder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       notifications.show({ title: "Order created", message: "Pharmacy order placed", color: "success" });
       onClose();
       setPatientId("");
@@ -778,7 +778,7 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyCatalogRequest) => api.createPharmacyCatalog(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
       setShowForm(false);
       setForm({});
     },
@@ -912,8 +912,8 @@ function StockTab({ canManage }: { canManage: boolean }) {
   const createTxMutation = useMutation({
     mutationFn: (data: CreateStockTransactionRequest) => api.createStockTransaction(data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
       notifications.show({ title: "Stock updated", message: "Transaction recorded", color: "success" });
       emit("stock.movement", { transaction_type: variables.transaction_type, quantity: variables.quantity });
       setShowForm(false);
@@ -999,8 +999,8 @@ function NdpsRegisterTab() {
   const createMutation = useMutation({
     mutationFn: (d: CreateNdpsEntryRequest) => api.createNdpsEntry(d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
       notifications.show({ title: "NDPS Entry", message: "Register entry recorded", color: "success" });
       setShowForm(false);
       setForm({ action: "receipt" });
@@ -1200,7 +1200,7 @@ function TransfersView() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.approvePharmacyTransfer(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
       notifications.show({ title: "Transfer Approved", message: "Transfer request approved", color: "success" });
     },
   });

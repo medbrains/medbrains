@@ -1,1 +1,47 @@
-{}
+{
+  "title": "Dashboard",
+  "loading": "Loading...",
+  "addWidget": "Add Widget",
+  "customize": "Customize",
+  "overview": "Overview of today's activity",
+  "noWidgets": "No widget templates available",
+  "stats": {
+    "totalPatients": "Total Patients",
+    "opdQueue": "OPD Queue",
+    "labPending": "Lab Pending",
+    "revenueToday": "Revenue Today",
+    "appointments": "Today's Appointments",
+    "ipdActive": "IPD Active"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "registerPatient": "Register Patient",
+    "registerDesc": "Add a new patient record",
+    "newOpd": "New OPD Visit",
+    "newOpdDesc": "Create outpatient visit",
+    "labOrder": "Lab Order",
+    "labOrderDesc": "Create lab investigation",
+    "invoice": "Generate Invoice",
+    "invoiceDesc": "Create billing invoice"
+  },
+  "recentActivity": {
+    "title": "Recent Activity",
+    "noActivity": "No recent activity"
+  },
+  "moduleStatus": {
+    "title": "Module Status",
+    "module": "Module",
+    "status": "Status",
+    "count": "Records"
+  },
+  "systemHealth": {
+    "title": "System Health",
+    "apiServer": "API Server",
+    "healthy": "Healthy",
+    "postgresql": "PostgreSQL",
+    "connected": "Connected",
+    "yottadb": "YottaDB",
+    "deferred": "Deferred",
+    "uptime": "Uptime"
+  }
+}

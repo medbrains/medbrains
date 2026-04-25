@@ -41,6 +41,7 @@ export function ActionCard({ action, isLocked }: { action: ActionNode; isLocked:
                 e.stopPropagation();
                 removeAction(action.clientId);
               }}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>

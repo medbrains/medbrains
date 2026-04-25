@@ -354,7 +354,7 @@ function PermissionEditor({
       ]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["roles"] });
       onClose();
     },
   });
@@ -664,7 +664,7 @@ function EditRoleModal({
     mutationFn: (data: { name?: string; description?: string }) =>
       api.updateRole(role!.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["roles"] });
       setLoadedId(null);
       onClose();
     },
@@ -753,7 +753,7 @@ function CreateRoleModal({
         const templatePerms = ROLE_TEMPLATES[template]?.permissions ?? [];
         await api.updateRolePermissions(newRole.id, templatePerms);
       }
-      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      void queryClient.invalidateQueries({ queryKey: ["roles"] });
       setCode("");
       setName("");
       setDescription("");
@@ -845,7 +845,7 @@ export function RolesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteRole(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["roles"] }),
   });
 
   const handleEditPermissions = (role: CustomRole) => {
@@ -942,7 +942,7 @@ export function RolesPage() {
               <Table.Td>
                 <Menu shadow="md" width={160}>
                   <Menu.Target>
-                    <ActionIcon variant="subtle" color="slate" size="sm">
+                    <ActionIcon variant="subtle" color="slate" size="sm" aria-label="More actions">
                       <IconDots size={16} />
                     </ActionIcon>
                   </Menu.Target>

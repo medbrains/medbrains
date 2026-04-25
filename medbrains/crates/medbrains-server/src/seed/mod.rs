@@ -2,6 +2,7 @@ mod bed_types;
 mod charge_master;
 mod default_dashboard;
 mod demo_patients;
+mod role_dashboards;
 mod departments;
 mod insurance_providers;
 mod lab_catalog;
@@ -176,6 +177,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Retrospective
             permissions::retrospective::CREATE,
             permissions::retrospective::AUDIT,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -243,6 +249,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::regulatory::adr::CREATE,
             // Retrospective
             permissions::retrospective::CREATE,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -281,6 +292,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::documents::templates::LIST,
             permissions::documents::GENERATE,
             permissions::documents::REPRINT,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -314,6 +330,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::documents::templates::LIST,
             permissions::documents::GENERATE,
             permissions::documents::REPRINT,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -348,6 +369,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::regulatory::dashboard::VIEW,
             permissions::regulatory::adr::LIST,
             permissions::regulatory::adr::CREATE,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -409,6 +435,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::documents::templates::LIST,
             permissions::documents::GENERATE,
             permissions::documents::REPRINT,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -424,6 +455,11 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::housekeeping::linen::LIST,
             permissions::housekeeping::linen::CREATE,
             permissions::housekeeping::laundry::LIST,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
         ],
     },
     BuiltInRole {
@@ -520,6 +556,24 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::regulatory::checklists::CREATE,
             permissions::regulatory::checklists::UPDATE,
             permissions::regulatory::calendar::MANAGE,
+            // LMS (full admin — manages training)
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::courses::VIEW,
+            permissions::lms::courses::CREATE,
+            permissions::lms::courses::UPDATE,
+            permissions::lms::enrollments::LIST,
+            permissions::lms::enrollments::CREATE,
+            permissions::lms::enrollments::UPDATE,
+            permissions::lms::quizzes::LIST,
+            permissions::lms::quizzes::CREATE,
+            permissions::lms::paths::LIST,
+            permissions::lms::paths::CREATE,
+            permissions::lms::paths::UPDATE,
+            permissions::lms::certificates::LIST,
+            permissions::lms::certificates::CREATE,
+            permissions::lms::compliance::VIEW,
         ],
     },
     BuiltInRole {
@@ -568,6 +622,12 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::regulatory::materiovigilance::LIST,
             permissions::regulatory::pcpndt::LIST,
             permissions::regulatory::calendar::MANAGE,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
+            permissions::lms::compliance::VIEW,
         ],
     },
     BuiltInRole {
@@ -608,6 +668,12 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::regulatory::pcpndt::LIST,
             permissions::regulatory::pcpndt::CREATE,
             permissions::regulatory::calendar::MANAGE,
+            // LMS
+            permissions::lms::my_learning::VIEW,
+            permissions::lms::quizzes::ATTEMPT,
+            permissions::lms::courses::LIST,
+            permissions::lms::certificates::LIST,
+            permissions::lms::compliance::VIEW,
         ],
     },
     BuiltInRole {
@@ -770,6 +836,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     insurance_providers::seed_insurance_providers(pool, tenant_id).await?;
     locations::seed_locations(pool, tenant_id).await?;
     default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
+    role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
 
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;

@@ -380,7 +380,7 @@ pub async fn delete_facility(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::facilities::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -528,7 +528,7 @@ pub async fn delete_location(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -554,7 +554,7 @@ pub struct DepartmentRow {
     pub code: String,
     pub name: String,
     pub department_type: String,
-    pub working_hours: serde_json::Value,
+    pub working_hours: Value,
     pub is_active: bool,
 }
 
@@ -585,7 +585,7 @@ pub struct CreateDepartmentRequest {
     pub name: String,
     pub department_type: String,
     pub parent_id: Option<Uuid>,
-    pub working_hours: Option<serde_json::Value>,
+    pub working_hours: Option<Value>,
 }
 
 pub async fn create_department(
@@ -685,7 +685,7 @@ pub async fn delete_department(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::departments::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -728,7 +728,7 @@ pub struct CreateRoleRequest {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
-    pub permissions: Option<serde_json::Value>,
+    pub permissions: Option<Value>,
 }
 
 pub async fn create_role(
@@ -781,7 +781,7 @@ pub struct SetupUserRow {
     pub consultation_fee: Option<rust_decimal::Decimal>,
     pub department_ids: Vec<Uuid>,
     pub is_active: bool,
-    pub access_matrix: serde_json::Value,
+    pub access_matrix: Value,
 }
 
 pub async fn list_users(
@@ -993,7 +993,7 @@ pub async fn delete_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1043,7 +1043,7 @@ pub async fn delete_role(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::roles::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1077,10 +1077,10 @@ pub async fn update_role_permissions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Store permissions as a JSON array
-    let perms_json = serde_json::Value::Array(
+    let perms_json = Value::Array(
         body.permissions
             .iter()
-            .map(|s| serde_json::Value::String(s.clone()))
+            .map(|s| Value::String(s.clone()))
             .collect(),
     );
 
@@ -1128,7 +1128,7 @@ pub async fn update_user_access_matrix(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateUserAccessMatrixRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1140,12 +1140,12 @@ pub async fn update_user_access_matrix(
 
     if let Some(fa) = &body.field_access {
         matrix["field_access"] = serde_json::to_value(fa)
-            .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
+            .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
 
     if let Some(wa) = &body.widget_access {
         matrix["widget_access"] = serde_json::to_value(wa)
-            .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
+            .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
 
     sqlx::query(
@@ -1181,7 +1181,7 @@ pub async fn update_role_field_access(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let fa_json = serde_json::to_value(&body.field_access)
-        .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
+        .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
 
     let row = sqlx::query_as::<_, CustomRole>(
         "UPDATE roles SET field_access_defaults = $1, updated_at = now() \
@@ -1230,7 +1230,7 @@ pub async fn update_role_widget_access(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let wa_json = serde_json::to_value(&body.widget_access)
-        .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
+        .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
 
     let row = sqlx::query_as::<_, CustomRole>(
         "UPDATE roles SET widget_access_defaults = $1, updated_at = now() \
@@ -1417,7 +1417,7 @@ pub async fn get_branding(
 #[derive(Debug, Deserialize)]
 pub struct UpdateBrandingRequest {
     pub key: String,
-    pub value: serde_json::Value,
+    pub value: Value,
 }
 
 pub async fn update_branding(
@@ -1513,7 +1513,7 @@ pub async fn delete_sequence(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(seq_type): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::sequences::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1653,7 +1653,7 @@ pub async fn delete_service(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::services::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1772,7 +1772,7 @@ pub async fn delete_bed_type(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::bed_types::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1891,7 +1891,7 @@ pub async fn delete_tax_category(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1999,7 +1999,7 @@ pub async fn delete_payment_method(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2048,7 +2048,7 @@ pub async fn get_settings(
 pub struct UpdateSettingRequest {
     pub category: String,
     pub key: String,
-    pub value: serde_json::Value,
+    pub value: Value,
 }
 
 pub async fn update_setting(
@@ -2573,7 +2573,7 @@ async fn upsert_setting_in_tx(
     key: &str,
     value: &str,
 ) -> Result<(), AppError> {
-    let json_val = serde_json::Value::String(value.to_owned());
+    let json_val = Value::String(value.to_owned());
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
@@ -2596,7 +2596,7 @@ pub async fn update_tenant_geo_with_presets(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateTenantGeoRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2776,7 +2776,7 @@ pub async fn delete_master_religion(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
     let result = sqlx::query(
         "DELETE FROM master_religions WHERE id = $1 AND tenant_id = $2",
@@ -2871,7 +2871,7 @@ pub async fn delete_master_occupation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
     let result = sqlx::query(
         "DELETE FROM master_occupations WHERE id = $1 AND tenant_id = $2",
@@ -2966,7 +2966,7 @@ pub async fn delete_master_relation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
     let result = sqlx::query(
         "DELETE FROM master_relations WHERE id = $1 AND tenant_id = $2",
@@ -3104,7 +3104,7 @@ pub async fn delete_insurance_provider(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3137,7 +3137,7 @@ pub async fn seed_module_masters(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<SeedModuleMastersRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3786,7 +3786,7 @@ pub async fn upsert_print_template(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<PrintTemplateRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
 
     let valid_types = [
@@ -4232,7 +4232,7 @@ pub async fn seed_department_template(
 pub async fn completeness_check(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
@@ -4305,7 +4305,7 @@ pub async fn completeness_check(
 pub async fn system_health(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
@@ -4371,7 +4371,7 @@ pub struct ExportPaymentMethodRow {
 pub async fn export_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
@@ -4530,17 +4530,17 @@ pub async fn import_config(
 pub async fn list_brand_entities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+) -> Result<Json<Vec<Value>>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (uuid::Uuid, String, String, Option<String>, Option<String>, Option<String>, bool, bool)>(
+    let rows = sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>, Option<String>, bool, bool)>(
         "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
          FROM brand_entities ORDER BY is_default DESC, name",
     ).fetch_all(&mut *tx).await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
+    let result: Vec<Value> = rows.iter().map(|r| serde_json::json!({
         "id": r.0, "code": r.1, "name": r.2, "short_name": r.3,
         "logo_url": r.4, "registration_no": r.5, "is_default": r.6, "is_active": r.7
     })).collect();
@@ -4553,13 +4553,13 @@ pub async fn list_brand_entities(
 pub async fn create_brand_entity(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let id = sqlx::query_scalar::<_, uuid::Uuid>(
+    let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO brand_entities (tenant_id, code, name, short_name, logo_url, address, phone, email, registration_no, is_default) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
     )
@@ -4583,9 +4583,9 @@ pub async fn create_brand_entity(
 pub async fn update_brand_entity(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(id): Path<uuid::Uuid>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path(id): Path<Uuid>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4617,8 +4617,8 @@ pub async fn update_brand_entity(
 pub async fn delete_brand_entity(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -18,6 +18,7 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { LineChart } from "@mantine/charts";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -87,6 +88,7 @@ import type {
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -213,6 +215,7 @@ export function LabPage() {
 }
 
 function LabPageInner() {
+  const { t } = useTranslation("lab");
   const canCreateOrder = useHasPermission(P.LAB.ORDERS_CREATE);
   const canCreateResult = useHasPermission(P.LAB.RESULTS_CREATE);
   const canVerify = useHasPermission(P.LAB.RESULTS_UPDATE);
@@ -284,8 +287,8 @@ function LabPageInner() {
       label: "Actions",
       render: (row: LabOrder) => (
         <Group gap="xs">
-          <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => { setSelectedOrderId(row.id); openDetail(); }}>
+          <Tooltip label={t("label.view")}>
+            <ActionIcon variant="subtle" onClick={() => { setSelectedOrderId(row.id); openDetail(); }} aria-label={t("aria.viewDetails")}>
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -306,8 +309,8 @@ function LabPageInner() {
   return (
     <div>
       <PageHeader
-        title="Laboratory"
-        subtitle="Lab orders, results, QC & compliance"
+        title={t("title.laboratory")}
+        subtitle={t("subtitle.labOrders,Results,Qc&Compliance")}
         icon={<IconFlask size={20} stroke={1.5} />}
         color="violet"
         actions={
@@ -361,7 +364,7 @@ function LabPageInner() {
           />
           <Group mb="md">
             <Select
-              placeholder="Status"
+              placeholder={t("placeholder.status")}
               data={[
                 { value: "ordered", label: "Ordered" },
                 { value: "sample_collected", label: "Sample Collected" },
@@ -376,7 +379,7 @@ function LabPageInner() {
               w={180}
             />
             <Select
-              placeholder="Priority"
+              placeholder={t("label.priority")}
               data={[
                 { value: "routine", label: "Routine" },
                 { value: "urgent", label: "Urgent" },
@@ -446,7 +449,7 @@ function LabPageInner() {
 
       <CreateLabOrderDrawer opened={createOpened} onClose={closeCreate} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Lab Order Detail" position="right" size="lg">
+      <Drawer opened={detailOpened} onClose={closeDetail} title={t("title.labOrderDetail")} position="right" size="lg">
         {selectedOrderId && (
           <LabOrderDetail orderId={selectedOrderId} canCreateResult={canCreateResult} canVerify={canVerify} canAmend={canAmend} />
         )}
@@ -506,6 +509,8 @@ function OrderStatusPipeline({
 }
 
 function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation("lab");
+
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState("");
@@ -517,7 +522,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
   const createMutation = useMutation({
     mutationFn: (data: CreateLabOrderRequest) => api.createLabOrder(data),
     onSuccess: (_result, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
       emit("lab.order_created", { patient_id: variables.patient_id, test_id: variables.test_id, priority: variables.priority });
       onClose();
@@ -533,13 +538,13 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Lab Order" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title={t("title.newLabOrder")} position="right" size="md">
       <Stack>
-        <TextInput label="Patient ID" required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
-        <TextInput label="Test ID" required value={testId} onChange={(e) => setTestId(e.currentTarget.value)} />
-        <TextInput label="Encounter ID" value={encounterId} onChange={(e) => setEncounterId(e.currentTarget.value)} />
+        <TextInput label={t("label.patientId")} required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
+        <TextInput label={t("label.testId")} required value={testId} onChange={(e) => setTestId(e.currentTarget.value)} />
+        <TextInput label={t("label.encounterId")} value={encounterId} onChange={(e) => setEncounterId(e.currentTarget.value)} />
         <Select
-          label="Priority"
+          label={t("label.priority")}
           data={[
             { value: "routine", label: "Routine" },
             { value: "urgent", label: "Urgent" },
@@ -548,7 +553,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
           value={priority}
           onChange={(v) => setPriority(v ?? "routine")}
         />
-        <TextInput label="Clinical Notes" value={clinicalNotes} onChange={(e) => setClinicalNotes(e.currentTarget.value)} />
+        <TextInput label={t("label.clinicalNotes")} value={clinicalNotes} onChange={(e) => setClinicalNotes(e.currentTarget.value)} />
         <Button
           onClick={() =>
             createMutation.mutate({
@@ -574,6 +579,7 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
   canVerify: boolean;
   canAmend: boolean;
 }) {
+  const { t } = useTranslation("lab");
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [showResultForm, setShowResultForm] = useState(false);
@@ -597,45 +603,45 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
   const collectMutation = useMutation({
     mutationFn: () => api.collectSample(orderId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.sample_collected", { order_id: orderId });
     },
   });
   const processMutation = useMutation({
     mutationFn: () => api.startProcessing(orderId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const completeMutation = useMutation({
     mutationFn: () => api.completeLabOrder(orderId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.completed", { order_id: orderId });
     },
   });
   const verifyMutation = useMutation({
     mutationFn: () => api.verifyResults(orderId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.results_verified", { order_id: orderId });
     },
   });
   const cancelMutation = useMutation({
     mutationFn: () => api.cancelLabOrder(orderId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const rejectMutation = useMutation({
     mutationFn: (reason: string) => api.rejectSample(orderId, { rejection_reason: reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       setRejectionReason("");
     },
   });
   const addResultsMutation = useMutation({
     mutationFn: () => api.addLabResults(orderId, { results: resultInputs }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
       emit("lab.results_entered", { order_id: orderId, result_count: resultInputs.length });
       setShowResultForm(false);
       setResultInputs([{ parameter_name: "", value: "" }]);
@@ -645,27 +651,27 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
   // Report status mutations
   const reportStatusMutation = useMutation({
     mutationFn: (status: string) => api.updateLabReportStatus(orderId, { report_status: status as "preliminary" | "final" | "amended" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const lockReportMutation = useMutation({
     mutationFn: () => api.lockLabReport(orderId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const acknowledgeMutation = useMutation({
     mutationFn: (alertId: string) => api.acknowledgeCriticalAlert(alertId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] }),
   });
   const amendMutation = useMutation({
     mutationFn: (data: AmendResultRequest) => api.amendLabResult(orderId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       setAmendData(null);
     },
   });
   const addOnMutation = useMutation({
     mutationFn: (testId: string) => api.addOnLabTest(orderId, { test_id: testId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({ title: "Add-on test created", message: "Linked order created", color: "success" });
     },
   });
@@ -673,8 +679,8 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
   const autoValidateMutation = useMutation({
     mutationFn: (resultId: string) => api.autoValidateResult(resultId),
     onSuccess: (result: AutoValidateResult) => {
-      queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({
         title: result.auto_validated ? "Auto-validated" : "Validation skipped",
         message: result.message,
@@ -694,7 +700,7 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
     retry: false,
   });
 
-  if (!data) return <Text c="dimmed">Loading...</Text>;
+  if (!data) return <Text c="dimmed">{t("loading...")}</Text>;
 
   const detail = data as LabOrderDetailResponse;
   const order = detail.order;
@@ -731,7 +737,7 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
 
       {/* Critical alerts banner */}
       {orderAlerts.length > 0 && (
-        <Alert color="danger" icon={<IconAlertTriangle size={16} />} title="Critical Values">
+        <Alert color="danger" icon={<IconAlertTriangle size={16} />} title={t("title.criticalValues")}>
           {orderAlerts.map((a: LabCriticalAlert) => (
             <Group key={a.id} justify="space-between" mb={4}>
               <Text size="sm" fw={500}>{a.parameter_name}: {a.value} ({a.flag.replace(/_/g, " ")})</Text>
@@ -751,20 +757,20 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
       {canCreateResult && (
         <Group>
           {order.status === "ordered" && (
-            <Button size="xs" onClick={() => collectMutation.mutate()}>Collect Sample</Button>
+            <Button size="xs" onClick={() => collectMutation.mutate()}>{t("collectSample")}</Button>
           )}
           {order.status === "sample_collected" && (
-            <Button size="xs" onClick={() => processMutation.mutate()}>Start Processing</Button>
+            <Button size="xs" onClick={() => processMutation.mutate()}>{t("startProcessing")}</Button>
           )}
           {order.status === "processing" && (
-            <Button size="xs" color="orange" onClick={() => completeMutation.mutate()}>Complete</Button>
+            <Button size="xs" color="orange" onClick={() => completeMutation.mutate()}>{t("complete")}</Button>
           )}
           {order.status === "ordered" && (
-            <Button size="xs" color="danger" variant="light" onClick={() => cancelMutation.mutate()}>Cancel</Button>
+            <Button size="xs" color="danger" variant="light" onClick={() => cancelMutation.mutate()}>{t("cancel")}</Button>
           )}
           {(order.status === "ordered" || order.status === "sample_collected") && (
             <Group gap="xs">
-              <TextInput size="xs" placeholder="Rejection reason" value={rejectionReason} onChange={(e) => setRejectionReason(e.currentTarget.value)} w={200} />
+              <TextInput size="xs" placeholder={t("placeholder.rejectionReason")} value={rejectionReason} onChange={(e) => setRejectionReason(e.currentTarget.value)} w={200} />
               <Button size="xs" color="danger" disabled={!rejectionReason} onClick={() => rejectMutation.mutate(rejectionReason)} loading={rejectMutation.isPending}>
                 Reject Sample
               </Button>
@@ -773,19 +779,19 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
         </Group>
       )}
       {canVerify && order.status === "completed" && (
-        <Button size="xs" color="success" onClick={() => verifyMutation.mutate()}>Verify Results</Button>
+        <Button size="xs" color="success" onClick={() => verifyMutation.mutate()}>{t("verifyResults")}</Button>
       )}
 
       {/* Report status controls */}
       {canVerify && (order.status === "completed" || order.status === "verified") && !order.is_report_locked && (
         <Group>
-          <Button size="xs" variant="light" onClick={() => reportStatusMutation.mutate("preliminary")}>Set Preliminary</Button>
-          <Button size="xs" variant="light" color="success" onClick={() => reportStatusMutation.mutate("final")}>Set Final</Button>
-          <Button size="xs" variant="light" color="danger" leftSection={<IconLock size={14} />} onClick={() => lockReportMutation.mutate()}>Lock Report</Button>
+          <Button size="xs" variant="light" onClick={() => reportStatusMutation.mutate("preliminary")}>{t("setPreliminary")}</Button>
+          <Button size="xs" variant="light" color="success" onClick={() => reportStatusMutation.mutate("final")}>{t("setFinal")}</Button>
+          <Button size="xs" variant="light" color="danger" leftSection={<IconLock size={14} />} onClick={() => lockReportMutation.mutate()}>{t("lockReport")}</Button>
         </Group>
       )}
 
-      <Text fw={600} mt="md">Results</Text>
+      <Text fw={600} mt="md">{t("results")}</Text>
       <Table striped>
         <Table.Thead>
           <Table.Tr>
@@ -825,13 +831,14 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
               {canVerify && !order.is_report_locked && (
                 <Table.Td>
                   {(order.status === "completed" || order.status === "processing") && (
-                    <Tooltip label="Auto-Validate Result">
+                    <Tooltip label={t("label.autoValidateResult")}>
                       <ActionIcon
                         size="xs"
                         variant="subtle"
                         color="teal"
                         loading={autoValidateMutation.isPending}
                         onClick={() => autoValidateMutation.mutate(r.id)}
+                        aria-label={t("aria.robot")}
                       >
                         <IconRobot size={12} />
                       </ActionIcon>
@@ -841,7 +848,7 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
               )}
               {canAmend && !order.is_report_locked && (
                 <Table.Td>
-                  <ActionIcon size="xs" variant="subtle" onClick={() => setAmendData({ resultId: r.id, value: r.value, reason: "" })}>
+                  <ActionIcon size="xs" variant="subtle" onClick={() => setAmendData({ resultId: r.id, value: r.value, reason: "" })} aria-label={t("aria.refresh")}>
                     <IconRefresh size={12} />
                   </ActionIcon>
                 </Table.Td>
@@ -854,9 +861,9 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
       {/* Amendment form */}
       {amendData && (
         <Stack gap="xs" p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Text size="sm" fw={600}>Amend Result</Text>
-          <TextInput size="xs" label="New Value" value={amendData.value} onChange={(e) => setAmendData({ ...amendData, value: e.currentTarget.value })} />
-          <TextInput size="xs" label="Reason (required)" value={amendData.reason} onChange={(e) => setAmendData({ ...amendData, reason: e.currentTarget.value })} />
+          <Text size="sm" fw={600}>{t("amendResult")}</Text>
+          <TextInput size="xs" label={t("label.newValue")} value={amendData.value} onChange={(e) => setAmendData({ ...amendData, value: e.currentTarget.value })} />
+          <TextInput size="xs" label={t("label.reason(required)")} value={amendData.reason} onChange={(e) => setAmendData({ ...amendData, reason: e.currentTarget.value })} />
           <Group>
             <Button size="xs" disabled={!amendData.reason} onClick={() => amendMutation.mutate({ result_id: amendData.resultId, amended_value: amendData.value, reason: amendData.reason })} loading={amendMutation.isPending}>
               Save Amendment
@@ -876,22 +883,22 @@ function LabOrderDetail({ orderId, canCreateResult, canVerify, canAmend }: {
             <Stack gap="xs">
               {resultInputs.map((ri, idx) => (
                 <Group key={idx} grow>
-                  <TextInput placeholder="Parameter" value={ri.parameter_name} onChange={(e) => {
+                  <TextInput placeholder={t("parameter")} value={ri.parameter_name} onChange={(e) => {
                     const updated = [...resultInputs];
                     updated[idx] = { ...ri, parameter_name: e.currentTarget.value };
                     setResultInputs(updated);
                   }} />
-                  <TextInput placeholder="Value" value={ri.value} onChange={(e) => {
+                  <TextInput placeholder={t("value")} value={ri.value} onChange={(e) => {
                     const updated = [...resultInputs];
                     updated[idx] = { ...ri, value: e.currentTarget.value };
                     setResultInputs(updated);
                   }} />
-                  <TextInput placeholder="Unit" onChange={(e) => {
+                  <TextInput placeholder={t("unit")} onChange={(e) => {
                     const updated = [...resultInputs];
                     updated[idx] = { ...ri, unit: e.currentTarget.value || undefined };
                     setResultInputs(updated);
                   }} />
-                  <Select placeholder="Flag" data={["normal", "low", "high", "critical_low", "critical_high", "abnormal"]} clearable onChange={(v) => {
+                  <Select placeholder={t("flag")} data={["normal", "low", "high", "critical_low", "critical_high", "abnormal"]} clearable onChange={(v) => {
                     const updated = [...resultInputs];
                     updated[idx] = { ...ri, flag: (v as LabResultFlag) || undefined };
                     setResultInputs(updated);
@@ -936,6 +943,8 @@ function AddOnTestSection({ onAddOn, isPending }: { onAddOn: (testId: string) =>
 // ══════════════════════════════════════════════════════════
 
 function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
+  const { t } = useTranslation("lab");
+
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<CreateLabCatalogRequest>>({});
@@ -948,7 +957,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateLabCatalogRequest) => api.createLabCatalogEntry(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-catalog"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-catalog"] });
       setShowForm(false);
       setForm({});
     },
@@ -983,27 +992,27 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput label={t("label.code")} required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
+            <TextInput label={t("label.name")} required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <Select label="Sample Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, sample_type: v || undefined })} clearable searchable />
-            <TextInput label="Normal Range" placeholder="e.g. 70-100" onChange={(e) => setForm({ ...form, normal_range: e.currentTarget.value || undefined })} />
+            <Select label={t("label.sampleType")} data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, sample_type: v || undefined })} clearable searchable />
+            <TextInput label={t("label.normalRange")} placeholder={t("placeholder.e.g.70100")} onChange={(e) => setForm({ ...form, normal_range: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <TextInput label="Unit" placeholder="e.g. mg/dL" onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })} />
-            <NumberInput label="Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, price: Number(v) })} />
-            <NumberInput label="TAT (hours)" min={0} onChange={(v) => setForm({ ...form, tat_hours: Number(v) || undefined })} />
+            <TextInput label={t("unit")} placeholder={t("placeholder.e.g.MgDl")} onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.price")} required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, price: Number(v) })} />
+            <NumberInput label={t("label.tat(hours)")} min={0} onChange={(v) => setForm({ ...form, tat_hours: Number(v) || undefined })} />
           </Group>
           <Group grow>
-            <TextInput label="LOINC Code" placeholder="e.g. 2345-7" onChange={(e) => setForm({ ...form, loinc_code: e.currentTarget.value || undefined })} />
-            <Select label="Method" data={LAB_METHODS} onChange={(v) => setForm({ ...form, method: v || undefined })} clearable searchable />
-            <TextInput label="Specimen Volume" placeholder="e.g. 5 mL" onChange={(e) => setForm({ ...form, specimen_volume: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.loincCode")} placeholder={t("placeholder.e.g.23457")} onChange={(e) => setForm({ ...form, loinc_code: e.currentTarget.value || undefined })} />
+            <Select label={t("label.method")} data={LAB_METHODS} onChange={(v) => setForm({ ...form, method: v || undefined })} clearable searchable />
+            <TextInput label={t("label.specimenVolume")} placeholder={t("placeholder.e.g.5Ml")} onChange={(e) => setForm({ ...form, specimen_volume: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <NumberInput label="Critical Low" decimalScale={4} onChange={(v) => setForm({ ...form, critical_low: Number(v) || undefined })} />
-            <NumberInput label="Critical High" decimalScale={4} onChange={(v) => setForm({ ...form, critical_high: Number(v) || undefined })} />
-            <NumberInput label="Delta Check %" min={0} max={100} onChange={(v) => setForm({ ...form, delta_check_percent: Number(v) || undefined })} />
+            <NumberInput label={t("label.criticalLow")} decimalScale={4} onChange={(v) => setForm({ ...form, critical_low: Number(v) || undefined })} />
+            <NumberInput label={t("label.criticalHigh")} decimalScale={4} onChange={(v) => setForm({ ...form, critical_high: Number(v) || undefined })} />
+            <NumberInput label={t("label.deltaCheck%")} min={0} max={100} onChange={(v) => setForm({ ...form, delta_check_percent: Number(v) || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateLabCatalogRequest)} loading={createMutation.isPending}>
             Save
@@ -1020,6 +1029,8 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
 // ══════════════════════════════════════════════════════════
 
 function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
+  const { t } = useTranslation("lab");
+
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<CreateLabPanelRequest>>({ test_ids: [] });
@@ -1033,7 +1044,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateLabPanelRequest) => api.createLabPanel(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-panels"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-panels"] });
       setShowForm(false);
       setForm({ test_ids: [] });
     },
@@ -1041,7 +1052,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteLabPanel(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-panels"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-panels"] }),
   });
 
   const addTestId = () => {
@@ -1059,7 +1070,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
     { key: "is_active", label: "Active", render: (row: LabTestPanel) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
     {
       key: "actions", label: "Actions", render: (row: LabTestPanel) => (
-        <ActionIcon color="danger" variant="subtle" onClick={() => deleteMutation.mutate(row.id)}>
+        <ActionIcon color="danger" variant="subtle" onClick={() => deleteMutation.mutate(row.id)} aria-label={t("aria.close")}>
           <IconX size={14} />
         </ActionIcon>
       ),
@@ -1078,22 +1089,22 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required placeholder="e.g. CBC" onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required placeholder="e.g. Complete Blood Count" onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput label={t("label.code")} required placeholder={t("placeholder.e.g.Cbc")} onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
+            <TextInput label={t("label.name")} required placeholder={t("placeholder.e.g.CompleteBloodCount")} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <TextInput label="Description" onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
-            <NumberInput label="Panel Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, price: Number(v) })} />
+            <TextInput label={t("label.description")} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.panelPrice")} required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, price: Number(v) })} />
           </Group>
           <Group>
-            <TextInput label="Add Test ID" value={testIdInput} onChange={(e) => setTestIdInput(e.currentTarget.value)} w={300} />
+            <TextInput label={t("label.addTestId")} value={testIdInput} onChange={(e) => setTestIdInput(e.currentTarget.value)} w={300} />
             <Button size="xs" variant="light" mt={24} onClick={addTestId}>Add</Button>
           </Group>
           {(form.test_ids ?? []).length > 0 && (
             <Group gap="xs">
               {(form.test_ids ?? []).map((tid, i) => (
                 <Badge key={i} variant="light" rightSection={
-                  <ActionIcon size="xs" variant="transparent" onClick={() => setForm({ ...form, test_ids: (form.test_ids ?? []).filter((_, j) => j !== i) })}>
+                  <ActionIcon size="xs" variant="transparent" onClick={() => setForm({ ...form, test_ids: (form.test_ids ?? []).filter((_, j) => j !== i) })} aria-label={t("aria.close")}>
                     <IconX size={10} />
                   </ActionIcon>
                 }>
@@ -1117,6 +1128,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
 // ══════════════════════════════════════════════════════════
 
 function PhlebotomyTab() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
   const queryClient = useQueryClient();
 
@@ -1129,7 +1141,7 @@ function PhlebotomyTab() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.updatePhlebotomyStatus(id, { status: status as "in_progress" | "completed" | "skipped" | "waiting" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
   });
 
   const columns = [
@@ -1173,7 +1185,7 @@ function PhlebotomyTab() {
 
   return (
     <Stack>
-      <Text fw={600}>Phlebotomy Collection Queue</Text>
+      <Text fw={600}>{t("phlebotomyCollectionQueue")}</Text>
       <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
     </Stack>
   );
@@ -1213,6 +1225,7 @@ function QcComplianceTab() {
 }
 
 function ReagentLotsSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1226,7 +1239,7 @@ function ReagentLotsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateReagentLotRequest) => api.createReagentLot(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-reagent-lots"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-reagent-lots"] });
       setShowForm(false);
       setForm({});
     },
@@ -1251,25 +1264,25 @@ function ReagentLotsSection() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Reagent Lot</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addReagentLot")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Reagent Name" required onChange={(e) => setForm({ ...form, reagent_name: e.currentTarget.value })} />
-            <TextInput label="Lot Number" required onChange={(e) => setForm({ ...form, lot_number: e.currentTarget.value })} />
+            <TextInput label={t("label.reagentName")} required onChange={(e) => setForm({ ...form, reagent_name: e.currentTarget.value })} />
+            <TextInput label={t("label.lotNumber")} required onChange={(e) => setForm({ ...form, lot_number: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <TextInput label="Manufacturer" onChange={(e) => setForm({ ...form, manufacturer: e.currentTarget.value || undefined })} />
-            <TextInput label="Test ID" onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.manufacturer")} onChange={(e) => setForm({ ...form, manufacturer: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.testId")} onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <TextInput label="Expiry Date" type="date" onChange={(e) => setForm({ ...form, expiry_date: e.currentTarget.value || undefined })} />
-            <NumberInput label="Quantity" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, quantity: Number(v) || undefined })} />
-            <TextInput label="Unit" onChange={(e) => setForm({ ...form, quantity_unit: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.expiryDate")} type="date" onChange={(e) => setForm({ ...form, expiry_date: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.quantity")} min={0} decimalScale={2} onChange={(v) => setForm({ ...form, quantity: Number(v) || undefined })} />
+            <TextInput label={t("unit")} onChange={(e) => setForm({ ...form, quantity_unit: e.currentTarget.value || undefined })} />
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateReagentLotRequest)} loading={createMutation.isPending}>Save</Button>
+          <Button size="xs" onClick={() => createMutation.mutate(form as CreateReagentLotRequest)} loading={createMutation.isPending}>{t("save")}</Button>
         </Stack>
       )}
       <DataTable columns={columns} data={lots} loading={isLoading} rowKey={(row) => row.id} />
@@ -1278,6 +1291,7 @@ function ReagentLotsSection() {
 }
 
 function QcResultsSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1297,7 +1311,7 @@ function QcResultsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateQcResultRequest) => api.createQcResult(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] });
       setShowForm(false);
       setForm({});
     },
@@ -1327,22 +1341,22 @@ function QcResultsSection() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add QC Result</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addQcResult")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Test ID" required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
-            <TextInput label="Lot ID" required onChange={(e) => setForm({ ...form, lot_id: e.currentTarget.value })} />
-            <TextInput label="Level" required placeholder="e.g. L1, L2" onChange={(e) => setForm({ ...form, level: e.currentTarget.value })} />
+            <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+            <TextInput label={t("label.lotId")} required onChange={(e) => setForm({ ...form, lot_id: e.currentTarget.value })} />
+            <TextInput label={t("label.level")} required placeholder={t("placeholder.e.g.L1,L2")} onChange={(e) => setForm({ ...form, level: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <NumberInput label="Target Mean" decimalScale={4} onChange={(v) => setForm({ ...form, target_mean: Number(v) || undefined })} />
-            <NumberInput label="Target SD" decimalScale={4} onChange={(v) => setForm({ ...form, target_sd: Number(v) || undefined })} />
-            <NumberInput label="Observed Value" decimalScale={4} onChange={(v) => setForm({ ...form, observed_value: Number(v) || undefined })} />
+            <NumberInput label={t("label.targetMean")} decimalScale={4} onChange={(v) => setForm({ ...form, target_mean: Number(v) || undefined })} />
+            <NumberInput label={t("label.targetSd")} decimalScale={4} onChange={(v) => setForm({ ...form, target_sd: Number(v) || undefined })} />
+            <NumberInput label={t("label.observedValue")} decimalScale={4} onChange={(v) => setForm({ ...form, observed_value: Number(v) || undefined })} />
           </Group>
-          <TextInput label="Run Date" type="date" onChange={(e) => setForm({ ...form, run_date: e.currentTarget.value || undefined })} w={200} />
+          <TextInput label={t("label.runDate")} type="date" onChange={(e) => setForm({ ...form, run_date: e.currentTarget.value || undefined })} w={200} />
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateQcResultRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
       )}
@@ -1370,6 +1384,7 @@ function LeveyJenningsChart({
   selectedLotId: string | null;
   onLotChange: (id: string | null) => void;
 }) {
+  const { t } = useTranslation("lab");
   const lotResults = useMemo(() => {
     if (!selectedLotId) return [];
     return qcResults
@@ -1420,10 +1435,10 @@ function LeveyJenningsChart({
 
   return (
     <Stack mt="lg" gap="sm">
-      <Text fw={600} size="sm">Levey-Jennings QC Chart</Text>
+      <Text fw={600} size="sm">{t("leveyJenningsQcChart")}</Text>
       <Select
-        label="Select Reagent Lot"
-        placeholder="Choose a lot to view QC chart"
+        label={t("label.selectReagentLot")}
+        placeholder={t("placeholder.chooseALotToViewQcChart")}
         data={lots.map((l) => ({ value: l.id, label: `${l.reagent_name} — Lot ${l.lot_number}` }))}
         value={selectedLotId}
         onChange={onLotChange}
@@ -1466,6 +1481,7 @@ function LeveyJenningsChart({
 }
 
 function CalibrationsSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1479,7 +1495,7 @@ function CalibrationsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateCalibrationRequest) => api.createCalibration(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-calibrations"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-calibrations"] });
       setShowForm(false);
       setForm({});
     },
@@ -1498,19 +1514,19 @@ function CalibrationsSection() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Calibration</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addCalibration")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Test ID" required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
-            <TextInput label="Instrument" onChange={(e) => setForm({ ...form, instrument_name: e.currentTarget.value || undefined })} />
-            <TextInput label="Calibrator Lot" onChange={(e) => setForm({ ...form, calibrator_lot: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+            <TextInput label={t("label.instrument")} onChange={(e) => setForm({ ...form, instrument_name: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.calibratorLot")} onChange={(e) => setForm({ ...form, calibrator_lot: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <TextInput label="Date" type="date" onChange={(e) => setForm({ ...form, calibration_date: e.currentTarget.value || undefined })} />
-            <TextInput label="Next Calibration" type="date" onChange={(e) => setForm({ ...form, next_calibration_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.date")} type="date" onChange={(e) => setForm({ ...form, calibration_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.nextCalibration")} type="date" onChange={(e) => setForm({ ...form, next_calibration_date: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateCalibrationRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -1525,6 +1541,7 @@ function CalibrationsSection() {
 // ══════════════════════════════════════════════════════════
 
 function OutsourcedTab() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.OUTSOURCED_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1538,7 +1555,7 @@ function OutsourcedTab() {
   const createMutation = useMutation({
     mutationFn: (data: CreateOutsourcedOrderRequest) => api.createOutsourcedOrder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] });
       setShowForm(false);
       setForm({});
     },
@@ -1547,7 +1564,7 @@ function OutsourcedTab() {
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.updateOutsourcedOrder(id, { status: status as "pending_send" | "sent" | "result_received" | "cancelled" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] }),
   });
 
   const columns = [
@@ -1585,21 +1602,21 @@ function OutsourcedTab() {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Outsource Order</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("outsourceOrder")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
-            <TextInput label="External Lab Name" required onChange={(e) => setForm({ ...form, external_lab_name: e.currentTarget.value })} />
+            <TextInput label={t("label.orderId")} required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
+            <TextInput label={t("label.externalLabName")} required onChange={(e) => setForm({ ...form, external_lab_name: e.currentTarget.value })} />
           </Group>
           <Group grow>
-            <TextInput label="Lab Code" onChange={(e) => setForm({ ...form, external_lab_code: e.currentTarget.value || undefined })} />
-            <TextInput label="Sent Date" type="date" onChange={(e) => setForm({ ...form, sent_date: e.currentTarget.value || undefined })} />
-            <TextInput label="Expected Return" type="date" onChange={(e) => setForm({ ...form, expected_return_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.labCode")} onChange={(e) => setForm({ ...form, external_lab_code: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.sentDate")} type="date" onChange={(e) => setForm({ ...form, sent_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.expectedReturn")} type="date" onChange={(e) => setForm({ ...form, expected_return_date: e.currentTarget.value || undefined })} />
           </Group>
-          <NumberInput label="Cost" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, cost: Number(v) || undefined })} w={200} />
+          <NumberInput label={t("label.cost")} min={0} decimalScale={2} onChange={(v) => setForm({ ...form, cost: Number(v) || undefined })} w={200} />
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateOutsourcedOrderRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
       )}
@@ -1648,6 +1665,7 @@ function SampleManagementTab() {
 }
 
 function HomeCollectionsSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1666,8 +1684,8 @@ function HomeCollectionsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateHomeCollectionRequest) => api.createHomeCollection(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-home-collections"] });
-      queryClient.invalidateQueries({ queryKey: ["lab-home-collection-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-home-collections"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-home-collection-stats"] });
       setShowForm(false);
       setForm({});
     },
@@ -1701,22 +1719,22 @@ function HomeCollectionsSection() {
       )}
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Schedule Collection</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("scheduleCollection")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <TextInput label="Scheduled Date" type="date" required onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })} />
-            <TextInput label="Time Slot" placeholder="e.g. 9:00-11:00 AM" onChange={(e) => setForm({ ...form, scheduled_time_slot: e.currentTarget.value || undefined })} />
+            <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
+            <TextInput label={t("label.scheduledDate")} type="date" required onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })} />
+            <TextInput label={t("label.timeSlot")} placeholder={t("placeholder.e.g.9:0011:00Am")} onChange={(e) => setForm({ ...form, scheduled_time_slot: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <TextInput label="Address" onChange={(e) => setForm({ ...form, address_line: e.currentTarget.value || undefined })} />
-            <TextInput label="City" onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
-            <TextInput label="Pincode" onChange={(e) => setForm({ ...form, pincode: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.address")} onChange={(e) => setForm({ ...form, address_line: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.city")} onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.pincode")} onChange={(e) => setForm({ ...form, pincode: e.currentTarget.value || undefined })} />
           </Group>
-          <TextInput label="Contact Phone" onChange={(e) => setForm({ ...form, contact_phone: e.currentTarget.value || undefined })} w={200} />
+          <TextInput label={t("label.contactPhone")} onChange={(e) => setForm({ ...form, contact_phone: e.currentTarget.value || undefined })} w={200} />
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateHomeCollectionRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
       )}
@@ -1726,6 +1744,7 @@ function HomeCollectionsSection() {
 }
 
 function CollectionCentersSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1739,7 +1758,7 @@ function CollectionCentersSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateCollectionCenterRequest) => api.createCollectionCenter(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-collection-centers"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-collection-centers"] });
       setShowForm(false);
       setForm({});
     },
@@ -1758,20 +1777,20 @@ function CollectionCentersSection() {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Center</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addCenter")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-            <Select label="Type" required data={["hospital", "satellite", "partner", "camp"]} onChange={(v) => setForm({ ...form, center_type: v as CreateCollectionCenterRequest["center_type"] })} />
+            <TextInput label={t("label.code")} required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
+            <TextInput label={t("label.name")} required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <Select label={t("label.type")} required data={["hospital", "satellite", "partner", "camp"]} onChange={(v) => setForm({ ...form, center_type: v as CreateCollectionCenterRequest["center_type"] })} />
           </Group>
           <Group grow>
-            <TextInput label="City" onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
-            <TextInput label="Phone" onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
-            <TextInput label="Contact Person" onChange={(e) => setForm({ ...form, contact_person: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.city")} onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.phone")} onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.contactPerson")} onChange={(e) => setForm({ ...form, contact_person: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateCollectionCenterRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -1782,6 +1801,7 @@ function CollectionCentersSection() {
 }
 
 function SampleArchiveSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1795,7 +1815,7 @@ function SampleArchiveSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateSampleArchiveRequest) => api.createSampleArchive(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] });
       setShowForm(false);
       setForm({});
     },
@@ -1803,7 +1823,7 @@ function SampleArchiveSection() {
 
   const retrieveMutation = useMutation({
     mutationFn: (id: string) => api.retrieveSampleArchive(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] }),
   });
 
   const columns = [
@@ -1818,7 +1838,7 @@ function SampleArchiveSection() {
     { key: "stored_at", label: "Stored", render: (row: LabSampleArchive) => <Text size="sm">{row.stored_at ? new Date(row.stored_at).toLocaleDateString() : "—"}</Text> },
     {
       key: "actions", label: "Actions", render: (row: LabSampleArchive) => canManage && row.status === "stored" ? (
-        <Button size="xs" variant="light" onClick={() => retrieveMutation.mutate(row.id)}>Retrieve</Button>
+        <Button size="xs" variant="light" onClick={() => retrieveMutation.mutate(row.id)}>{t("retrieve")}</Button>
       ) : <Text size="sm" c="dimmed">—</Text>,
     },
   ];
@@ -1827,15 +1847,15 @@ function SampleArchiveSection() {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Archive Sample</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("archiveSample")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Sample Barcode" onChange={(e) => setForm({ ...form, sample_barcode: e.currentTarget.value || undefined })} />
-            <TextInput label="Patient ID" onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value || undefined })} />
-            <TextInput label="Storage Location" onChange={(e) => setForm({ ...form, storage_location: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.sampleBarcode")} onChange={(e) => setForm({ ...form, sample_barcode: e.currentTarget.value || undefined })} />
+            <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id || undefined })} />
+            <TextInput label={t("label.storageLocation")} onChange={(e) => setForm({ ...form, storage_location: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateSampleArchiveRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -1857,6 +1877,7 @@ const eqasColors: Record<string, string> = {
 };
 
 function EqasSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1870,7 +1891,7 @@ function EqasSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateEqasResultRequest) => api.createEqasResult(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-eqas"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-eqas"] });
       setShowForm(false);
       setForm({});
     },
@@ -1895,25 +1916,25 @@ function EqasSection() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add EQAS Result</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addEqasResult")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Program Name" required onChange={(e) => setForm({ ...form, program_name: e.currentTarget.value })} />
-            <TextInput label="Provider" onChange={(e) => setForm({ ...form, provider: e.currentTarget.value || undefined })} />
-            <TextInput label="Cycle" onChange={(e) => setForm({ ...form, cycle: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.programName")} required onChange={(e) => setForm({ ...form, program_name: e.currentTarget.value })} />
+            <TextInput label={t("label.provider")} onChange={(e) => setForm({ ...form, provider: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.cycle")} onChange={(e) => setForm({ ...form, cycle: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <NumberInput label="Expected Value" decimalScale={4} onChange={(v) => setForm({ ...form, expected_value: Number(v) || undefined })} />
-            <NumberInput label="Reported Value" decimalScale={4} onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })} />
-            <Select label="Evaluation" data={["acceptable", "marginal", "unacceptable", "pending"]} onChange={(v) => setForm({ ...form, evaluation: v as CreateEqasResultRequest["evaluation"] })} />
+            <NumberInput label={t("label.expectedValue")} decimalScale={4} onChange={(v) => setForm({ ...form, expected_value: Number(v) || undefined })} />
+            <NumberInput label={t("label.reportedValue")} decimalScale={4} onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })} />
+            <Select label={t("label.evaluation")} data={["acceptable", "marginal", "unacceptable", "pending"]} onChange={(v) => setForm({ ...form, evaluation: v as CreateEqasResultRequest["evaluation"] })} />
           </Group>
           <Group grow>
-            <NumberInput label="Bias %" decimalScale={2} onChange={(v) => setForm({ ...form, bias_percent: Number(v) || undefined })} />
-            <NumberInput label="Z-Score" decimalScale={2} onChange={(v) => setForm({ ...form, z_score: Number(v) || undefined })} />
-            <TextInput label="Report Date" type="date" onChange={(e) => setForm({ ...form, report_date: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.bias%")} decimalScale={2} onChange={(v) => setForm({ ...form, bias_percent: Number(v) || undefined })} />
+            <NumberInput label={t("label.zScore")} decimalScale={2} onChange={(v) => setForm({ ...form, z_score: Number(v) || undefined })} />
+            <TextInput label={t("label.reportDate")} type="date" onChange={(e) => setForm({ ...form, report_date: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateEqasResultRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -1924,6 +1945,7 @@ function EqasSection() {
 }
 
 function ProficiencyTestingSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -1937,7 +1959,7 @@ function ProficiencyTestingSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateProficiencyTestRequest) => api.createProficiencyTest(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-proficiency-tests"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-proficiency-tests"] });
       setShowForm(false);
       setForm({});
     },
@@ -1953,7 +1975,7 @@ function ProficiencyTestingSection() {
     {
       key: "is_acceptable", label: "Result", render: (row: LabProficiencyTest) => row.is_acceptable != null ? (
         <Badge color={row.is_acceptable ? "success" : "danger"} variant="light" size="sm">{row.is_acceptable ? "Pass" : "Fail"}</Badge>
-      ) : <Text size="sm" c="dimmed">Pending</Text>,
+      ) : <Text size="sm" c="dimmed">{t("pending")}</Text>,
     },
   ];
 
@@ -1961,23 +1983,23 @@ function ProficiencyTestingSection() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add PT Result</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addPtResult")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Program" required onChange={(e) => setForm({ ...form, program: e.currentTarget.value })} />
-            <TextInput label="Survey Round" onChange={(e) => setForm({ ...form, survey_round: e.currentTarget.value || undefined })} />
-            <TextInput label="Sample ID" onChange={(e) => setForm({ ...form, sample_id: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.program")} required onChange={(e) => setForm({ ...form, program: e.currentTarget.value })} />
+            <TextInput label={t("label.surveyRound")} onChange={(e) => setForm({ ...form, survey_round: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.sampleId")} onChange={(e) => setForm({ ...form, sample_id: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <NumberInput label="Assigned Value" decimalScale={4} onChange={(v) => setForm({ ...form, assigned_value: Number(v) || undefined })} />
-            <NumberInput label="Reported Value" decimalScale={4} onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })} />
+            <NumberInput label={t("label.assignedValue")} decimalScale={4} onChange={(v) => setForm({ ...form, assigned_value: Number(v) || undefined })} />
+            <NumberInput label={t("label.reportedValue")} decimalScale={4} onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })} />
           </Group>
           <Group grow>
-            <NumberInput label="Range Low" decimalScale={4} onChange={(v) => setForm({ ...form, acceptable_range_low: Number(v) || undefined })} />
-            <NumberInput label="Range High" decimalScale={4} onChange={(v) => setForm({ ...form, acceptable_range_high: Number(v) || undefined })} />
+            <NumberInput label={t("label.rangeLow")} decimalScale={4} onChange={(v) => setForm({ ...form, acceptable_range_low: Number(v) || undefined })} />
+            <NumberInput label={t("label.rangeHigh")} decimalScale={4} onChange={(v) => setForm({ ...form, acceptable_range_high: Number(v) || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateProficiencyTestRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -1988,6 +2010,7 @@ function ProficiencyTestingSection() {
 }
 
 function NablDocumentsSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.QC_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2001,7 +2024,7 @@ function NablDocumentsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateNablDocumentRequest) => api.createNablDocument(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-nabl-documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-nabl-documents"] });
       setShowForm(false);
       setForm({});
     },
@@ -2021,20 +2044,20 @@ function NablDocumentsSection() {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Document</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addDocument")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Document Number" required onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })} />
-            <TextInput label="Title" required onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
-            <Select label="Type" data={DOCUMENT_TYPES} placeholder="Select type" onChange={(v) => setForm({ ...form, document_type: v || undefined })} clearable />
+            <TextInput label={t("label.documentNumber")} required onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })} />
+            <TextInput label={t("label.title")} required onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
+            <Select label={t("label.type")} data={DOCUMENT_TYPES} placeholder={t("placeholder.selectType")} onChange={(v) => setForm({ ...form, document_type: v || undefined })} clearable />
           </Group>
           <Group grow>
-            <TextInput label="Version" onChange={(e) => setForm({ ...form, version: e.currentTarget.value || undefined })} />
-            <TextInput label="Effective Date" type="date" onChange={(e) => setForm({ ...form, effective_date: e.currentTarget.value || undefined })} />
-            <TextInput label="Review Date" type="date" onChange={(e) => setForm({ ...form, review_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.version")} onChange={(e) => setForm({ ...form, version: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.effectiveDate")} type="date" onChange={(e) => setForm({ ...form, effective_date: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.reviewDate")} type="date" onChange={(e) => setForm({ ...form, review_date: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateNablDocumentRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -2045,6 +2068,7 @@ function NablDocumentsSection() {
 }
 
 function ReagentConsumptionSection() {
+  const { t } = useTranslation("lab");
   const { data: consumption = [], isLoading } = useQuery({
     queryKey: ["lab-reagent-consumption"],
     queryFn: () => api.getReagentConsumption(),
@@ -2075,7 +2099,7 @@ function ReagentConsumptionSection() {
 
   return (
     <Stack>
-      <Text fw={600}>Reagent Consumption & Reorder Report</Text>
+      <Text fw={600}>{t("reagentConsumption&ReorderReport")}</Text>
       <DataTable columns={columns} data={consumption} loading={isLoading} rowKey={(row) => row.id} />
     </Stack>
   );
@@ -2086,6 +2110,7 @@ function ReagentConsumptionSection() {
 // ══════════════════════════════════════════════════════════
 
 function TatAnalyticsSection() {
+  const { t } = useTranslation("lab");
   const { data: tatData = [], isLoading } = useQuery({
     queryKey: ["lab-tat-analytics"],
     queryFn: () => api.getLabTatAnalytics(),
@@ -2120,7 +2145,7 @@ function TatAnalyticsSection() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Text fw={600}>Turnaround Time Analytics</Text>
+        <Text fw={600}>{t("turnaroundTimeAnalytics")}</Text>
         <Text c="dimmed" size="sm">{tatData.length} test type(s)</Text>
       </Group>
       <DataTable columns={columns} data={tatData} loading={isLoading} rowKey={(row) => row.test_name} />
@@ -2151,6 +2176,7 @@ function SpecializedReportsTab() {
 }
 
 function HistopathSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2166,7 +2192,7 @@ function HistopathSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateHistopathReportRequest) => api.createHistopathReport(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-histopath"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-histopath"] });
       setShowForm(false);
       setForm({});
       notifications.show({ title: "Report created", message: "Histopathology report saved", color: "success" });
@@ -2176,12 +2202,12 @@ function HistopathSection() {
   return (
     <Stack>
       <Group>
-        <TextInput size="xs" placeholder="Order ID to view report" value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
+        <TextInput size="xs" placeholder={t("placeholder.orderIdToViewReport")} value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
       </Group>
 
       {report && (
         <Stack gap="xs" p="sm" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Text fw={600}>Histopathology Report</Text>
+          <Text fw={600}>{t("histopathologyReport")}</Text>
           <Text size="sm"><strong>Specimen:</strong> {report.specimen_type ?? "—"}</Text>
           <Text size="sm"><strong>Gross Description:</strong> {report.gross_description ?? "—"}</Text>
           <Text size="sm"><strong>Microscopy:</strong> {report.microscopy_findings ?? "—"}</Text>
@@ -2192,25 +2218,25 @@ function HistopathSection() {
       )}
 
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>New Histopath Report</Button>
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("newHistopathReport")}</Button>
       )}
 
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
-            <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <Select label="Specimen Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
+            <TextInput label={t("label.orderId")} required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
+            <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
+            <Select label={t("label.specimenType")} data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
           </Group>
-          <Textarea label="Clinical History" autosize minRows={2} onChange={(e) => setForm({ ...form, clinical_history: e.currentTarget.value || undefined })} />
-          <Textarea label="Gross Description" autosize minRows={2} onChange={(e) => setForm({ ...form, gross_description: e.currentTarget.value || undefined })} />
-          <Textarea label="Microscopy Findings" autosize minRows={2} onChange={(e) => setForm({ ...form, microscopy_findings: e.currentTarget.value || undefined })} />
+          <Textarea label={t("label.clinicalHistory")} autosize minRows={2} onChange={(e) => setForm({ ...form, clinical_history: e.currentTarget.value || undefined })} />
+          <Textarea label={t("label.grossDescription")} autosize minRows={2} onChange={(e) => setForm({ ...form, gross_description: e.currentTarget.value || undefined })} />
+          <Textarea label={t("label.microscopyFindings")} autosize minRows={2} onChange={(e) => setForm({ ...form, microscopy_findings: e.currentTarget.value || undefined })} />
           <Group grow>
-            <TextInput label="Diagnosis" onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })} />
-            <TextInput label="ICD Code" onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })} />
-            <NumberInput label="Turnaround (days)" min={0} onChange={(v) => setForm({ ...form, turnaround_days: Number(v) || undefined })} />
+            <TextInput label={t("label.diagnosis")} onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.icdCode")} onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.turnaround(days)")} min={0} onChange={(v) => setForm({ ...form, turnaround_days: Number(v) || undefined })} />
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateHistopathReportRequest)} loading={createMutation.isPending}>Save Report</Button>
+          <Button size="xs" onClick={() => createMutation.mutate(form as CreateHistopathReportRequest)} loading={createMutation.isPending}>{t("saveReport")}</Button>
         </Stack>
       )}
     </Stack>
@@ -2218,6 +2244,7 @@ function HistopathSection() {
 }
 
 function CytologySection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2233,7 +2260,7 @@ function CytologySection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateCytologyReportRequest) => api.createCytologyReport(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-cytology"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-cytology"] });
       setShowForm(false);
       setForm({});
       notifications.show({ title: "Report created", message: "Cytology report saved", color: "success" });
@@ -2243,12 +2270,12 @@ function CytologySection() {
   return (
     <Stack>
       <Group>
-        <TextInput size="xs" placeholder="Order ID to view report" value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
+        <TextInput size="xs" placeholder={t("placeholder.orderIdToViewReport")} value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
       </Group>
 
       {report && (
         <Stack gap="xs" p="sm" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Text fw={600}>Cytology Report</Text>
+          <Text fw={600}>{t("cytologyReport")}</Text>
           <Text size="sm"><strong>Specimen:</strong> {report.specimen_type ?? "—"}</Text>
           <Text size="sm"><strong>Adequacy:</strong> {report.adequacy ?? "—"}</Text>
           <Text size="sm"><strong>Screening:</strong> {report.screening_findings ?? "—"}</Text>
@@ -2258,21 +2285,21 @@ function CytologySection() {
       )}
 
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>New Cytology Report</Button>
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("newCytologyReport")}</Button>
       )}
 
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
-            <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <Select label="Specimen Type" data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
+            <TextInput label={t("label.orderId")} required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
+            <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
+            <Select label={t("label.specimenType")} data={SAMPLE_TYPES} onChange={(v) => setForm({ ...form, specimen_type: v || undefined })} clearable searchable />
           </Group>
-          <TextInput label="Clinical Indication" onChange={(e) => setForm({ ...form, clinical_indication: e.currentTarget.value || undefined })} />
+          <TextInput label={t("label.clinicalIndication")} onChange={(e) => setForm({ ...form, clinical_indication: e.currentTarget.value || undefined })} />
           <Group grow>
-            <TextInput label="Adequacy" onChange={(e) => setForm({ ...form, adequacy: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.adequacy")} onChange={(e) => setForm({ ...form, adequacy: e.currentTarget.value || undefined })} />
             <Select
-              label="Bethesda Category"
+              label={t("label.bethesdaCategory")}
               data={[
                 { value: "NILM", label: "NILM" },
                 { value: "ASC-US", label: "ASC-US" },
@@ -2287,10 +2314,10 @@ function CytologySection() {
               onChange={(v) => setForm({ ...form, bethesda_category: v || undefined })}
             />
           </Group>
-          <Textarea label="Screening Findings" autosize minRows={2} onChange={(e) => setForm({ ...form, screening_findings: e.currentTarget.value || undefined })} />
+          <Textarea label={t("label.screeningFindings")} autosize minRows={2} onChange={(e) => setForm({ ...form, screening_findings: e.currentTarget.value || undefined })} />
           <Group grow>
-            <TextInput label="Diagnosis" onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })} />
-            <TextInput label="ICD Code" onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.diagnosis")} onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.icdCode")} onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateCytologyReportRequest)} loading={createMutation.isPending}>Save Report</Button>
         </Stack>
@@ -2300,6 +2327,7 @@ function CytologySection() {
 }
 
 function MolecularSection() {
+  const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2315,7 +2343,7 @@ function MolecularSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateMolecularReportRequest) => api.createMolecularReport(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-molecular"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-molecular"] });
       setShowForm(false);
       setForm({});
       notifications.show({ title: "Report created", message: "Molecular report saved", color: "success" });
@@ -2325,12 +2353,12 @@ function MolecularSection() {
   return (
     <Stack>
       <Group>
-        <TextInput size="xs" placeholder="Order ID to view report" value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
+        <TextInput size="xs" placeholder={t("placeholder.orderIdToViewReport")} value={lookupOrderId} onChange={(e) => setLookupOrderId(e.currentTarget.value)} w={300} />
       </Group>
 
       {report && (
         <Stack gap="xs" p="sm" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Text fw={600}>Molecular / PCR Report</Text>
+          <Text fw={600}>{t("molecularPcrReport")}</Text>
           <Text size="sm"><strong>Method:</strong> {report.test_method ?? "—"}</Text>
           <Text size="sm"><strong>Target Gene:</strong> {report.target_gene ?? "—"}</Text>
           <Text size="sm"><strong>Ct Value:</strong> {report.ct_value ?? "—"}</Text>
@@ -2340,26 +2368,26 @@ function MolecularSection() {
       )}
 
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>New Molecular Report</Button>
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("newMolecularReport")}</Button>
       )}
 
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Order ID" required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
-            <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <Select label="Test Method" data={MOLECULAR_TEST_METHODS} placeholder="Select method" onChange={(v) => setForm({ ...form, test_method: v || undefined })} clearable searchable />
+            <TextInput label={t("label.orderId")} required onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })} />
+            <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
+            <Select label={t("label.testMethod")} data={MOLECULAR_TEST_METHODS} placeholder={t("placeholder.selectMethod")} onChange={(v) => setForm({ ...form, test_method: v || undefined })} clearable searchable />
           </Group>
           <Group grow>
-            <TextInput label="Target Gene" onChange={(e) => setForm({ ...form, target_gene: e.currentTarget.value || undefined })} />
-            <NumberInput label="Ct Value" decimalScale={2} onChange={(v) => setForm({ ...form, ct_value: Number(v) || undefined })} />
-            <Select label="Interpretation" data={RESULT_INTERPRETATIONS} onChange={(v) => setForm({ ...form, result_interpretation: v || undefined })} clearable />
+            <TextInput label={t("label.targetGene")} onChange={(e) => setForm({ ...form, target_gene: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.ctValue")} decimalScale={2} onChange={(v) => setForm({ ...form, ct_value: Number(v) || undefined })} />
+            <Select label={t("label.interpretation")} data={RESULT_INTERPRETATIONS} onChange={(v) => setForm({ ...form, result_interpretation: v || undefined })} clearable />
           </Group>
           <Group grow>
-            <TextInput label="Kit Name" onChange={(e) => setForm({ ...form, kit_name: e.currentTarget.value || undefined })} />
-            <TextInput label="Kit Lot" onChange={(e) => setForm({ ...form, kit_lot: e.currentTarget.value || undefined })} />
-            <NumberInput label="Quantitative Value" decimalScale={4} onChange={(v) => setForm({ ...form, quantitative_value: Number(v) || undefined })} />
-            <TextInput label="Unit" onChange={(e) => setForm({ ...form, quantitative_unit: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.kitName")} onChange={(e) => setForm({ ...form, kit_name: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.kitLot")} onChange={(e) => setForm({ ...form, kit_lot: e.currentTarget.value || undefined })} />
+            <NumberInput label={t("label.quantitativeValue")} decimalScale={4} onChange={(v) => setForm({ ...form, quantitative_value: Number(v) || undefined })} />
+            <TextInput label={t("unit")} onChange={(e) => setForm({ ...form, quantitative_unit: e.currentTarget.value || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateMolecularReportRequest)} loading={createMutation.isPending}>Save Report</Button>
         </Stack>
@@ -2389,6 +2417,7 @@ function B2bTab() {
 }
 
 function B2bClientsSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.B2B_MANAGE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2402,7 +2431,7 @@ function B2bClientsSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateB2bClientRequest) => api.createB2bClient(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-b2b-clients"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-b2b-clients"] });
       setShowForm(false);
       setForm({});
     },
@@ -2423,25 +2452,25 @@ function B2bClientsSection() {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Client</Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addClient")}</Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-            <Select label="Type" data={B2B_CLIENT_TYPES} placeholder="Select type" onChange={(v) => setForm({ ...form, client_type: v || undefined })} clearable />
+            <TextInput label={t("label.code")} required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
+            <TextInput label={t("label.name")} required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <Select label={t("label.type")} data={B2B_CLIENT_TYPES} placeholder={t("placeholder.selectType")} onChange={(v) => setForm({ ...form, client_type: v || undefined })} clearable />
           </Group>
           <Group grow>
-            <TextInput label="City" onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
-            <TextInput label="Phone" onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
-            <TextInput label="Email" onChange={(e) => setForm({ ...form, email: e.currentTarget.value || undefined })} />
-            <TextInput label="Contact Person" onChange={(e) => setForm({ ...form, contact_person: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.city")} onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.phone")} onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.email")} onChange={(e) => setForm({ ...form, email: e.currentTarget.value || undefined })} />
+            <TextInput label={t("label.contactPerson")} onChange={(e) => setForm({ ...form, contact_person: e.currentTarget.value || undefined })} />
           </Group>
           <Group grow>
-            <NumberInput label="Credit Limit" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, credit_limit: Number(v) || undefined })} />
-            <NumberInput label="Payment Terms (days)" min={0} value={form.payment_terms_days ?? 30} onChange={(v) => setForm({ ...form, payment_terms_days: Number(v) || undefined })} />
+            <NumberInput label={t("label.creditLimit")} min={0} decimalScale={2} onChange={(v) => setForm({ ...form, credit_limit: Number(v) || undefined })} />
+            <NumberInput label={t("label.paymentTerms(days)")} min={0} value={form.payment_terms_days ?? 30} onChange={(v) => setForm({ ...form, payment_terms_days: Number(v) || undefined })} />
           </Group>
           <Button size="xs" onClick={() => createMutation.mutate(form as CreateB2bClientRequest)} loading={createMutation.isPending}>Save</Button>
         </Stack>
@@ -2452,6 +2481,7 @@ function B2bClientsSection() {
 }
 
 function B2bRatesSection() {
+  const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.B2B_MANAGE);
   const queryClient = useQueryClient();
   const [selectedClientId, setSelectedClientId] = useState("");
@@ -2472,7 +2502,7 @@ function B2bRatesSection() {
   const createMutation = useMutation({
     mutationFn: (data: CreateB2bRateRequest) => api.createB2bRate(selectedClientId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lab-b2b-rates", selectedClientId] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-b2b-rates", selectedClientId] });
       setShowForm(false);
       setForm({});
     },
@@ -2489,8 +2519,8 @@ function B2bRatesSection() {
   return (
     <Stack>
       <Select
-        label="Select Client"
-        placeholder="Choose a B2B client"
+        label={t("label.selectClient")}
+        placeholder={t("placeholder.chooseAB2bClient")}
         data={clients.map((c: LabB2bClient) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
         value={selectedClientId}
         onChange={(v) => setSelectedClientId(v ?? "")}
@@ -2501,19 +2531,19 @@ function B2bRatesSection() {
         <>
           {canManage && (
             <Group>
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>Add Rate</Button>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>{t("addRate")}</Button>
             </Group>
           )}
           {showForm && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Test ID" required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
-                <NumberInput label="Agreed Price" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, agreed_price: Number(v) || undefined })} />
-                <NumberInput label="Discount %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, discount_percent: Number(v) || undefined })} />
+                <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+                <NumberInput label={t("label.agreedPrice")} min={0} decimalScale={2} onChange={(v) => setForm({ ...form, agreed_price: Number(v) || undefined })} />
+                <NumberInput label={t("label.discount%")} min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, discount_percent: Number(v) || undefined })} />
               </Group>
               <Group grow>
-                <TextInput label="Effective From" type="date" onChange={(e) => setForm({ ...form, effective_from: e.currentTarget.value || undefined })} />
-                <TextInput label="Effective To" type="date" onChange={(e) => setForm({ ...form, effective_to: e.currentTarget.value || undefined })} />
+                <TextInput label={t("label.effectiveFrom")} type="date" onChange={(e) => setForm({ ...form, effective_from: e.currentTarget.value || undefined })} />
+                <TextInput label={t("label.effectiveTo")} type="date" onChange={(e) => setForm({ ...form, effective_to: e.currentTarget.value || undefined })} />
               </Group>
               <Button size="xs" onClick={() => createMutation.mutate(form as CreateB2bRateRequest)} loading={createMutation.isPending}>Save</Button>
             </Stack>

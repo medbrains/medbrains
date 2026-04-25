@@ -80,9 +80,9 @@ export function VersionHistoryDrawer({
         message: "Form has been restored to the selected version as a new draft.",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
-      queryClient.invalidateQueries({ queryKey: ["form-versions", formId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-form-detail"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["form-versions", formId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-form-detail"] });
       setRestoreVersion(null);
       onClose();
     },
@@ -158,6 +158,7 @@ export function VersionHistoryDrawer({
                           size="sm"
                           variant="subtle"
                           onClick={() => setPreviewVersion(v)}
+                          aria-label="View details"
                         >
                           <IconEye size={14} />
                         </ActionIcon>
@@ -168,6 +169,7 @@ export function VersionHistoryDrawer({
                           variant="subtle"
                           color="primary"
                           onClick={() => openCompare(v.version)}
+                          aria-label="Git Compare"
                         >
                           <IconGitCompare size={14} />
                         </ActionIcon>
@@ -178,6 +180,7 @@ export function VersionHistoryDrawer({
                           variant="subtle"
                           color="orange"
                           onClick={() => setRestoreVersion(v.version)}
+                          aria-label="Restore"
                         >
                           <IconRestore size={14} />
                         </ActionIcon>

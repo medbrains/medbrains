@@ -215,7 +215,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: Vendor) => (
         <Tooltip label="View details">
-          <ActionIcon variant="subtle" onClick={() => { setDetailVendor(row); openDetail(); }}>
+          <ActionIcon variant="subtle" onClick={() => { setDetailVendor(row); openDetail(); }} aria-label="View details">
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -242,7 +242,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
       <Drawer opened={createOpened} onClose={closeCreate} title="Register New Vendor" position="right" size="lg">
         <VendorForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            void queryClient.invalidateQueries({ queryKey: ["vendors"] });
             closeCreate();
           }}
         />
@@ -365,7 +365,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
     mutationFn: (id: string) => api.approvePurchaseOrder(id),
     onSuccess: () => {
       notifications.show({ title: "Approved", message: "Purchase order approved", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
   });
 
@@ -373,7 +373,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
     mutationFn: (id: string) => api.sendPurchaseOrder(id),
     onSuccess: () => {
       notifications.show({ title: "Sent", message: "PO sent to vendor", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
   });
 
@@ -397,7 +397,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
       render: (row: PurchaseOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }}>
+            <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -438,7 +438,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
       <Drawer opened={createOpened} onClose={closeCreate} title="Create Purchase Order" position="right" size="xl">
         <CreatePoForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+            void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
             closeCreate();
           }}
         />
@@ -761,7 +761,8 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: GoodsReceiptNote) => (
         <Tooltip label="View">
-          <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }}>
+          <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }}
+              aria-label="View details">
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -791,8 +792,8 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
       <Drawer opened={createOpened} onClose={closeCreate} title="Create GRN" position="right" size="xl">
         <CreateGrnForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["grns"] });
-            queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+            void queryClient.invalidateQueries({ queryKey: ["grns"] });
+            void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
             closeCreate();
           }}
         />
@@ -1008,7 +1009,7 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
       <Drawer opened={createOpened} onClose={closeCreate} title="Create Rate Contract" position="right" size="lg">
         <CreateRcForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["rate-contracts"] });
+            void queryClient.invalidateQueries({ queryKey: ["rate-contracts"] });
             closeCreate();
           }}
         />
@@ -1189,7 +1190,7 @@ function StoreLocationPanel() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Add Store Location" position="right" size="md">
         <StoreLocationForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["store-locations"] });
+            void queryClient.invalidateQueries({ queryKey: ["store-locations"] });
             closeCreate();
           }}
         />
@@ -1497,7 +1498,7 @@ function SupplierPaymentsPanel() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Record Payment" position="right" size="md">
         <CreatePaymentForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
+            void queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
             closeCreate();
           }}
         />

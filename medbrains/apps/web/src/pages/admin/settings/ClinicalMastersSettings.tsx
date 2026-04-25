@@ -95,7 +95,7 @@ function MasterItemModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: [queryKey] });
+      void queryClient.invalidateQueries({ queryKey: [queryKey] });
       onClose();
     },
     onError: (err: Error) => {
@@ -117,7 +117,7 @@ function MasterItemModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: [queryKey] });
+      void queryClient.invalidateQueries({ queryKey: [queryKey] });
       onClose();
     },
     onError: (err: Error) => {
@@ -239,7 +239,7 @@ function MasterTable({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: [queryKey] });
+      void queryClient.invalidateQueries({ queryKey: [queryKey] });
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
@@ -349,6 +349,7 @@ function MasterTable({
                             variant="subtle"
                             color="primary"
                             onClick={() => openEdit(item)}
+                            aria-label="Edit"
                           >
                             <IconPencil size={16} />
                           </ActionIcon>
@@ -358,6 +359,7 @@ function MasterTable({
                             variant="subtle"
                             color="danger"
                             onClick={() => setDeleteTarget(item)}
+                            aria-label="Delete"
                           >
                             <IconTrash size={16} />
                           </ActionIcon>
@@ -510,7 +512,7 @@ function InsuranceProviderModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -539,7 +541,7 @@ function InsuranceProviderModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -657,7 +659,7 @@ function InsuranceProvidersTable() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-insurance-providers"] });
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
@@ -770,6 +772,7 @@ function InsuranceProvidersTable() {
                             setEditingItem(provider);
                             setModalOpen(true);
                           }}
+                          aria-label="Edit"
                         >
                           <IconPencil size={16} />
                         </ActionIcon>
@@ -779,6 +782,7 @@ function InsuranceProvidersTable() {
                           variant="subtle"
                           color="danger"
                           onClick={() => setDeleteTarget(provider)}
+                          aria-label="Delete"
                         >
                           <IconTrash size={16} />
                         </ActionIcon>

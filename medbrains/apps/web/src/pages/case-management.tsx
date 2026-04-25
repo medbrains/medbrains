@@ -223,8 +223,8 @@ function CaseBoardTab() {
   const createMut = useMutation({
     mutationFn: () => api.createCaseAssignment(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-assignments"] });
-      qc.invalidateQueries({ queryKey: ["case-caseload"] });
+      void qc.invalidateQueries({ queryKey: ["case-assignments"] });
+      void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       createHandlers.close();
       setForm({ admission_id: "", patient_id: "", case_manager_id: "" });
       notifications.show({ title: "Case Assigned", message: "Case assignment created", color: "success" });
@@ -237,8 +237,8 @@ function CaseBoardTab() {
       return api.updateCaseAssignment(editing.id, editForm);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-assignments"] });
-      qc.invalidateQueries({ queryKey: ["case-caseload"] });
+      void qc.invalidateQueries({ queryKey: ["case-assignments"] });
+      void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       editHandlers.close();
       setEditing(null);
       setEditForm({});
@@ -249,8 +249,8 @@ function CaseBoardTab() {
   const autoMut = useMutation({
     mutationFn: () => api.autoAssignCase(autoForm),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-assignments"] });
-      qc.invalidateQueries({ queryKey: ["case-caseload"] });
+      void qc.invalidateQueries({ queryKey: ["case-assignments"] });
+      void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       autoHandlers.close();
       setAutoForm({ admission_id: "", patient_id: "" });
       notifications.show({
@@ -383,6 +383,7 @@ function CaseBoardTab() {
               detailHandlers.open();
             }}
             title="View Details"
+            aria-label="Circle Dot"
           >
             <IconCircleDot size={14} />
           </ActionIcon>
@@ -400,6 +401,7 @@ function CaseBoardTab() {
                 });
                 editHandlers.open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -709,7 +711,7 @@ function DischargeBarriersTab() {
   const createMut = useMutation({
     mutationFn: () => api.createDischargeBarrier(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-barriers"] });
+      void qc.invalidateQueries({ queryKey: ["case-barriers"] });
       createHandlers.close();
       setForm({ case_assignment_id: "", barrier_type: "insurance_auth", description: "" });
       notifications.show({ title: "Barrier Added", message: "Discharge barrier recorded", color: "success" });
@@ -719,7 +721,7 @@ function DischargeBarriersTab() {
   const resolveMut = useMutation({
     mutationFn: (id: string) => api.updateDischargeBarrier(id, { is_resolved: true }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-barriers"] });
+      void qc.invalidateQueries({ queryKey: ["case-barriers"] });
       notifications.show({ title: "Resolved", message: "Barrier marked as resolved", color: "teal" });
     },
   });
@@ -774,6 +776,7 @@ function DischargeBarriersTab() {
             color="success"
             size="sm"
             onClick={() => resolveMut.mutate(r.id)}
+            aria-label="Confirm"
           >
             <IconCheck size={14} />
           </ActionIcon>
@@ -884,7 +887,7 @@ function ReferralsTab() {
   const createMut = useMutation({
     mutationFn: () => api.createCaseReferral(form),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-referrals"] });
+      void qc.invalidateQueries({ queryKey: ["case-referrals"] });
       createHandlers.close();
       setForm({ case_assignment_id: "", referral_type: "post_acute", referred_to: "" });
       notifications.show({ title: "Referral Created", message: "Referral recorded", color: "success" });
@@ -897,7 +900,7 @@ function ReferralsTab() {
       return api.updateCaseReferral(editing.id, editForm);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case-referrals"] });
+      void qc.invalidateQueries({ queryKey: ["case-referrals"] });
       editHandlers.close();
       setEditing(null);
       setEditForm({});
@@ -952,6 +955,7 @@ function ReferralsTab() {
               setEditForm({ status: r.status, outcome: r.outcome });
               editHandlers.open();
             }}
+            aria-label="Edit"
           >
             <IconPencil size={14} />
           </ActionIcon>

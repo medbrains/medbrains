@@ -11,7 +11,8 @@ pub struct ProxyConfig {
 pub struct RouteConfig {
     pub domain: String,
     pub upstream: String,
-    pub gzip: Option<bool>,
+    #[serde(rename = "gzip")]
+    pub _gzip: Option<bool>,
     /// Per-domain TLS cert (for SNI)
     pub cert_path: Option<String>,
     pub key_path: Option<String>,

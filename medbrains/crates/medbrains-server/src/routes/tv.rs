@@ -1086,7 +1086,7 @@ pub async fn get_billing_queue(
     }))
 }
 
-/// GET /api/tv/queue/beds/{ward_type}
+/// GET /`api/tv/queue/beds/{ward_type`}
 /// Get bed availability and waiting list for a ward type.
 pub async fn get_bed_availability(
     State(_state): State<AppState>,
@@ -1103,7 +1103,7 @@ pub async fn get_bed_availability(
     }))
 }
 
-/// GET /api/tv/queue/analytics/{department_id}
+/// GET /`api/tv/queue/analytics/{department_id`}
 /// Get queue analytics for a department.
 pub async fn get_queue_analytics(
     State(state): State<AppState>,
@@ -1188,7 +1188,7 @@ pub async fn get_queue_analytics(
     }))
 }
 
-/// GET /api/tv/queue/metrics/{department_id}
+/// GET /`api/tv/queue/metrics/{department_id`}
 /// Get real-time queue metrics for a department.
 pub async fn get_queue_metrics(
     State(state): State<AppState>,

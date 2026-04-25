@@ -305,6 +305,7 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
               setDetailId(row.id);
               openDetail();
             }}
+            aria-label="View details"
           >
             <IconEye size={16} />
           </ActionIcon>
@@ -355,8 +356,8 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
     onSuccess: () => {
       notifications.show({ title: "Submitted", message: "Indent submitted for approval", color: "success" });
       emit("indent.submitted", { requisition_id: id });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
     },
   });
 
@@ -364,8 +365,8 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
     mutationFn: () => api.rejectIndentRequisition(id),
     onSuccess: () => {
       notifications.show({ title: "Rejected", message: "Indent rejected", color: "danger" });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
     },
   });
 
@@ -373,8 +374,8 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
     mutationFn: () => api.cancelIndentRequisition(id),
     onSuccess: () => {
       notifications.show({ title: "Cancelled", message: "Indent cancelled", color: "orange" });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       onClose();
     },
   });
@@ -504,8 +505,8 @@ function ApproveButton({
     onSuccess: () => {
       notifications.show({ title: "Approved", message: "Indent approved", color: "success" });
       emit("indent.approved", { requisition_id: requisitionId });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       close();
     },
   });
@@ -567,8 +568,8 @@ function IssueButton({
     onSuccess: () => {
       notifications.show({ title: "Issued", message: "Items issued and stock updated", color: "success" });
       emit("indent.issued", { requisition_id: requisitionId });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       close();
     },
   });
@@ -682,7 +683,7 @@ function RecentIndentsList({
             <Table.Td><Badge color={statusColors[req.status]} variant="filled" size="sm">{req.status.replace(/_/g, " ")}</Badge></Table.Td>
             <Table.Td><Text size="sm">{new Date(req.created_at).toLocaleDateString()}</Text></Table.Td>
             <Table.Td>
-              <ActionIcon variant="subtle" size="sm"><IconEye size={14} /></ActionIcon>
+              <ActionIcon variant="subtle" size="sm" aria-label="View details"><IconEye size={14} /></ActionIcon>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -916,7 +917,7 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Indent requisition created", color: "success" });
-      queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       onDone();
     },
     onError: (err: Error) => {
@@ -1036,7 +1037,7 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
                 />
               </Table.Td>
               <Table.Td>
-                <ActionIcon variant="subtle" color="danger" onClick={() => removeItem(idx)}>
+                <ActionIcon variant="subtle" color="danger" onClick={() => removeItem(idx)} aria-label="Close">
                   <IconX size={14} />
                 </ActionIcon>
               </Table.Td>
@@ -1098,7 +1099,7 @@ function CatalogPanel() {
       key: "actions",
       label: "",
       render: (row: StoreCatalog) => (
-        <ActionIcon variant="subtle" onClick={() => { setEditItem(row); openEdit(); }}>
+        <ActionIcon variant="subtle" onClick={() => { setEditItem(row); openEdit(); }} aria-label="View details">
           <IconEye size={16} />
         </ActionIcon>
       ),
@@ -1122,7 +1123,7 @@ function CatalogPanel() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Add Catalog Item" position="right" size="md">
         <CatalogForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
+            void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
             closeCreate();
           }}
         />
@@ -1133,7 +1134,7 @@ function CatalogPanel() {
           <CatalogForm
             initial={editItem}
             onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
+              void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
               closeEdit();
             }}
           />
@@ -1260,8 +1261,8 @@ function StockPanel() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Record Stock Movement" position="right" size="md">
         <StockMovementForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
-            queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
+            void queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+            void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
             closeCreate();
           }}
         />
@@ -1819,7 +1820,7 @@ function PatientConsumablesPanel() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Issue to Patient" position="right" size="md">
         <IssueToPatientForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["patient-consumables"] });
+            void queryClient.invalidateQueries({ queryKey: ["patient-consumables"] });
             closeCreate();
           }}
         />
@@ -1973,7 +1974,7 @@ function ImplantRegistryView() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Register Implant" position="right" size="md">
         <CreateImplantForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["implant-registry"] });
+            void queryClient.invalidateQueries({ queryKey: ["implant-registry"] });
             closeCreate();
           }}
         />
@@ -2144,6 +2145,7 @@ function CondemnationsView() {
               setStatusItem(row);
               openStatus();
             }}
+            aria-label="View details"
           >
             <IconEye size={16} />
           </ActionIcon>
@@ -2170,7 +2172,7 @@ function CondemnationsView() {
       <Drawer opened={createOpened} onClose={closeCreate} title="Initiate Condemnation" position="right" size="md">
         <CreateCondemnationForm
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["condemnations"] });
+            void queryClient.invalidateQueries({ queryKey: ["condemnations"] });
             closeCreate();
           }}
         />
@@ -2180,7 +2182,7 @@ function CondemnationsView() {
           <UpdateCondemnationStatusForm
             item={statusItem}
             onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ["condemnations"] });
+              void queryClient.invalidateQueries({ queryKey: ["condemnations"] });
               closeStatus();
             }}
           />

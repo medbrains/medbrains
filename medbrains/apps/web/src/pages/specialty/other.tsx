@@ -43,22 +43,22 @@ export function OtherSpecialtiesPage() {
 
   const createTmpl = useMutation({
     mutationFn: (data: CreateSpecialtyTemplateRequest) => api.createSpecialtyTemplate(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["specialty-templates"] }); tmplHandlers.close(); notifications.show({ title: "Created", message: "Template created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["specialty-templates"] }); tmplHandlers.close(); notifications.show({ title: "Created", message: "Template created", color: "success" }); },
   });
 
   const createRec = useMutation({
     mutationFn: (data: CreateSpecialtyRecordRequest) => api.createSpecialtyRecord(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["specialty-records"] }); recHandlers.close(); notifications.show({ title: "Created", message: "Record created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["specialty-records"] }); recHandlers.close(); notifications.show({ title: "Created", message: "Record created", color: "success" }); },
   });
 
   const createDial = useMutation({
     mutationFn: (data: CreateDialysisSessionRequest) => api.createDialysisSession(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dialysis-sessions"] }); dialHandlers.close(); notifications.show({ title: "Created", message: "Session created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["dialysis-sessions"] }); dialHandlers.close(); notifications.show({ title: "Created", message: "Session created", color: "success" }); },
   });
 
   const createChemo = useMutation({
     mutationFn: (data: CreateChemoProtocolRequest) => api.createChemoProtocol(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["chemo-protocols"] }); chemoHandlers.close(); notifications.show({ title: "Created", message: "Protocol created", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["chemo-protocols"] }); chemoHandlers.close(); notifications.show({ title: "Created", message: "Protocol created", color: "success" }); },
   });
 
   const tmplCols: Column<SpecialtyTemplate>[] = [

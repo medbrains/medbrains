@@ -131,7 +131,7 @@ export function TransformChain({
           </Badge>
         )}
         <OperationPicker onSelect={handleAddStep}>
-          <ActionIcon variant="subtle" color="primary" size="xs">
+          <ActionIcon variant="subtle" color="primary" size="xs" aria-label="Add">
             <IconPlus size={12} />
           </ActionIcon>
         </OperationPicker>
@@ -297,6 +297,7 @@ function SortableStep({
                 }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.4"; }}
+                aria-label="Add"
               >
                 <IconPlus size={10} />
               </ActionIcon>
@@ -342,7 +343,7 @@ function SortableStep({
           <Group gap={2} wrap="nowrap">
             <OperationPicker onSelect={(type) => onInsertAfter(step.id, type)}>
               <Tooltip label="Insert step after" withArrow>
-                <ActionIcon variant="subtle" color="primary" size="xs">
+                <ActionIcon variant="subtle" color="primary" size="xs" aria-label="Add">
                   <IconPlus size={12} />
                 </ActionIcon>
               </Tooltip>
@@ -352,7 +353,7 @@ function SortableStep({
               onUpdate={(cfg) => onUpdateConfig(step.id, cfg)}
               onDelete={() => onDelete(step.id)}
             >
-              <ActionIcon variant="subtle" color="slate" size="xs">
+              <ActionIcon variant="subtle" color="slate" size="xs" aria-label="Edit">
                 <IconPencil size={12} />
               </ActionIcon>
             </StepConfigPopover>
@@ -361,6 +362,7 @@ function SortableStep({
               color="danger"
               size="xs"
               onClick={() => onDelete(step.id)}
+              aria-label="Delete"
             >
               <IconTrash size={10} />
             </ActionIcon>

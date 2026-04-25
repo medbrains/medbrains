@@ -79,7 +79,7 @@ export function PgLogbookPage() {
   const createMutation = useMutation({
     mutationFn: (data: CreatePgLogbookRequest) => api.createPgLogbookEntry(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
+      void queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
       notifications.show({ title: "Created", message: "Logbook entry added", color: "success" });
       handleClose();
     },
@@ -91,7 +91,7 @@ export function PgLogbookPage() {
   const verifyMutation = useMutation({
     mutationFn: (id: string) => api.verifyPgLogbookEntry(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
+      void queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
       notifications.show({ title: "Verified", message: "Logbook entry verified", color: "success" });
     },
   });
@@ -100,7 +100,7 @@ export function PgLogbookPage() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.updateCoSignature(id, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["co-signatures"] });
+      void queryClient.invalidateQueries({ queryKey: ["co-signatures"] });
       notifications.show({ title: "Updated", message: "Co-signature decision recorded", color: "success" });
     },
   });
@@ -249,7 +249,7 @@ function LogbookTable({
               <Table.Td>
                 {!e.supervisor_verified && onVerify && (
                   <Tooltip label="Verify entry">
-                    <ActionIcon variant="light" color="success" size="sm" onClick={() => onVerify(e.id)}>
+                    <ActionIcon variant="light" color="success" size="sm" onClick={() => onVerify(e.id)} aria-label="Confirm">
                       <IconCheck size={14} />
                     </ActionIcon>
                   </Tooltip>

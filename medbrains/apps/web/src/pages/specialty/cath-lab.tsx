@@ -93,7 +93,7 @@ export function CathLabPage() {
   const createProc = useMutation({
     mutationFn: (data: CreateCathProcedureRequest) => api.createCathProcedure(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cath-procedures"] });
+      void qc.invalidateQueries({ queryKey: ["cath-procedures"] });
       procHandlers.close();
       notifications.show({ title: "Created", message: "Procedure created", color: "success" });
     },
@@ -110,7 +110,7 @@ export function CathLabPage() {
     { key: "status", label: "Status", render: (r) => <Badge>{r.status}</Badge> },
     {
       key: "actions", label: "", render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)}>
+        <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       ),

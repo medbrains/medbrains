@@ -396,6 +396,7 @@ export function DashboardBuilderPage() {
                   variant="subtle"
                   size="sm"
                   onClick={() => setFullscreen(false)}
+                  aria-label="Arrows Minimize"
                 >
                   <IconArrowsMinimize size={16} />
                 </ActionIcon>
@@ -483,6 +484,7 @@ export function DashboardBuilderPage() {
                   variant="subtle"
                   size="sm"
                   onClick={() => setFullscreen(true)}
+                  aria-label="Arrows Maximize"
                 >
                   <IconArrowsMaximize size={16} />
                 </ActionIcon>
@@ -664,6 +666,7 @@ function ToolbarActions({
           size="sm"
           disabled={!canUndo}
           onClick={onUndo}
+          aria-label="Arrow Back Up"
         >
           <IconArrowBackUp size={16} />
         </ActionIcon>
@@ -674,12 +677,13 @@ function ToolbarActions({
           size="sm"
           disabled={!canRedo}
           onClick={onRedo}
+          aria-label="Arrow Forward Up"
         >
           <IconArrowForwardUp size={16} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label="Auto-arrange widgets">
-        <ActionIcon variant="subtle" size="sm" onClick={onAutoArrange}>
+        <ActionIcon variant="subtle" size="sm" onClick={onAutoArrange} aria-label="Grid view">
           <IconLayoutGrid size={16} />
         </ActionIcon>
       </Tooltip>

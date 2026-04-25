@@ -501,8 +501,8 @@ function NursingTasksTable({
     mutationFn: (taskId: string) => api.completeCareViewTask(taskId),
     onSuccess: () => {
       notifications.show({ title: "Task completed", message: "", color: "success" });
-      qc.invalidateQueries({ queryKey: ["care-view", "my-tasks"] });
-      qc.invalidateQueries({ queryKey: ["care-view", "ward-grid"] });
+      void qc.invalidateQueries({ queryKey: ["care-view", "my-tasks"] });
+      void qc.invalidateQueries({ queryKey: ["care-view", "ward-grid"] });
     },
   });
 
@@ -563,6 +563,7 @@ function NursingTasksTable({
             variant="light"
             loading={completeMut.isPending}
             onClick={() => completeMut.mutate(r.task_id)}
+            aria-label="Confirm"
           >
             <IconCheck size={14} />
           </ActionIcon>

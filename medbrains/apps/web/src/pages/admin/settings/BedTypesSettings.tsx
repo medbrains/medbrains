@@ -74,7 +74,7 @@ export function BedTypesSettings() {
       description?: string;
     }) => api.createBedType(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
       notifications.show({
         title: "Bed type created",
@@ -101,7 +101,7 @@ export function BedTypesSettings() {
       data: Record<string, unknown>;
     }) => api.updateBedType(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
       notifications.show({
         title: "Bed type updated",
@@ -122,7 +122,7 @@ export function BedTypesSettings() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteBedType(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       setDeleteConfirmId(null);
       notifications.show({
         title: "Bed type deleted",
@@ -294,6 +294,7 @@ export function BedTypesSettings() {
                       size="sm"
                       onClick={() => openEditModal(bt)}
                       title="Edit bed type"
+                      aria-label="Edit"
                     >
                       <IconPencil size={16} />
                     </ActionIcon>
@@ -303,6 +304,7 @@ export function BedTypesSettings() {
                       size="sm"
                       onClick={() => setDeleteConfirmId(bt.id)}
                       title="Delete bed type"
+                      aria-label="Delete"
                     >
                       <IconTrash size={16} />
                     </ActionIcon>

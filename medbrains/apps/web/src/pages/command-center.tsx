@@ -235,7 +235,7 @@ function OverviewTab() {
   const ackAlert = useMutation({
     mutationFn: (id: string) => api.acknowledgeDeptAlert(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
       notifications.show({ title: "Alert Acknowledged", message: "Alert has been acknowledged" });
     },
   });
@@ -327,6 +327,7 @@ function OverviewTab() {
               size="sm"
               onClick={() => ackAlert.mutate(r.id)}
               loading={ackAlert.isPending}
+              aria-label="Confirm"
             >
               <IconCheck size={14} />
             </ActionIcon>
@@ -798,7 +799,7 @@ function TransportTab() {
       patient_id: form.patient_id || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       closeCreate();
       setForm({ from_location: "", to_location: "", transport_mode: "wheelchair", priority: "routine", patient_name: "", notes: "" });
       notifications.show({ title: "Success", message: "Transport request created" });
@@ -809,7 +810,7 @@ function TransportTab() {
     mutationFn: ({ id, assigned_to }: { id: string; assigned_to: string }) =>
       api.assignTransport(id, { assigned_to }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       setAssignModalId(null);
       setAssignTo("");
       notifications.show({ title: "Success", message: "Transport assigned" });
@@ -819,7 +820,7 @@ function TransportTab() {
   const completeMut = useMutation({
     mutationFn: (id: string) => api.completeTransport(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       notifications.show({ title: "Success", message: "Transport completed" });
     },
   });
@@ -1061,7 +1062,7 @@ function AlertsThresholdsTab() {
   const ackAlert = useMutation({
     mutationFn: (id: string) => api.acknowledgeDeptAlert(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
       notifications.show({ title: "Alert Acknowledged", message: "Alert has been acknowledged" });
     },
   });
@@ -1076,7 +1077,7 @@ function AlertsThresholdsTab() {
   const createThreshold = useMutation({
     mutationFn: () => api.createAlertThreshold(thresholdForm),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
       closeThreshold();
       setThresholdForm({ department_id: "", metric_code: "" });
       notifications.show({ title: "Success", message: "Threshold created" });
@@ -1087,7 +1088,7 @@ function AlertsThresholdsTab() {
     mutationFn: ({ id, data }: { id: string; data: UpdateAlertThresholdRequest }) =>
       api.updateAlertThreshold(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
+      void qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
       notifications.show({ title: "Success", message: "Threshold updated" });
     },
   });
@@ -1153,6 +1154,7 @@ function AlertsThresholdsTab() {
               size="sm"
               onClick={() => ackAlert.mutate(r.id)}
               loading={ackAlert.isPending}
+              aria-label="Confirm"
             >
               <IconCheck size={14} />
             </ActionIcon>

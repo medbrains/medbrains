@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Divider,
+  Drawer,
   Grid,
   Group,
   Loader,
@@ -13,12 +14,18 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { useDisclosure } from "@mantine/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
-import type { DashboardWithWidgets, RecentActivity } from "@medbrains/types";
+import type {
+  DashboardWithWidgets,
+  RecentActivity,
+  WidgetTemplate,
+} from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import {
   IconActivity,
@@ -29,6 +36,7 @@ import {
   IconDashboard,
   IconFlask,
   IconHeartbeat,
+  IconPlus,
   IconReceipt,
   IconServer,
   IconSettings,
@@ -41,6 +49,7 @@ import { WidgetRenderer } from "../components/Dashboard/WidgetRenderer";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
+  const { t } = useTranslation("dashboard");
   const navigate = useNavigate();
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
 
@@ -55,7 +64,7 @@ export function DashboardPage() {
   if (isLoading) {
     return (
       <div>
-        <PageHeader title="Dashboard" subtitle="Loading..." icon={<IconDashboard size={20} stroke={1.5} />} color="primary" />
+        <PageHeader title={t("title")} subtitle={t("loading")} icon={<IconDashboard size={20} stroke={1.5} />} color="primary" />
         <Group justify="center" py="xl">
           <Loader />
         </Group>
@@ -70,12 +79,13 @@ export function DashboardPage() {
         data={dashboardData}
         canManage={canManage}
         navigate={navigate}
+        t={t}
       />
     );
   }
 
   // Fallback: render the default hardcoded dashboard
-  return <DefaultDashboard navigate={navigate} canManage={canManage} />;
+  return <DefaultDashboard navigate={navigate} canManage={canManage} t={t} />;
 }
 
 // ── Configured Dashboard (Dynamic) ──────────────────────
@@ -84,13 +94,42 @@ function ConfiguredDashboard({
   data,
   canManage,
   navigate,
+  t,
 }: {
   data: DashboardWithWidgets;
   canManage: boolean;
   navigate: ReturnType<typeof useNavigate>;
+  t: (key: string) => string;
 }) {
   const { dashboard, widgets } = data;
   const columns = (dashboard.layout_config as { columns?: number })?.columns ?? 12;
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+  const queryClient = useQueryClient();
+
+  const { data: templates } = useQuery({
+    queryKey: ["widget-templates"],
+    queryFn: () => api.listWidgetTemplates(),
+    enabled: drawerOpen,
+  });
+
+  const handleAddWidget = async (tmpl: WidgetTemplate) => {
+    const maxY = widgets.reduce((m, w) => Math.max(m, w.position_y + w.height), 0);
+    await api.myAddWidget({
+      widget_type: tmpl.widget_type,
+      title: tmpl.name,
+      subtitle: tmpl.description ?? undefined,
+      icon: tmpl.icon ?? undefined,
+      color: tmpl.color ?? undefined,
+      config: (tmpl.default_config as Record<string, unknown>) ?? {},
+      data_source: (tmpl.default_source as Record<string, unknown>) ?? {},
+      width: tmpl.default_width ?? 4,
+      height: tmpl.default_height ?? 2,
+      position_x: 0,
+      position_y: maxY,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["my-dashboard"] });
+    closeDrawer();
+  };
 
   return (
     <div>
@@ -100,18 +139,28 @@ function ConfiguredDashboard({
         icon={<IconDashboard size={20} stroke={1.5} />}
         color="primary"
         actions={
-          canManage ? (
+          <Group gap="xs">
             <Button
-              variant="subtle"
+              variant="light"
               size="xs"
-              leftSection={<IconSettings size={14} />}
-              onClick={() =>
-                navigate(`/admin/dashboard-builder/${dashboard.id}`)
-              }
+              leftSection={<IconPlus size={14} />}
+              onClick={openDrawer}
             >
-              Customize
+              {t("addWidget")}
             </Button>
-          ) : undefined
+            {canManage && (
+              <Button
+                variant="subtle"
+                size="xs"
+                leftSection={<IconSettings size={14} />}
+                onClick={() =>
+                  navigate(`/admin/dashboard-builder/${dashboard.id}`)
+                }
+              >
+                Customize
+              </Button>
+            )}
+          </Group>
         }
       />
 
@@ -134,6 +183,49 @@ function ConfiguredDashboard({
           </Box>
         ))}
       </Box>
+
+      <Drawer
+        opened={drawerOpen}
+        onClose={closeDrawer}
+        title={t("addWidget")}
+        position="right"
+        size="sm"
+      >
+        <Stack gap="xs">
+          {templates?.map((tmpl) => (
+            <Card
+              key={tmpl.id}
+              withBorder
+              padding="sm"
+              style={{ cursor: "pointer" }}
+              onClick={() => handleAddWidget(tmpl)}
+            >
+              <Group gap="sm">
+                <ThemeIcon
+                  variant="light"
+                  color={tmpl.color ?? "blue"}
+                  size="md"
+                >
+                  <IconDashboard size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="sm" fw={500}>
+                    {tmpl.name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {tmpl.description}
+                  </Text>
+                </div>
+              </Group>
+            </Card>
+          ))}
+          {templates?.length === 0 && (
+            <Text size="sm" c="dimmed" ta="center" py="xl">
+              {t("noWidgets")}
+            </Text>
+          )}
+        </Stack>
+      </Drawer>
     </div>
   );
 }
@@ -215,9 +307,11 @@ function CardHeader({ title, action }: { title: string; action?: { label: string
 function DefaultDashboard({
   navigate,
   canManage,
+  t,
 }: {
   navigate: ReturnType<typeof useNavigate>;
   canManage: boolean;
+  t: (key: string) => string;
 }) {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -236,8 +330,8 @@ function DefaultDashboard({
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        subtitle="Overview of today's activity"
+        title={t("title")}
+        subtitle={t("overview")}
         icon={<IconDashboard size={20} stroke={1.5} />}
         color="primary"
         actions={
@@ -248,7 +342,7 @@ function DefaultDashboard({
               leftSection={<IconSettings size={14} />}
               onClick={() => navigate("/admin/settings#dashboards")}
             >
-              Customize
+              {t("customize")}
             </Button>
           ) : undefined
         }
@@ -257,27 +351,27 @@ function DefaultDashboard({
       {/* Stat Cards — Row 1 */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="md">
         <StatCard
-          label="Total Patients"
+          label={t("stats.totalPatients")}
           value={stats?.total_patients ?? 0}
           icon={<IconUsers size={20} stroke={1.5} />}
           color="primary"
           trend={stats?.today_registrations ? { value: stats.today_registrations, label: "new today" } : undefined}
         />
         <StatCard
-          label="OPD Queue"
+          label={t("stats.opdQueue")}
           value={stats?.opd_queue_count ?? 0}
           icon={<IconStethoscope size={20} stroke={1.5} />}
           color="teal"
           trend={stats?.today_visits ? { value: stats.today_visits, label: "visits today" } : undefined}
         />
         <StatCard
-          label="Lab Pending"
+          label={t("stats.labPending")}
           value={stats?.lab_pending ?? 0}
           icon={<IconFlask size={20} stroke={1.5} />}
           color="orange"
         />
         <StatCard
-          label="Revenue Today"
+          label={t("stats.revenueToday")}
           value={stats ? `₹${formatRevenue(stats.today_revenue)}` : "--"}
           icon={<IconReceipt size={20} stroke={1.5} />}
           color="violet"
@@ -287,13 +381,13 @@ function DefaultDashboard({
       {/* Stat Cards — Row 2 */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl">
         <StatCard
-          label="Today's Appointments"
+          label={t("stats.appointments")}
           value={stats?.today_appointments ?? 0}
           icon={<IconCalendar size={20} stroke={1.5} />}
           color="primary"
         />
         <StatCard
-          label="IPD Active"
+          label={t("stats.ipdActive")}
           value={stats?.ipd_active ?? 0}
           icon={<IconBed size={20} stroke={1.5} />}
           color="info"
@@ -304,7 +398,7 @@ function DefaultDashboard({
       <Grid mb="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card padding={0}>
-            <CardHeader title="Quick Actions" />
+            <CardHeader title={t("quickActions.title")} />
             <SimpleGrid cols={{ base: 1, sm: 2 }} p="lg" spacing="md">
               {quickActions.map((action) => (
                 <UnstyledButton
@@ -346,7 +440,7 @@ function DefaultDashboard({
 
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card padding={0} h="100%">
-            <CardHeader title="Recent Activity" />
+            <CardHeader title={t("recentActivity.title")} />
             <Stack gap={0}>
               {stats?.recent_activity && stats.recent_activity.length > 0 ? (
                 stats.recent_activity.map((item: RecentActivity, i: number) => {
@@ -393,7 +487,7 @@ function DefaultDashboard({
       {/* Bottom — Module Status + System Health */}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <Card padding={0}>
-          <CardHeader title="Module Status" />
+          <CardHeader title={t("moduleStatus.title")} />
           <Stack gap="xs" p="lg">
             {[
               { name: "Patient Management", status: "Active" },
@@ -413,14 +507,14 @@ function DefaultDashboard({
           </Stack>
         </Card>
         <Card padding={0}>
-          <CardHeader title="System Health" />
+          <CardHeader title={t("systemHealth.title")} />
           <Stack gap="sm" p="lg">
             <Group justify="space-between">
               <Group gap="sm">
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">API Server</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.apiServer")}</Text>
               </Group>
               <Badge color="success" variant="light" size="sm">Healthy</Badge>
             </Group>
@@ -429,7 +523,7 @@ function DefaultDashboard({
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">PostgreSQL</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.postgresql")}</Text>
               </Group>
               <Badge color="success" variant="light" size="sm">Connected</Badge>
             </Group>
@@ -438,7 +532,7 @@ function DefaultDashboard({
                 <ThemeIcon variant="light" color="slate" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">YottaDB</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.yottadb")}</Text>
               </Group>
               <Badge color="slate" variant="light" size="sm">Deferred</Badge>
             </Group>
@@ -447,7 +541,7 @@ function DefaultDashboard({
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconHeartbeat size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">Uptime</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.uptime")}</Text>
               </Group>
               <Text size="xs" c="var(--mb-text-secondary)" fw={500}>99.9%</Text>
             </Group>

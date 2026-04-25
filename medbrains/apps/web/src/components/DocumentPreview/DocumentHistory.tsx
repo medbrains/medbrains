@@ -109,11 +109,12 @@ export function DocumentHistory({
             variant="subtle"
             size="sm"
             onClick={() => setPreviewDocId(row.id)}
+            aria-label="View details"
           >
             <IconEye size={14} />
           </ActionIcon>
           {row.status !== "voided" && (
-            <ActionIcon variant="subtle" size="sm" color="primary">
+            <ActionIcon variant="subtle" size="sm" color="primary" aria-label="Print">
               <IconPrinter size={14} />
             </ActionIcon>
           )}

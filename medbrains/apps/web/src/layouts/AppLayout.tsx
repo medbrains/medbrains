@@ -250,12 +250,12 @@ export function AppLayout() {
                 <Kbd size="xs">⌘K</Kbd>
               </Group>
             </UnstyledButton>
-            <ActionIcon size="md" color="slate" variant="subtle" hiddenFrom="sm" onClick={spotlight.open}>
+            <ActionIcon size="md" color="slate" variant="subtle" hiddenFrom="sm" onClick={spotlight.open} aria-label="Search">
               <IconSearch size={18} stroke={1.5} />
             </ActionIcon>
 
             <Indicator size={6} color="danger" offset={3} processing>
-              <ActionIcon size="md" color="slate" variant="subtle">
+              <ActionIcon size="md" color="slate" variant="subtle" aria-label="Notifications">
                 <IconBell size={18} stroke={1.5} />
               </ActionIcon>
             </Indicator>
@@ -263,7 +263,7 @@ export function AppLayout() {
             <Menu shadow="md" width={160} position="bottom-end">
               <Menu.Target>
                 <Tooltip label="Language" withArrow>
-                  <ActionIcon size="md" color="slate" variant="subtle">
+                  <ActionIcon size="md" color="slate" variant="subtle" aria-label="Language">
                     <IconLanguage size={18} stroke={1.5} />
                   </ActionIcon>
                 </Tooltip>

@@ -82,9 +82,9 @@ export async function executeInlineAction(
     case "refresh_zone": {
       const zoneKey = String(action.zone_key ?? "");
       if (zoneKey) {
-        ctx.queryClient.invalidateQueries({ queryKey: ["zone-data", zoneKey] });
+        void ctx.queryClient.invalidateQueries({ queryKey: ["zone-data", zoneKey] });
       } else {
-        ctx.queryClient.invalidateQueries({ queryKey: ["zone-data"] });
+        void ctx.queryClient.invalidateQueries({ queryKey: ["zone-data"] });
       }
       break;
     }

@@ -62,8 +62,8 @@
 
 .railItemActive {
   composes: railItem;
-  background: var(--mantine-color-primary-0, #f3f7f5);
-  color: var(--mantine-color-primary-5, #1F4332);
+  background: var(--fc-tint, #e4ede9);
+  color: var(--fc-brand, #1F4332);
 
   // Signature sidebar indicator — 3px forest pill on left edge
   &::before {
@@ -74,13 +74,13 @@
     bottom: 8px;
     width: 3px;
     border-radius: 2px;
-    background: var(--mantine-color-primary-5, #1F4332);
+    background: var(--fc-brand, #1F4332);
     animation: indicatorSlideIn 200ms ease-out;
   }
 
   &:hover {
-    background: var(--mantine-color-primary-0, #f3f7f5);
-    color: var(--mantine-color-primary-5, #1F4332);
+    background: var(--fc-tint, #e4ede9);
+    color: var(--fc-brand, #1F4332);
     transform: none;
   }
 }
@@ -118,10 +118,11 @@
   composes: expandedItem;
   font-weight: 600;
   color: var(--mantine-color-primary-5, #1F4332);
-  background: var(--mantine-color-primary-0, #f3f7f5);
+  background: var(--fc-tint, #e4ede9);
+  border-left: 3px solid var(--fc-brand, #1F4332);
 
   &:hover {
-    background: var(--mantine-color-primary-0, #f3f7f5);
+    background: var(--fc-tint, #e4ede9);
     color: var(--mantine-color-primary-5, #1F4332);
     padding-left: 0;
   }
@@ -147,10 +148,11 @@
   composes: expandedChild;
   font-weight: 600;
   color: var(--mantine-color-primary-5, #1F4332);
-  background: var(--mantine-color-primary-0, #f3f7f5);
+  background: var(--fc-tint, #e4ede9);
+  border-left: 3px solid var(--fc-brand, #1F4332);
 
   &:hover {
-    background: var(--mantine-color-primary-0, #f3f7f5);
+    background: var(--fc-tint, #e4ede9);
     color: var(--mantine-color-primary-5, #1F4332);
   }
 }

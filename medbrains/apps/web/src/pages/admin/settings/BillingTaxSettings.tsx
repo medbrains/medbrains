@@ -150,7 +150,7 @@ function TaxCategoryModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -172,7 +172,7 @@ function TaxCategoryModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -318,7 +318,7 @@ function PaymentMethodModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -340,7 +340,7 @@ function PaymentMethodModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -445,7 +445,7 @@ export function BillingTaxSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-tax-categories"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -472,7 +472,7 @@ export function BillingTaxSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-payment-methods"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -563,6 +563,7 @@ export function BillingTaxSettings() {
             variant="subtle"
             color="primary"
             onClick={() => openEditTax(row)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -571,6 +572,7 @@ export function BillingTaxSettings() {
             color="danger"
             onClick={() => handleDeleteTax(row)}
             loading={deleteTaxMutation.isPending}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>
@@ -615,6 +617,7 @@ export function BillingTaxSettings() {
             variant="subtle"
             color="primary"
             onClick={() => openEditPayment(row)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -623,6 +626,7 @@ export function BillingTaxSettings() {
             color="danger"
             onClick={() => handleDeletePayment(row)}
             loading={deletePaymentMutation.isPending}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

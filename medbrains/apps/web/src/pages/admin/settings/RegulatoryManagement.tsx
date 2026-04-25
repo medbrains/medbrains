@@ -115,7 +115,7 @@ function BodyModal({
         message: "Regulatory body has been created",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-regulatory-bodies"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-regulatory-bodies"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -136,7 +136,7 @@ function BodyModal({
         message: "Regulatory body has been updated",
         color: "success",
       });
-      queryClient.invalidateQueries({ queryKey: ["admin-regulatory-bodies"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-regulatory-bodies"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -297,7 +297,7 @@ function LinkModal({
         message: "Regulatory link has been created",
         color: "success",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["admin-regulatory-clauses"],
       });
       onClose();
@@ -320,7 +320,7 @@ function LinkModal({
         message: "Regulatory link has been updated",
         color: "success",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["admin-regulatory-clauses"],
       });
       onClose();
@@ -523,7 +523,7 @@ function BodiesTab() {
       key: "actions",
       label: "",
       render: (row: RegulatoryBodyFull) => (
-        <ActionIcon variant="subtle" color="primary" onClick={() => openEdit(row)}>
+        <ActionIcon variant="subtle" color="primary" onClick={() => openEdit(row)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
       ),
@@ -608,7 +608,7 @@ function FieldLinksTab() {
         message: "Regulatory link has been removed",
         color: "success",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["admin-regulatory-clauses"],
       });
     },
@@ -700,6 +700,7 @@ function FieldLinksTab() {
             variant="subtle"
             color="primary"
             onClick={() => openEdit(row)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -708,6 +709,7 @@ function FieldLinksTab() {
             color="danger"
             onClick={() => deleteMutation.mutate(row.id)}
             loading={deleteMutation.isPending}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

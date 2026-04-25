@@ -118,7 +118,7 @@ export function ScreenConditionBuilder({
             onChange={(e) => updateRule(i, { value: e.currentTarget.value })}
             style={{ flex: 1 }}
           />
-          <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => removeRule(i)}>
+          <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => removeRule(i)} aria-label="Delete">
             <IconTrash size={14} />
           </ActionIcon>
         </div>

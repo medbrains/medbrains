@@ -239,6 +239,7 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
               variant="subtle"
               color="danger"
               onClick={() => removeDepartment(dept.local_id)}
+              aria-label="Delete"
             >
               <IconTrash size={16} />
             </ActionIcon>

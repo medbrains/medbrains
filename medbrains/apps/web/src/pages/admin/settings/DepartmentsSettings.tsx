@@ -200,7 +200,7 @@ function DepartmentModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -222,7 +222,7 @@ function DepartmentModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
       onClose();
     },
     onError: (err: Error) => {
@@ -472,7 +472,7 @@ export function DepartmentsSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
       setDeletingDept(null);
     },
     onError: (err: Error) => {
@@ -560,6 +560,7 @@ export function DepartmentsSettings() {
             variant="subtle"
             color="primary"
             onClick={() => openEdit(dept)}
+            aria-label="Edit"
           >
             <IconPencil size={16} />
           </ActionIcon>
@@ -567,6 +568,7 @@ export function DepartmentsSettings() {
             variant="subtle"
             color="danger"
             onClick={() => openDelete(dept)}
+            aria-label="Delete"
           >
             <IconTrash size={16} />
           </ActionIcon>

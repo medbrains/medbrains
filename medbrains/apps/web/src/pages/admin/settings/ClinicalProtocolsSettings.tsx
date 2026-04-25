@@ -50,7 +50,7 @@ export function ClinicalProtocolsSettings() {
   const createMutation = useMutation({
     mutationFn: (data: CreateClinicalProtocolRequest) => api.createClinicalProtocol(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
+      void queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
       notifications.show({ title: "Created", message: "Clinical protocol added", color: "success" });
       handleClose();
     },
@@ -62,7 +62,7 @@ export function ClinicalProtocolsSettings() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteClinicalProtocol(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
+      void queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
       notifications.show({ title: "Deleted", message: "Protocol removed", color: "warning" });
     },
   });
@@ -117,7 +117,7 @@ export function ClinicalProtocolsSettings() {
               <Table.Td><Text size="xs" lineClamp={2}>{p.description ?? "—"}</Text></Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(p.id)}>
+                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(p.id)} aria-label="Delete">
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>

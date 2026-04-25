@@ -114,7 +114,7 @@ function SortableSection({ sectionId, children, isLocked = false }: SortableSect
             classNames={{ input: classes.sectionNameInput }}
             autoFocus
             rightSection={
-              <ActionIcon size="xs" variant="subtle" color="primary" onClick={commitName}>
+              <ActionIcon size="xs" variant="subtle" color="primary" onClick={commitName} aria-label="Confirm">
                 <IconCheck size={12} />
               </ActionIcon>
             }
@@ -146,6 +146,7 @@ function SortableSection({ sectionId, children, isLocked = false }: SortableSect
                   e.stopPropagation();
                   removeSection(sectionId);
                 }}
+                aria-label="Delete"
               >
                 <IconTrash size={12} />
               </ActionIcon>
@@ -250,6 +251,7 @@ function AddSectionButton({ variant }: { variant: "empty" | "bottom" }) {
                 e.preventDefault(); // prevent blur before click
                 handleCommit();
               }}
+              aria-label="Confirm"
             >
               <IconCheck size={14} />
             </ActionIcon>

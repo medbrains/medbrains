@@ -177,6 +177,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
                 variant="subtle"
                 color="danger"
                 onClick={() => removeTaxCategory(cat.local_id)}
+                aria-label="Delete"
               >
                 <IconTrash size={16} />
               </ActionIcon>
@@ -220,6 +221,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
                 variant="subtle"
                 color="danger"
                 onClick={() => removePaymentMethod(pm.local_id)}
+                aria-label="Delete"
               >
                 <IconTrash size={16} />
               </ActionIcon>

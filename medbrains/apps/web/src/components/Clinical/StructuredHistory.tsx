@@ -203,7 +203,7 @@ export function StructuredHistory({
                     </Badge>
                   </Group>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePmh(idx)}>
+                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePmh(idx)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}
@@ -253,7 +253,7 @@ export function StructuredHistory({
                 <Group justify="space-between">
                   <Text size="sm">{entry.procedure}{entry.year ? ` (${entry.year})` : ""}</Text>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePsh(idx)}>
+                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePsh(idx)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}
@@ -306,7 +306,7 @@ export function StructuredHistory({
                     <Text size="sm">{entry.condition}</Text>
                   </Group>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeFh(idx)}>
+                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeFh(idx)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}

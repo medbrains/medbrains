@@ -77,7 +77,7 @@ pub struct CmsCategoryWithChildren {
     pub requires_medical_review: bool,
     pub sort_order: i32,
     pub is_active: bool,
-    pub children: Vec<CmsCategoryWithChildren>,
+    pub children: Vec<Self>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -551,7 +551,7 @@ pub struct CmsMenuItem {
     pub url: Option<String>,
     pub page_id: Option<Uuid>,
     pub target: Option<String>,
-    pub children: Vec<CmsMenuItem>,
+    pub children: Vec<Self>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -122,6 +122,7 @@ export function BedConfigStep({ onNext, onBack }: Props) {
               variant="subtle"
               color="danger"
               onClick={() => removeBedType(bed.local_id)}
+              aria-label="Delete"
             >
               <IconTrash size={16} />
             </ActionIcon>

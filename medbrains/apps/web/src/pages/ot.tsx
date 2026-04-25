@@ -21,6 +21,7 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import {
   IconCalendar,
   IconChartBar,
@@ -270,7 +271,7 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (r: OtBooking) => (
         <Tooltip label="View">
-          <ActionIcon variant="subtle" onClick={() => { setDetailId(r.id); openDetail(); }}>
+          <ActionIcon variant="subtle" onClick={() => { setDetailId(r.id); openDetail(); }} aria-label="View details">
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -328,7 +329,7 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   const mutation = useMutation({
     mutationFn: (data: CreateOtBookingRequest) => api.createOtBooking(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       notifications.show({ title: "Created", message: "OT booking created", color: "success" });
       onClose();
       setForm({});
@@ -339,7 +340,7 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="md">
       <Stack>
-        <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
+        <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
         <TextInput label="OT Room ID" required onChange={(e) => setForm({ ...form, ot_room_id: e.currentTarget.value })} />
         <TextInput label="Primary Surgeon ID" required onChange={(e) => setForm({ ...form, primary_surgeon_id: e.currentTarget.value })} />
         <TextInput label="Procedure Name" required onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })} />
@@ -425,9 +426,9 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
     mutationFn: (payload: { status: string; cancellation_reason?: string; postpone_reason?: string }) =>
       api.updateOtBookingStatus(b.id, payload as Parameters<typeof api.updateOtBookingStatus>[1]),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-booking", b.id] });
-      queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-booking", b.id] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
       notifications.show({ title: "Updated", message: "Booking status updated", color: "success" });
       setShowReason(null);
       setReason("");
@@ -567,7 +568,7 @@ function PreopTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (d: CreatePreopAssessmentRequest) => api.createPreopAssessment(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
       notifications.show({ title: "Saved", message: "Pre-op assessment recorded", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to save assessment", color: "danger" }),
@@ -578,7 +579,7 @@ function PreopTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: UpdatePreopAssessmentRequest) =>
       api.updatePreopAssessment(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
       notifications.show({ title: "Updated", message: "Assessment updated", color: "success" });
       setEditing(false);
     },
@@ -707,7 +708,7 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (d: CreateSafetyChecklistRequest) => api.createSafetyChecklist(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
       notifications.show({ title: "Created", message: "Checklist phase started", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to create checklist", color: "danger" }),
@@ -717,7 +718,7 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
     mutationFn: ({ id }: { id: string }) =>
       api.updateSafetyChecklist(bookingId, id, { completed: true }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
       notifications.show({ title: "Completed", message: "Phase completed", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to complete phase", color: "danger" }),
@@ -807,7 +808,7 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (d: CreateCaseRecordRequest) => api.createCaseRecord(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-case-record", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-case-record", bookingId] });
       notifications.show({ title: "Saved", message: "Case record created", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to save case record", color: "danger" }),
@@ -922,7 +923,7 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (d: CreateAnesthesiaRecordRequest) => api.createAnesthesiaRecord(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-anesthesia", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-anesthesia", bookingId] });
       notifications.show({ title: "Saved", message: "Anesthesia record created", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to save anesthesia record", color: "danger" }),
@@ -996,7 +997,7 @@ function PostopTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (d: CreatePostopRecordRequest) => api.createPostopRecord(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Saved", message: "Post-op record created", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed to save post-op record", color: "danger" }),
@@ -1009,7 +1010,7 @@ function PostopTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: UpdatePostopRecordRequest) =>
       api.updatePostopRecord(bookingId, d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Updated", message: "Post-op record updated", color: "success" });
       setEditing(false);
     },
@@ -1167,7 +1168,7 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   const mutation = useMutation({
     mutationFn: (data: CreateOtRoomRequest) => api.createOtRoom(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-rooms"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-rooms"] });
       notifications.show({ title: "Created", message: "OT room created", color: "success" });
       onClose();
       setName("");
@@ -1244,7 +1245,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
   const mutation = useMutation({
     mutationFn: (data: CreateSurgeonPreferenceRequest) => api.createSurgeonPreference(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-surgeon-preferences"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-surgeon-preferences"] });
       notifications.show({ title: "Created", message: "Preference card saved", color: "success" });
       onClose();
       setForm({});
@@ -1301,7 +1302,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateOtConsumableRequest) => api.createOtConsumable(bookingId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
       notifications.show({ title: "Added", message: "Consumable recorded", color: "success" });
       setShowForm(false);
       setItemName("");
@@ -1316,7 +1317,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
   const deleteMutation = useMutation({
     mutationFn: (itemId: string) => api.deleteOtConsumable(bookingId, itemId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
       notifications.show({ title: "Removed", message: "Consumable removed", color: "success" });
     },
   });
@@ -1402,7 +1403,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
                 <Table.Td><Text size="sm">{c.batch_number ?? "—"}</Text></Table.Td>
                 {canManage && (
                   <Table.Td>
-                    <ActionIcon size="sm" variant="light" color="danger" onClick={() => deleteMutation.mutate(c.id)}>
+                    <ActionIcon size="sm" variant="light" color="danger" onClick={() => deleteMutation.mutate(c.id)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>

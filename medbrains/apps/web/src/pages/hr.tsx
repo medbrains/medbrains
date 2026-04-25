@@ -169,7 +169,7 @@ function EmployeesTab({ canCreate, canManageCredentials }: { canCreate: boolean;
       date_of_joining: form.date_of_joining || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-employees"] });
+      void qc.invalidateQueries({ queryKey: ["hr-employees"] });
       closeCreate();
       setForm({ employee_code: "", first_name: "", last_name: "", phone: "", email: "", employment_type: "permanent", department_id: "", designation_id: "", date_of_joining: "" });
       notifications.show({ title: "Employee Created", message: "Employee record added", color: "success" });
@@ -182,7 +182,7 @@ function EmployeesTab({ canCreate, canManageCredentials }: { canCreate: boolean;
   const desigMut = useMutation({
     mutationFn: () => api.createDesignation({ code: desigForm.code, name: desigForm.name, level: desigForm.level, category: desigForm.category }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-designations"] });
+      void qc.invalidateQueries({ queryKey: ["hr-designations"] });
       closeDesig();
       setDesigForm({ code: "", name: "", level: 1, category: "clinical" });
       notifications.show({ title: "Designation Created", message: "Designation added", color: "success" });
@@ -219,7 +219,7 @@ function EmployeesTab({ canCreate, canManageCredentials }: { canCreate: boolean;
           { key: "email", label: "Email", render: (r: Employee) => <Text size="sm">{r.email || "—"}</Text> },
           { key: "actions", label: "", render: (r: Employee) => (
             <Tooltip label="View Details">
-              <ActionIcon variant="subtle" onClick={() => { setDetailId(r.id); openDetail(); }}>
+              <ActionIcon variant="subtle" onClick={() => { setDetailId(r.id); openDetail(); }} aria-label="Edit">
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
@@ -288,7 +288,7 @@ function EmployeeDetailDrawer({ employeeId, opened, onClose, canManageCredential
       expiry_date: credForm.expiry_date || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-credentials", employeeId] });
+      void qc.invalidateQueries({ queryKey: ["hr-credentials", employeeId] });
       closeCred();
       setCredForm({ credential_type: "medical_council", issuing_body: "", registration_no: "", state_code: "", expiry_date: "" });
       notifications.show({ title: "Credential Added", message: "Credential recorded", color: "success" });
@@ -400,7 +400,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
       source: form.source || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-attendance"] });
+      void qc.invalidateQueries({ queryKey: ["hr-attendance"] });
       closeCreate();
       setForm({ employee_id: "", attendance_date: "", check_in: "", check_out: "", status: "present", source: "manual" });
       notifications.show({ title: "Attendance Recorded", message: "Attendance marked", color: "success" });
@@ -481,7 +481,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
       reason: form.reason || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-leaves"] });
+      void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       closeCreate();
       setForm({ employee_id: "", leave_type: "casual", start_date: "", end_date: "", days: 1, is_half_day: false, reason: "" });
       notifications.show({ title: "Leave Applied", message: "Leave request submitted", color: "success" });
@@ -492,7 +492,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
   const actionMut = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) => api.leaveAction(id, { action }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-leaves"] });
+      void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       notifications.show({ title: "Leave Updated", message: "Leave status updated", color: "success" });
     },
   });
@@ -500,7 +500,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
   const cancelMut = useMutation({
     mutationFn: (id: string) => api.cancelLeave(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-leaves"] });
+      void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       notifications.show({ title: "Leave Cancelled", message: "Leave request cancelled", color: "orange" });
     },
   });
@@ -531,12 +531,12 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
             <Group gap={4}>
               {canApprove && r.status === "pending_hod" && (
                 <>
-                  <Tooltip label="Approve"><ActionIcon color="success" variant="subtle" onClick={() => actionMut.mutate({ id: r.id, action: "approve" })}><IconCheck size={16} /></ActionIcon></Tooltip>
-                  <Tooltip label="Reject"><ActionIcon color="danger" variant="subtle" onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}><IconX size={16} /></ActionIcon></Tooltip>
+                  <Tooltip label="Approve"><ActionIcon color="success" variant="subtle" onClick={() => actionMut.mutate({ id: r.id, action: "approve" })} aria-label="Confirm"><IconCheck size={16} /></ActionIcon></Tooltip>
+                  <Tooltip label="Reject"><ActionIcon color="danger" variant="subtle" onClick={() => actionMut.mutate({ id: r.id, action: "reject" })} aria-label="Close"><IconX size={16} /></ActionIcon></Tooltip>
                 </>
               )}
               {(r.status === "draft" || r.status === "pending_hod") && (
-                <Tooltip label="Cancel"><ActionIcon color="slate" variant="subtle" onClick={() => cancelMut.mutate(r.id)}><IconX size={16} /></ActionIcon></Tooltip>
+                <Tooltip label="Cancel"><ActionIcon color="slate" variant="subtle" onClick={() => cancelMut.mutate(r.id)} aria-label="Close"><IconX size={16} /></ActionIcon></Tooltip>
               )}
             </Group>
           )},
@@ -592,7 +592,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
   const [shiftForm, setShiftForm] = useState({ code: "", name: "", shift_type: "general", start_time: "09:00", end_time: "17:00", break_minutes: 30, is_night: false });
   const shiftMut = useMutation({
     mutationFn: () => api.createShift({ code: shiftForm.code, name: shiftForm.name, shift_type: shiftForm.shift_type, start_time: shiftForm.start_time, end_time: shiftForm.end_time, break_minutes: shiftForm.break_minutes, is_night: shiftForm.is_night }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-shifts"] }); closeShift(); notifications.show({ title: "Shift Created", message: "Shift definition added", color: "success" }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["hr-shifts"] }); closeShift(); notifications.show({ title: "Shift Created", message: "Shift definition added", color: "success" }); },
   });
 
   // ── Create roster entry ──
@@ -600,7 +600,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
   const rosterMut = useMutation({
     mutationFn: () => api.createRoster({ employee_id: rosterForm.employee_id, shift_id: rosterForm.shift_id, roster_date: rosterForm.roster_date, is_on_call: rosterForm.is_on_call }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-rosters"] });
+      void qc.invalidateQueries({ queryKey: ["hr-rosters"] });
       closeRoster();
       setRosterForm({ employee_id: "", shift_id: "", roster_date: "", is_on_call: false });
       notifications.show({ title: "Roster Entry Added", message: "Duty roster updated", color: "success" });
@@ -613,7 +613,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
   const onCallMut = useMutation({
     mutationFn: () => api.createOnCall({ employee_id: onCallForm.employee_id, schedule_date: onCallForm.schedule_date, start_time: onCallForm.start_time, end_time: onCallForm.end_time, is_primary: onCallForm.is_primary, contact_number: onCallForm.contact_number || undefined }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-on-call"] });
+      void qc.invalidateQueries({ queryKey: ["hr-on-call"] });
       closeOnCall();
       setOnCallForm({ employee_id: "", schedule_date: "", start_time: "18:00", end_time: "06:00", is_primary: true, contact_number: "" });
       notifications.show({ title: "On-Call Scheduled", message: "On-call schedule added", color: "success" });
@@ -624,7 +624,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
   const swapMut = useMutation({
     mutationFn: (id: string) => api.approveSwap(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-rosters"] });
+      void qc.invalidateQueries({ queryKey: ["hr-rosters"] });
       notifications.show({ title: "Swap Approved", message: "Shift swap approved", color: "success" });
     },
   });
@@ -658,7 +658,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
               { key: "swap", label: "Swap", render: (r: DutyRoster) => r.swap_with ? (r.swap_approved ? <Badge color="success" size="sm">Approved</Badge> : <Badge color="warning" size="sm">Pending</Badge>) : <Text size="sm" c="dimmed">—</Text> },
               { key: "actions", label: "", render: (r: DutyRoster) => (
                 canManage && r.swap_with && !r.swap_approved ? (
-                  <Tooltip label="Approve Swap"><ActionIcon color="success" variant="subtle" onClick={() => swapMut.mutate(r.id)}><IconCheck size={16} /></ActionIcon></Tooltip>
+                  <Tooltip label="Approve Swap"><ActionIcon color="success" variant="subtle" onClick={() => swapMut.mutate(r.id)} aria-label="Confirm"><IconCheck size={16} /></ActionIcon></Tooltip>
                 ) : null
               )},
             ]}
@@ -775,7 +775,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
       is_mandatory: progForm.is_mandatory, frequency_months: progForm.frequency_months, duration_hours: progForm.duration_hours,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hr-training-programs"] });
+      void qc.invalidateQueries({ queryKey: ["hr-training-programs"] });
       closeProgram();
       setProgForm({ code: "", name: "", description: "", is_mandatory: false, frequency_months: 12, duration_hours: 2 });
       notifications.show({ title: "Program Created", message: "Training program added", color: "success" });

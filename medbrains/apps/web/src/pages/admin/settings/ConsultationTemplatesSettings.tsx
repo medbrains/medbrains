@@ -75,7 +75,7 @@ export function ConsultationTemplatesSettings() {
     mutationFn: (data: CreateConsultationTemplateRequest) =>
       api.createConsultationTemplate(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
       notifications.show({
         title: "Created",
         message: "Consultation template created.",
@@ -96,7 +96,7 @@ export function ConsultationTemplatesSettings() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteConsultationTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
       notifications.show({
         title: "Deleted",
         message: "Template removed.",
@@ -207,6 +207,7 @@ export function ConsultationTemplatesSettings() {
                         color="danger"
                         title="Delete"
                         onClick={() => deleteMutation.mutate(tmpl.id)}
+                        aria-label="Delete"
                       >
                         <IconTrash size={16} />
                       </ActionIcon>

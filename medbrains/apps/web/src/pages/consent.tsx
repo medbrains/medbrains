@@ -88,7 +88,7 @@ const INJURY_CLASSIFICATION_OPTIONS = [
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  general: "slate",
+  general: "gray",
   surgical: "danger",
   anesthesia: "violet",
   blood_transfusion: "danger",
@@ -97,22 +97,22 @@ const CATEGORY_COLORS: Record<string, string> = {
   research: "violet",
   photography: "info",
   teaching: "teal",
-  refusal: "orange",
+  refusal: "warning",
   advance_directive: "warning",
-  organ_donation: "lime",
+  organ_donation: "teal",
   communication: "success",
-  death_certificate: "red.9",
-  medico_legal_opinion: "orange.9",
-  custom: "dark",
+  death_certificate: "danger",
+  medico_legal_opinion: "warning",
+  custom: "gray",
 };
 
 const AUDIT_ACTION_COLORS: Record<string, string> = {
-  created: "slate",
+  created: "gray",
   granted: "success",
   signed: "success",
   denied: "danger",
   refused: "danger",
-  withdrawn: "orange",
+  withdrawn: "warning",
   revoked: "danger",
   expired: "warning",
   renewed: "primary",
@@ -125,8 +125,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "warning",
   denied: "danger",
   refused: "danger",
-  withdrawn: "orange",
-  expired: "slate",
+  withdrawn: "warning",
+  expired: "gray",
   missing: "danger",
 };
 
@@ -231,7 +231,7 @@ function TemplatesTab({
   const createMut = useMutation({
     mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-templates"] });
+      void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       close();
       notifications.show({ title: "Created", message: "Template created", color: "success" });
     },
@@ -241,7 +241,7 @@ function TemplatesTab({
     mutationFn: ({ id, data }: { id: string; data: UpdateConsentTemplateRequest }) =>
       api.updateConsentTemplate(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-templates"] });
+      void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       close();
       setEditing(null);
       notifications.show({ title: "Updated", message: "Template updated", color: "success" });
@@ -251,7 +251,7 @@ function TemplatesTab({
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteConsentTemplate(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-templates"] });
+      void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       notifications.show({ title: "Deleted", message: "Template removed", color: "danger" });
     },
   });
@@ -263,7 +263,7 @@ function TemplatesTab({
       key: "category",
       label: "Category",
       render: (r) => (
-        <Badge color={CATEGORY_COLORS[r.category] ?? "slate"} variant="light" size="sm">
+        <Badge color={CATEGORY_COLORS[r.category] ?? "gray"} variant="light" size="sm">
           {r.category.replace(/_/g, " ")}
         </Badge>
       ),
@@ -282,7 +282,7 @@ function TemplatesTab({
       render: (r) => (
         <Group gap={4}>
           {r.requires_witness && (
-            <Badge size="xs" variant="outline" color="orange">
+            <Badge size="xs" variant="outline" color="warning">
               Witness
             </Badge>
           )}
@@ -303,7 +303,7 @@ function TemplatesTab({
       key: "active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"} variant="light" size="sm">
+        <Badge color={r.is_active ? "success" : "gray"} variant="light" size="sm">
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -321,6 +321,7 @@ function TemplatesTab({
                 setEditing(r);
                 open();
               }}
+              aria-label="Edit"
             >
               <IconPencil size={14} />
             </ActionIcon>
@@ -331,6 +332,7 @@ function TemplatesTab({
               color="danger"
               size="sm"
               onClick={() => deleteMut.mutate(r.id)}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
             </ActionIcon>
@@ -343,7 +345,7 @@ function TemplatesTab({
   const deathCertMut = useMutation({
     mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-templates"] });
+      void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeDeathCert();
       notifications.show({ title: "Created", message: "Death certificate template created", color: "success" });
     },
@@ -352,7 +354,7 @@ function TemplatesTab({
   const mloMut = useMutation({
     mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-templates"] });
+      void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeMlo();
       notifications.show({ title: "Created", message: "Medico-legal opinion template created", color: "success" });
     },
@@ -372,8 +374,8 @@ function TemplatesTab({
         <Group gap="xs">
           {canCreate && (
             <Button
-              variant="light"
-              color="danger.9"
+              variant="outline"
+              color="primary"
               leftSection={<IconCertificate size={16} />}
               onClick={openDeathCert}
             >
@@ -382,8 +384,8 @@ function TemplatesTab({
           )}
           {canCreate && (
             <Button
-              variant="light"
-              color="orange.9"
+              variant="outline"
+              color="primary"
               leftSection={<IconScale size={16} />}
               onClick={openMlo}
             >
@@ -708,7 +710,7 @@ function DeathCertificateForm({
       <TextInput label="Witness Name" value={witnessName} onChange={(e) => setWitnessName(e.target.value)} />
       <Textarea label="Additional Notes" value={notes} onChange={(e) => setNotes(e.target.value)} minRows={2} />
 
-      <Button onClick={handleSubmit} loading={loading} color="danger.9" leftSection={<IconCertificate size={16} />}>
+      <Button onClick={handleSubmit} loading={loading} color="primary" leftSection={<IconCertificate size={16} />}>
         Create Death Certificate Template
       </Button>
     </Stack>
@@ -913,7 +915,7 @@ function MedicoLegalOpinionForm({
 
       <Textarea label="Additional Notes" value={notes} onChange={(e) => setNotes(e.target.value)} minRows={2} />
 
-      <Button onClick={handleSubmit} loading={loading} color="orange.9" leftSection={<IconScale size={16} />}>
+      <Button onClick={handleSubmit} loading={loading} color="primary" leftSection={<IconScale size={16} />}>
         Create Medico-Legal Opinion Template
       </Button>
     </Stack>
@@ -960,7 +962,7 @@ function AuditTab() {
       key: "action",
       label: "Action",
       render: (r) => (
-        <Badge color={AUDIT_ACTION_COLORS[r.action] ?? "slate"} variant="light" size="sm">
+        <Badge color={AUDIT_ACTION_COLORS[r.action] ?? "gray"} variant="light" size="sm">
           {r.action}
         </Badge>
       ),
@@ -997,7 +999,7 @@ function AuditTab() {
       key: "detail",
       label: "",
       render: (r) => (
-        <ActionIcon variant="subtle" size="sm" onClick={() => setDetailEntry(r)}>
+        <ActionIcon variant="subtle" size="sm" onClick={() => setDetailEntry(r)} aria-label="Search">
           <IconSearch size={14} />
         </ActionIcon>
       ),
@@ -1093,7 +1095,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
         reason: "Revoked via consent management UI",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-summary"] });
+      void qc.invalidateQueries({ queryKey: ["consent-summary"] });
       notifications.show({ title: "Revoked", message: "Consent has been revoked", color: "orange" });
     },
   });
@@ -1113,7 +1115,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={STATUS_COLORS[r.status] ?? "slate"} variant="light" size="sm">
+        <Badge color={STATUS_COLORS[r.status] ?? "gray"} variant="light" size="sm">
           {r.status}
         </Badge>
       ),
@@ -1139,10 +1141,11 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
         return (
           <ActionIcon
             variant="subtle"
-            color="orange"
+            color="warning"
             size="sm"
             onClick={() => revokeMut.mutate(r)}
             loading={revokeMut.isPending}
+            aria-label="Close"
           >
             <IconX size={14} />
           </ActionIcon>
@@ -1206,7 +1209,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
   const createMut = useMutation({
     mutationFn: (d: CreateConsentSignatureRequest) => api.createConsentSignature(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-signatures"] });
+      void qc.invalidateQueries({ queryKey: ["consent-signatures"] });
       close();
       notifications.show({ title: "Created", message: "Signature recorded", color: "success" });
     },
@@ -1215,7 +1218,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteConsentSignature(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["consent-signatures"] });
+      void qc.invalidateQueries({ queryKey: ["consent-signatures"] });
       notifications.show({ title: "Deleted", message: "Signature removed", color: "danger" });
     },
   });
@@ -1259,11 +1262,11 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       label: "",
       render: (r) => (
         <Group gap={4}>
-          <ActionIcon variant="subtle" size="sm" onClick={() => setDetailSig(r)}>
+          <ActionIcon variant="subtle" size="sm" onClick={() => setDetailSig(r)} aria-label="Search">
             <IconSearch size={14} />
           </ActionIcon>
           {canManage && (
-            <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMut.mutate(r.id)}>
+            <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMut.mutate(r.id)} aria-label="Delete">
               <IconTrash size={14} />
             </ActionIcon>
           )}

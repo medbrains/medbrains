@@ -40,5 +40,21 @@
   "error": "Error",
   "success": "Success",
   "warning": "Warning",
-  "info": "Info"
+  "info": "Info",
+  "aria.edit": "Edit",
+  "aria.delete": "Delete",
+  "aria.viewDetails": "View details",
+  "aria.close": "Close",
+  "aria.search": "Search",
+  "aria.refresh": "Refresh",
+  "aria.add": "Add",
+  "aria.confirm": "Confirm",
+  "aria.download": "Download",
+  "aria.print": "Print",
+  "aria.copy": "Copy",
+  "aria.moreActions": "More actions",
+  "aria.settings": "Settings",
+  "aria.filter": "Filter",
+  "aria.expand": "Expand",
+  "aria.collapse": "Collapse"
 }

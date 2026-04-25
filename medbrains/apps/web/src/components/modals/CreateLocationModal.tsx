@@ -49,7 +49,7 @@ export function CreateLocationModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-locations"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-locations"] });
       if (onCreated) {
         onCreated(created);
       } else {

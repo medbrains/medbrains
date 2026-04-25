@@ -118,7 +118,7 @@ export function PrintTemplateSettings() {
       await api.upsertPrintTemplate(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["setup-print-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-print-templates"] });
       notifications.show({
         title: "Template saved",
         message: `${TEMPLATE_TYPES.find((t) => t.value === selectedType)?.label ?? selectedType} template has been updated.`,

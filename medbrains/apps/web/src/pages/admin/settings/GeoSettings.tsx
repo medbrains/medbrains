@@ -103,7 +103,7 @@ export function GeoSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["setup-tenant"] });
+      void queryClient.invalidateQueries({ queryKey: ["setup-tenant"] });
 
       if (result.defaults_applied) {
         // Refresh locale settings in store
@@ -120,7 +120,7 @@ export function GeoSettings() {
           );
         });
 
-        queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
+        void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 
         notifications.show({
           title: "Defaults auto-configured",

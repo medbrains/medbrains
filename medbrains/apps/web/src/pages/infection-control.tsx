@@ -176,7 +176,7 @@ function SurveillanceTab() {
         notes: form.notes || undefined,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-surveillance"] });
+      void qc.invalidateQueries({ queryKey: ["ic-surveillance"] });
       notifications.show({ title: "Event recorded", message: "", color: "success" });
       close();
     },
@@ -317,7 +317,7 @@ function StewardshipTab() {
         duration_days: form.duration_days,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
+      void qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
       notifications.show({ title: "Request created", message: "", color: "success" });
       close();
     },
@@ -327,7 +327,7 @@ function StewardshipTab() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.reviewStewardshipRequest(id, { request_status: status as AntibioticRequestStatusType, review_notes: undefined }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
+      void qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
       notifications.show({ title: "Request reviewed", message: "", color: "success" });
     },
   });
@@ -489,7 +489,7 @@ function BiowasteTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateBiowasteRecordRequest) => api.createBiowasteRecord(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-biowaste"] });
+      void qc.invalidateQueries({ queryKey: ["ic-biowaste"] });
       notifications.show({ title: "Record added", message: "", color: "success" });
       close();
     },
@@ -650,7 +650,7 @@ function HygieneTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateHygieneAuditRequest) => api.createHygieneAudit(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-hygiene"] });
+      void qc.invalidateQueries({ queryKey: ["ic-hygiene"] });
       notifications.show({ title: "Audit recorded", message: "", color: "success" });
       close();
     },
@@ -833,7 +833,7 @@ function OutbreakTab() {
   const createMut = useMutation({
     mutationFn: (data: CreateOutbreakRequest) => api.createOutbreak(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
+      void qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
       notifications.show({ title: "Outbreak reported", message: "", color: "success" });
       close();
     },
@@ -842,7 +842,7 @@ function OutbreakTab() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateOutbreakRequest }) => api.updateOutbreak(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
+      void qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
       notifications.show({ title: "Outbreak updated", message: "", color: "success" });
     },
   });
@@ -866,7 +866,7 @@ function OutbreakTab() {
       render: (r: OutbreakEvent) => (
         <Group gap="xs">
           <Tooltip label="View details">
-            <ActionIcon variant="subtle" onClick={() => { setSelected(r); openDetail(); }}>
+            <ActionIcon variant="subtle" onClick={() => { setSelected(r); openDetail(); }} aria-label="View details">
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -1267,7 +1267,7 @@ function MeetingsTab() {
   const createMeetingMut = useMutation({
     mutationFn: (data: CreateIcMeetingRequest) => api.createIcMeeting(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ic-meetings"] });
+      void qc.invalidateQueries({ queryKey: ["ic-meetings"] });
       notifications.show({ title: "Meeting created", message: "", color: "success" });
       closeMeeting();
       setMeetingForm({ meeting_date: "", meeting_type: "regular" });
@@ -1404,7 +1404,7 @@ function MeetingsTab() {
           <Select label="Event Type" required data={["needlestick", "splash", "cut", "bite", "other"]} value={exposureForm.event_type || null} onChange={(v) => setExposureForm({ ...exposureForm, event_type: v ?? "" })} />
           <TextInput label="Exposure Date" type="datetime-local" required value={exposureForm.exposure_date} onChange={(e) => setExposureForm({ ...exposureForm, exposure_date: e.currentTarget.value })} />
           <Select label="Exposure Type" required data={["percutaneous", "mucocutaneous", "intact_skin", "other"]} value={exposureForm.exposure_type || null} onChange={(v) => setExposureForm({ ...exposureForm, exposure_type: v ?? "" })} />
-          <TextInput label="Source Patient ID" value={exposureForm.source_patient_id ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, source_patient_id: e.currentTarget.value || undefined })} />
+          <PatientSearchSelect label="Source Patient" value={exposureForm.source_patient_id ?? ""} onChange={(id) => setExposureForm({ ...exposureForm, source_patient_id: id || undefined })} />
           <TextInput label="Exposed Staff ID" value={exposureForm.exposed_staff_id ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, exposed_staff_id: e.currentTarget.value || undefined })} />
           <Switch label="PEP Initiated" checked={exposureForm.pep_initiated} onChange={(e) => setExposureForm({ ...exposureForm, pep_initiated: e.currentTarget.checked })} />
           <Textarea label="Notes" value={exposureForm.notes ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, notes: e.currentTarget.value || undefined })} />

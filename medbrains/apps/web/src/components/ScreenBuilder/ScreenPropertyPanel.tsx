@@ -196,7 +196,8 @@ export function ScreenPropertyPanel() {
   const renderContent = () => {
     if (!selectedItemId || !selectedItemType) {
       return (
-        <div className={classes.propertyEmpty}>
+        <div className={classes.propertyEmpty}
+            aria-label="Pointer">
           <IconPointer size={32} stroke={1} />
           <Text size="sm" c="dimmed">
             Select a zone, action, or sidecar to configure it

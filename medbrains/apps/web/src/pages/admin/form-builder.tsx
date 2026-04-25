@@ -147,7 +147,7 @@ function fieldLabel(field: FormBuilderFieldNode) {
           position="top-end"
           events={{ hover: true, focus: true, touch: true }}
         >
-          <ActionIcon variant="subtle" size="xs" color="slate">
+          <ActionIcon variant="subtle" size="xs" color="slate" aria-label="Info">
             <IconInfoCircle size={14} />
           </ActionIcon>
         </Tooltip>
@@ -841,8 +841,8 @@ export function FormBuilderPage() {
       }
 
       markClean();
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-form-detail", serverFormId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-form-detail", serverFormId] });
       notifications.show({
         title: "Form saved",
         message: `${state.form.name} has been saved`,
@@ -872,8 +872,8 @@ export function FormBuilderPage() {
         color: "success",
       });
       hasLoadedRef.current = null; // force reload so locked state updates
-      queryClient.invalidateQueries({ queryKey: ["admin-form-detail", formId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-form-detail", formId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
       publishModalHandlers.close();
       setPublishSummary("");
     },
@@ -895,8 +895,8 @@ export function FormBuilderPage() {
         color: "primary",
       });
       hasLoadedRef.current = null; // force reload from fresh data
-      queryClient.invalidateQueries({ queryKey: ["admin-form-detail", formId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-form-detail", formId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
     },
     onError: (err: Error) => {
       notifications.show({

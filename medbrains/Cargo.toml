@@ -68,6 +68,10 @@ futures = "0.3"
 # HTTP client (for YottaDB REST)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
+# AI / LLM
+rig-core = { version = "0.35", features = ["derive"] }
+schemars = "1"
+
 # ── Build profiles ──────────────────────────────────────────
 
 [profile.dev]

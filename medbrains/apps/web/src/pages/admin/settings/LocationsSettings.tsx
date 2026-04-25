@@ -110,7 +110,7 @@ function LocationModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       onClose();
     },
     onError: (err: Error) => {
@@ -132,7 +132,7 @@ function LocationModal({
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       onClose();
     },
     onError: (err: Error) => {
@@ -298,7 +298,7 @@ export function LocationsSettings() {
         color: "success",
         icon: <IconCheck size={16} />,
       });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
@@ -364,10 +364,10 @@ export function LocationsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon variant="subtle" color="primary" onClick={() => openEdit(loc)}>
+          <ActionIcon variant="subtle" color="primary" onClick={() => openEdit(loc)} aria-label="Edit">
             <IconPencil size={16} />
           </ActionIcon>
-          <ActionIcon variant="subtle" color="danger" onClick={() => setDeleteTarget(loc)}>
+          <ActionIcon variant="subtle" color="danger" onClick={() => setDeleteTarget(loc)} aria-label="Delete">
             <IconTrash size={16} />
           </ActionIcon>
         </Group>

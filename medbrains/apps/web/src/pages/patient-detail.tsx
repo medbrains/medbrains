@@ -670,7 +670,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
     mutationFn: (data: CreateFamilyLinkRequest) =>
       api.createFamilyLink(patientId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
       notifications.show({ title: "Linked", message: "Family member linked", color: "success" });
       handleClose();
     },
@@ -679,7 +679,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   const deleteMutation = useMutation({
     mutationFn: (linkId: string) => api.deleteFamilyLink(patientId, linkId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
     },
   });
 
@@ -737,7 +737,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
                 <Table.Td><Text size="sm">{l.related_gender ?? "—"}</Text></Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(l.id)}>
+                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(l.id)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -812,7 +812,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
   const createMutation = useMutation({
     mutationFn: (data: CreateDocumentRequest) => api.createPatientDocument(patientId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
       notifications.show({ title: "Added", message: "Document added", color: "success" });
       handleClose();
     },
@@ -821,7 +821,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
   const deleteMutation = useMutation({
     mutationFn: (docId: string) => api.deletePatientDocument(patientId, docId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
     },
   });
 
@@ -870,7 +870,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
                 <Table.Td><Text size="xs" c="dimmed">{formatDate(d.created_at)}</Text></Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(d.id)}>
+                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(d.id)} aria-label="Delete">
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -916,8 +916,8 @@ function MergeTab({ patient }: { patient: Patient }) {
   const mergeMutation = useMutation({
     mutationFn: (data: MergePatientRequest) => api.mergePatients(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
       notifications.show({ title: "Merged", message: "Patient records merged", color: "success" });
       confirmHandlers.close();
       setSelectedTarget(null);
@@ -929,8 +929,8 @@ function MergeTab({ patient }: { patient: Patient }) {
   const unmergeMutation = useMutation({
     mutationFn: (historyId: string) => api.unmergePatient(historyId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
       notifications.show({ title: "Unmerged", message: "Patient records separated", color: "success" });
     },
   });
@@ -1675,7 +1675,7 @@ export function PatientDetailPage() {
         subtitle={`UHID: ${patient.uhid} | ${patient.gender} | ${age(patient.date_of_birth)} | ${patient.phone}`}
         actions={
           <Tooltip label="Print patient card">
-            <ActionIcon variant="light" onClick={() => handlePrintPatientCard(patient)}>
+            <ActionIcon variant="light" onClick={() => handlePrintPatientCard(patient)} aria-label="Print">
               <IconPrinter size={18} />
             </ActionIcon>
           </Tooltip>
