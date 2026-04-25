@@ -218,7 +218,8 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
 // ── C. Dose Calculator View ────────────────────────────────────
 
 function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
-  const doseMg = parseDosageNumeric(item.dosage);
+  // Try dosage field first, fall back to extracting mg from drug name (e.g. "Amoxicillin 500mg")
+  const doseMg = parseDosageNumeric(item.dosage) ?? parseDosageNumeric(item.drug_name);
   const dosesPerDay = FREQ_DOSES_PER_DAY[item.frequency.toUpperCase()] ?? 0;
   const calc = useMemo(() => {
     if (!weight || weight <= 0 || !doseMg || dosesPerDay <= 0) return null;
@@ -246,7 +247,7 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
         </Box>
       ) : (
         <Text size="xs" c="dimmed" fs="italic">
-          {!weight ? "Enter weight to calculate" : "Cannot parse dosage for calculation"}
+          {!weight ? "Enter patient weight to calculate" : `No numeric dose found in "${item.dosage}" or drug name`}
         </Text>
       )}
     </Card>
