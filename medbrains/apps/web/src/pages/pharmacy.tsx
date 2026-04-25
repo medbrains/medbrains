@@ -28,6 +28,7 @@ import {
   IconCashRegister,
   IconCheck,
   IconClipboardList,
+  IconClock,
   IconEye,
   IconLock,
   IconPackage,
@@ -75,7 +76,7 @@ import type {
   FormularyCheckResult,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
@@ -656,6 +657,15 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
       {showAudit && <PrescriptionAuditTrail prescriptionId={orderId} />}
       {showLabels && hasRxItems && (
         <PharmacyLabel items={rxData.items} patientName={detail.order.patient_id.slice(0, 8)} uhid={detail.order.patient_id.slice(0, 8)} date={new Date().toLocaleDateString()} />
+      )}
+
+      {hasRxItems && (
+        <PrescriptionViews
+          prescriptions={[rxData]}
+          patientName={detail.order.patient_id.slice(0, 8)}
+          uhid={detail.order.patient_id.slice(0, 8)}
+          allergies={[]}
+        />
       )}
     </Stack>
   );
@@ -1448,18 +1458,36 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       row.allergy_count > 0 ? <Badge size="xs" color="danger">{row.allergy_count} alerts</Badge> : <Text size="sm" c="dimmed">None</Text>
     ) },
     { key: "received_at", label: "Received", render: (row: RxQueueRow) => <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text> },
-    ...(canReview ? [{
-      key: "actions", label: "", render: (row: RxQueueRow) => row.status === "pending_review" ? (
+    {
+      key: "actions", label: "Actions", render: (row: RxQueueRow) => (
         <Group gap={4}>
-          <Tooltip label="Approve">
-            <ActionIcon size="sm" color="green" variant="light" onClick={() => handleOpenReview(row.id, "approved")}><IconCheck size={14} /></ActionIcon>
+          <Tooltip label="View prescription">
+            <ActionIcon size="sm" variant="subtle" onClick={() => { setSelectedId(row.id); }} aria-label="View details">
+              <IconEye size={14} />
+            </ActionIcon>
           </Tooltip>
-          <Tooltip label="Reject">
-            <ActionIcon size="sm" color="red" variant="light" onClick={() => handleOpenReview(row.id, "rejected")}><IconX size={14} /></ActionIcon>
-          </Tooltip>
+          {canReview && row.status === "pending_review" && (
+            <>
+              <Tooltip label="Approve & dispense">
+                <ActionIcon size="sm" color="success" variant="light" onClick={() => handleOpenReview(row.id, "approved")} aria-label="Approve">
+                  <IconCheck size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Hold for review">
+                <ActionIcon size="sm" color="warning" variant="light" onClick={() => handleOpenReview(row.id, "on_hold")} aria-label="Hold">
+                  <IconClock size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Reject prescription">
+                <ActionIcon size="sm" color="danger" variant="light" onClick={() => handleOpenReview(row.id, "rejected")} aria-label="Reject">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Tooltip>
+            </>
+          )}
         </Group>
-      ) : null,
-    }] : []),
+      ),
+    },
   ];
 
   return (

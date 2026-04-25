@@ -134,7 +134,6 @@ import {
   PatientSearchSelect,
   DoctorSearchSelect,
 } from "../components";
-import { MedicationScheduleCard } from "../components/Clinical/MedicationScheduleCard";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {

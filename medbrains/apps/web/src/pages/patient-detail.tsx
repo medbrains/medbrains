@@ -32,6 +32,7 @@ import {
   IconFlask,
   IconGitMerge,
   IconLink,
+  IconPill,
   IconPlus,
   IconPrinter,
   IconReceipt,
@@ -48,8 +49,10 @@ import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { PageHeader } from "../components/PageHeader";
+import { PrescriptionViews } from "../components/Clinical";
 import type {
   Patient,
+  PrescriptionHistoryItem,
   PatientVisitRow,
   PatientLabOrderRow,
   PatientInvoiceRow,
@@ -356,6 +359,47 @@ function VisitsTab({ patientId }: { patientId: string }) {
         ))}
       </Table.Tbody>
     </Table>
+  );
+}
+
+// ── Prescriptions Tab ────────────────────────────────────────
+
+function PrescriptionsTab({ patient }: { patient: Patient }) {
+  const { data: history, isLoading } = useQuery({
+    queryKey: ["patient-prescriptions", patient.id],
+    queryFn: () => api.listPatientPrescriptions(patient.id),
+  });
+
+  const { data: allergies } = useQuery({
+    queryKey: ["patient-allergies", patient.id],
+    queryFn: () => api.listPatientAllergies(patient.id),
+  });
+
+  if (isLoading) return <Loader size="sm" />;
+
+  const items = (history ?? []) as PrescriptionHistoryItem[];
+
+  if (items.length === 0) {
+    return (
+      <Text c="dimmed" ta="center" py="xl">
+        No prescriptions found.
+      </Text>
+    );
+  }
+
+  const allergyNames = (allergies ?? []).map((a: PatientAllergy) => a.allergen_name);
+  const fullName = `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim();
+  const patientAge = age(patient.date_of_birth);
+
+  return (
+    <PrescriptionViews
+      prescriptions={items}
+      patientName={fullName}
+      uhid={patient.uhid}
+      patientAge={patientAge}
+      allergies={allergyNames}
+      doctorName={items[0]?.doctor_name ?? undefined}
+    />
   );
 }
 
@@ -1714,6 +1758,9 @@ export function PatientDetailPage() {
           <Tabs.Tab value="visits" leftSection={<IconStethoscope size={14} />}>
             Visits
           </Tabs.Tab>
+          <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>
+            Prescriptions
+          </Tabs.Tab>
           <Tabs.Tab value="lab" leftSection={<IconFlask size={14} />}>
             Lab Orders
           </Tabs.Tab>
@@ -1742,6 +1789,9 @@ export function PatientDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="visits">
           <VisitsTab patientId={patient.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="prescriptions">
+          <PrescriptionsTab patient={patient} />
         </Tabs.Panel>
         <Tabs.Panel value="lab">
           <LabOrdersTab patientId={patient.id} />

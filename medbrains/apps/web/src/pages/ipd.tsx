@@ -104,9 +104,10 @@ import type {
   DischargeSummary as DischargeSummaryGenerated,
   BedTransferRequest,
   ExpectedDischargeRow,
+  PrescriptionWithItems,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {
@@ -506,6 +507,7 @@ function AdmissionDetail({
           <Tabs.Tab value="notes">Progress Notes</Tabs.Tab>
           <Tabs.Tab value="assessments">Clinical</Tabs.Tab>
           <Tabs.Tab value="mar">MAR</Tabs.Tab>
+          <Tabs.Tab value="prescriptions">Prescriptions</Tabs.Tab>
           <Tabs.Tab value="io">I/O Chart</Tabs.Tab>
           <Tabs.Tab value="nursing">Nursing</Tabs.Tab>
           <Tabs.Tab value="attenders">Attenders</Tabs.Tab>
@@ -536,6 +538,12 @@ function AdmissionDetail({
         </Tabs.Panel>
         <Tabs.Panel value="mar" pt="md">
           <MarTab admissionId={admissionId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="prescriptions" pt="md">
+          <AdmissionPrescriptionsTab
+            encounterId={detail.encounter.id}
+            patientId={adm.patient_id}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="io" pt="md">
           <IoChartTab admissionId={admissionId} />
@@ -916,6 +924,44 @@ function MarTab({ admissionId }: { admissionId: string }) {
       </Table>
       {rows.length === 0 && <Text c="dimmed" size="sm">No medication records yet.</Text>}
     </Stack>
+  );
+}
+
+// ── Admission Prescriptions ──────────────────────────────
+
+function AdmissionPrescriptionsTab({
+  encounterId,
+  patientId,
+}: {
+  encounterId: string;
+  patientId: string;
+}) {
+  const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
+    queryKey: ["encounter-prescriptions", encounterId],
+    queryFn: () => api.listPrescriptions(encounterId),
+  });
+
+  const { data: patient } = useQuery({
+    queryKey: ["patient-detail", patientId],
+    queryFn: () => api.getPatient(patientId),
+  });
+
+  if (prescriptions.length === 0) {
+    return <Text c="dimmed" size="sm">No prescriptions for this admission.</Text>;
+  }
+
+  const fullName = patient
+    ? `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()
+    : patientId.slice(0, 8);
+  const uhid = patient?.uhid ?? patientId.slice(0, 8);
+
+  return (
+    <PrescriptionViews
+      prescriptions={prescriptions}
+      patientName={fullName}
+      uhid={uhid}
+      allergies={[]}
+    />
   );
 }
 
