@@ -1,4 +1,34 @@
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+};
 use sqlx::PgPool;
+
+struct DemoDoctor {
+    username: &'static str,
+    full_name: &'static str,
+    email: &'static str,
+}
+
+/// Demo doctors: Internal Medicine, Pediatrics, Surgery.
+/// Password: doctor123 for all.
+const DEMO_DOCTORS: &[DemoDoctor] = &[
+    DemoDoctor {
+        username: "dr_ravi",
+        full_name: "Dr. Ravi Menon",
+        email: "dr_ravi@medbrains.local",
+    },
+    DemoDoctor {
+        username: "dr_priya",
+        full_name: "Dr. Priya Nair",
+        email: "dr_priya@medbrains.local",
+    },
+    DemoDoctor {
+        username: "dr_arjun",
+        full_name: "Dr. Arjun Rao",
+        email: "dr_arjun@medbrains.local",
+    },
+];
 
 struct DemoPatient {
     uhid: &'static str,
@@ -67,6 +97,32 @@ pub(super) async fn seed_demo_patients(
         .bind(tenant_id.to_string())
         .execute(&mut *tx)
         .await?;
+
+    // ── Seed demo doctors (idempotent) ─────────────────────
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let doctor_hash = argon2
+        .hash_password(b"doctor123", &salt)
+        .map_err(|e| format!("password hash error: {e}"))?
+        .to_string();
+
+    for doc in DEMO_DOCTORS {
+        sqlx::query(
+            "INSERT INTO users \
+             (tenant_id, username, email, password_hash, full_name, role) \
+             VALUES ($1, $2, $3, $4, $5, 'doctor') \
+             ON CONFLICT (tenant_id, username) DO NOTHING",
+        )
+        .bind(tenant_id)
+        .bind(doc.username)
+        .bind(doc.email)
+        .bind(&doctor_hash)
+        .bind(doc.full_name)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tracing::info!("Seeded {} demo doctors", DEMO_DOCTORS.len());
 
     // Check if demo patients already exist
     let count: i64 = sqlx::query_scalar(

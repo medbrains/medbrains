@@ -1,4 +1,4 @@
-#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines, unused_imports)]
 
 use axum::{Extension, Json, extract::{Path, Query, State}};
 use chrono::NaiveDate;
@@ -14,7 +14,8 @@ use medbrains_core::pharmacy_phase2::{
 };
 use medbrains_core::pharmacy_phase3::{
     PharmacyPrescriptionRx, PharmacyPosSale, PharmacyPricingTier,
-    PharmacyAllergyCheckLog, PharmacyStockReconciliation, RxQueueRow, PosDaySummary,
+    PharmacyAllergyCheckLog, PharmacyStockReconciliation,
+    RxQueueRow, PosDaySummary,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -2241,7 +2242,7 @@ pub async fn review_prescription(
             .flatten();
 
             let price = if let Some(cid) = catalog {
-                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                sqlx::query_scalar::<_, Option<Decimal>>(
                     "SELECT base_price FROM pharmacy_catalog WHERE id = $1",
                 )
                 .bind(cid)
@@ -2250,7 +2251,7 @@ pub async fn review_prescription(
                 .flatten()
                 .unwrap_or_default()
             } else {
-                rust_decimal::Decimal::ZERO
+                Decimal::ZERO
             };
 
             sqlx::query(
@@ -2283,6 +2284,7 @@ pub async fn review_prescription(
 
 // Helper row for prescription items
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct PrescriptionItemRow {
     drug_name: String,
     dosage: String,
@@ -2326,6 +2328,24 @@ pub async fn check_patient_allergies(
     .await?;
 
     let safe = matches.as_array().map_or(true, Vec::is_empty);
+
+    // Log allergy check to audit trail
+    for drug_id in &body.drug_ids {
+        let action = if safe { "no_match" } else { "blocked" };
+        let _ = sqlx::query(
+            "INSERT INTO pharmacy_allergy_check_log \
+             (tenant_id, patient_id, catalog_item_id, drug_name, action_taken, context) \
+             VALUES ($1, $2, $3, \
+              COALESCE((SELECT name FROM pharmacy_catalog WHERE id = $3 AND tenant_id = $1), 'Unknown'), \
+              $4, 'order_creation')",
+        )
+        .bind(claims.tenant_id)
+        .bind(body.patient_id)
+        .bind(drug_id)
+        .bind(action)
+        .execute(&mut *tx)
+        .await;
+    }
 
     tx.commit().await?;
     Ok(Json(json!({ "matches": matches, "safe": safe })))

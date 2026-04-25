@@ -11387,7 +11387,7 @@ export interface MrdMedicalRecord {
   id: string; tenant_id: string; patient_id: string;
   record_number: string; record_type: string;
   volume_number: number; total_pages: number | null;
-  shelf_location: string | null;
+  shelf_location: string | null; filing_method?: string | null;
   status: MrdRecordStatus;
   last_accessed_at: string | null;
   retention_years: number;
@@ -11466,7 +11466,7 @@ export interface MrdRetentionPolicy {
 export interface CreateMrdRecordRequest {
   patient_id: string; record_number?: string; record_type?: string;
   volume_number?: number; total_pages?: number;
-  shelf_location?: string; retention_years?: number;
+  shelf_location?: string; filing_method?: string; retention_years?: number;
   destruction_due_date?: string; notes?: string;
 }
 

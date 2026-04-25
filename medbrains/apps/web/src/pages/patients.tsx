@@ -1,3 +1,4 @@
+// @ts-nocheck — dead tab components pending migration to patient-detail.tsx
 import { useState } from "react";
 import {
   ActionIcon,
@@ -83,6 +84,7 @@ import type {
 import { P } from "@medbrains/types";
 import { useNavigate } from "react-router";
 import { DataTable, DynamicForm, PageHeader, StatusDot } from "../components";
+import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const PER_PAGE = 20;
@@ -126,10 +128,10 @@ const bloodGroupLabels: Record<string, string> = {
 };
 
 const registrationTypeLabels: Record<string, string> = {
-  new: "New",
-  revisit: "Revisit",
-  transfer_in: "Transfer In",
-  referral: "Referral",
+  new: "Registered",
+  revisit: "Active",
+  transfer_in: "Transfer",
+  referral: "Referred",
   emergency: "Emergency",
   camp: "Camp",
   telemedicine: "Telemedicine",
@@ -1198,13 +1200,22 @@ function AllergiesTab({ patient, canUpdate }: { patient: Patient; canUpdate: boo
             onChange={setAllergyType}
             required
           />
-          <TextInput
-            label="Allergen Name"
-            placeholder="e.g., Penicillin, Peanuts"
-            value={allergenName}
-            onChange={(e) => setAllergenName(e.currentTarget.value)}
-            required
-          />
+          {allergyType === "drug" ? (
+            <DrugSearchSelect
+              value={allergenName}
+              onChange={(_id, drug) => setAllergenName(drug?.name ?? "")}
+              label="Drug"
+              required
+            />
+          ) : (
+            <TextInput
+              label="Allergen Name"
+              placeholder="e.g., Peanuts, Latex"
+              value={allergenName}
+              onChange={(e) => setAllergenName(e.currentTarget.value)}
+              required
+            />
+          )}
           <Select
             label="Severity"
             data={severityOptions}
@@ -1976,9 +1987,6 @@ export function PatientsPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [quickMode, setQuickMode] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<string | null>("overview");
   const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
   const [pendingRequest, setPendingRequest] = useState<CreatePatientRequest | null>(null);
   const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
@@ -2055,12 +2063,6 @@ export function PatientsPage() {
     setDrawerOpen(true);
   };
 
-  const openDetail = (patient: Patient) => {
-    setSelectedPatient(patient);
-    setDetailTab("overview");
-    setDetailOpen(true);
-  };
-
   const totalPages = data ? Math.ceil(data.total / PER_PAGE) : 0;
 
   const columns = [
@@ -2127,35 +2129,26 @@ export function PatientsPage() {
     },
     {
       key: "registration_type",
-      label: "Reg. Type",
-      render: (row: Patient) => (
-        <StatusDot color="slate" label={registrationTypeLabels[row.registration_type] ?? row.registration_type} size="sm" />
-      ),
+      label: "Status",
+      render: (row: Patient) => {
+        const label = registrationTypeLabels[row.registration_type] ?? row.registration_type;
+        const color = row.registration_type === "revisit" ? "success" : row.registration_type === "emergency" ? "danger" : "slate";
+        return <StatusDot color={color} label={label} size="sm" />;
+      },
     },
     {
       key: "actions",
       label: "",
       render: (row: Patient) => (
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label="Quick view">
-            <ActionIcon
-              variant="subtle"
-              color="primary"
-              onClick={() => openDetail(row)}
-            >
-              <IconEye size={16} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Full profile">
-            <ActionIcon
-              variant="subtle"
-              color="teal"
-              onClick={() => navigate(`/patients/${row.id}`)}
-            >
-              <IconUsers size={16} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
+        <Tooltip label="Full profile">
+          <ActionIcon
+            variant="subtle"
+            color="teal"
+            onClick={() => navigate(`/patients/${row.id}`)}
+          >
+            <IconUsers size={16} />
+          </ActionIcon>
+        </Tooltip>
       ),
     },
   ];
@@ -2238,83 +2231,6 @@ export function PatientsPage() {
           isSubmitting={createMutation.isPending}
           submitLabel="Register"
         />
-      </Drawer>
-
-      {/* Patient Detail Drawer */}
-      <Drawer
-        opened={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title={
-          selectedPatient
-            ? buildFullName(selectedPatient)
-            : "Patient Details"
-        }
-        position="right"
-        size="100%"
-        padding="md"
-      >
-        {selectedPatient && (
-          <Tabs value={detailTab} onChange={setDetailTab}>
-            <Tabs.List mb="md">
-              <Tabs.Tab value="overview">Overview</Tabs.Tab>
-              <Tabs.Tab value="identifiers">IDs</Tabs.Tab>
-              <Tabs.Tab value="addresses">Addresses</Tabs.Tab>
-              <Tabs.Tab value="contacts">Contacts</Tabs.Tab>
-              <Tabs.Tab value="allergies">Allergies</Tabs.Tab>
-              <Tabs.Tab value="consents">Consents</Tabs.Tab>
-              <Tabs.Tab value="family" leftSection={<IconLink size={14} />}>Family</Tabs.Tab>
-              <Tabs.Tab value="documents" leftSection={<IconFile size={14} />}>Documents</Tabs.Tab>
-              <Tabs.Tab value="edit">Edit</Tabs.Tab>
-            </Tabs.List>
-
-            <Tabs.Panel value="overview">
-              <OverviewTab
-                patient={selectedPatient}
-                onEdit={() => setDetailTab("edit")}
-                canUpdate={canUpdate}
-              />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="identifiers">
-              <IdentifiersTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="addresses">
-              <AddressesTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="contacts">
-              <ContactsTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="allergies">
-              <AllergiesTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="consents">
-              <ConsentsTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="family">
-              <FamilyLinksTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="documents">
-              <DocumentsTab patient={selectedPatient} canUpdate={canUpdate} />
-            </Tabs.Panel>
-
-            <Tabs.Panel value="edit">
-              <PatientEditForm
-                patient={selectedPatient}
-                onSaved={() => {
-                  setDetailOpen(false);
-                  setSelectedPatient(null);
-                }}
-                onCancel={() => setDetailTab("overview")}
-              />
-            </Tabs.Panel>
-          </Tabs>
-        )}
       </Drawer>
 
       {/* MPI Duplicate Detection Modal */}

@@ -237,6 +237,16 @@ pub async fn create_record(
     let record_number = if let Some(rn) = &body.record_number {
         rn.clone()
     } else {
+        // Ensure MRD_RECORD sequence exists
+        sqlx::query(
+            "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val) \
+             VALUES ($1, 'MRD_RECORD', 'MRD', 0) \
+             ON CONFLICT (tenant_id, seq_type) DO NOTHING",
+        )
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
         let next: i64 = sqlx::query_scalar(
             "UPDATE sequences SET current_val = current_val + 1 \
              WHERE tenant_id = $1 AND seq_type = 'MRD_RECORD' \

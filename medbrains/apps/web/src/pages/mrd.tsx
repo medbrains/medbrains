@@ -66,6 +66,24 @@ function fmt(d: string | null) {
   return new Date(d).toLocaleDateString();
 }
 
+/** Generate shelf/rack options: shelves A-F, racks 1-10 */
+const MRD_SHELF_OPTIONS = (() => {
+  const options: { value: string; label: string }[] = [];
+  for (const shelf of ["A", "B", "C", "D", "E", "F"]) {
+    for (let rack = 1; rack <= 10; rack++) {
+      const code = `${shelf}-${rack}`;
+      options.push({ value: code, label: `Shelf ${shelf}, Rack ${rack}` });
+    }
+  }
+  return options;
+})();
+
+const FILING_METHOD_OPTIONS = [
+  { value: "alphabetical", label: "Alphabetical (by patient name)" },
+  { value: "terminal_digit", label: "Terminal Digit (last 2 digits of UHID)" },
+  { value: "yearly", label: "Yearly (by year of first visit)" },
+];
+
 // ══════════════════════════════════════════════════════════
 //  Page
 // ══════════════════════════════════════════════════════════
@@ -182,7 +200,23 @@ function RecordsTab() {
           <PatientSearchSelect value={createForm.patient_id} onChange={(v) => setCreateForm({ ...createForm, patient_id: v })} required />
           <Select label="Record Type" data={["opd", "ipd", "emergency"]} value={createForm.record_type ?? "opd"} onChange={(v) => setCreateForm({ ...createForm, record_type: v ?? "opd" })} />
           <NumberInput label="Volume" value={createForm.volume_number ?? 1} onChange={(v) => setCreateForm({ ...createForm, volume_number: Number(v) })} min={1} />
-          <TextInput label="Shelf Location" value={createForm.shelf_location ?? ""} onChange={(e) => setCreateForm({ ...createForm, shelf_location: e.currentTarget.value })} />
+          <Select
+            label="Shelf Location"
+            placeholder="Select shelf/rack"
+            data={MRD_SHELF_OPTIONS}
+            value={createForm.shelf_location ?? null}
+            onChange={(v) => setCreateForm({ ...createForm, shelf_location: v ?? undefined })}
+            searchable
+            clearable
+          />
+          <Select
+            label="Filing Method"
+            placeholder="Select filing method"
+            data={FILING_METHOD_OPTIONS}
+            value={createForm.filing_method ?? null}
+            onChange={(v) => setCreateForm({ ...createForm, filing_method: v ?? undefined })}
+            clearable
+          />
           <NumberInput label="Total Pages" value={createForm.total_pages ?? undefined} onChange={(v) => setCreateForm({ ...createForm, total_pages: v ? Number(v) : undefined })} />
           <Textarea label="Notes" value={createForm.notes ?? ""} onChange={(e) => setCreateForm({ ...createForm, notes: e.currentTarget.value })} />
           <Button onClick={() => createMut.mutate(createForm)} loading={createMut.isPending}>Create</Button>
