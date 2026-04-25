@@ -895,7 +895,7 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
         />
       )}
       {vitals.length > 0 && (
-        <Timeline active={0} bulletSize={20} lineWidth={2} color="primary" styles={{ itemBody: { paddingTop: 0 }, item: { marginBottom: 4 } }}>
+        <Timeline active={0} bulletSize={32} lineWidth={2} color="primary" styles={{ item: { marginBottom: 8 } }}>
           {vitals.map((v: Vital, idx: number) => {
             const prev = vitals[idx + 1] as Vital | undefined;
             const trend = (curr: number | null, prevVal: number | null) => {
@@ -907,32 +907,32 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
             return (
               <Timeline.Item
                 key={v.id}
-                bullet={<IconHeartbeat size={10} />}
+                bullet={<IconHeartbeat size={16} />}
                 title={
                   <Group gap="xs">
-                    <Text size="xs" fw={600}>{new Date(v.created_at).toLocaleString()}</Text>
-                    {idx === 0 && <Badge size="xs" color="success" variant="light">Latest</Badge>}
+                    <Text size="sm" fw={600}>{new Date(v.created_at).toLocaleString()}</Text>
+                    {idx === 0 && <Badge size="sm" color="success" variant="light">Latest</Badge>}
                   </Group>
                 }
               >
                 <Group gap="md" mt={4} wrap="wrap">
                   {v.temperature != null && (
-                    <Badge variant="light" color={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="sm">
+                    <Badge variant="light" color={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="md">
                       🌡 {v.temperature}°C{trend(Number(v.temperature), prev?.temperature ? Number(prev.temperature) : null)}
                     </Badge>
                   )}
                   {v.pulse != null && (
-                    <Badge variant="light" color={Number(v.pulse) > 100 ? "danger" : Number(v.pulse) < 60 ? "warning" : "primary"} size="sm">
+                    <Badge variant="light" color={Number(v.pulse) > 100 ? "danger" : Number(v.pulse) < 60 ? "warning" : "primary"} size="md">
                       ❤ {v.pulse} bpm{trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
                     </Badge>
                   )}
                   {v.systolic_bp != null && v.diastolic_bp != null && (
-                    <Badge variant="light" color={Number(v.systolic_bp) > 140 ? "danger" : Number(v.systolic_bp) < 90 ? "warning" : "primary"} size="sm">
+                    <Badge variant="light" color={Number(v.systolic_bp) > 140 ? "danger" : Number(v.systolic_bp) < 90 ? "warning" : "primary"} size="md">
                       🩸 {v.systolic_bp}/{v.diastolic_bp} mmHg
                     </Badge>
                   )}
                   {v.spo2 != null && (
-                    <Badge variant="light" color={Number(v.spo2) < 94 ? "danger" : "primary"} size="sm">
+                    <Badge variant="light" color={Number(v.spo2) < 94 ? "danger" : "primary"} size="md">
                       💨 SpO₂ {v.spo2}%
                     </Badge>
                   )}
@@ -942,12 +942,15 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
                     </Badge>
                   )}
                   {v.weight_kg != null && (
-                    <Badge variant="outline" size="sm">⚖ {v.weight_kg} kg</Badge>
+                    <Badge variant="outline" size="md">⚖ {v.weight_kg} kg</Badge>
                   )}
                   {v.bmi != null && (
-                    <Badge variant="outline" size="sm">BMI {v.bmi}</Badge>
+                    <Badge variant="outline" size="md">BMI {v.bmi}</Badge>
                   )}
                 </Group>
+                {v.notes && (
+                  <Text size="sm" c="dimmed" fs="italic" mt={6} pr="lg">{v.notes}</Text>
+                )}
               </Timeline.Item>
             );
           })}
