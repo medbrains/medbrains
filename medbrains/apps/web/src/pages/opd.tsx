@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   Textarea,
+  ThemeIcon,
   Timeline,
   Tooltip,
 } from "@mantine/core";
@@ -48,6 +49,7 @@ import {
   IconTimeline,
   IconTransferIn,
   IconCalendarStats,
+  IconUser,
   IconUserOff,
   IconShieldCheck,
   IconTrash,
@@ -573,43 +575,6 @@ function EncounterDetail({
 
   return (
     <>
-      <Group justify="flex-end" mb="sm">
-        <GroupAppointmentModal patientId={patientId} />
-        <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
-        <Button
-          variant="light"
-          size="xs"
-          leftSection={<IconPrinter size={14} />}
-          onClick={() => setShowSummary(true)}
-        >
-          Print Visit Summary
-        </Button>
-      </Group>
-
-      {/* Allergy alert banner */}
-      {activeAllergies.length > 0 && (
-        <Alert
-          icon={<IconAlertTriangle size={16} />}
-          color="danger"
-          variant="light"
-          mb="sm"
-          title="Allergy Alert"
-        >
-          <Group gap={6} wrap="wrap">
-            {activeAllergies.map((a) => (
-              <Badge
-                key={a.id}
-                color={a.severity === "severe" || a.severity === "life_threatening" ? "danger" : a.severity === "moderate" ? "orange" : "warning"}
-                variant="filled"
-                size="sm"
-              >
-                {a.allergen_name}{a.severity ? ` (${a.severity})` : ""}
-              </Badge>
-            ))}
-          </Group>
-        </Alert>
-      )}
-
       {showSummary && (
         <VisitSummaryPrint
           opened={showSummary}
@@ -629,48 +594,83 @@ function EncounterDetail({
         />
       )}
 
-      {/* Current medications banner */}
-      {currentMeds.length > 0 && (
-        <Alert
-          icon={<IconPill size={16} />}
-          color="primary"
-          variant="light"
-          mb="sm"
-          title="Current Medications"
-        >
-          <Group gap={6} wrap="wrap">
-            {currentMeds.map((m) => (
-              <Badge key={m.id} color="primary" variant="light" size="sm">
-                {m.drug_name} — {m.dosage} {m.frequency}
-              </Badge>
-            ))}
-          </Group>
-        </Alert>
-      )}
+      <div style={{ display: "flex", gap: 16, height: "calc(100vh - 80px)" }}>
+        {/* ── Left Sidebar: Patient Context ── */}
+        <div style={{ width: 280, flexShrink: 0, overflowY: "auto", borderRight: "1px solid var(--fc-rule, #e7ebe8)", paddingRight: 16 }}>
+          {/* Patient card */}
+          <Card padding="sm" mb="sm" bg="var(--fc-panel, #f7f8f6)" withBorder>
+            <Group gap="sm" mb={8}>
+              <ThemeIcon size="lg" radius="xl" color="primary" variant="light">
+                <IconUser size={18} />
+              </ThemeIcon>
+              <div>
+                <Text size="sm" fw={700}>{patientName}</Text>
+                <Text size="xs" c="dimmed" ff="var(--font-mono, monospace)">{uhid}</Text>
+              </div>
+            </Group>
+          </Card>
 
-      {/* Chronic conditions banner */}
-      {chronicConditions.length > 0 && (
-        <Alert
-          icon={<IconHeartbeat size={16} />}
-          color="orange"
-          variant="light"
-          mb="sm"
-          title="Active Conditions"
-        >
-          <Group gap={6} wrap="wrap">
-            {chronicConditions.slice(0, 10).map((d) => (
-              <Badge key={d.id} color="orange" variant="light" size="sm">
-                {d.description}{d.icd_code ? ` (${d.icd_code})` : ""}
-              </Badge>
-            ))}
-            {chronicConditions.length > 10 && (
-              <Text size="xs" c="dimmed">+{chronicConditions.length - 10} more</Text>
-            )}
-          </Group>
-        </Alert>
-      )}
+          {/* Allergies */}
+          {activeAllergies.length > 0 && (
+            <Card padding="xs" mb="sm" bg="var(--mb-danger-bg, #fff1f2)" withBorder style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}>
+              <Group gap={4} mb={4}>
+                <IconAlertTriangle size={14} color="var(--mb-danger-accent, #f43f5e)" />
+                <Text size="xs" fw={700} c="danger">Allergies</Text>
+              </Group>
+              <Group gap={4} wrap="wrap">
+                {activeAllergies.map((a) => (
+                  <Badge key={a.id} color="danger" variant="filled" size="xs">
+                    {a.allergen_name}
+                  </Badge>
+                ))}
+              </Group>
+            </Card>
+          )}
 
-      <Tabs defaultValue="vitals">
+          {/* Current Medications */}
+          {currentMeds.length > 0 && (
+            <Card padding="xs" mb="sm" withBorder>
+              <Group gap={4} mb={4}>
+                <IconPill size={14} />
+                <Text size="xs" fw={700} c="primary">Current Medications</Text>
+              </Group>
+              <Stack gap={2}>
+                {currentMeds.slice(0, 8).map((m) => (
+                  <Text key={m.id} size="xs" c="dimmed">{m.drug_name} — {m.dosage} {m.frequency}</Text>
+                ))}
+                {currentMeds.length > 8 && <Text size="xs" c="dimmed">+{currentMeds.length - 8} more</Text>}
+              </Stack>
+            </Card>
+          )}
+
+          {/* Chronic Conditions */}
+          {chronicConditions.length > 0 && (
+            <Card padding="xs" mb="sm" withBorder>
+              <Group gap={4} mb={4}>
+                <IconHeartbeat size={14} />
+                <Text size="xs" fw={700} c="orange">Active Conditions</Text>
+              </Group>
+              <Stack gap={2}>
+                {chronicConditions.slice(0, 6).map((d) => (
+                  <Text key={d.id} size="xs" c="dimmed">{d.description}{d.icd_code ? ` (${d.icd_code})` : ""}</Text>
+                ))}
+              </Stack>
+            </Card>
+          )}
+
+          {/* Quick Actions */}
+          <Stack gap={6} mt="sm">
+            <Button variant="light" size="xs" fullWidth leftSection={<IconPrinter size={14} />} onClick={() => setShowSummary(true)}>
+              Print Summary
+            </Button>
+            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
+            <GroupAppointmentModal patientId={patientId} />
+          </Stack>
+        </div>
+
+        {/* ── Right: Clinical Workspace ── */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+      <Tabs defaultValue="vitals" orientation="horizontal">
       <Tabs.List>
         <Tabs.Tab value="vitals">Vitals</Tabs.Tab>
         <Tabs.Tab value="consultation">Consultation</Tabs.Tab>
@@ -799,6 +799,8 @@ function EncounterDetail({
         <PharmacyDispatchTab encounterId={encounterId} />
       </Tabs.Panel>
     </Tabs>
+        </div>
+      </div>
     </>
   );
 }
