@@ -1538,13 +1538,15 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
 /** Detail view for a single Rx queue entry — shows prescription items, allergies, 4 views */
 function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; canReview: boolean; onReview: (action: string) => void }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["pharmacy-rx-detail", rxQueueId],
     queryFn: () => api.getRxDetail(rxQueueId),
+    retry: 1,
   });
 
   if (isLoading) return <Loader />;
-  if (!data) return <Text c="dimmed">Not found</Text>;
+  if (error) return <Alert color="danger" variant="light" title="Error">{String(error)}</Alert>;
+  if (!data) return <Text c="dimmed">No prescription data</Text>;
 
   const { prescription, items, allergies } = data as unknown as { prescription: Record<string, unknown>; items: unknown[]; allergies: unknown[] };
   const rxItems = items as { drug_name: string; dosage: string; frequency: string; duration: string; route?: string; instructions?: string }[];

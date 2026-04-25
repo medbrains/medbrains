@@ -2128,10 +2128,11 @@ pub async fn get_rx_detail(
 
     // Fetch prescription items
     let items = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT COALESCE(json_agg(r ORDER BY r.sort_order), '[]'::json) FROM (
+        "SELECT COALESCE(json_agg(r ORDER BY r.created_at), '[]'::json) FROM (
          SELECT pi.id::text, pi.drug_name, pi.dosage, pi.frequency, pi.duration,
-                pi.quantity, pi.route, pi.instructions, pi.sort_order
+                pi.route, pi.instructions
          FROM prescription_items pi WHERE pi.prescription_id = $1
+         ORDER BY pi.created_at
          ) r",
     )
     .bind(rx.prescription_id)
