@@ -1,7 +1,6 @@
-// ── ECG Loader — emerald cardiac monitor style ──
-// Matches TopProgressBar visual language: scan sweep, phosphor glow, PQRST beats
-
-$trace: #34d399;
+// ── ECG Loader — Forest + Copper design system ──
+// One forest stroke, one copper beacon, one P-QRS-T cycle per traverse.
+// Cadence: 1.8s inline, 1.6s top-bar. stroke-width: 1.75.
 
 .ecgLoader {
   display: inline-block;
@@ -9,35 +8,98 @@ $trace: #34d399;
   overflow: visible;
 }
 
-// Faint always-visible ghost of the full waveform
-.ghostTrace {
+// Dim baseline rule
+.baseline {
+  stroke: var(--fc-rule, #e7ebe8);
+  stroke-width: 1;
+}
+
+// Forest stroke — dash-travel animation
+.trace {
   fill: none;
-  opacity: 0.12;
+  stroke: var(--fc-brand, #1F4332);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: ecg-travel 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-// Bright trace revealed by sweep mask
-.activeTrace {
-  fill: none;
-  filter: drop-shadow(0 0 3px rgba($trace, 0.8))
-          drop-shadow(0 0 6px rgba($trace, 0.3));
+// Copper beacon — pulses at QRS peak
+.beacon {
+  fill: var(--fc-copper, #B8924A);
+  opacity: 0;
+  animation: ecg-beacon 1.8s ease-in-out infinite;
 }
 
-// Sweep mask — reveals trace left→right, then resets (infinite loop)
-.sweepRect {
-  animation: ecgSweep 2.4s linear infinite;
+// Stroke travels through the PQRST cycle
+@keyframes ecg-travel {
+  0% {
+    stroke-dashoffset: 200;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -200;
+  }
 }
 
-@keyframes ecgSweep {
-  0% { width: 0; opacity: 1; }
-  75% { width: 120; opacity: 1; }
-  88% { width: 120; opacity: 0.6; }
-  95% { width: 120; opacity: 0; }
-  100% { width: 0; opacity: 0; }
+// Copper beacon pulses once at the R-wave (QRS peak)
+@keyframes ecg-beacon {
+  0%,
+  35% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  42% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+  55%,
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+// Dark theme: stroke shifts to lighter forest
+:global([data-mantine-color-scheme="dark"]) {
+  .trace {
+    stroke: var(--primary-2, #c4d5cc);
+  }
+
+  .baseline {
+    stroke: #1e2823;
+  }
+}
+
+// Button variant: white stroke, no beacon
+:global(.mantine-Button-root) {
+  .trace {
+    stroke: #fff;
+    stroke-width: 2;
+    animation-duration: 1.4s;
+  }
+
+  .beacon {
+    display: none;
+  }
+
+  .baseline {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sweepRect {
+  .trace {
     animation: none;
-    width: 120;
+    stroke-dashoffset: 0;
+  }
+
+  .beacon {
+    animation: none;
+    opacity: 0.6;
   }
 }

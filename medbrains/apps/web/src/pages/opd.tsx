@@ -122,6 +122,7 @@ import {
   PageHeader,
   PhysicalExamPanel,
   PrescriptionPrint,
+  PrescriptionViews,
   PrescriptionWriter,
   ReviewOfSystems,
   SOAPNotes,
@@ -459,13 +460,13 @@ function OpdPageInner() {
         </Stack>
       </Drawer>
 
-      {/* Detail drawer */}
+      {/* Detail — full-width overlay */}
       <Drawer
         opened={detailOpened}
         onClose={closeDetail}
         title={selectedEntry ? `Token T${String(selectedEntry.token_number).padStart(3, "0")} — ${selectedEntry.patient_name}` : "Details"}
         position="right"
-        size="lg"
+        size="100%"
       >
         {selectedEntry && (
           <EncounterDetail
@@ -755,6 +756,7 @@ function EncounterDetail({
           patientName={patientName}
           uhid={uhid}
           canUpdate={canUpdate}
+          allergies={activeAllergies.map((a) => a.allergen_name)}
         />
       </Tabs.Panel>
       <Tabs.Panel value="referrals" pt="md">
@@ -1594,12 +1596,14 @@ function PrescriptionsTab({
   patientName,
   uhid,
   canUpdate,
+  allergies = [],
 }: {
   encounterId: string;
   patientId: string;
   patientName: string;
   uhid: string;
   canUpdate: boolean;
+  allergies?: string[];
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
@@ -1650,11 +1654,13 @@ function PrescriptionsTab({
         onPrint={(rx) => setPrintRx(rx)}
         onSendToPharmacy={handleSendToPharmacy}
       />
-      {/* Visual medication schedule — shows after prescriptions exist */}
+      {/* 4-view prescription display — Prose, Timeline, Dose Calc, Rules */}
       {(prescriptions as PrescriptionWithItems[]).length > 0 && (
-        <MedicationScheduleCard
-          items={(prescriptions as PrescriptionWithItems[]).flatMap((p) => p.items)}
-          title="Patient Medication Schedule"
+        <PrescriptionViews
+          prescriptions={prescriptions as PrescriptionWithItems[]}
+          patientName={patientName}
+          uhid={uhid}
+          allergies={allergies}
         />
       )}
       {printRx && (

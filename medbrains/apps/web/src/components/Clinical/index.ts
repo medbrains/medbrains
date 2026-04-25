@@ -6,4 +6,5 @@ export { ReviewOfSystems } from "./ReviewOfSystems";
 export { PhysicalExamPanel } from "./PhysicalExamPanel";
 export { PrescriptionWriter } from "./PrescriptionWriter";
 export { PrescriptionPrint } from "./PrescriptionPrint";
+export { PrescriptionViews } from "./PrescriptionViews";
 export { VisitSummaryPrint } from "./VisitSummaryPrint";
