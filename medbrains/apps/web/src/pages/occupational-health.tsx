@@ -73,7 +73,7 @@ const SCREENING_TYPE_COLORS: Record<string, string> = {
   pre_employment: "primary",
   periodic: "info",
   special: "orange",
-  exit: "slate",
+  exit: "gray",
 };
 
 const FITNESS_STATUS_OPTIONS = [
@@ -86,7 +86,7 @@ const FITNESS_STATUS_OPTIONS = [
 const FITNESS_STATUS_COLORS: Record<string, string> = {
   fit: "success",
   unfit: "danger",
-  pending: "slate",
+  pending: "gray",
   referred: "orange",
 };
 
@@ -102,14 +102,14 @@ const DRUG_SCREEN_STATUS_OPTIONS = [
 ];
 
 const DRUG_SCREEN_STATUS_COLORS: Record<string, string> = {
-  ordered: "slate",
+  ordered: "gray",
   collected: "primary",
   sent_to_lab: "info",
   mro_review: "warning",
   positive: "danger",
   negative: "success",
   inconclusive: "orange",
-  cancelled: "slate",
+  cancelled: "gray",
 };
 
 const DRUG_PANEL_OPTIONS = [
@@ -328,7 +328,7 @@ function ScreeningsPanel() {
       label: "Type",
       render: (r) => (
         <Badge
-          color={SCREENING_TYPE_COLORS[r.screening_type] ?? "slate"}
+          color={SCREENING_TYPE_COLORS[r.screening_type] ?? "gray"}
           variant="light"
           size="sm"
         >
@@ -346,7 +346,7 @@ function ScreeningsPanel() {
       label: "Fitness Status",
       render: (r) => (
         <Badge
-          color={FITNESS_STATUS_COLORS[r.fitness_status] ?? "slate"}
+          color={FITNESS_STATUS_COLORS[r.fitness_status] ?? "gray"}
           variant="filled"
           size="sm"
         >
@@ -757,13 +757,13 @@ function ScreeningsPanel() {
                   </Group>
                   <Group>
                     <Text fw={600}>Examination Type:</Text>
-                    <Badge color={SCREENING_TYPE_COLORS[selected.screening_type] ?? "slate"}>
+                    <Badge color={SCREENING_TYPE_COLORS[selected.screening_type] ?? "gray"}>
                       {SCREENING_TYPES.find((t) => t.value === selected.screening_type)?.label}
                     </Badge>
                   </Group>
                   <Group>
                     <Text fw={600}>Fitness Status:</Text>
-                    <Badge color={FITNESS_STATUS_COLORS[selected.fitness_status] ?? "slate"} size="lg">
+                    <Badge color={FITNESS_STATUS_COLORS[selected.fitness_status] ?? "gray"} size="lg">
                       {selected.fitness_status.toUpperCase()}
                     </Badge>
                   </Group>
@@ -889,7 +889,7 @@ function DrugScreensPanel() {
       label: "Status",
       render: (r) => (
         <Badge
-          color={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "slate"}
+          color={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "gray"}
           variant="filled"
           size="sm"
         >
@@ -1358,7 +1358,7 @@ function InjuriesPanel() {
       key: "is_osha_recordable",
       label: "OSHA",
       render: (r) => (
-        <Badge color={r.is_osha_recordable ? "danger" : "slate"} variant="filled" size="sm">
+        <Badge color={r.is_osha_recordable ? "danger" : "gray"} variant="filled" size="sm">
           {r.is_osha_recordable ? "Recordable" : "Non-Rec."}
         </Badge>
       ),
@@ -1368,7 +1368,7 @@ function InjuriesPanel() {
       label: "RTW Status",
       render: (r) => (
         <Badge
-          color={RTW_STATUS_COLORS[r.rtw_status] ?? "slate"}
+          color={RTW_STATUS_COLORS[r.rtw_status] ?? "gray"}
           variant="filled"
           size="sm"
         >
@@ -1674,7 +1674,7 @@ function HazardRegistryPanel() {
       key: "risk_level",
       label: "Risk Level",
       render: (r) => (
-        <Badge color={HAZARD_RISK_COLORS[r.risk_level] ?? "slate"} variant="filled" size="sm">
+        <Badge color={HAZARD_RISK_COLORS[r.risk_level] ?? "gray"} variant="filled" size="sm">
           {r.risk_level}
         </Badge>
       ),
@@ -1798,18 +1798,18 @@ function OccHealthAnalyticsPanel() {
     return <Text c="dimmed" size="sm">No analytics data available</Text>;
   }
 
-  const byTypeData = Object.entries(analytics.by_type).map(([type, count]) => ({
+  const byTypeData = Object.entries(analytics.by_type ?? {}).map(([type, count]) => ({
     type: SCREENING_TYPES.find((t) => t.value === type)?.label ?? type,
     count,
   }));
 
-  const fitnessData = Object.entries(analytics.fitness_rates).map(([status, rate]) => ({
+  const fitnessData = Object.entries(analytics.fitness_rates ?? {}).map(([status, rate]) => ({
     name: status,
-    value: Math.round(rate * 100),
-    color: FITNESS_STATUS_COLORS[status] ?? "slate",
+    value: Math.round((rate as number) * 100),
+    color: FITNESS_STATUS_COLORS[status] ?? "gray",
   }));
 
-  const byDeptData = Object.entries(analytics.by_department).map(([dept, count]) => ({
+  const byDeptData = Object.entries(analytics.by_department ?? {}).map(([dept, count]) => ({
     department: dept,
     count,
   }));
@@ -1820,19 +1820,19 @@ function OccHealthAnalyticsPanel() {
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <Card withBorder p="md">
           <Text size="xs" c="dimmed">Total Screenings</Text>
-          <Text fw={700} size="xl" c="primary">{analytics.total_screenings}</Text>
+          <Text fw={700} size="xl" c="primary">{analytics.total_screenings ?? 0}</Text>
         </Card>
         <Card withBorder p="md">
           <Text size="xs" c="dimmed">Screening Types</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.by_type).length}</Text>
+          <Text fw={700} size="xl">{Object.keys(analytics.by_type ?? {}).length}</Text>
         </Card>
         <Card withBorder p="md">
           <Text size="xs" c="dimmed">Departments Covered</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.by_department).length}</Text>
+          <Text fw={700} size="xl">{Object.keys(analytics.by_department ?? {}).length}</Text>
         </Card>
         <Card withBorder p="md">
           <Text size="xs" c="dimmed">Fitness Statuses Tracked</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.fitness_rates).length}</Text>
+          <Text fw={700} size="xl">{Object.keys(analytics.fitness_rates ?? {}).length}</Text>
         </Card>
       </SimpleGrid>
 
