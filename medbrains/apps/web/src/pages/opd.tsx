@@ -667,19 +667,15 @@ function EncounterDetail({
           {/* Clinical tabs — vertical nav */}
           <div style={{ borderTop: "1px solid var(--fc-rule, #e7ebe8)", paddingTop: 8, flex: 1, overflowY: "auto" }}>
           <Tabs.List style={{ border: "none" }}>
-        <Tabs.Tab value="vitals">Vitals</Tabs.Tab>
-        <Tabs.Tab value="consultation">Consultation</Tabs.Tab>
+        <Tabs.Tab value="vitals" leftSection={<IconHeartbeat size={14} />}>Vitals</Tabs.Tab>
+        <Tabs.Tab value="consultation" leftSection={<IconNotebook size={14} />}>Consultation</Tabs.Tab>
         <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>History</Tabs.Tab>
-        <Tabs.Tab value="ros" leftSection={<IconHeartbeat size={14} />}>ROS</Tabs.Tab>
+        <Tabs.Tab value="ros" leftSection={<IconClipboardList size={14} />}>ROS</Tabs.Tab>
         <Tabs.Tab value="physical-exam" leftSection={<IconStethoscope size={14} />}>Physical Exam</Tabs.Tab>
-        <Tabs.Tab value="diagnoses">Diagnoses</Tabs.Tab>
-        <Tabs.Tab value="investigations" leftSection={<IconFlask size={14} />}>
-          Investigations
-        </Tabs.Tab>
-        <Tabs.Tab value="procedures" leftSection={<IconMedicalCross size={14} />}>
-          Procedures
-        </Tabs.Tab>
-        <Tabs.Tab value="prescriptions">Prescriptions</Tabs.Tab>
+        <Tabs.Tab value="diagnoses" leftSection={<IconStar size={14} />}>Diagnoses</Tabs.Tab>
+        <Tabs.Tab value="investigations" leftSection={<IconFlask size={14} />}>Investigations</Tabs.Tab>
+        <Tabs.Tab value="procedures" leftSection={<IconMedicalCross size={14} />}>Procedures</Tabs.Tab>
+        <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>Prescriptions</Tabs.Tab>
         <Tabs.Tab value="referrals" leftSection={<IconArrowRight size={14} />}>
           Referrals
         </Tabs.Tab>
@@ -899,7 +895,7 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
         />
       )}
       {vitals.length > 0 && (
-        <Timeline active={0} bulletSize={28} lineWidth={2} color="primary">
+        <Timeline active={0} bulletSize={20} lineWidth={2} color="primary" styles={{ itemBody: { paddingTop: 0 }, item: { marginBottom: 4 } }}>
           {vitals.map((v: Vital, idx: number) => {
             const prev = vitals[idx + 1] as Vital | undefined;
             const trend = (curr: number | null, prevVal: number | null) => {
@@ -911,7 +907,7 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
             return (
               <Timeline.Item
                 key={v.id}
-                bullet={<IconHeartbeat size={14} />}
+                bullet={<IconHeartbeat size={10} />}
                 title={
                   <Group gap="xs">
                     <Text size="xs" fw={600}>{new Date(v.created_at).toLocaleString()}</Text>
