@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "pharmacy_rx_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PharmacyRxStatus {
     PendingReview,
     Approved,
@@ -21,6 +22,7 @@ pub enum PharmacyRxStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "pharmacy_payment_mode", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PharmacyPaymentMode {
     Cash,
     Card,

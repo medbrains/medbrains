@@ -2197,8 +2197,98 @@ pub async fn review_prescription(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // On approval: auto-create pharmacy order from prescription items
+    if new_status == "approved" {
+        // Get prescription items
+        let items = sqlx::query_as::<_, PrescriptionItemRow>(
+            "SELECT drug_name, dosage, frequency, duration, route \
+             FROM prescription_items WHERE prescription_id = $1 AND tenant_id = $2",
+        )
+        .bind(rx.prescription_id)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        // Create pharmacy order
+        let order_id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO pharmacy_orders \
+             (tenant_id, patient_id, prescription_id, encounter_id, ordered_by, status, \
+              dispensing_type, rx_queue_id, pharmacist_reviewed_by, reviewed_at) \
+             VALUES ($1, $2, $3, $4, $5, 'ordered', 'prescription'::pharmacy_dispensing_type, $6, $5, now()) \
+             RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(rx.patient_id)
+        .bind(rx.prescription_id)
+        .bind(rx.encounter_id)
+        .bind(claims.sub)
+        .bind(rx.id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Create order items from prescription items
+        for item in &items {
+            // Try to resolve catalog item by drug name
+            let catalog = sqlx::query_scalar::<_, Option<Uuid>>(
+                "SELECT id FROM pharmacy_catalog \
+                 WHERE tenant_id = $1 AND (name ILIKE $2 OR generic_name ILIKE $2) AND is_active = true \
+                 LIMIT 1",
+            )
+            .bind(claims.tenant_id)
+            .bind(&item.drug_name)
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten();
+
+            let price = if let Some(cid) = catalog {
+                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                    "SELECT base_price FROM pharmacy_catalog WHERE id = $1",
+                )
+                .bind(cid)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten()
+                .unwrap_or_default()
+            } else {
+                rust_decimal::Decimal::ZERO
+            };
+
+            sqlx::query(
+                "INSERT INTO pharmacy_order_items \
+                 (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, total_price) \
+                 VALUES ($1, $2, $3, $4, 1, $5, $5)",
+            )
+            .bind(claims.tenant_id)
+            .bind(order_id)
+            .bind(catalog)
+            .bind(&item.drug_name)
+            .bind(price)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // Link order back to rx queue
+        sqlx::query(
+            "UPDATE pharmacy_prescriptions SET pharmacy_order_id = $1, status = 'dispensing'::pharmacy_rx_status WHERE id = $2",
+        )
+        .bind(order_id)
+        .bind(rx.id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(rx))
+}
+
+// Helper row for prescription items
+#[derive(Debug, sqlx::FromRow)]
+struct PrescriptionItemRow {
+    drug_name: String,
+    dosage: String,
+    frequency: String,
+    duration: String,
+    route: Option<String>,
 }
 
 // ══════════════════════════════════════════════════════════
