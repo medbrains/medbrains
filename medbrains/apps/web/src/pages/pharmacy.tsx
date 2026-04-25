@@ -82,6 +82,7 @@ import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensin
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { instructionsDisplayText } from "../lib/medication-timing-utils";
 import type { PrescriptionWithItems } from "@medbrains/types";
 
 const statusColors: Record<string, string> = {
@@ -1591,13 +1592,18 @@ function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; c
       {/* Status + actions */}
       <Group justify="space-between">
         <Badge size="lg" color={rxStatusColors[status] ?? "gray"}>{status.replace(/_/g, " ")}</Badge>
-        {canReview && status === "pending_review" && (
-          <Group gap="xs">
-            <Button size="xs" color="success" leftSection={<IconCheck size={14} />} onClick={() => onReview("approved")}>Approve</Button>
-            <Button size="xs" color="warning" variant="light" leftSection={<IconClock size={14} />} onClick={() => onReview("on_hold")}>Hold</Button>
-            <Button size="xs" color="danger" variant="light" leftSection={<IconX size={14} />} onClick={() => onReview("rejected")}>Reject</Button>
-          </Group>
-        )}
+        <Group gap="xs">
+          {canReview && status === "pending_review" && (
+            <>
+              <Button size="xs" color="success" leftSection={<IconCheck size={14} />} onClick={() => onReview("approved")}>Approve & Dispense</Button>
+              <Button size="xs" color="warning" variant="light" leftSection={<IconClock size={14} />} onClick={() => onReview("on_hold")}>Hold</Button>
+              <Button size="xs" color="danger" variant="light" leftSection={<IconX size={14} />} onClick={() => onReview("rejected")}>Reject</Button>
+            </>
+          )}
+          {status === "approved" && (
+            <Button size="xs" color="primary" leftSection={<IconShoppingCart size={14} />}>Create Dispense Order</Button>
+          )}
+        </Group>
       </Group>
 
       {/* Prescription items table */}
@@ -1623,7 +1629,7 @@ function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; c
                 <Table.Td><Badge size="xs" variant="light">{it.frequency}</Badge></Table.Td>
                 <Table.Td>{it.duration}</Table.Td>
                 <Table.Td>{it.route ?? "—"}</Table.Td>
-                <Table.Td c="dimmed">{it.instructions ?? "—"}</Table.Td>
+                <Table.Td c="dimmed">{instructionsDisplayText(it.instructions) ?? "—"}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
