@@ -178,10 +178,9 @@ function OpdPageInner() {
     queryFn: () => api.listDepartments(),
     staleTime: 600_000,
   });
-  const deptOptions = (departments as DepartmentRow[]).map((d) => ({
-    value: d.id,
-    label: d.name,
-  }));
+  const deptOptions = (departments as DepartmentRow[])
+    .filter((d) => d.department_type === "clinical" || d.department_type === "para_clinical")
+    .map((d) => ({ value: d.id, label: d.name }));
 
   // Create encounter form state
   const [newPatientId, setNewPatientId] = useState("");
@@ -2421,8 +2420,8 @@ function ReferralsTab({
     staleTime: 600_000,
   });
 
-  const deptOptions = (departments as { id: string; name: string }[])
-    .filter((d) => d.id !== departmentId)
+  const deptOptions = (departments as DepartmentRow[])
+    .filter((d) => d.id !== departmentId && (d.department_type === "clinical" || d.department_type === "para_clinical"))
     .map((d) => ({ value: d.id, label: d.name }));
 
   const createMutation = useMutation({
