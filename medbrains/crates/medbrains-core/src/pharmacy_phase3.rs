@@ -52,7 +52,7 @@ pub struct PharmacyPrescriptionRx {
     pub rejection_reason: Option<String>,
     pub allergy_check_done: bool,
     pub interaction_check_done: bool,
-    pub interaction_check_result: serde_json::Value,
+    pub interaction_check_result: Option<serde_json::Value>,
     pub store_location_id: Option<Uuid>,
     pub received_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
