@@ -464,9 +464,10 @@ function OpdPageInner() {
       <Drawer
         opened={detailOpened}
         onClose={closeDetail}
-        title={selectedEntry ? `Token T${String(selectedEntry.token_number).padStart(3, "0")} — ${selectedEntry.patient_name}` : "Details"}
+        title=""
         position="right"
         size="100%"
+        styles={{ body: { padding: 0, height: "calc(100vh - 48px)", overflow: "hidden" } }}
       >
         {selectedEntry && (
           <EncounterDetail
@@ -594,12 +595,12 @@ function EncounterDetail({
         />
       )}
 
-      <div style={{ display: "flex", gap: 16, height: "calc(100vh - 80px)" }}>
-        {/* ── Left Sidebar: Patient Context ── */}
-        <div style={{ width: 280, flexShrink: 0, overflowY: "auto", borderRight: "1px solid var(--fc-rule, #e7ebe8)", paddingRight: 16 }}>
+      <Tabs defaultValue="vitals" orientation="vertical" style={{ display: "flex", height: "100%" }}>
+        {/* ── Left Sidebar: Patient + Nav ── */}
+        <div style={{ width: 240, flexShrink: 0, overflowY: "auto", borderRight: "1px solid var(--fc-rule, #e7ebe8)", padding: "12px", background: "var(--fc-panel, #f7f8f6)", display: "flex", flexDirection: "column" }}>
           {/* Patient card */}
-          <Card padding="sm" mb="sm" bg="var(--fc-panel, #f7f8f6)" withBorder>
-            <Group gap="sm" mb={8}>
+          <Card padding="sm" mb="xs" bg="var(--fc-canvas, #fff)" withBorder>
+            <Group gap="sm">
               <ThemeIcon size="lg" radius="xl" color="primary" variant="light">
                 <IconUser size={18} />
               </ThemeIcon>
@@ -612,16 +613,14 @@ function EncounterDetail({
 
           {/* Allergies */}
           {activeAllergies.length > 0 && (
-            <Card padding="xs" mb="sm" bg="var(--mb-danger-bg, #fff1f2)" withBorder style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}>
+            <Card padding="xs" mb="xs" bg="var(--mb-danger-bg, #fff1f2)" withBorder style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}>
               <Group gap={4} mb={4}>
                 <IconAlertTriangle size={14} color="var(--mb-danger-accent, #f43f5e)" />
                 <Text size="xs" fw={700} c="danger">Allergies</Text>
               </Group>
               <Group gap={4} wrap="wrap">
                 {activeAllergies.map((a) => (
-                  <Badge key={a.id} color="danger" variant="filled" size="xs">
-                    {a.allergen_name}
-                  </Badge>
+                  <Badge key={a.id} color="danger" variant="filled" size="xs">{a.allergen_name}</Badge>
                 ))}
               </Group>
             </Card>
@@ -629,49 +628,44 @@ function EncounterDetail({
 
           {/* Current Medications */}
           {currentMeds.length > 0 && (
-            <Card padding="xs" mb="sm" withBorder>
+            <Card padding="xs" mb="xs" withBorder>
               <Group gap={4} mb={4}>
                 <IconPill size={14} />
-                <Text size="xs" fw={700} c="primary">Current Medications</Text>
+                <Text size="xs" fw={700} c="primary">Medications</Text>
               </Group>
               <Stack gap={2}>
-                {currentMeds.slice(0, 8).map((m) => (
-                  <Text key={m.id} size="xs" c="dimmed">{m.drug_name} — {m.dosage} {m.frequency}</Text>
-                ))}
-                {currentMeds.length > 8 && <Text size="xs" c="dimmed">+{currentMeds.length - 8} more</Text>}
-              </Stack>
-            </Card>
-          )}
-
-          {/* Chronic Conditions */}
-          {chronicConditions.length > 0 && (
-            <Card padding="xs" mb="sm" withBorder>
-              <Group gap={4} mb={4}>
-                <IconHeartbeat size={14} />
-                <Text size="xs" fw={700} c="orange">Active Conditions</Text>
-              </Group>
-              <Stack gap={2}>
-                {chronicConditions.slice(0, 6).map((d) => (
-                  <Text key={d.id} size="xs" c="dimmed">{d.description}{d.icd_code ? ` (${d.icd_code})` : ""}</Text>
+                {currentMeds.slice(0, 6).map((m) => (
+                  <Text key={m.id} size="xs" c="dimmed">{m.drug_name} — {m.dosage}</Text>
                 ))}
               </Stack>
             </Card>
           )}
 
           {/* Quick Actions */}
-          <Stack gap={6} mt="sm">
-            <Button variant="light" size="xs" fullWidth leftSection={<IconPrinter size={14} />} onClick={() => setShowSummary(true)}>
-              Print Summary
-            </Button>
+          <Stack gap={4} mb="xs">
+            <Button variant="light" size="xs" fullWidth leftSection={<IconPrinter size={14} />} onClick={() => setShowSummary(true)}>Print Summary</Button>
             <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
             <GroupAppointmentModal patientId={patientId} />
           </Stack>
-        </div>
 
-        {/* ── Right: Clinical Workspace ── */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
-      <Tabs defaultValue="vitals" orientation="vertical" style={{ flex: 1 }}>
-      <Tabs.List style={{ minWidth: 160 }}>
+          {/* Chronic Conditions */}
+          {chronicConditions.length > 0 && (
+            <Card padding="xs" mb="xs" withBorder>
+              <Group gap={4} mb={4}>
+                <IconHeartbeat size={14} />
+                <Text size="xs" fw={700} c="orange">Conditions</Text>
+              </Group>
+              <Stack gap={2}>
+                {chronicConditions.slice(0, 5).map((d) => (
+                  <Text key={d.id} size="xs" c="dimmed">{d.description}</Text>
+                ))}
+              </Stack>
+            </Card>
+          )}
+
+          {/* Clinical tabs — vertical nav */}
+          <div style={{ borderTop: "1px solid var(--fc-rule, #e7ebe8)", paddingTop: 8, flex: 1, overflowY: "auto" }}>
+          <Tabs.List style={{ border: "none" }}>
         <Tabs.Tab value="vitals">Vitals</Tabs.Tab>
         <Tabs.Tab value="consultation">Consultation</Tabs.Tab>
         <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>History</Tabs.Tab>
@@ -722,32 +716,36 @@ function EncounterDetail({
           Pharmacy Dispatch
         </Tabs.Tab>
       </Tabs.List>
+          </div>
+        </div>
 
-      <Tabs.Panel value="vitals" pt="md">
+        {/* ── Right: Content panels ── */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+      <Tabs.Panel value="vitals">
         <VitalsTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="consultation" pt="md">
+      <Tabs.Panel value="consultation">
         <ConsultationTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="history" pt="md">
+      <Tabs.Panel value="history">
         <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="ros" pt="md">
+      <Tabs.Panel value="ros">
         <ROSTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="physical-exam" pt="md">
+      <Tabs.Panel value="physical-exam">
         <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="diagnoses" pt="md">
+      <Tabs.Panel value="diagnoses">
         <DiagnosesTab encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="investigations" pt="md">
+      <Tabs.Panel value="investigations">
         <InvestigationsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="procedures" pt="md">
+      <Tabs.Panel value="procedures">
         <ProceduresTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="prescriptions" pt="md">
+      <Tabs.Panel value="prescriptions">
         <PrescriptionsTab
           encounterId={encounterId}
           patientId={patientId}
@@ -757,22 +755,22 @@ function EncounterDetail({
           allergies={activeAllergies.map((a) => a.allergen_name)}
         />
       </Tabs.Panel>
-      <Tabs.Panel value="referrals" pt="md">
+      <Tabs.Panel value="referrals">
         <ReferralsTab patientId={patientId} encounterId={encounterId} departmentId={departmentId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="rx-history" pt="md">
+      <Tabs.Panel value="rx-history">
         <RxHistoryTab patientId={patientId} />
       </Tabs.Panel>
-      <Tabs.Panel value="charts" pt="md">
+      <Tabs.Panel value="charts">
         <ChartsTab patientId={patientId} />
       </Tabs.Panel>
-      <Tabs.Panel value="timeline" pt="md">
+      <Tabs.Panel value="timeline">
         <TimelineTab patientId={patientId} />
       </Tabs.Panel>
-      <Tabs.Panel value="certificates" pt="md">
+      <Tabs.Panel value="certificates">
         <CertificatesTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="followup" pt="md">
+      <Tabs.Panel value="followup">
         <FollowUpTab
           patientId={patientId}
           doctorId={doctorId}
@@ -780,27 +778,26 @@ function EncounterDetail({
           canUpdate={canUpdate}
         />
       </Tabs.Panel>
-      <Tabs.Panel value="reminders" pt="md">
+      <Tabs.Panel value="reminders">
         <RemindersTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="feedback" pt="md">
+      <Tabs.Panel value="feedback">
         <FeedbackTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="consents" pt="md">
+      <Tabs.Panel value="consents">
         <ConsentsTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="pre-auth" pt="md">
+      <Tabs.Panel value="pre-auth">
         <PreAuthTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
       </Tabs.Panel>
-      <Tabs.Panel value="docket" pt="md">
+      <Tabs.Panel value="docket">
         <DocketTab />
       </Tabs.Panel>
-      <Tabs.Panel value="pharmacy-dispatch" pt="md">
+      <Tabs.Panel value="pharmacy-dispatch">
         <PharmacyDispatchTab encounterId={encounterId} />
       </Tabs.Panel>
-    </Tabs>
-        </div>
       </div>
+    </Tabs>
     </>
   );
 }
