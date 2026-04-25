@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import {
   ActionIcon,
   Alert,
@@ -24,6 +25,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
+  IconCashRegister,
   IconCheck,
   IconClipboardList,
   IconEye,
@@ -31,6 +33,7 @@ import {
   IconPackage,
   IconPill,
   IconPlus,
+  IconPrescription,
   IconShieldCheck,
   IconShoppingCart,
   IconX,
@@ -59,8 +62,11 @@ import type {
   PharmacyOrder,
   PharmacyOrderDetailResponse,
   PharmacyOrderItemInput,
+  PharmacyPaymentMode,
+  PharmacyPosSale,
   PharmacyStoreAssignment,
   PharmacyTransferRequest,
+  RxQueueRow,
   StockTransactionType,
   TenantSettingsRow,
   DrugInteractionCheckRequest,
@@ -128,6 +134,10 @@ function PharmacyPageInner() {
   const canViewStores = useHasPermission(P.PHARMACY.STORES_LIST);
   const canViewAnalytics = useHasPermission(P.PHARMACY.ANALYTICS_VIEW);
   const canViewReturns = useHasPermission(P.PHARMACY.RETURNS_LIST);
+  const canViewRxQueue = useHasPermission(P.PHARMACY.RX_QUEUE_LIST);
+  const canReviewRx = useHasPermission(P.PHARMACY.RX_QUEUE_REVIEW);
+  const canCreatePos = useHasPermission(P.PHARMACY.POS_CREATE);
+  const canViewPos = useHasPermission(P.PHARMACY.POS_VIEW);
 
   const { data: complianceRaw = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "compliance"],
@@ -184,8 +194,10 @@ function PharmacyPageInner() {
       <DrugInteractionModal opened={interactionModalOpen} onClose={closeInteractionModal} />
       <FormularyCheckModal opened={formularyModalOpen} onClose={closeFormularyModal} />
 
-      <Tabs defaultValue="orders">
+      <Tabs defaultValue={canViewRxQueue ? "rx-queue" : "orders"}>
         <Tabs.List mb="md">
+          {canViewRxQueue && <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>Rx Queue</Tabs.Tab>}
+          {(canCreatePos || canViewPos) && <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>POS Counter</Tabs.Tab>}
           <Tabs.Tab value="orders">Orders</Tabs.Tab>
           <Tabs.Tab value="catalog">Drug Catalog</Tabs.Tab>
           <Tabs.Tab value="stock">Stock</Tabs.Tab>
@@ -195,6 +207,16 @@ function PharmacyPageInner() {
           {canViewAnalytics && <Tabs.Tab value="analytics">Analytics & Reports</Tabs.Tab>}
         </Tabs.List>
 
+        {canViewRxQueue && (
+          <Tabs.Panel value="rx-queue">
+            <RxQueueTab canReview={canReviewRx} />
+          </Tabs.Panel>
+        )}
+        {(canCreatePos || canViewPos) && (
+          <Tabs.Panel value="pos">
+            <PosCounterTab canCreate={canCreatePos} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="orders">
           <PharmacyOrdersTab canDispense={canDispense} canViewReturns={canViewReturns} />
         </Tabs.Panel>
@@ -288,7 +310,7 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
       key: "status",
       label: "Status",
       render: (row: PharmacyOrder) => (
-        <StatusDot color={statusColors[row.status] ?? "slate"} label={row.status} />
+        <StatusDot color={statusColors[row.status] ?? "gray"} label={row.status} />
       ),
     },
     {
@@ -375,7 +397,9 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
 function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<PharmacyOrderItemInput[]>([{ drug_name: "", quantity: 1, unit_price: 0 }]);
+  const [items, setItems] = useState<(PharmacyOrderItemInput & { catalog_item_id?: string })[]>([
+    { drug_name: "", quantity: 1, unit_price: 0 },
+  ]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateOtcSaleRequest) => api.createOtcSale(data),
@@ -397,27 +421,41 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
         <Text fw={600} size="sm">Items</Text>
         {items.map((item, idx) => (
-          <Group key={idx} grow>
-            <TextInput placeholder="Drug name" value={item.drug_name} onChange={(e) => {
-              const updated = [...items];
-              updated[idx] = { ...item, drug_name: e.currentTarget.value };
-              setItems(updated);
-            }} />
-            <NumberInput placeholder="Qty" min={1} value={item.quantity} onChange={(v) => {
+          <Card key={idx} withBorder padding="xs">
+            <Stack gap="xs">
+              <DrugSearchSelect
+                value={item.catalog_item_id ?? ""}
+                onChange={(drugId, drug) => {
+                  const updated = [...items];
+                  updated[idx] = {
+                    ...item,
+                    catalog_item_id: drugId,
+                    drug_name: drug?.name ?? "",
+                    unit_price: drug ? Number(drug.base_price) : 0,
+                  };
+                  setItems(updated);
+                }}
+                label={`Drug #${idx + 1}`}
+                required
+              />
+              <Group grow>
+            <NumberInput label="Qty" min={1} value={item.quantity} onChange={(v) => {
               const updated = [...items];
               updated[idx] = { ...item, quantity: Number(v) };
               setItems(updated);
             }} />
-            <NumberInput placeholder="Price" min={0} decimalScale={2} value={item.unit_price} onChange={(v) => {
+            <NumberInput label="Price" min={0} decimalScale={2} prefix="₹" value={item.unit_price} onChange={(v) => {
               const updated = [...items];
               updated[idx] = { ...item, unit_price: Number(v) };
               setItems(updated);
             }} />
-          </Group>
+              </Group>
+            </Stack>
+          </Card>
         ))}
         <Group>
-          <Button size="xs" variant="light" onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
-            Add Item
+          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
+            Add Drug
           </Button>
           <Button
             size="xs"
@@ -437,7 +475,9 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<PharmacyOrderItemInput[]>([{ drug_name: "", quantity: 1, unit_price: 0 }]);
+  const [items, setItems] = useState<(PharmacyOrderItemInput & { catalog_item_id?: string })[]>([
+    { drug_name: "", quantity: 1, unit_price: 0 },
+  ]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyOrderRequest) => api.createPharmacyOrder(data),
@@ -454,43 +494,70 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
     },
   });
 
+  const orderTotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+
   return (
     <Drawer opened={opened} onClose={onClose} title="New Pharmacy Order" position="right" size="lg">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Text fw={600} size="sm">Items</Text>
+        <Text fw={600} size="sm">Medications</Text>
         {items.map((item, idx) => (
-          <Group key={idx} grow>
-            <TextInput placeholder="Drug name" value={item.drug_name} onChange={(e) => {
-              const updated = [...items];
-              updated[idx] = { ...item, drug_name: e.currentTarget.value };
-              setItems(updated);
-            }} />
-            <NumberInput placeholder="Qty" min={1} value={item.quantity} onChange={(v) => {
-              const updated = [...items];
-              updated[idx] = { ...item, quantity: Number(v) };
-              setItems(updated);
-            }} />
-            <NumberInput placeholder="Price" min={0} decimalScale={2} value={item.unit_price} onChange={(v) => {
-              const updated = [...items];
-              updated[idx] = { ...item, unit_price: Number(v) };
-              setItems(updated);
-            }} />
-          </Group>
+          <Card key={idx} withBorder padding="xs">
+            <Stack gap="xs">
+              <DrugSearchSelect
+                value={item.catalog_item_id ?? ""}
+                onChange={(drugId, drug) => {
+                  const updated = [...items];
+                  updated[idx] = {
+                    ...item,
+                    catalog_item_id: drugId,
+                    drug_name: drug?.name ?? "",
+                    unit_price: drug ? Number(drug.base_price) : 0,
+                  };
+                  setItems(updated);
+                }}
+                label={`Drug #${idx + 1}`}
+                required
+              />
+              <Group grow>
+                <NumberInput label="Qty" min={1} value={item.quantity} onChange={(v) => {
+                  const updated = [...items];
+                  updated[idx] = { ...item, quantity: Number(v) };
+                  setItems(updated);
+                }} />
+                <NumberInput label="Unit Price" min={0} decimalScale={2} prefix="₹" value={item.unit_price} onChange={(v) => {
+                  const updated = [...items];
+                  updated[idx] = { ...item, unit_price: Number(v) };
+                  setItems(updated);
+                }} />
+                <Stack gap={0} justify="flex-end" pb={2}>
+                  <Text size="xs" c="dimmed">Subtotal</Text>
+                  <Text size="sm" fw={600}>₹{(item.quantity * item.unit_price).toFixed(2)}</Text>
+                </Stack>
+              </Group>
+              {items.length > 1 && (
+                <Button size="xs" variant="subtle" color="danger" onClick={() => setItems(items.filter((_, i) => i !== idx))}>
+                  Remove
+                </Button>
+              )}
+            </Stack>
+          </Card>
         ))}
-        <Group>
-          <Button size="xs" variant="light" onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
-            Add Item
+        <Group justify="space-between">
+          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
+            Add Drug
           </Button>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate({ patient_id: patientId, notes: notes || undefined, items })}
-            loading={createMutation.isPending}
-          >
-            Place Order
-          </Button>
+          <Text fw={700}>Total: ₹{orderTotal.toFixed(2)}</Text>
         </Group>
+        <Button
+          fullWidth
+          onClick={() => createMutation.mutate({ patient_id: patientId, notes: notes || undefined, items })}
+          loading={createMutation.isPending}
+          disabled={!patientId || items.every((i) => !i.drug_name)}
+        >
+          Place Order
+        </Button>
       </Stack>
     </Drawer>
   );
@@ -523,7 +590,7 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
       <Group justify="space-between">
         <Text fw={700}>Order: {detail.order.id.slice(0, 8)}...</Text>
         <Group gap="xs">
-          <Badge color={statusColors[detail.order.status] ?? "slate"} variant="light" size="lg">
+          <Badge color={statusColors[detail.order.status] ?? "gray"} variant="light" size="lg">
             {detail.order.status}
           </Badge>
           <Badge variant="outline" size="sm">
@@ -647,18 +714,17 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
     severe: "danger",
     moderate: "orange",
     mild: "warning",
-    minor: "slate",
+    minor: "gray",
   };
 
   return (
     <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="lg">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <TextInput
-          label="Drug ID"
-          placeholder="Enter drug catalog UUID to check"
+        <DrugSearchSelect
           value={drugId}
-          onChange={(e) => setDrugId(e.currentTarget.value)}
+          onChange={(id) => setDrugId(id)}
+          label="Drug to Check"
           required
         />
         <Button
@@ -673,9 +739,9 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
           <Stack gap="xs">
             <Text fw={600} size="sm">Interactions Found:</Text>
             {(checkMutation.data as DrugInteractionResult[]).map((r, idx) => (
-              <Alert key={idx} color={severityColors[r.severity] ?? "slate"} variant="light" title={r.interacting_drug}>
+              <Alert key={idx} color={severityColors[r.severity] ?? "gray"} variant="light" title={r.interacting_drug}>
                 <Group gap="xs" mb={4}>
-                  <Badge color={severityColors[r.severity] ?? "slate"} size="sm">{r.severity}</Badge>
+                  <Badge color={severityColors[r.severity] ?? "gray"} size="sm">{r.severity}</Badge>
                   <Badge variant="outline" size="sm">{r.interaction_type}</Badge>
                 </Group>
                 <Text size="sm">{r.description}</Text>
@@ -708,11 +774,10 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
   return (
     <Modal opened={opened} onClose={onClose} title="Formulary Check" size="md">
       <Stack>
-        <TextInput
-          label="Drug ID"
-          placeholder="Enter drug catalog UUID"
+        <DrugSearchSelect
           value={drugId}
-          onChange={(e) => setDrugId(e.currentTarget.value)}
+          onChange={(id) => setDrugId(id)}
+          label="Drug"
           required
         />
         <Button
@@ -737,7 +802,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
                   <Text size="sm">This drug requires DTC approval before prescribing.</Text>
                 </Alert>
               )}
-              {result.alternative_drugs.length > 0 && (
+              {result.alternative_drugs?.length > 0 && (
                 <Stack gap={4}>
                   <Text size="sm" fw={500}>Formulary Alternatives:</Text>
                   <Group gap={4}>
@@ -810,7 +875,7 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
             <Badge size="xs" variant="filled" color="danger">CTRL</Badge>
           )}
           {compliance.show_formulary_status && row.formulary_status !== "approved" && (
-            <Badge size="xs" variant="light" color={row.formulary_status === "restricted" ? "warning" : "slate"}>
+            <Badge size="xs" variant="light" color={row.formulary_status === "restricted" ? "warning" : "gray"}>
               {row.formulary_status === "restricted" ? "Restricted" : "Non-Formulary"}
             </Badge>
           )}
@@ -957,7 +1022,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
       )}
       {showForm && (
         <Stack gap="xs">
-          <TextInput label="Catalog Item ID" required onChange={(e) => setForm({ ...form, catalog_item_id: e.currentTarget.value })} />
+          <DrugSearchSelect value={form.catalog_item_id ?? ""} onChange={(id) => setForm({ ...form, catalog_item_id: id })} required />
           <Group grow>
             <Select label="Type" data={[
               { value: "receipt", label: "Receipt (In)" }, { value: "issue", label: "Issue (Out)" },
@@ -1008,12 +1073,12 @@ function NdpsRegisterTab() {
   });
 
   const actionColors: Record<string, string> = {
-    receipt: "success", dispensed: "primary", destroyed: "danger", transferred: "orange", adjustment: "slate",
+    receipt: "success", dispensed: "primary", destroyed: "danger", transferred: "orange", adjustment: "gray",
   };
 
   const columns = [
     { key: "action", label: "Action", render: (row: NdpsRegisterEntry) => (
-      <Badge size="xs" color={actionColors[row.action] ?? "slate"}>{row.action}</Badge>
+      <Badge size="xs" color={actionColors[row.action] ?? "gray"}>{row.action}</Badge>
     )},
     { key: "quantity", label: "Qty", render: (row: NdpsRegisterEntry) => <Text size="sm">{row.quantity}</Text> },
     { key: "balance_after", label: "Balance", render: (row: NdpsRegisterEntry) => <Text size="sm" fw={700}>{row.balance_after}</Text> },
@@ -1042,7 +1107,7 @@ function NdpsRegisterTab() {
       )}
       {showForm && (
         <Stack gap="xs">
-          <TextInput label="Catalog Item ID" required onChange={(e) => setForm({ ...form, catalog_item_id: e.currentTarget.value })} />
+          <DrugSearchSelect value={form.catalog_item_id ?? ""} onChange={(id) => setForm({ ...form, catalog_item_id: id })} required />
           <Group grow>
             <Select label="Action" data={[
               { value: "receipt", label: "Receipt" }, { value: "destroyed", label: "Destroyed" },
@@ -1206,13 +1271,13 @@ function TransfersView() {
   });
 
   const transferStatusColors: Record<string, string> = {
-    draft: "slate", approved: "primary", transferred: "success", cancelled: "danger",
+    draft: "gray", approved: "primary", transferred: "success", cancelled: "danger",
   };
 
   const columns = [
     { key: "from_location_id", label: "From", render: (row: PharmacyTransferRequest) => <Text size="sm">{row.from_location_id.slice(0, 8)}...</Text> },
     { key: "to_location_id", label: "To", render: (row: PharmacyTransferRequest) => <Text size="sm">{row.to_location_id.slice(0, 8)}...</Text> },
-    { key: "status", label: "Status", render: (row: PharmacyTransferRequest) => <Badge size="xs" color={transferStatusColors[row.status] ?? "slate"}>{row.status}</Badge> },
+    { key: "status", label: "Status", render: (row: PharmacyTransferRequest) => <Badge size="xs" color={transferStatusColors[row.status] ?? "gray"}>{row.status}</Badge> },
     { key: "created_at", label: "Date", render: (row: PharmacyTransferRequest) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text> },
     { key: "actions", label: "Actions", render: (row: PharmacyTransferRequest) => (
       <Group gap="xs">
@@ -1283,8 +1348,8 @@ function AbcVedView() {
   const columns = [
     { key: "drug_name", label: "Drug", render: (row: PharmacyAbcVedRow) => <Text size="sm">{row.drug_name}</Text> },
     { key: "annual_value", label: "Annual Value", render: (row: PharmacyAbcVedRow) => <Text size="sm">{"\u20B9"}{Number(row.annual_value).toLocaleString()}</Text> },
-    { key: "abc_class", label: "ABC", render: (row: PharmacyAbcVedRow) => <Badge size="xs" color={abcColors[row.abc_class] ?? "slate"}>{row.abc_class}</Badge> },
-    { key: "ved_class", label: "VED", render: (row: PharmacyAbcVedRow) => row.ved_class ? <Badge size="xs" color={vedColors[row.ved_class] ?? "slate"}>{row.ved_class}</Badge> : <Text size="sm">{"\u2014"}</Text> },
+    { key: "abc_class", label: "ABC", render: (row: PharmacyAbcVedRow) => <Badge size="xs" color={abcColors[row.abc_class] ?? "gray"}>{row.abc_class}</Badge> },
+    { key: "ved_class", label: "VED", render: (row: PharmacyAbcVedRow) => row.ved_class ? <Badge size="xs" color={vedColors[row.ved_class] ?? "gray"}>{row.ved_class}</Badge> : <Text size="sm">{"\u2014"}</Text> },
   ];
 
   return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
@@ -1308,4 +1373,333 @@ function UtilizationView() {
   ];
 
   return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Rx Queue Tab (Phase 3)
+// ══════════════════════════════════════════════════════════
+
+const rxStatusColors: Record<string, string> = {
+  pending_review: "orange",
+  approved: "success",
+  rejected: "danger",
+  on_hold: "gray",
+  dispensing: "info",
+  dispensed: "primary",
+  partially_dispensed: "teal",
+  cancelled: "dimmed",
+};
+
+function RxQueueTab({ canReview }: { canReview: boolean }) {
+  const queryClient = useQueryClient();
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewOpened, { open: openReview, close: closeReview }] = useDisclosure(false);
+  const [reviewAction, setReviewAction] = useState<string>("approved");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  const params = filterStatus ? { status: filterStatus } : undefined;
+  const { data: queue = [], isLoading } = useQuery({
+    queryKey: ["pharmacy-rx-queue", params],
+    queryFn: () => api.listRxQueue(params),
+    refetchInterval: 15_000,
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: (data: { id: string; action: string; notes?: string; rejection_reason?: string }) =>
+      api.reviewPrescription(data.id, { action: data.action, notes: data.notes, rejection_reason: data.rejection_reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
+      closeReview();
+      setReviewNotes("");
+      setRejectionReason("");
+      notifications.show({ title: "Success", message: "Prescription reviewed", color: "green" });
+    },
+  });
+
+  function handleOpenReview(id: string, action: string) {
+    setSelectedId(id);
+    setReviewAction(action);
+    openReview();
+  }
+
+  function handleSubmitReview() {
+    if (!selectedId) return;
+    reviewMutation.mutate({
+      id: selectedId,
+      action: reviewAction,
+      notes: reviewNotes || undefined,
+      rejection_reason: reviewAction === "rejected" ? rejectionReason || undefined : undefined,
+    });
+  }
+
+  const columns = [
+    { key: "patient_name", label: "Patient", render: (row: RxQueueRow) => <Text size="sm" fw={600}>{row.patient_name}</Text> },
+    { key: "doctor_name", label: "Doctor", render: (row: RxQueueRow) => <Text size="sm">{row.doctor_name}</Text> },
+    { key: "source", label: "Source", render: (row: RxQueueRow) => <Badge size="xs" variant="light">{row.source}</Badge> },
+    { key: "priority", label: "Priority", render: (row: RxQueueRow) => (
+      <Badge size="xs" color={row.priority === "urgent" ? "danger" : row.priority === "high" ? "orange" : "gray"}>{row.priority}</Badge>
+    ) },
+    { key: "status", label: "Status", render: (row: RxQueueRow) => (
+      <Badge size="xs" color={rxStatusColors[row.status] ?? "gray"}>{row.status.replace(/_/g, " ")}</Badge>
+    ) },
+    { key: "allergy_count", label: "Allergies", render: (row: RxQueueRow) => (
+      row.allergy_count > 0 ? <Badge size="xs" color="danger">{row.allergy_count} alerts</Badge> : <Text size="sm" c="dimmed">None</Text>
+    ) },
+    { key: "received_at", label: "Received", render: (row: RxQueueRow) => <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text> },
+    ...(canReview ? [{
+      key: "actions", label: "", render: (row: RxQueueRow) => row.status === "pending_review" ? (
+        <Group gap={4}>
+          <Tooltip label="Approve">
+            <ActionIcon size="sm" color="green" variant="light" onClick={() => handleOpenReview(row.id, "approved")}><IconCheck size={14} /></ActionIcon>
+          </Tooltip>
+          <Tooltip label="Reject">
+            <ActionIcon size="sm" color="red" variant="light" onClick={() => handleOpenReview(row.id, "rejected")}><IconX size={14} /></ActionIcon>
+          </Tooltip>
+        </Group>
+      ) : null,
+    }] : []),
+  ];
+
+  return (
+    <Stack>
+      <Group justify="space-between">
+        <Text fw={600}>Prescription Queue</Text>
+        <Select size="xs" placeholder="All statuses" clearable w={180}
+          data={[
+            { value: "pending_review", label: "Pending Review" },
+            { value: "approved", label: "Approved" },
+            { value: "rejected", label: "Rejected" },
+            { value: "on_hold", label: "On Hold" },
+          ]}
+          value={filterStatus} onChange={setFilterStatus}
+        />
+      </Group>
+      <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
+
+      <Modal opened={reviewOpened} onClose={closeReview} title={`${reviewAction === "approved" ? "Approve" : reviewAction === "rejected" ? "Reject" : "Review"} Prescription`} size="sm">
+        <Stack>
+          <Textarea label="Notes" value={reviewNotes} onChange={(e) => setReviewNotes(e.currentTarget.value)} />
+          {reviewAction === "rejected" && (
+            <Textarea label="Rejection Reason" required value={rejectionReason} onChange={(e) => setRejectionReason(e.currentTarget.value)} />
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeReview}>Cancel</Button>
+            <Button color={reviewAction === "rejected" ? "red" : "green"} loading={reviewMutation.isPending} onClick={handleSubmitReview}>
+              {reviewAction === "approved" ? "Approve" : "Reject"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  POS Counter Tab (Phase 3)
+// ══════════════════════════════════════════════════════════
+
+interface CartItem {
+  catalog_item_id: string;
+  drug_name: string;
+  quantity: number;
+  unit_price: number;
+}
+
+function PosCounterTab({ canCreate }: { canCreate: boolean }) {
+  const queryClient = useQueryClient();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [paymentMode, setPaymentMode] = useState<PharmacyPaymentMode>("cash");
+  const [amountReceived, setAmountReceived] = useState<number | string>(0);
+  const [patientName, setPatientName] = useState("");
+  const [patientPhone, setPatientPhone] = useState("");
+  const [discountPercent, setDiscountPercent] = useState<number | string>(0);
+  const [drugSelectValue, setDrugSelectValue] = useState("");
+
+  const { data: daySummary } = useQuery({
+    queryKey: ["pharmacy-pos-day-summary"],
+    queryFn: () => api.getPosDaySummary(),
+    refetchInterval: 60_000,
+  });
+
+  const { data: sales = [], isLoading: salesLoading } = useQuery({
+    queryKey: ["pharmacy-pos-sales"],
+    queryFn: () => api.listPosSales(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.createPosSale(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
+      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
+      setCart([]);
+      setAmountReceived(0);
+      setPatientName("");
+      setPatientPhone("");
+      setDiscountPercent(0);
+      notifications.show({ title: "Sale Complete", message: "POS sale recorded", color: "green" });
+    },
+  });
+
+  const subtotal = cart.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const discount = subtotal * (Number(discountPercent) / 100);
+  const gstAmount = (subtotal - discount) * 0.05;
+  const totalAmount = subtotal - discount + gstAmount;
+  const changeDue = Number(amountReceived) - totalAmount;
+
+  function addToCart(itemId: string, drugName: string) {
+    setCart((prev) => {
+      const existing = prev.find((c) => c.catalog_item_id === itemId);
+      if (existing) {
+        return prev.map((c) => c.catalog_item_id === itemId ? { ...c, quantity: c.quantity + 1 } : c);
+      }
+      return [...prev, { catalog_item_id: itemId, drug_name: drugName, quantity: 1, unit_price: 0 }];
+    });
+  }
+
+  function removeFromCart(itemId: string) {
+    setCart((prev) => prev.filter((c) => c.catalog_item_id !== itemId));
+  }
+
+  function updateQuantity(itemId: string, quantity: number) {
+    setCart((prev) => prev.map((c) => c.catalog_item_id === itemId ? { ...c, quantity } : c));
+  }
+
+  function updatePrice(itemId: string, price: number) {
+    setCart((prev) => prev.map((c) => c.catalog_item_id === itemId ? { ...c, unit_price: price } : c));
+  }
+
+  function handleSubmitSale() {
+    if (cart.length === 0) return;
+    createMutation.mutate({
+      items: cart.map((c) => ({
+        catalog_item_id: c.catalog_item_id,
+        drug_name: c.drug_name,
+        quantity: c.quantity,
+        mrp: c.unit_price,
+        selling_price: c.unit_price,
+        gst_rate: 5,
+      })),
+      payment_mode: paymentMode,
+      amount_received: Number(amountReceived),
+      patient_name: patientName || undefined,
+      patient_phone: patientPhone || undefined,
+      discount_percent: Number(discountPercent) || undefined,
+      discount_amount: discount > 0 ? discount : undefined,
+    });
+  }
+
+  const saleColumns = [
+    { key: "sale_number", label: "Sale #", render: (row: PharmacyPosSale) => <Text size="sm" fw={600}>{row.sale_number}</Text> },
+    { key: "patient_name", label: "Customer", render: (row: PharmacyPosSale) => <Text size="sm">{row.patient_name ?? "Walk-in"}</Text> },
+    { key: "total_amount", label: "Total", render: (row: PharmacyPosSale) => <Text size="sm" fw={700}>{"\u20B9"}{Number(row.total_amount).toLocaleString()}</Text> },
+    { key: "payment_mode", label: "Payment", render: (row: PharmacyPosSale) => <Badge size="xs" variant="light">{row.payment_mode}</Badge> },
+    { key: "created_at", label: "Time", render: (row: PharmacyPosSale) => <Text size="sm">{new Date(row.created_at).toLocaleTimeString()}</Text> },
+  ];
+
+  return (
+    <Stack>
+      {daySummary && (
+        <Group gap="lg">
+          <Card withBorder p="xs" style={{ flex: 1 }}>
+            <Text size="xs" c="dimmed">Sales Today</Text>
+            <Text size="lg" fw={700}>{daySummary.total_sales}</Text>
+          </Card>
+          <Card withBorder p="xs" style={{ flex: 1 }}>
+            <Text size="xs" c="dimmed">Revenue</Text>
+            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.total_revenue).toLocaleString()}</Text>
+          </Card>
+          <Card withBorder p="xs" style={{ flex: 1 }}>
+            <Text size="xs" c="dimmed">Cash</Text>
+            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.cash_total).toLocaleString()}</Text>
+          </Card>
+          <Card withBorder p="xs" style={{ flex: 1 }}>
+            <Text size="xs" c="dimmed">Card/UPI</Text>
+            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.card_total + daySummary.upi_total).toLocaleString()}</Text>
+          </Card>
+        </Group>
+      )}
+
+      {canCreate && (
+        <Card withBorder p="md">
+          <Text fw={600} mb="sm">New Sale</Text>
+          <Group mb="sm" align="flex-end">
+            <DrugSearchSelect
+              label="Add Drug"
+              value={drugSelectValue}
+              onChange={(id: string, drug) => {
+                setDrugSelectValue(id);
+                addToCart(id, drug?.name ?? id);
+              }}
+            />
+            <TextInput size="xs" label="Customer" value={patientName} onChange={(e) => setPatientName(e.currentTarget.value)} w={160} />
+            <TextInput size="xs" label="Phone" value={patientPhone} onChange={(e) => setPatientPhone(e.currentTarget.value)} w={130} />
+          </Group>
+
+          {cart.length > 0 && (
+            <Table striped highlightOnHover mb="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Drug</Table.Th>
+                  <Table.Th>Qty</Table.Th>
+                  <Table.Th>Price</Table.Th>
+                  <Table.Th>Line Total</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {cart.map((item) => (
+                  <Table.Tr key={item.catalog_item_id}>
+                    <Table.Td><Text size="sm">{item.drug_name}</Text></Table.Td>
+                    <Table.Td>
+                      <NumberInput size="xs" w={70} min={1} value={item.quantity} onChange={(val) => updateQuantity(item.catalog_item_id, Number(val))} />
+                    </Table.Td>
+                    <Table.Td>
+                      <NumberInput size="xs" w={90} min={0} decimalScale={2} prefix={"\u20B9"} value={item.unit_price} onChange={(val) => updatePrice(item.catalog_item_id, Number(val))} />
+                    </Table.Td>
+                    <Table.Td><Text size="sm" fw={600}>{"\u20B9"}{(item.quantity * item.unit_price).toFixed(2)}</Text></Table.Td>
+                    <Table.Td>
+                      <ActionIcon size="sm" color="red" variant="light" onClick={() => removeFromCart(item.catalog_item_id)}><IconX size={14} /></ActionIcon>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+
+          {cart.length > 0 && (
+            <Group justify="space-between" align="flex-end">
+              <Group gap="sm">
+                <NumberInput size="xs" label="Discount %" w={80} min={0} max={100} value={discountPercent} onChange={setDiscountPercent} />
+                <Select size="xs" label="Payment" w={120}
+                  data={[
+                    { value: "cash", label: "Cash" },
+                    { value: "card", label: "Card" },
+                    { value: "upi", label: "UPI" },
+                    { value: "mixed", label: "Mixed" },
+                  ]}
+                  value={paymentMode} onChange={(v) => setPaymentMode((v ?? "cash") as PharmacyPaymentMode)}
+                />
+                <NumberInput size="xs" label="Received" w={100} min={0} decimalScale={2} prefix={"\u20B9"} value={amountReceived} onChange={setAmountReceived} />
+              </Group>
+              <Stack gap={2} align="flex-end">
+                <Text size="sm">Subtotal: {"\u20B9"}{subtotal.toFixed(2)} | GST: {"\u20B9"}{gstAmount.toFixed(2)} | Total: <b>{"\u20B9"}{totalAmount.toFixed(2)}</b></Text>
+                {changeDue > 0 && <Text size="xs" c="green">Change: {"\u20B9"}{changeDue.toFixed(2)}</Text>}
+                <Button size="xs" color="primary" loading={createMutation.isPending} onClick={handleSubmitSale}
+                  disabled={cart.length === 0 || Number(amountReceived) < totalAmount}
+                  leftSection={<IconShoppingCart size={14} />}>
+                  Complete Sale
+                </Button>
+              </Stack>
+            </Group>
+          )}
+        </Card>
+      )}
+
+      <Text fw={600} mt="md">Today's Sales</Text>
+      <DataTable columns={saleColumns} data={sales} loading={salesLoading} rowKey={(row) => row.id} />
+    </Stack>
+  );
 }

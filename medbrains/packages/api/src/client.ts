@@ -485,6 +485,12 @@ import type {
   PharmacyConsumptionRow,
   PharmacyAbcVedRow,
   DrugUtilizationRow,
+  // Pharmacy Phase 3
+  RxQueueRow,
+  PharmacyPrescriptionRx,
+  PharmacyPosSale,
+  PharmacyPricingTier,
+  PosDaySummary,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -4453,6 +4459,57 @@ export const api = {
     request<PharmacyAbcVedRow[]>("/pharmacy/analytics/abc-ved"),
   getDrugUtilization: () =>
     request<DrugUtilizationRow[]>("/pharmacy/analytics/utilization"),
+
+  // Pharmacy Phase 3: Rx Queue
+  listRxQueue: (params?: { status?: string }) => {
+    const qs = params?.status ? `?status=${params.status}` : "";
+    return request<RxQueueRow[]>(`/pharmacy/rx-queue${qs}`);
+  },
+  getRxDetail: (id: string) =>
+    request<{ prescription: PharmacyPrescriptionRx; items: unknown[]; allergies: unknown[] }>(`/pharmacy/rx-queue/${id}`),
+  reviewPrescription: (id: string, data: { action: string; notes?: string; rejection_reason?: string }) =>
+    request<PharmacyPrescriptionRx>(`/pharmacy/rx-queue/${id}/review`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Safety
+  checkPatientAllergies: (data: { patient_id: string; drug_ids: string[] }) =>
+    request<{ matches: unknown[]; safe: boolean }>("/pharmacy/safety/allergy-check", { method: "POST", body: JSON.stringify(data) }),
+  selectFefoBatch: (data: { catalog_item_id: string; quantity_needed: number; store_location_id?: string }) =>
+    request<{ batches: unknown[] }>("/pharmacy/batches/fefo-select", { method: "POST", body: JSON.stringify(data) }),
+
+  // POS
+  createPosSale: (data: Record<string, unknown>) =>
+    request<PharmacyPosSale>("/pharmacy/pos/sales", { method: "POST", body: JSON.stringify(data) }),
+  listPosSales: (params?: { payment_mode?: string; date?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.payment_mode) qs.set("payment_mode", params.payment_mode);
+    if (params?.date) qs.set("date", params.date);
+    const q = qs.toString();
+    return request<PharmacyPosSale[]>(`/pharmacy/pos/sales${q ? `?${q}` : ""}`);
+  },
+  getPosDaySummary: () =>
+    request<PosDaySummary>("/pharmacy/pos/day-summary"),
+
+  // Pricing
+  resolveDrugPrice: (data: { catalog_item_id: string; tier_name?: string }) =>
+    request<Record<string, unknown>>("/pharmacy/pricing/resolve", { method: "POST", body: JSON.stringify(data) }),
+  upsertPricingTier: (data: { catalog_item_id: string; tier_name: string; price: number }) =>
+    request<PharmacyPricingTier>("/pharmacy/pricing/tiers", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Stock
+  reconcileStock: (data: { items: { catalog_item_id: string; physical_quantity: number; reason?: string }[] }) =>
+    request<{ reconciled: number }>("/pharmacy/stock/reconcile", { method: "POST", body: JSON.stringify(data) }),
+  getReorderSuggestions: () =>
+    request<{ suggestions: unknown[] }>("/pharmacy/stock/reorder-suggestions"),
+
+  // Analytics
+  pharmacyDailySales: (params?: { days?: number }) => {
+    const qs = params?.days ? `?days=${params.days}` : "";
+    return request<{ sales: unknown[] }>(`/pharmacy/analytics/daily-sales${qs}`);
+  },
+  pharmacyFillRate: () =>
+    request<Record<string, unknown>>("/pharmacy/analytics/fill-rate"),
+  pharmacyMargins: () =>
+    request<{ margins: unknown[] }>("/pharmacy/analytics/margins"),
 
   // ── IPD ───────────────────────────────────────────────
 

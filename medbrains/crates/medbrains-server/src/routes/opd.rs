@@ -168,6 +168,7 @@ pub struct PrescriptionItemInput {
     pub duration: String,
     pub route: Option<String>,
     pub instructions: Option<String>,
+    pub catalog_item_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1086,8 +1087,8 @@ pub async fn create_prescription(
         let pi = sqlx::query_as::<_, PrescriptionItem>(
             "INSERT INTO prescription_items \
              (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+              route, instructions, catalog_item_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
         )
         .bind(claims.tenant_id)
         .bind(rx.id)
@@ -1097,9 +1098,52 @@ pub async fn create_prescription(
         .bind(&item.duration)
         .bind(&item.route)
         .bind(&item.instructions)
+        .bind(item.catalog_item_id)
         .fetch_one(&mut *tx)
         .await?;
         items.push(pi);
+    }
+
+    // Auto-forward to pharmacy Rx queue
+    let patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+
+    if let Some(pid) = patient_id {
+        let encounter_type = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT encounter_type::text FROM encounters WHERE id = $1",
+        )
+        .bind(encounter_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten()
+        .unwrap_or_else(|| "opd".to_owned());
+
+        let source = match encounter_type.as_str() {
+            "ipd" => "ipd",
+            "emergency" => "emergency",
+            _ => "opd",
+        };
+
+        let _ = sqlx::query(
+            "INSERT INTO pharmacy_prescriptions \
+             (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'pending_review', 'normal') \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(claims.tenant_id)
+        .bind(rx.id)
+        .bind(pid)
+        .bind(encounter_id)
+        .bind(claims.sub)
+        .bind(source)
+        .execute(&mut *tx)
+        .await;
     }
 
     tx.commit().await?;

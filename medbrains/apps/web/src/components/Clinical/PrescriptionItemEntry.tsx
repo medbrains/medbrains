@@ -68,6 +68,7 @@ export function PrescriptionItemEntry({
   // Drug fields
   const [drugName, setDrugName] = useState("");
   const [drugSearch, setDrugSearch] = useState("");
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string | undefined>();
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState<string | null>(null);
   const [duration, setDuration] = useState("");
@@ -100,6 +101,7 @@ export function PrescriptionItemEntry({
       const label = drug.generic_name ? `${drug.name} (${drug.generic_name})` : drug.name;
       setDrugName(label);
       setDrugSearch(label);
+      setSelectedCatalogId(drug.id);
       if (drug.unit && !dosage) setDosage(drug.unit);
 
       const warnings: string[] = [];
@@ -119,6 +121,7 @@ export function PrescriptionItemEntry({
   const resetEntry = () => {
     setDrugName("");
     setDrugSearch("");
+    setSelectedCatalogId(undefined);
     setDosage("");
     setFrequency(null);
     setDuration("");
@@ -151,6 +154,7 @@ export function PrescriptionItemEntry({
       duration: duration.trim(),
       route: route ?? undefined,
       instructions,
+      catalog_item_id: selectedCatalogId,
     });
     resetEntry();
   };

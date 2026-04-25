@@ -3054,6 +3054,7 @@ export interface PrescriptionItemInput {
   duration: string;
   route?: string;
   instructions?: string;
+  catalog_item_id?: string;
 }
 
 export interface CreatePrescriptionRequest {
@@ -23662,4 +23663,54 @@ export interface AiGeneratedQuestion {
   options: { key: string; text: string }[];
   correct_answer: string;
   explanation: string;
+}
+
+// ── Pharmacy Phase 3 ──────────────────────────────────────
+
+export type PharmacyRxStatus = "pending_review" | "approved" | "rejected" | "on_hold" | "dispensing" | "dispensed" | "partially_dispensed" | "cancelled";
+export type PharmacyPaymentMode = "cash" | "card" | "upi" | "insurance" | "credit" | "mixed";
+
+export interface PharmacyPrescriptionRx {
+  id: string; tenant_id: string; prescription_id: string; patient_id: string;
+  encounter_id: string; doctor_id: string; source: string;
+  status: PharmacyRxStatus; priority: string;
+  pharmacy_order_id?: string; reviewed_by?: string; reviewed_at?: string;
+  review_notes?: string; rejection_reason?: string;
+  allergy_check_done: boolean; interaction_check_done: boolean;
+  interaction_check_result?: unknown;
+  store_location_id?: string; received_at: string;
+  created_at: string; updated_at: string;
+}
+
+export interface RxQueueRow {
+  id: string; prescription_id: string; patient_id: string;
+  patient_name: string; doctor_name: string; source: string;
+  status: PharmacyRxStatus; priority: string;
+  received_at: string; allergy_count: number;
+}
+
+export interface PharmacyPosSale {
+  id: string; tenant_id: string; sale_number: string;
+  pharmacy_order_id?: string; patient_id?: string;
+  patient_name?: string; patient_phone?: string;
+  subtotal: number; discount_amount: number; discount_percent?: number;
+  gst_amount: number; total_amount: number;
+  payment_mode: PharmacyPaymentMode; payment_reference?: string;
+  amount_received: number; change_due: number;
+  receipt_number?: string; receipt_printed: boolean;
+  pricing_tier: string; sold_by: string;
+  store_location_id?: string; created_at: string; updated_at: string;
+}
+
+export interface PharmacyPricingTier {
+  id: string; tenant_id: string; catalog_item_id: string;
+  tier_name: string; price: number;
+  effective_from: string; effective_to?: string;
+  created_by: string; created_at: string;
+}
+
+export interface PosDaySummary {
+  total_sales: number; total_revenue: number;
+  cash_total: number; card_total: number; upi_total: number;
+  gst_collected: number;
 }

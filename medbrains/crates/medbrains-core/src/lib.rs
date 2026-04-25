@@ -70,6 +70,7 @@ pub mod permissions;
 pub mod print_data;
 pub mod pharmacy;
 pub mod pharmacy_phase2;
+pub mod pharmacy_phase3;
 pub mod procurement;
 pub mod quality;
 pub mod queue;

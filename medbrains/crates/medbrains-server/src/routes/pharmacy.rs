@@ -12,6 +12,10 @@ use medbrains_core::pharmacy_phase2::{
     PharmacyAbcVedRow, PharmacyBatch, PharmacyConsumptionRow, PharmacyReturn,
     PharmacyStoreAssignment, PharmacyTransferRequest,
 };
+use medbrains_core::pharmacy_phase3::{
+    PharmacyPrescriptionRx, PharmacyPosSale, PharmacyPricingTier,
+    PharmacyAllergyCheckLog, PharmacyStockReconciliation, RxQueueRow, PosDaySummary,
+};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -153,6 +157,9 @@ pub struct ValidationResult {
 
 #[derive(Debug, Deserialize)]
 pub struct OtcSaleRequest {
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub patient_phone: Option<String>,
     pub items: Vec<OrderItemInput>,
     pub notes: Option<String>,
     pub store_location_id: Option<Uuid>,
@@ -782,8 +789,8 @@ pub async fn create_otc_sale(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // OTC sale: uses a generic walk-in patient UUID (zero UUID)
-    let walk_in_id = Uuid::nil();
+    // OTC sale: patient_id is optional (NULL for walk-in customers)
+    let patient_id = body.patient_id;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
@@ -793,7 +800,7 @@ pub async fn create_otc_sale(
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(walk_in_id)
+    .bind(patient_id)
     .bind(claims.sub)
     .bind(&body.notes)
     .bind(body.store_location_id)
@@ -904,19 +911,40 @@ pub async fn create_discharge_dispensing(
 //  Catalog CRUD
 // ══════════════════════════════════════════════════════════
 
+#[derive(Debug, serde::Deserialize)]
+pub struct CatalogQuery {
+    pub search: Option<String>,
+    pub category: Option<String>,
+    pub formulary_status: Option<String>,
+    pub drug_schedule: Option<String>,
+}
+
 pub async fn list_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(q): Query<CatalogQuery>,
 ) -> Result<Json<Vec<PharmacyCatalog>>, AppError> {
     require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let search = q.search.map(|s| format!("%{s}%"));
+
     let rows = sqlx::query_as::<_, PharmacyCatalog>(
-        "SELECT * FROM pharmacy_catalog WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM pharmacy_catalog
+         WHERE tenant_id = $1
+           AND ($2::text IS NULL OR name ILIKE $2 OR generic_name ILIKE $2 OR code ILIKE $2)
+           AND ($3::text IS NULL OR category = $3)
+           AND ($4::text IS NULL OR formulary_status::text = $4)
+           AND ($5::text IS NULL OR drug_schedule::text = $5)
+         ORDER BY name LIMIT 100",
     )
     .bind(claims.tenant_id)
+    .bind(&search)
+    .bind(&q.category)
+    .bind(&q.formulary_status)
+    .bind(&q.drug_schedule)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1369,6 +1397,32 @@ pub async fn create_batch(
     .bind(body.store_location_id)
     .bind(&body.supplier_info)
     .fetch_one(&mut *tx)
+    .await?;
+
+    // Update catalog stock to stay in sync with batch-level stock
+    sqlx::query(
+        "UPDATE pharmacy_catalog SET current_stock = current_stock + $1, updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(body.quantity_received)
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Create stock transaction for traceability
+    sqlx::query(
+        "INSERT INTO pharmacy_stock_transactions \
+         (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, notes, created_by) \
+         VALUES ($1, $2, 'receipt', $3, $4, $5, $6)",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.catalog_item_id)
+    .bind(body.quantity_received)
+    .bind(batch.id)
+    .bind(format!("Batch {} received", body.batch_number))
+    .bind(claims.sub)
+    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -1871,9 +1925,9 @@ pub async fn check_drug_interactions(
          FROM pharmacy_orders o \
          JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
          LEFT JOIN pharmacy_catalog nc ON nc.id = $3 AND nc.tenant_id = $2 \
-         LEFT JOIN drug_interactions di ON \
-           (di.drug_a_id = oi.catalog_item_id AND di.drug_b_id = $3) OR \
-           (di.drug_b_id = oi.catalog_item_id AND di.drug_a_id = $3) \
+         LEFT JOIN drug_interactions di ON di.tenant_id = o.tenant_id AND di.is_active = true AND \
+           ((lower(di.drug_a_name) = lower(oi.drug_name) AND lower(di.drug_b_name) = lower(nc.name)) OR \
+            (lower(di.drug_b_name) = lower(oi.drug_name) AND lower(di.drug_a_name) = lower(nc.name))) \
          WHERE o.patient_id = $1 AND o.tenant_id = $2 \
            AND o.status IN ('pending', 'dispensed') \
            AND o.created_at >= now() - interval '30 days' \
@@ -2008,4 +2062,815 @@ pub async fn formulary_check(
             "error": "Drug not found in catalog",
         }))),
     }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: Rx Queue (Pharmacist Prescription Workflow)
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/pharmacy/rx-queue
+pub async fn list_rx_queue(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<RxQueueQuery>,
+) -> Result<Json<Vec<RxQueueRow>>, AppError> {
+    require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let status_filter = params.status.as_deref().unwrap_or("pending_review");
+
+    let rows = sqlx::query_as::<_, RxQueueRow>(
+        "SELECT pr.id, pr.prescription_id, pr.patient_id,
+                p.first_name || ' ' || p.last_name AS patient_name,
+                u.full_name AS doctor_name,
+                pr.source, pr.status, pr.priority, pr.received_at,
+                (SELECT COUNT(*) FROM patient_allergies pa
+                 WHERE pa.patient_id = pr.patient_id AND pa.is_active = true
+                   AND pa.allergy_type = 'drug') AS allergy_count
+         FROM pharmacy_prescriptions pr
+         JOIN patients p ON p.id = pr.patient_id
+         JOIN users u ON u.id = pr.doctor_id
+         WHERE pr.tenant_id = $1 AND pr.status::text = $2
+         ORDER BY
+           CASE pr.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END,
+           pr.received_at ASC
+         LIMIT 50",
+    )
+    .bind(claims.tenant_id)
+    .bind(status_filter)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// GET /api/pharmacy/rx-queue/{id}
+pub async fn get_rx_detail(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
+        "SELECT * FROM pharmacy_prescriptions WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Fetch prescription items
+    let items = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r ORDER BY r.sort_order), '[]'::json) FROM (
+         SELECT pi.id::text, pi.drug_name, pi.dosage, pi.frequency, pi.duration,
+                pi.quantity, pi.route, pi.instructions, pi.sort_order
+         FROM prescription_items pi WHERE pi.prescription_id = $1
+         ) r",
+    )
+    .bind(rx.prescription_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Fetch patient allergies
+    let allergies = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
+         SELECT allergen_name, allergy_type::text, severity::text, reaction
+         FROM patient_allergies WHERE patient_id = $1 AND is_active = true
+         ) r",
+    )
+    .bind(rx.patient_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(json!({
+        "prescription": rx,
+        "items": items,
+        "allergies": allergies,
+    })))
+}
+
+/// PUT /api/pharmacy/rx-queue/{id}/review
+pub async fn review_prescription(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReviewPrescriptionRequest>,
+) -> Result<Json<PharmacyPrescriptionRx>, AppError> {
+    require_permission(&claims, permissions::pharmacy::rx_queue::REVIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let new_status = match body.action.as_str() {
+        "approved" => "approved",
+        "rejected" => "rejected",
+        "on_hold" => "on_hold",
+        _ => return Err(AppError::BadRequest("Invalid action. Use: approved, rejected, on_hold".to_owned())),
+    };
+
+    let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
+        "UPDATE pharmacy_prescriptions SET
+            status = $2::pharmacy_rx_status,
+            reviewed_by = $3,
+            reviewed_at = now(),
+            review_notes = $4,
+            rejection_reason = $5,
+            allergy_check_done = true,
+            interaction_check_done = true
+         WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(new_status)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .bind(&body.rejection_reason)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(rx))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: Safety Checks
+// ══════════════════════════════════════════════════════════
+
+/// POST /api/pharmacy/safety/allergy-check
+pub async fn check_patient_allergies(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AllergyCheckRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let matches = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
+         SELECT pa.allergen_name, pa.allergy_type::text, pa.severity::text, pa.reaction,
+                pc.name AS drug_name, pc.generic_name
+         FROM patient_allergies pa
+         CROSS JOIN UNNEST($2::uuid[]) AS did(drug_id)
+         JOIN pharmacy_catalog pc ON pc.id = did.drug_id AND pc.tenant_id = $3
+         WHERE pa.patient_id = $1 AND pa.is_active = true AND pa.allergy_type = 'drug'
+           AND (lower(pa.allergen_name) = lower(pc.name)
+                OR lower(pa.allergen_name) = lower(pc.generic_name)
+                OR lower(pa.allergen_name) = lower(pc.inn_name))
+         ) r",
+    )
+    .bind(body.patient_id)
+    .bind(&body.drug_ids)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let safe = matches.as_array().map_or(true, Vec::is_empty);
+
+    tx.commit().await?;
+    Ok(Json(json!({ "matches": matches, "safe": safe })))
+}
+
+/// POST /api/pharmacy/batches/fefo-select
+pub async fn select_fefo_batch(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<FefoSelectRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let batches = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r ORDER BY r.expiry_date), '[]'::json) FROM (
+         SELECT id::text AS batch_id, batch_number, expiry_date::text,
+                quantity_on_hand
+         FROM pharmacy_batches
+         WHERE catalog_item_id = $1 AND tenant_id = $2
+           AND quantity_on_hand > 0 AND expiry_date > CURRENT_DATE
+           AND ($3::uuid IS NULL OR store_location_id = $3)
+         ORDER BY expiry_date ASC
+         ) r",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .bind(body.store_location_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(json!({ "batches": batches, "quantity_needed": body.quantity_needed })))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: POS Counter Sales
+// ══════════════════════════════════════════════════════════
+
+/// POST /api/pharmacy/pos/sales
+pub async fn create_pos_sale(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreatePosSaleRequest>,
+) -> Result<Json<PharmacyPosSale>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Generate sale number
+    let sale_num = format!(
+        "PH-SALE-{}",
+        Uuid::new_v4().to_string().split('-').next().unwrap_or("0000")
+    );
+
+    // Calculate totals
+    let mut subtotal = Decimal::ZERO;
+    let mut gst_total = Decimal::ZERO;
+    for item in &body.items {
+        let line = Decimal::from(item.quantity) * item.selling_price;
+        let gst = line * item.gst_rate / Decimal::from(100);
+        subtotal += line;
+        gst_total += gst;
+    }
+    let discount = body.discount_amount.unwrap_or(Decimal::ZERO);
+    let total = subtotal - discount + gst_total;
+
+    // Create pharmacy order for stock tracking
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "INSERT INTO pharmacy_orders
+         (tenant_id, patient_id, ordered_by, status, notes,
+          dispensing_type, store_location_id, dispensed_by, dispensed_at)
+         VALUES ($1, $2, $3, 'dispensed', $4, 'otc'::pharmacy_dispensing_type, $5, $3, now())
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .bind(body.store_location_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Create POS sale record
+    let sale = sqlx::query_as::<_, PharmacyPosSale>(
+        "INSERT INTO pharmacy_pos_sales
+         (tenant_id, sale_number, pharmacy_order_id, patient_id, patient_name, patient_phone,
+          subtotal, discount_amount, discount_percent, gst_amount, total_amount,
+          payment_mode, payment_reference, amount_received, change_due,
+          receipt_number, pricing_tier, sold_by, store_location_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                 $12::pharmacy_payment_mode, $13, $14, $15, $16, $17, $18, $19)
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(&sale_num)
+    .bind(order.id)
+    .bind(body.patient_id)
+    .bind(&body.patient_name)
+    .bind(&body.patient_phone)
+    .bind(subtotal)
+    .bind(discount)
+    .bind(body.discount_percent)
+    .bind(gst_total)
+    .bind(total)
+    .bind(body.payment_mode.as_deref().unwrap_or("cash"))
+    .bind(&body.payment_reference)
+    .bind(body.amount_received.unwrap_or(total))
+    .bind(body.amount_received.map_or(Decimal::ZERO, |r| r - total))
+    .bind(&sale_num)
+    .bind(body.pricing_tier.as_deref().unwrap_or("mrp"))
+    .bind(claims.sub)
+    .bind(body.store_location_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Create sale items + order items + deduct stock
+    for item in &body.items {
+        let line_gst = Decimal::from(item.quantity) * item.selling_price * item.gst_rate / Decimal::from(100);
+        let half_gst = line_gst / Decimal::from(2);
+        let line_total = Decimal::from(item.quantity) * item.selling_price + line_gst;
+
+        // Order item for stock tracking
+        sqlx::query(
+            "INSERT INTO pharmacy_order_items
+             (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, total_price)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(claims.tenant_id)
+        .bind(order.id)
+        .bind(item.catalog_item_id)
+        .bind(&item.drug_name)
+        .bind(item.quantity)
+        .bind(item.selling_price)
+        .bind(line_total)
+        .execute(&mut *tx)
+        .await?;
+
+        // POS sale item with GST split
+        sqlx::query(
+            "INSERT INTO pharmacy_pos_sale_items
+             (tenant_id, pos_sale_id, catalog_item_id, drug_name, batch_id, batch_number,
+              hsn_code, quantity, mrp, selling_price, gst_rate, cgst_amount, sgst_amount,
+              igst_amount, line_total)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14)",
+        )
+        .bind(claims.tenant_id)
+        .bind(sale.id)
+        .bind(item.catalog_item_id)
+        .bind(&item.drug_name)
+        .bind(item.batch_id)
+        .bind(&item.batch_number)
+        .bind(&item.hsn_code)
+        .bind(item.quantity)
+        .bind(item.mrp)
+        .bind(item.selling_price)
+        .bind(item.gst_rate)
+        .bind(half_gst)
+        .bind(half_gst)
+        .bind(line_total)
+        .execute(&mut *tx)
+        .await?;
+
+        // Deduct stock
+        if let Some(cid) = item.catalog_item_id {
+            sqlx::query(
+                "UPDATE pharmacy_catalog SET current_stock = current_stock - $1 WHERE id = $2",
+            )
+            .bind(item.quantity)
+            .bind(cid)
+            .execute(&mut *tx)
+            .await?;
+        }
+        if let Some(bid) = item.batch_id {
+            sqlx::query(
+                "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand - $1, quantity_dispensed = quantity_dispensed + $1 WHERE id = $2",
+            )
+            .bind(item.quantity)
+            .bind(bid)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    tx.commit().await?;
+    Ok(Json(sale))
+}
+
+/// GET /api/pharmacy/pos/sales
+pub async fn list_pos_sales(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<PosSalesQuery>,
+) -> Result<Json<Vec<PharmacyPosSale>>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PharmacyPosSale>(
+        "SELECT * FROM pharmacy_pos_sales
+         WHERE tenant_id = $1
+           AND ($2::text IS NULL OR payment_mode::text = $2)
+           AND created_at >= COALESCE($3::date, CURRENT_DATE)::timestamptz
+         ORDER BY created_at DESC LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .bind(&params.payment_mode)
+    .bind(params.date)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// GET /api/pharmacy/pos/day-summary
+pub async fn pos_day_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<PosDaySummary>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let summary = sqlx::query_as::<_, PosDaySummary>(
+        "SELECT
+            COUNT(*)::bigint AS total_sales,
+            COALESCE(SUM(total_amount), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN payment_mode = 'cash' THEN total_amount ELSE 0 END), 0) AS cash_total,
+            COALESCE(SUM(CASE WHEN payment_mode = 'card' THEN total_amount ELSE 0 END), 0) AS card_total,
+            COALESCE(SUM(CASE WHEN payment_mode = 'upi' THEN total_amount ELSE 0 END), 0) AS upi_total,
+            COALESCE(SUM(gst_amount), 0) AS gst_collected
+         FROM pharmacy_pos_sales
+         WHERE tenant_id = $1 AND created_at >= CURRENT_DATE",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(summary))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: Pricing
+// ══════════════════════════════════════════════════════════
+
+/// POST /api/pharmacy/pricing/resolve
+pub async fn resolve_drug_price(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ResolvePriceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let tier = body.tier_name.as_deref().unwrap_or("mrp");
+
+    // Try pricing tier first, fall back to catalog
+    let price = sqlx::query_scalar::<_, Option<Decimal>>(
+        "SELECT price FROM pharmacy_pricing_tiers
+         WHERE catalog_item_id = $1 AND tenant_id = $2 AND tier_name = $3
+           AND effective_from <= CURRENT_DATE
+           AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+         ORDER BY effective_from DESC LIMIT 1",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .bind(tier)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+
+    let catalog = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT json_build_object('mrp', mrp, 'base_price', base_price, 'gst_rate', gst_rate, 'name', name)
+         FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or_else(|| json!({}));
+
+    let selling_price = price
+        .or_else(|| catalog.get("mrp").and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
+        .or_else(|| catalog.get("base_price").and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
+        .unwrap_or(Decimal::ZERO);
+
+    let gst_rate = catalog.get("gst_rate").and_then(|v| v.as_f64()).map_or(Decimal::ZERO, |f| Decimal::try_from(f).unwrap_or_default());
+    let gst_amount = selling_price * gst_rate / Decimal::from(100);
+
+    tx.commit().await?;
+    Ok(Json(json!({
+        "catalog": catalog,
+        "tier": tier,
+        "selling_price": selling_price.to_string(),
+        "gst_rate": gst_rate.to_string(),
+        "gst_amount": gst_amount.to_string(),
+        "total": (selling_price + gst_amount).to_string(),
+    })))
+}
+
+/// PUT /api/pharmacy/pricing/tiers
+pub async fn upsert_pricing_tier(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpsertPricingTierRequest>,
+) -> Result<Json<PharmacyPricingTier>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pricing::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let tier = sqlx::query_as::<_, PharmacyPricingTier>(
+        "INSERT INTO pharmacy_pricing_tiers
+         (tenant_id, catalog_item_id, tier_name, price, effective_from, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (tenant_id, catalog_item_id, tier_name, effective_from) DO UPDATE SET
+           price = EXCLUDED.price
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.catalog_item_id)
+    .bind(&body.tier_name)
+    .bind(body.price)
+    .bind(body.effective_from.unwrap_or_else(|| chrono::Utc::now().date_naive()))
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(tier))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: Stock Reconciliation & Reorder
+// ══════════════════════════════════════════════════════════
+
+/// POST /api/pharmacy/stock/reconcile
+pub async fn stock_reconciliation(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ReconcileStockRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut reconciled = 0i64;
+    for item in &body.items {
+        let system_qty = sqlx::query_scalar::<_, Option<i32>>(
+            "SELECT current_stock FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(item.catalog_item_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten()
+        .unwrap_or(0);
+
+        let variance = item.physical_quantity - system_qty;
+
+        sqlx::query(
+            "INSERT INTO pharmacy_stock_reconciliation
+             (tenant_id, catalog_item_id, batch_id, system_quantity, physical_quantity,
+              variance, reason, reconciled_by, store_location_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(claims.tenant_id)
+        .bind(item.catalog_item_id)
+        .bind(item.batch_id)
+        .bind(system_qty)
+        .bind(item.physical_quantity)
+        .bind(variance)
+        .bind(&item.reason)
+        .bind(claims.sub)
+        .bind(body.store_location_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Adjust catalog stock to match physical
+        if variance != 0 {
+            sqlx::query(
+                "UPDATE pharmacy_catalog SET current_stock = $1 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(item.physical_quantity)
+            .bind(item.catalog_item_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        reconciled += 1;
+    }
+
+    tx.commit().await?;
+    Ok(Json(json!({ "reconciled": reconciled })))
+}
+
+/// GET /api/pharmacy/stock/reorder-suggestions
+pub async fn reorder_suggestions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let suggestions = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r ORDER BY r.urgency DESC), '[]'::json) FROM (
+         SELECT pc.id::text AS catalog_item_id, pc.name, pc.generic_name,
+                pc.current_stock, pc.reorder_level, pc.min_stock, pc.max_stock,
+                COALESCE(pc.max_stock, pc.reorder_level * 3) - pc.current_stock AS suggested_quantity,
+                CASE
+                    WHEN pc.current_stock <= 0 THEN 'critical'
+                    WHEN pc.current_stock <= COALESCE(pc.min_stock, pc.reorder_level / 2) THEN 'high'
+                    ELSE 'normal'
+                END AS urgency
+         FROM pharmacy_catalog pc
+         WHERE pc.tenant_id = $1 AND pc.is_active = true
+           AND pc.current_stock <= COALESCE(pc.reorder_level, 10)
+         ORDER BY pc.current_stock ASC
+         ) r",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(json!({ "suggestions": suggestions })))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Phase 3: Enhanced Analytics
+// ══════════════════════════════════════════════════════════
+
+/// GET /api/pharmacy/analytics/daily-sales
+pub async fn daily_sales_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<AnalyticsDateQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let days = params.days.unwrap_or(30);
+
+    let rows = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r ORDER BY r.sale_date), '[]'::json) FROM (
+         SELECT DATE(created_at)::text AS sale_date,
+                COUNT(*)::bigint AS sale_count,
+                SUM(total_amount)::float8 AS revenue,
+                SUM(gst_amount)::float8 AS gst,
+                SUM(CASE WHEN payment_mode = 'cash' THEN total_amount ELSE 0 END)::float8 AS cash,
+                SUM(CASE WHEN payment_mode = 'card' THEN total_amount ELSE 0 END)::float8 AS card,
+                SUM(CASE WHEN payment_mode = 'upi' THEN total_amount ELSE 0 END)::float8 AS upi
+         FROM pharmacy_pos_sales
+         WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - ($2 || ' days')::interval
+         GROUP BY DATE(created_at)
+         ) r",
+    )
+    .bind(claims.tenant_id)
+    .bind(days.to_string())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(json!({ "sales": rows })))
+}
+
+/// GET /api/pharmacy/analytics/fill-rate
+pub async fn prescription_fill_rate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let stats = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT json_build_object(
+            'total', COUNT(*)::bigint,
+            'dispensed', COUNT(*) FILTER (WHERE status IN ('dispensed', 'partially_dispensed'))::bigint,
+            'rejected', COUNT(*) FILTER (WHERE status = 'rejected')::bigint,
+            'pending', COUNT(*) FILTER (WHERE status = 'pending_review')::bigint,
+            'on_hold', COUNT(*) FILTER (WHERE status = 'on_hold')::bigint,
+            'avg_review_minutes', EXTRACT(EPOCH FROM AVG(reviewed_at - received_at) FILTER (WHERE reviewed_at IS NOT NULL)) / 60.0
+         )
+         FROM pharmacy_prescriptions
+         WHERE tenant_id = $1 AND received_at >= CURRENT_DATE - INTERVAL '30 days'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(stats))
+}
+
+/// GET /api/pharmacy/analytics/margins
+pub async fn margin_analysis(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT COALESCE(json_agg(r ORDER BY r.margin_percent DESC), '[]'::json) FROM (
+         SELECT pc.category, pc.name, pc.generic_name,
+                pc.cost_price::float8 AS cost,
+                pc.base_price::float8 AS selling,
+                CASE WHEN pc.cost_price > 0
+                    THEN ((pc.base_price - pc.cost_price) / pc.cost_price * 100)::float8
+                    ELSE 0
+                END AS margin_percent,
+                pc.current_stock
+         FROM pharmacy_catalog pc
+         WHERE pc.tenant_id = $1 AND pc.is_active = true AND pc.cost_price IS NOT NULL
+         LIMIT 100
+         ) r",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(json!({ "margins": rows })))
+}
+
+// ── Phase 3 Request Types ────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RxQueueQuery {
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewPrescriptionRequest {
+    pub action: String,
+    pub notes: Option<String>,
+    pub rejection_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AllergyCheckRequest {
+    pub patient_id: Uuid,
+    pub drug_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FefoSelectRequest {
+    pub catalog_item_id: Uuid,
+    pub quantity_needed: i32,
+    pub store_location_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePosSaleRequest {
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub patient_phone: Option<String>,
+    pub items: Vec<PosSaleItemInput>,
+    pub discount_amount: Option<Decimal>,
+    pub discount_percent: Option<Decimal>,
+    pub payment_mode: Option<String>,
+    pub payment_reference: Option<String>,
+    pub amount_received: Option<Decimal>,
+    pub pricing_tier: Option<String>,
+    pub notes: Option<String>,
+    pub store_location_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PosSaleItemInput {
+    pub catalog_item_id: Option<Uuid>,
+    pub drug_name: String,
+    pub batch_id: Option<Uuid>,
+    pub batch_number: Option<String>,
+    pub hsn_code: Option<String>,
+    pub quantity: i32,
+    pub mrp: Decimal,
+    pub selling_price: Decimal,
+    pub gst_rate: Decimal,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PosSalesQuery {
+    pub payment_mode: Option<String>,
+    pub date: Option<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolvePriceRequest {
+    pub catalog_item_id: Uuid,
+    pub tier_name: Option<String>,
+    pub patient_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPricingTierRequest {
+    pub catalog_item_id: Uuid,
+    pub tier_name: String,
+    pub price: Decimal,
+    pub effective_from: Option<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReconcileStockRequest {
+    pub items: Vec<ReconcileItemInput>,
+    pub store_location_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReconcileItemInput {
+    pub catalog_item_id: Uuid,
+    pub batch_id: Option<Uuid>,
+    pub physical_quantity: i32,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AnalyticsDateQuery {
+    pub days: Option<i32>,
 }

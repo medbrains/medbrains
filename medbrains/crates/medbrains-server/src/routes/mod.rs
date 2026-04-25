@@ -1822,6 +1822,21 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/formulary/check",
             post(pharmacy::formulary_check),
         )
+        // ── Pharmacy Phase 3: Rx Queue, POS, Safety, Pricing ──
+        .route("/api/pharmacy/rx-queue", get(pharmacy::list_rx_queue))
+        .route("/api/pharmacy/rx-queue/{id}", get(pharmacy::get_rx_detail))
+        .route("/api/pharmacy/rx-queue/{id}/review", put(pharmacy::review_prescription))
+        .route("/api/pharmacy/safety/allergy-check", post(pharmacy::check_patient_allergies))
+        .route("/api/pharmacy/batches/fefo-select", post(pharmacy::select_fefo_batch))
+        .route("/api/pharmacy/pos/sales", get(pharmacy::list_pos_sales).post(pharmacy::create_pos_sale))
+        .route("/api/pharmacy/pos/day-summary", get(pharmacy::pos_day_summary))
+        .route("/api/pharmacy/pricing/resolve", post(pharmacy::resolve_drug_price))
+        .route("/api/pharmacy/pricing/tiers", put(pharmacy::upsert_pricing_tier))
+        .route("/api/pharmacy/stock/reconcile", post(pharmacy::stock_reconciliation))
+        .route("/api/pharmacy/stock/reorder-suggestions", get(pharmacy::reorder_suggestions))
+        .route("/api/pharmacy/analytics/daily-sales", get(pharmacy::daily_sales_summary))
+        .route("/api/pharmacy/analytics/fill-rate", get(pharmacy::prescription_fill_rate))
+        .route("/api/pharmacy/analytics/margins", get(pharmacy::margin_analysis))
         // ── Indent / Store ─────────────────────────────────
         .route(
             "/api/indent/requisitions",

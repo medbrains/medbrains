@@ -139,6 +139,29 @@ pub mod pharmacy {
     pub mod validation {
         pub const BYPASS: &str = "pharmacy.validation.bypass";
     }
+
+    pub mod rx_queue {
+        pub const LIST: &str = "pharmacy.rx_queue.list";
+        pub const REVIEW: &str = "pharmacy.rx_queue.review";
+    }
+
+    pub mod pos {
+        pub const CREATE: &str = "pharmacy.pos.create";
+        pub const VIEW: &str = "pharmacy.pos.view";
+    }
+
+    pub mod pricing {
+        pub const MANAGE: &str = "pharmacy.pricing.manage";
+    }
+
+    pub mod safety {
+        pub const VIEW: &str = "pharmacy.safety.view";
+        pub const OVERRIDE: &str = "pharmacy.safety.override";
+    }
+
+    pub mod reconciliation {
+        pub const MANAGE: &str = "pharmacy.reconciliation.manage";
+    }
 }
 
 pub mod billing {
