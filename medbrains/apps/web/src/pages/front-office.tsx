@@ -393,7 +393,7 @@ function VisitorManagementTab({
       )}
 
       {/* Register Visitor Drawer */}
-      <Drawer opened={visitorDrawer} onClose={visitorDrawerHandlers.close} title="Register Visitor" position="right" size="md">
+      <Drawer opened={visitorDrawer} onClose={visitorDrawerHandlers.close} title="Register Visitor" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Visitor Name" required value={vName} onChange={(e) => setVName(e.currentTarget.value)} />
           <TextInput label="Phone" value={vPhone} onChange={(e) => setVPhone(e.currentTarget.value)} />
@@ -609,7 +609,7 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
       </Drawer>
 
       {/* Display Config Drawer */}
-      <Drawer opened={configDrawer} onClose={configDrawerHandlers.close} title="Add Display Config" position="right" size="md">
+      <Drawer opened={configDrawer} onClose={configDrawerHandlers.close} title="Add Display Config" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Location Name" required value={cfgName} onChange={(e) => setCfgName(e.currentTarget.value)} />
           <Select label="Display Type" data={["waiting_area", "doctor_room", "counter"]} value={cfgType} onChange={setCfgType} />
@@ -741,7 +741,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       </Group>
       <DataTable columns={columns} data={enquiries ?? []} loading={isLoading} rowKey={(r: FrontOfficeEnquiryLog) => r.id} />
 
-      <Drawer opened={drawer} onClose={drawerHandlers.close} title="Log Enquiry" position="right" size="md">
+      <Drawer opened={drawer} onClose={drawerHandlers.close} title="Log Enquiry" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Caller Name" value={eName} onChange={(e) => setEName(e.currentTarget.value)} />
           <TextInput label="Caller Phone" value={ePhone} onChange={(e) => setEPhone(e.currentTarget.value)} />

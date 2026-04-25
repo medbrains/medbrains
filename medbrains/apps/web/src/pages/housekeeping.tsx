@@ -373,7 +373,7 @@ function RoomBedTab({
       />
 
       {/* Create Task Drawer */}
-      <Drawer opened={taskDrawer} onClose={taskDrawerH.close} title="New Cleaning Task" position="right" size="md">
+      <Drawer opened={taskDrawer} onClose={taskDrawerH.close} title="New Cleaning Task" position="right" size="xl">
         <Stack>
           <Select label="Area Type" data={AREA_TYPES} value={taskForm.area_type} onChange={(v) => setTaskForm({ ...taskForm, area_type: v ?? "ward" })} />
           <TextInput label="Assigned To" value={taskForm.assigned_to ?? ""} onChange={(e) => setTaskForm({ ...taskForm, assigned_to: e.target.value })} />
@@ -383,7 +383,7 @@ function RoomBedTab({
       </Drawer>
 
       {/* Create Turnaround Drawer */}
-      <Drawer opened={turnaroundDrawer} onClose={turnaroundDrawerH.close} title="Record Turnaround" position="right" size="md">
+      <Drawer opened={turnaroundDrawer} onClose={turnaroundDrawerH.close} title="Record Turnaround" position="right" size="xl">
         <Stack>
           <TextInput label="Cleaned By" value={turnaroundForm.cleaned_by ?? ""} onChange={(e) => setTurnaroundForm({ ...turnaroundForm, cleaned_by: e.target.value })} />
           <Button onClick={() => createTurnaroundM.mutate(turnaroundForm)} loading={createTurnaroundM.isPending}>Record</Button>
@@ -497,7 +497,7 @@ function SchedulesTab({
       )}
 
       {/* Drawers */}
-      <Drawer opened={schedDrawer} onClose={schedDrawerH.close} title="New Cleaning Schedule" position="right" size="md">
+      <Drawer opened={schedDrawer} onClose={schedDrawerH.close} title="New Cleaning Schedule" position="right" size="xl">
         <Stack>
           <Select label="Area Type" data={AREA_TYPES} value={schedForm.area_type} onChange={(v) => setSchedForm({ ...schedForm, area_type: v ?? "ward" })} />
           <NumberInput label="Frequency (hours)" value={schedForm.frequency_hours ?? 24} onChange={(v) => setSchedForm({ ...schedForm, frequency_hours: Number(v) })} min={1} />
@@ -506,7 +506,7 @@ function SchedulesTab({
         </Stack>
       </Drawer>
 
-      <Drawer opened={pestDrawer} onClose={pestDrawerH.close} title="New Pest Control Schedule" position="right" size="md">
+      <Drawer opened={pestDrawer} onClose={pestDrawerH.close} title="New Pest Control Schedule" position="right" size="xl">
         <Stack>
           <Select label="Pest Type" data={PEST_TYPES} value={pestForm.pest_type || null} onChange={(v) => setPestForm({ ...pestForm, pest_type: v ?? "" })} searchable />
           <NumberInput label="Frequency (months)" value={pestForm.frequency_months ?? 3} onChange={(v) => setPestForm({ ...pestForm, frequency_months: Number(v) })} min={1} />
@@ -516,7 +516,7 @@ function SchedulesTab({
         </Stack>
       </Drawer>
 
-      <Drawer opened={pestLogDrawer} onClose={pestLogDrawerH.close} title="Record Pest Control Treatment" position="right" size="md">
+      <Drawer opened={pestLogDrawer} onClose={pestLogDrawerH.close} title="Record Pest Control Treatment" position="right" size="xl">
         <Stack>
           <TextInput label="Treatment Date" type="date" value={pestLogForm.treatment_date} onChange={(e) => setPestLogForm({ ...pestLogForm, treatment_date: e.target.value })} />
           <Select label="Treatment Type" data={PEST_TREATMENT_TYPES} value={pestLogForm.treatment_type || null} onChange={(v) => setPestLogForm({ ...pestLogForm, treatment_type: v ?? "" })} searchable />
@@ -703,7 +703,7 @@ function LinenTab({
       )}
 
       {/* Drawers */}
-      <Drawer opened={linenDrawer} onClose={linenDrawerH.close} title="Add Linen Item" position="right" size="md">
+      <Drawer opened={linenDrawer} onClose={linenDrawerH.close} title="Add Linen Item" position="right" size="xl">
         <Stack>
           <Select label="Item Type" data={LINEN_TYPES} value={linenForm.item_type} onChange={(v) => setLinenForm({ ...linenForm, item_type: v ?? "bedsheet" })} />
           <TextInput label="Barcode" value={linenForm.barcode ?? ""} onChange={(e) => setLinenForm({ ...linenForm, barcode: e.target.value })} />
@@ -714,7 +714,7 @@ function LinenTab({
         </Stack>
       </Drawer>
 
-      <Drawer opened={movementDrawer} onClose={movementDrawerH.close} title="Record Linen Movement" position="right" size="md">
+      <Drawer opened={movementDrawer} onClose={movementDrawerH.close} title="Record Linen Movement" position="right" size="xl">
         <Stack>
           <Select label="Movement Type" data={["collect", "wash", "distribute", "return"]} value={movementForm.movement_type} onChange={(v) => setMovementForm({ ...movementForm, movement_type: v ?? "collect" })} />
           <NumberInput label="Quantity" value={movementForm.quantity ?? 1} onChange={(v) => setMovementForm({ ...movementForm, quantity: Number(v) })} min={1} />
@@ -725,7 +725,7 @@ function LinenTab({
         </Stack>
       </Drawer>
 
-      <Drawer opened={batchDrawer} onClose={batchDrawerH.close} title="New Laundry Batch" position="right" size="md">
+      <Drawer opened={batchDrawer} onClose={batchDrawerH.close} title="New Laundry Batch" position="right" size="xl">
         <Stack>
           <TextInput label="Batch Number" value={batchForm.batch_number} onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })} required />
           <NumberInput label="Items Count" value={batchForm.items_count ?? 0} onChange={(v) => setBatchForm({ ...batchForm, items_count: Number(v) })} min={0} />
@@ -798,7 +798,7 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
       />
 
       {/* Par Level Drawer */}
-      <Drawer opened={parDrawer} onClose={parDrawerH.close} title="Set Par Level" position="right" size="md">
+      <Drawer opened={parDrawer} onClose={parDrawerH.close} title="Set Par Level" position="right" size="xl">
         <Stack>
           <Select label="Item Type" data={LINEN_TYPES} value={parForm.item_type} onChange={(v) => setParForm({ ...parForm, item_type: v ?? "bedsheet" })} />
           <NumberInput label="Par Level" value={parForm.par_level} onChange={(v) => setParForm({ ...parForm, par_level: Number(v) })} min={0} />

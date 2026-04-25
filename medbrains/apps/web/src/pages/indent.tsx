@@ -516,7 +516,7 @@ function ApproveButton({
       <Button leftSection={<IconCheck size={16} />} color="success" onClick={open}>
         Approve
       </Button>
-      <Drawer opened={opened} onClose={close} title="Approve Indent Items" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Approve Indent Items" position="right" size="xl">
         <Stack>
           {items.map((item) => (
             <Group key={item.id}>
@@ -579,7 +579,7 @@ function IssueButton({
       <Button leftSection={<IconTruckDelivery size={16} />} color="violet" onClick={open}>
         Issue Items
       </Button>
-      <Drawer opened={opened} onClose={close} title="Issue Indent Items" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Issue Indent Items" position="right" size="xl">
         <Stack>
           {items.map((item) => {
             const remaining = item.quantity_approved - item.quantity_issued;
@@ -1120,7 +1120,7 @@ function CatalogPanel() {
         emptyTitle="No catalog items"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add Catalog Item" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Add Catalog Item" position="right" size="xl">
         <CatalogForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
@@ -1129,7 +1129,7 @@ function CatalogPanel() {
         />
       </Drawer>
 
-      <Drawer opened={editOpened} onClose={closeEdit} title="Edit Catalog Item" position="right" size="md">
+      <Drawer opened={editOpened} onClose={closeEdit} title="Edit Catalog Item" position="right" size="xl">
         {editItem && (
           <CatalogForm
             initial={editItem}
@@ -1258,7 +1258,7 @@ function StockPanel() {
         emptyTitle="No stock movements"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Record Stock Movement" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Record Stock Movement" position="right" size="xl">
         <StockMovementForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
@@ -1817,7 +1817,7 @@ function PatientConsumablesPanel() {
         rowKey={(row) => row.id}
         emptyTitle="No patient consumable issues"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Issue to Patient" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Issue to Patient" position="right" size="xl">
         <IssueToPatientForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["patient-consumables"] });
@@ -1971,7 +1971,7 @@ function ImplantRegistryView() {
         rowKey={(row) => row.id}
         emptyTitle="No implant registry entries"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Register Implant" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Register Implant" position="right" size="xl">
         <CreateImplantForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["implant-registry"] });
@@ -2169,7 +2169,7 @@ function CondemnationsView() {
         rowKey={(row) => row.id}
         emptyTitle="No condemnation records"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Initiate Condemnation" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Initiate Condemnation" position="right" size="xl">
         <CreateCondemnationForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["condemnations"] });
@@ -2177,7 +2177,7 @@ function CondemnationsView() {
           }}
         />
       </Drawer>
-      <Drawer opened={statusOpened} onClose={closeStatus} title="Update Condemnation Status" position="right" size="md">
+      <Drawer opened={statusOpened} onClose={closeStatus} title="Update Condemnation Status" position="right" size="xl">
         {statusItem && (
           <UpdateCondemnationStatusForm
             item={statusItem}

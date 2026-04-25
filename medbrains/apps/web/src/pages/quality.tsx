@@ -477,7 +477,7 @@ function IndicatorsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title="New Quality Indicator" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Quality Indicator" position="right" size="xl">
         <Stack>
           <TextInput label="Code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
           <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
@@ -689,7 +689,7 @@ function DocumentsTab() {
         }
       />
 
-      <Drawer opened={opened} onClose={close} title="New Controlled Document" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Controlled Document" position="right" size="xl">
         <Stack>
           <TextInput label="Document Number" required value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })} />
           <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
@@ -941,7 +941,7 @@ function IncidentsTab() {
       <DataTable columns={columns} data={incidents} loading={isLoading} rowKey={(i) => i.id} emptyTitle="No incidents reported" />
 
       {/* Create Incident Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="Report Incident" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Report Incident" position="right" size="xl">
         <Stack>
           <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
           <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
@@ -1134,7 +1134,7 @@ function IncidentsTab() {
       </Drawer>
 
       {/* Mortality Review Drawer */}
-      <Drawer opened={mortalityOpened} onClose={closeMortality} title="Mortality Review" position="right" size="md">
+      <Drawer opened={mortalityOpened} onClose={closeMortality} title="Mortality Review" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={mortalityForm.patient_id} onChange={(v) => setMortalityForm({ ...mortalityForm, patient_id: v })} required />
           <TextInput label="Death Date" type="date" required value={mortalityForm.death_date} onChange={(e) => setMortalityForm({ ...mortalityForm, death_date: e.currentTarget.value })} />
@@ -1427,7 +1427,7 @@ function CommitteesTab() {
       )}
 
       {/* Create Committee Drawer */}
-      <Drawer opened={committeeOpened} onClose={closeCommittee} title="New Committee" position="right" size="md">
+      <Drawer opened={committeeOpened} onClose={closeCommittee} title="New Committee" position="right" size="xl">
         <Stack>
           <TextInput label="Code" required value={committeeForm.code} onChange={(e) => setCommitteeForm({ ...committeeForm, code: e.currentTarget.value })} />
           <TextInput label="Name" required value={committeeForm.name} onChange={(e) => setCommitteeForm({ ...committeeForm, name: e.currentTarget.value })} />
@@ -1658,7 +1658,7 @@ function AccreditationTab() {
       <DataTable columns={columns} data={standards} loading={isLoading} rowKey={(s) => s.id} emptyTitle="No accreditation standards" />
 
       {/* Create Standard Drawer */}
-      <Drawer opened={standardOpened} onClose={closeStandard} title="Add Accreditation Standard" position="right" size="md">
+      <Drawer opened={standardOpened} onClose={closeStandard} title="Add Accreditation Standard" position="right" size="xl">
         <Stack>
           <Select label="Accreditation Body" required data={(["nabh", "nmc", "nabl", "jci", "abdm", "naac", "other"] as const).map((b) => ({ value: b, label: b.toUpperCase() }))} value={standardForm.body} onChange={(v) => setStandardForm({ ...standardForm, body: (v ?? "nabh") as AccreditationBodyType })} />
           <TextInput label="Standard Code" required value={standardForm.standard_code} onChange={(e) => setStandardForm({ ...standardForm, standard_code: e.currentTarget.value })} />
@@ -1670,7 +1670,7 @@ function AccreditationTab() {
       </Drawer>
 
       {/* Update Compliance Drawer */}
-      <Drawer opened={complianceOpened} onClose={closeCompliance} title={`Compliance: ${selectedStandard?.standard_code ?? ""}`} position="right" size="md">
+      <Drawer opened={complianceOpened} onClose={closeCompliance} title={`Compliance: ${selectedStandard?.standard_code ?? ""}`} position="right" size="xl">
         <Stack>
           <Select label="Compliance Status" required data={(["compliant", "partially_compliant", "non_compliant", "not_applicable"] as const).map((c) => ({ value: c, label: c.replace(/_/g, " ") }))} value={complianceForm.compliance} onChange={(v) => setComplianceForm({ ...complianceForm, compliance: (v ?? "non_compliant") as ComplianceStatusType })} />
           <Textarea label="Evidence Summary" value={complianceForm.evidence_summary ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, evidence_summary: e.currentTarget.value || undefined })} />
@@ -1865,7 +1865,7 @@ function AuditsTab() {
       <DataTable columns={columns} data={audits} loading={isLoading} rowKey={(a) => a.id} emptyTitle="No audits" />
 
       {/* Create Audit Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title={form.audit_type === "mock" ? "Schedule Mock Inspection" : "New Audit"} position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title={form.audit_type === "mock" ? "Schedule Mock Inspection" : "New Audit"} position="right" size="xl">
         <Stack>
           <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
           <Select label="Audit Type" required data={["internal", "external", "mock", "surveillance", "follow_up"]} value={form.audit_type} onChange={(v) => setForm({ ...form, audit_type: v ?? "internal" })} />
@@ -1961,7 +1961,7 @@ function AuditsTab() {
       </Drawer>
 
       {/* Schedule Audits Drawer */}
-      <Drawer opened={scheduleOpened} onClose={closeSchedule} title="Schedule Audits" position="right" size="md">
+      <Drawer opened={scheduleOpened} onClose={closeSchedule} title="Schedule Audits" position="right" size="xl">
         <Stack>
           <TextInput label="Department IDs (comma-separated)" required value={scheduleForm.department_ids.join(",")} onChange={(e) => setScheduleForm({ ...scheduleForm, department_ids: e.currentTarget.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
           <Select
@@ -1978,7 +1978,7 @@ function AuditsTab() {
       </Drawer>
 
       {/* Add Finding Drawer */}
-      <Drawer opened={findingOpened} onClose={closeFinding} title={`Add Finding: ${selectedAudit?.audit_number ?? ""}`} position="right" size="md">
+      <Drawer opened={findingOpened} onClose={closeFinding} title={`Add Finding: ${selectedAudit?.audit_number ?? ""}`} position="right" size="xl">
         <Stack>
           <Select
             label="Finding Type"

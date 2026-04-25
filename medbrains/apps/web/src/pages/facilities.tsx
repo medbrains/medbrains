@@ -284,7 +284,7 @@ function MgpsTab() {
       </Group>
       <DataTable columns={compCols} data={compliance.data ?? []} loading={compliance.isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={readingOpen} onClose={closeReading} title="Record Gas Reading" position="right" size="md">
+      <Drawer opened={readingOpen} onClose={closeReading} title="Record Gas Reading" position="right" size="xl">
         <Stack>
           <Select label="Gas Type" data={GAS_TYPES} value={gasForm.gas_type} onChange={(v) => setGasForm({ ...gasForm, gas_type: v as CreateFmsGasReadingRequest["gas_type"] })} />
           <Select label="Source" data={GAS_SOURCE_TYPES} value={gasForm.source_type} onChange={(v) => setGasForm({ ...gasForm, source_type: v as CreateFmsGasReadingRequest["source_type"] })} />
@@ -300,7 +300,7 @@ function MgpsTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={complianceOpen} onClose={closeCompliance} title="Add Gas Compliance" position="right" size="md">
+      <Drawer opened={complianceOpen} onClose={closeCompliance} title="Add Gas Compliance" position="right" size="xl">
         <Stack>
           <Select label="Gas Type" data={GAS_TYPES} value={compForm.gas_type} onChange={(v) => setCompForm({ ...compForm, gas_type: v as CreateFmsGasComplianceRequest["gas_type"] })} />
           <TextInput label="PESO License Number" value={compForm.peso_license_number ?? ""} onChange={(e) => setCompForm({ ...compForm, peso_license_number: e.currentTarget.value })} />
@@ -392,7 +392,7 @@ function FireSafetyTab() {
       <Text fw={600} size="lg" mt="lg">Fire NOC</Text>
       <DataTable columns={nocCols} data={nocs.data ?? []} loading={nocs.isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={equipOpen} onClose={closeEquip} title="Add Fire Equipment" position="right" size="md">
+      <Drawer opened={equipOpen} onClose={closeEquip} title="Add Fire Equipment" position="right" size="xl">
         <Stack>
           <TextInput label="Name" required value={equipForm.name} onChange={(e) => setEquipForm({ ...equipForm, name: e.currentTarget.value })} />
           <Select label="Type" data={FIRE_EQUIPMENT_TYPES} value={equipForm.equipment_type} onChange={(v) => setEquipForm({ ...equipForm, equipment_type: v as CreateFmsFireEquipmentRequest["equipment_type"] })} />
@@ -405,7 +405,7 @@ function FireSafetyTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={drillOpen} onClose={closeDrill} title="Record Fire Drill" position="right" size="md">
+      <Drawer opened={drillOpen} onClose={closeDrill} title="Record Fire Drill" position="right" size="xl">
         <Stack>
           <Select label="Type" data={DRILL_TYPES} value={drillForm.drill_type} onChange={(v) => setDrillForm({ ...drillForm, drill_type: v as CreateFmsFireDrillRequest["drill_type"] })} />
           <DateInput label="Drill Date" value={drillForm.drill_date ? new Date(drillForm.drill_date) : null} onChange={(v) => setDrillForm({ ...drillForm, drill_date: v ? new Date(v).toISOString().slice(0, 10) : "" })} />
@@ -478,7 +478,7 @@ function WaterQualityTab() {
       </Group>
       <DataTable columns={schedCols} data={schedules.data ?? []} loading={schedules.isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={testOpen} onClose={closeTest} title="Record Water Test" position="right" size="md">
+      <Drawer opened={testOpen} onClose={closeTest} title="Record Water Test" position="right" size="xl">
         <Stack>
           <Select label="Source" data={WATER_SOURCE_TYPES} value={testForm.source_type} onChange={(v) => setTestForm({ ...testForm, source_type: v as CreateFmsWaterTestRequest["source_type"] })} />
           <Select label="Test Type" data={WATER_TEST_TYPES} value={testForm.test_type} onChange={(v) => setTestForm({ ...testForm, test_type: v as CreateFmsWaterTestRequest["test_type"] })} />
@@ -493,7 +493,7 @@ function WaterQualityTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={schedOpen} onClose={closeSched} title="Add Water Schedule" position="right" size="md">
+      <Drawer opened={schedOpen} onClose={closeSched} title="Add Water Schedule" position="right" size="xl">
         <Stack>
           <Select label="Schedule Type" required data={WATER_SCHEDULE_TYPES} value={schedForm.schedule_type || null} onChange={(v) => setSchedForm({ ...schedForm, schedule_type: v ?? "" })} searchable />
           <Select label="Frequency" required data={SCHEDULE_FREQUENCIES} value={schedForm.frequency || null} onChange={(v) => setSchedForm({ ...schedForm, frequency: v ?? "" })} searchable />
@@ -551,7 +551,7 @@ function EnergyTab() {
 
       {showAnalytics && <EnergyAnalyticsView />}
 
-      <Drawer opened={readingOpen} onClose={closeReading} title="Record Energy Reading" position="right" size="md">
+      <Drawer opened={readingOpen} onClose={closeReading} title="Record Energy Reading" position="right" size="xl">
         <Stack>
           <Select label="Source" data={ENERGY_SOURCE_TYPES} value={form.source_type} onChange={(v) => setForm({ ...form, source_type: v as CreateFmsEnergyReadingRequest["source_type"] })} />
           <TextInput label="Equipment Name" value={form.equipment_name ?? ""} onChange={(e) => setForm({ ...form, equipment_name: e.currentTarget.value })} />
@@ -719,7 +719,7 @@ function WorkOrdersTab() {
       </Group>
       <DataTable columns={cols} data={orders.data ?? []} loading={orders.isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Create Work Order" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Create Work Order" position="right" size="xl">
         <Stack>
           <Select label="Category" data={MAINTENANCE_CATEGORIES} placeholder="Select category" value={form.category ?? null} onChange={(v) => setForm({ ...form, category: v || undefined })} clearable searchable />
           <Select label="Priority" data={WO_PRIORITIES} value={form.priority ?? "medium"} onChange={(v) => setForm({ ...form, priority: v ?? "medium" })} />
@@ -729,7 +729,7 @@ function WorkOrdersTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={statusOpen} onClose={closeStatus} title={`Update WO: ${selectedWo?.work_order_number ?? ""}`} position="right" size="md">
+      <Drawer opened={statusOpen} onClose={closeStatus} title={`Update WO: ${selectedWo?.work_order_number ?? ""}`} position="right" size="xl">
         <Stack>
           <Select label="Status" data={WO_STATUSES} value={statusForm.status} onChange={(v) => setStatusForm({ ...statusForm, status: (v ?? "assigned") as UpdateFmsWorkOrderStatusRequest["status"] })} />
           <Textarea label="Findings" value={statusForm.findings ?? ""} onChange={(e) => setStatusForm({ ...statusForm, findings: e.currentTarget.value })} />
@@ -742,7 +742,7 @@ function WorkOrdersTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={pmOpen} onClose={closePm} title="Schedule Preventive Maintenance" position="right" size="md">
+      <Drawer opened={pmOpen} onClose={closePm} title="Schedule Preventive Maintenance" position="right" size="xl">
         <Stack>
           <TextInput label="Equipment IDs (comma-separated)" placeholder="e.g. id1, id2, id3" onChange={(e) => {
             const ids = e.currentTarget.value.split(",").map((s) => s.trim()).filter(Boolean);

@@ -1187,7 +1187,7 @@ function StoreLocationPanel() {
         emptyTitle="No store locations"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add Store Location" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Add Store Location" position="right" size="xl">
         <StoreLocationForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["store-locations"] });
@@ -1495,7 +1495,7 @@ function SupplierPaymentsPanel() {
         emptyTitle="No supplier payments"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Record Payment" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Record Payment" position="right" size="xl">
         <CreatePaymentForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });

@@ -368,7 +368,7 @@ function FlowsheetsTab({ admissionId }: { admissionId: string }) {
         />
       )}
 
-      <Drawer opened={opened} onClose={close} title="Record ICU Vitals" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record ICU Vitals" position="right" size="xl">
         <Stack>
           <Group grow>
             <NumberInput label="Heart Rate" value={form.heart_rate ?? ""} onChange={(v) => setForm({ ...form, heart_rate: v === "" ? undefined : Number(v) })} />
@@ -452,7 +452,7 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
         <Text c="dimmed" ta="center" py="xl">Select an admission to view ventilator records</Text>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Record Ventilator Settings" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record Ventilator Settings" position="right" size="xl">
         <Stack>
           <Select
             label="Mode"
@@ -777,7 +777,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
         </Stack>
       </Drawer>
 
-      <Drawer opened={bundleOpened} onClose={closeBundle} title={`Bundle Checks — ${selectedDevice ? deviceTypeLabels[selectedDevice.device_type] : ""}`} position="right" size="md">
+      <Drawer opened={bundleOpened} onClose={closeBundle} title={`Bundle Checks — ${selectedDevice ? deviceTypeLabels[selectedDevice.device_type] : ""}`} position="right" size="xl">
         <Stack>
           {bundleChecks.length > 0 && (
             <Table withTableBorder>
@@ -1130,7 +1130,7 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
         <BilirubinPhototherapyPanel records={records} />
       )}
 
-      <Drawer opened={opened} onClose={close} title="Record Neonatal Data" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record Neonatal Data" position="right" size="xl">
         <Stack>
           <Group grow>
             <NumberInput label="Gestational Age (weeks)" value={form.gestational_age_weeks ?? ""} onChange={(v) => setForm({ ...form, gestational_age_weeks: v === "" ? undefined : Number(v) })} />

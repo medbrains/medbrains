@@ -253,7 +253,7 @@ function VerificationTab() {
       />
 
       {/* Run Verification Drawer */}
-      <Drawer opened={opened} onClose={close} title="Run Verification" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Run Verification" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Patient ID"
@@ -935,7 +935,7 @@ function AppealsTab() {
       />
 
       {/* Create Appeal Drawer */}
-      <Drawer opened={opened} onClose={close} title="New Appeal" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Appeal" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Prior Auth ID (denied PA)"
@@ -1083,7 +1083,7 @@ function RulesTab() {
       />
 
       {/* Create Rule Drawer */}
-      <Drawer opened={opened} onClose={close} title="Add PA Requirement Rule" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Add PA Requirement Rule" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Rule Name"

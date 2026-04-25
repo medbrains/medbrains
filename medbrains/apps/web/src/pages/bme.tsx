@@ -437,7 +437,7 @@ function PmTab() {
       </Group>
       <DataTable columns={woColumns} data={workOrders} loading={loadingWo} rowKey={(r) => r.id} />
 
-      <Drawer opened={pmOpened} onClose={closePm} title="Add PM Schedule" position="right" size="md">
+      <Drawer opened={pmOpened} onClose={closePm} title="Add PM Schedule" position="right" size="xl">
         <Stack>
           <Select label="Equipment" required data={equipOptions} value={pmForm.equipment_id} onChange={(v) => setPmForm({ ...pmForm, equipment_id: v ?? "" })} searchable />
           <Select label="Frequency" required data={PM_FREQUENCIES} value={pmForm.frequency} onChange={(v) => setPmForm({ ...pmForm, frequency: (v ?? "quarterly") as CreateBmePmScheduleRequest["frequency"] })} />
@@ -447,7 +447,7 @@ function PmTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={woOpened} onClose={closeWo} title="Create Work Order" position="right" size="md">
+      <Drawer opened={woOpened} onClose={closeWo} title="Create Work Order" position="right" size="xl">
         <Stack>
           <Select label="Equipment" required data={equipOptions} value={woForm.equipment_id} onChange={(v) => setWoForm({ ...woForm, equipment_id: v ?? "" })} searchable />
           <Select label="Type" required data={WORK_ORDER_TYPES} value={woForm.order_type} onChange={(v) => setWoForm({ ...woForm, order_type: (v ?? "preventive") as CreateBmeWorkOrderRequest["order_type"] })} />
@@ -543,7 +543,7 @@ function CalibrationTab() {
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Record Calibration" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record Calibration" position="right" size="xl">
         <Stack>
           <Select label="Equipment" required data={equipOptions} value={form.equipment_id} onChange={(v) => setForm({ ...form, equipment_id: v ?? "" })} searchable />
           <Select label="Status" data={CALIBRATION_STATUSES} value={form.calibration_status ?? "calibrated"} onChange={(v) => setForm({ ...form, calibration_status: (v ?? "calibrated") as CreateBmeCalibrationRequest["calibration_status"] })} />
@@ -753,7 +753,7 @@ function ContractsTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={evalOpened} onClose={closeEval} title="Vendor Evaluation" position="right" size="md">
+      <Drawer opened={evalOpened} onClose={closeEval} title="Vendor Evaluation" position="right" size="xl">
         <Stack>
           <TextInput label="Vendor ID" required value={evalForm.vendor_id} onChange={(e) => setEvalForm({ ...evalForm, vendor_id: e.target.value })} />
           <DateInput label="Evaluation Date" required value={evalForm.evaluation_date || null} onChange={(d) => setEvalForm({ ...evalForm, evaluation_date: d?.slice(0, 10) ?? "" })} />
@@ -846,7 +846,7 @@ function BreakdownsTab() {
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Report Breakdown" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Report Breakdown" position="right" size="xl">
         <Stack>
           <Select label="Equipment" required data={equipOptions} value={form.equipment_id} onChange={(v) => setForm({ ...form, equipment_id: v ?? "" })} searchable />
           <Select label="Priority" data={BREAKDOWN_PRIORITIES} value={form.priority ?? "medium"} onChange={(v) => setForm({ ...form, priority: (v ?? "medium") as CreateBmeBreakdownRequest["priority"] })} />

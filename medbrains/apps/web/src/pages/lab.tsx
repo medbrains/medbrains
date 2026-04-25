@@ -538,7 +538,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title={t("title.newLabOrder")} position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title={t("title.newLabOrder")} position="right" size="xl">
       <Stack>
         <TextInput label={t("label.patientId")} required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
         <TextInput label={t("label.testId")} required value={testId} onChange={(e) => setTestId(e.currentTarget.value)} />

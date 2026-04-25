@@ -374,7 +374,7 @@ function CampsTab() {
       <DataTable columns={columns} data={camps} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Plan New Camp" position="right" size="md">
+      <Drawer opened={createOpen} onClose={createHandlers.close} title="Plan New Camp" position="right" size="xl">
         <Stack>
           <TextInput label="Camp Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           <Select label="Camp Type" required data={CAMP_TYPES} value={form.camp_type} onChange={(v) => setForm({ ...form, camp_type: v ?? "general_health" })} />
@@ -584,7 +584,7 @@ function RegistrationsTab() {
         <Text c="dimmed" ta="center" mt="xl">Select a camp to view registrations</Text>
       )}
 
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Register Participant" position="right" size="md">
+      <Drawer opened={createOpen} onClose={createHandlers.close} title="Register Participant" position="right" size="xl">
         <Stack>
           <TextInput label="Person Name" required value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.currentTarget.value })} />
           <Group grow>
@@ -737,7 +737,7 @@ function ScreeningsTab() {
       )}
 
       {/* Screening Drawer */}
-      <Drawer opened={scrOpen} onClose={scrHandlers.close} title="Record Screening" position="right" size="md">
+      <Drawer opened={scrOpen} onClose={scrHandlers.close} title="Record Screening" position="right" size="xl">
         <Stack>
           <TextInput label="Registration ID" required value={scrForm.registration_id} onChange={(e) => setScrForm({ ...scrForm, registration_id: e.currentTarget.value })} />
           <Group grow>

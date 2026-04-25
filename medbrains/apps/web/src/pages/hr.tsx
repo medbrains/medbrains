@@ -228,7 +228,7 @@ function EmployeesTab({ canCreate, canManageCredentials }: { canCreate: boolean;
       />
 
       {/* Create Employee Drawer */}
-      <Drawer opened={createOpen} onClose={closeCreate} title="Add Employee" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Add Employee" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee Code" required value={form.employee_code} onChange={(e) => setForm({ ...form, employee_code: e.currentTarget.value })} />
           <TextInput label="First Name" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.currentTarget.value })} />
@@ -434,7 +434,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
         ]}
       />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Mark Attendance" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Mark Attendance" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee ID" required value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })} placeholder="UUID of employee" />
           <TextInput label="Date" required placeholder="YYYY-MM-DD" value={form.attendance_date} onChange={(e) => setForm({ ...form, attendance_date: e.currentTarget.value })} />
@@ -543,7 +543,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
         ]}
       />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Apply Leave" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Apply Leave" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee ID" required value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })} placeholder="UUID of employee" />
           <Select label="Leave Type" value={form.leave_type} onChange={(v) => setForm({ ...form, leave_type: v || "casual" })} data={[
@@ -704,7 +704,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
       </Tabs>
 
       {/* Create Roster Drawer */}
-      <Drawer opened={rosterOpen} onClose={closeRoster} title="Add Roster Entry" position="right" size="md">
+      <Drawer opened={rosterOpen} onClose={closeRoster} title="Add Roster Entry" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee ID" required value={rosterForm.employee_id} onChange={(e) => setRosterForm({ ...rosterForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
           <Select label="Shift" required value={rosterForm.shift_id} onChange={(v) => setRosterForm({ ...rosterForm, shift_id: v || "" })} data={shifts.map((s: ShiftDefinition) => ({ value: s.id, label: `${s.name} (${s.start_time}-${s.end_time})` }))} />
@@ -734,7 +734,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
       </Drawer>
 
       {/* Create On-Call Drawer */}
-      <Drawer opened={onCallOpen} onClose={closeOnCall} title="Add On-Call Schedule" position="right" size="md">
+      <Drawer opened={onCallOpen} onClose={closeOnCall} title="Add On-Call Schedule" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee ID" required value={onCallForm.employee_id} onChange={(e) => setOnCallForm({ ...onCallForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
           <TextInput label="Date" required placeholder="YYYY-MM-DD" value={onCallForm.schedule_date} onChange={(e) => setOnCallForm({ ...onCallForm, schedule_date: e.currentTarget.value })} />
@@ -885,7 +885,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
       )}
 
       {/* Create Program Drawer */}
-      <Drawer opened={programOpen} onClose={closeProgram} title="Add Training Program" position="right" size="md">
+      <Drawer opened={programOpen} onClose={closeProgram} title="Add Training Program" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Code" required value={progForm.code} onChange={(e) => setProgForm({ ...progForm, code: e.currentTarget.value })} />
           <TextInput label="Name" required value={progForm.name} onChange={(e) => setProgForm({ ...progForm, name: e.currentTarget.value })} />
@@ -898,7 +898,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
       </Drawer>
 
       {/* Record Training Drawer */}
-      <Drawer opened={recordOpen} onClose={closeRecord} title="Record Training" position="right" size="md">
+      <Drawer opened={recordOpen} onClose={closeRecord} title="Record Training" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Employee ID" required value={recForm.employee_id} onChange={(e) => setRecForm({ ...recForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
           <Select label="Program" required value={recForm.program_id} onChange={(v) => setRecForm({ ...recForm, program_id: v || "" })} data={programs.map((p: TrainingProgram) => ({ value: p.id, label: p.name }))} />
@@ -994,7 +994,7 @@ function ComplianceTab({ canManageCredentials, canManageAppraisal }: { canManage
           Select an employee in the Employees tab to view their appraisal history.
         </Text>
 
-        <Drawer opened={appraisalOpen} onClose={closeAppraisal} title="Create Appraisal" position="right" size="md">
+        <Drawer opened={appraisalOpen} onClose={closeAppraisal} title="Create Appraisal" position="right" size="xl">
           <Stack gap="sm">
             <TextInput label="Employee ID" required value={apprForm.employee_id} onChange={(e) => setApprForm({ ...apprForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
             <NumberInput label="Year" required value={apprForm.appraisal_year} onChange={(v) => setApprForm({ ...apprForm, appraisal_year: typeof v === "number" ? v : new Date().getFullYear() })} />
@@ -1014,7 +1014,7 @@ function ComplianceTab({ canManageCredentials, canManageAppraisal }: { canManage
           Track POSH training, fire safety certifications, and other statutory compliance records.
         </Text>
 
-        <Drawer opened={statOpen} onClose={closeStat} title="Add Statutory Record" position="right" size="md">
+        <Drawer opened={statOpen} onClose={closeStat} title="Add Statutory Record" position="right" size="xl">
           <Stack gap="sm">
             <TextInput label="Employee ID" required value={statForm.employee_id} onChange={(e) => setStatForm({ ...statForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
             <Select label="Record Type" value={statForm.record_type} onChange={(v) => setStatForm({ ...statForm, record_type: v || "posh" })} data={[

@@ -145,7 +145,7 @@ function DietOrdersTab() {
         )}
       </Group>
       <DataTable columns={columns} data={orders} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No diet orders" />
-      <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm((p) => ({ ...p, patient_id: id }))} required />
           <TextInput label="Admission ID" value={form.admission_id ?? ""} onChange={(e) => setForm((p) => ({ ...p, admission_id: e.currentTarget.value || undefined }))} />
@@ -241,7 +241,7 @@ function DietTemplatesTab() {
         )}
       </Group>
       <DataTable columns={columns} data={templates} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No diet templates" />
-      <Drawer opened={opened} onClose={close} title="New Diet Template" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Diet Template" position="right" size="xl">
         <Stack>
           <TextInput label="Name" required value={form.name ?? ""} onChange={(e) => setForm((p) => ({ ...p, name: e.currentTarget.value }))} />
           <Select label="Diet Type" data={DIET_TYPES} value={form.diet_type ?? "custom"} onChange={(v) => setForm((p) => ({ ...p, diet_type: (v as CreateDietTemplateRequest["diet_type"]) ?? undefined }))} />
@@ -460,7 +460,7 @@ function KitchenTab() {
         </Stack>
       )}
 
-      <Drawer opened={menuOpened} onClose={closeMenu} title="New Kitchen Menu" position="right" size="md">
+      <Drawer opened={menuOpened} onClose={closeMenu} title="New Kitchen Menu" position="right" size="xl">
         <Stack>
           <TextInput label="Menu Name" required value={menuForm.name ?? ""} onChange={(e) => setMenuForm((p) => ({ ...p, name: e.currentTarget.value }))} />
           <NumberInput label="Week Number" value={menuForm.week_number ?? ""} onChange={(v) => setMenuForm((p) => ({ ...p, week_number: typeof v === "number" ? v : undefined }))} />
@@ -471,7 +471,7 @@ function KitchenTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={prepOpened} onClose={closePrep} title="New Meal Preparation" position="right" size="md">
+      <Drawer opened={prepOpened} onClose={closePrep} title="New Meal Preparation" position="right" size="xl">
         <Stack>
           <TextInput label="Diet Order ID" required value={prepForm.diet_order_id ?? ""} onChange={(e) => setPrepForm((p) => ({ ...p, diet_order_id: e.currentTarget.value }))} />
           <Select label="Meal Type" data={MEAL_TYPES} required onChange={(v) => setPrepForm((p) => ({ ...p, meal_type: (v as CreateMealPrepRequest["meal_type"]) ?? undefined }))} />
@@ -533,7 +533,7 @@ function InventoryTab() {
         )}
       </Group>
       <DataTable columns={columns} data={items} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No inventory items" />
-      <Drawer opened={opened} onClose={close} title="Add Inventory Item" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Add Inventory Item" position="right" size="xl">
         <Stack>
           <TextInput label="Item Name" required value={form.item_name ?? ""} onChange={(e) => setForm((p) => ({ ...p, item_name: e.currentTarget.value }))} />
           <TextInput label="Category" value={form.category ?? ""} onChange={(e) => setForm((p) => ({ ...p, category: e.currentTarget.value }))} />
@@ -600,7 +600,7 @@ function AuditsTab() {
         )}
       </Group>
       <DataTable columns={columns} data={audits} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No audits recorded" />
-      <Drawer opened={opened} onClose={close} title="Record FSSAI Audit" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record FSSAI Audit" position="right" size="xl">
         <Stack>
           <TextInput label="Auditor Name" required value={form.auditor_name ?? ""} onChange={(e) => setForm((p) => ({ ...p, auditor_name: e.currentTarget.value }))} />
           <Select label="Audit Type" data={["routine", "surprise", "external"]} value={form.audit_type ?? "routine"} onChange={(v) => setForm((p) => ({ ...p, audit_type: v ?? undefined }))} />

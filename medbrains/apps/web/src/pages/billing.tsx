@@ -463,7 +463,7 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Create Invoice" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="Create Invoice" position="right" size="xl">
       <Stack>
         <TextInput label="Patient ID" required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
         <TextInput label="Encounter ID" value={encounterId} onChange={(e) => setEncounterId(e.currentTarget.value)} />
@@ -972,7 +972,7 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="ER Fast Invoice" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="ER Fast Invoice" position="right" size="xl">
       <Stack>
         <Alert color="danger" variant="light" title="Emergency Department Fast Billing">
           <Text size="sm">Creates an invoice with standard ER charges for the specified emergency visit. Additional charges can be added later.</Text>
@@ -2737,7 +2737,7 @@ function CreditPatientsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title={editId ? "Edit Credit Patient" : "Add Credit Patient"} position="right" size="md">
+      <Drawer opened={opened} onClose={close} title={editId ? "Edit Credit Patient" : "Add Credit Patient"} position="right" size="xl">
         <Stack>
           {!editId && (
             <TextInput label="Patient ID" value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} required />
@@ -2848,7 +2848,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       </Group>
       <DataTable columns={columns} data={gstrSummaries ?? []} loading={isLoading} page={1} totalPages={1} onPageChange={() => {}} rowKey={(r) => r.id} />
 
-      <Drawer opened={genOpened} onClose={closeGen} title="Generate GSTR Summary" position="right" size="md">
+      <Drawer opened={genOpened} onClose={closeGen} title="Generate GSTR Summary" position="right" size="xl">
         <Stack>
           <Select label="Return Type" data={["GSTR-1", "GSTR-2B", "GSTR-3B"].map((v) => ({ value: v, label: v }))} value={genForm.return_type} onChange={(v) => setGenForm({ ...genForm, return_type: v ?? "GSTR-1" })} />
           <TextInput label="Period (e.g. 2026-03)" value={genForm.period} onChange={(e) => setGenForm({ ...genForm, period: e.currentTarget.value })} required />
@@ -2945,7 +2945,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       </Group>
       <DataTable columns={columns} data={tdsItems ?? []} loading={isLoading} page={page} totalPages={Math.ceil((tdsItems?.length ?? 0) / 20) || 1} onPageChange={setPage} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Record TDS Deduction" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Record TDS Deduction" position="right" size="xl">
         <Stack>
           <TextInput label="Invoice ID" value={form.invoice_id} onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })} required />
           <TextInput label="Deductee Name" value={form.deductee_name} onChange={(e) => setForm({ ...form, deductee_name: e.currentTarget.value })} required />

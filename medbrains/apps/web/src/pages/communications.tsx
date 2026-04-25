@@ -68,7 +68,7 @@ function MessagesTab() {
         {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({}); open(); }}>Send Message</Button>}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Send Message" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Send Message" position="right" size="xl">
         <Stack>
           <Select label="Channel" required data={Object.keys(CHANNEL_COLORS)} value={form.channel ?? null} onChange={(v) => setForm({ ...form, channel: v })} />
           <TextInput label="Recipient Name" value={form.recipient_name ?? ""} onChange={(e) => setForm({ ...form, recipient_name: e.currentTarget.value })} />
@@ -126,7 +126,7 @@ function ClinicalTab() {
         {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({}); open(); }}>New Message</Button>}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Clinical Message" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Clinical Message" position="right" size="xl">
         <Stack>
           <TextInput label="Recipient ID" required value={form.recipient_id ?? ""} onChange={(e) => setForm({ ...form, recipient_id: e.currentTarget.value })} />
           <Select label="Type" required data={["general", "sbar_handover", "referral", "discharge_comm", "intercom_code"]} value={form.message_type ?? null} onChange={(v) => setForm({ ...form, message_type: v })} />
@@ -247,7 +247,7 @@ function ComplaintsTab() {
         {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({}); open(); }}>New Complaint</Button>}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Register Complaint" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Register Complaint" position="right" size="xl">
         <Stack>
           <Select label="Source" required data={["walk_in", "phone", "email", "portal", "kiosk", "social_media", "google_review"]} value={form.source ?? null} onChange={(v) => setForm({ ...form, source: v })} />
           <TextInput label="Complainant Name" required value={form.complainant_name ?? ""} onChange={(e) => setForm({ ...form, complainant_name: e.currentTarget.value })} />
@@ -312,7 +312,7 @@ function FeedbackTab() {
         {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({}); open(); }}>Collect Feedback</Button>}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Collect Feedback" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Collect Feedback" position="right" size="xl">
         <Stack>
           <Select label="Type" required data={Object.keys(FEEDBACK_COLORS)} value={form.feedback_type ?? null} onChange={(v) => setForm({ ...form, feedback_type: v })} />
           <NumberInput label="Overall Rating (1-5)" min={1} max={5} value={form.overall_rating ?? ""} onChange={(v) => setForm({ ...form, overall_rating: v })} />
@@ -362,7 +362,7 @@ function ConfigTab() {
         <Button leftSection={<IconPlus size={16} />} onClick={() => { setForm({}); open(); }}>Add Template</Button>
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Add Template" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Add Template" position="right" size="xl">
         <Stack>
           <TextInput label="Name" required value={form.template_name ?? ""} onChange={(e) => setForm({ ...form, template_name: e.currentTarget.value })} />
           <TextInput label="Code" required value={form.template_code ?? ""} onChange={(e) => setForm({ ...form, template_code: e.currentTarget.value })} />

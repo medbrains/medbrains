@@ -390,7 +390,7 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
       <CreatePharmacyOrderDrawer opened={createOpened} onClose={closeCreate} />
       <OtcSaleDrawer opened={otcOpened} onClose={closeOtc} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Order Detail" position="right" size="md">
+      <Drawer opened={detailOpened} onClose={closeDetail} title="Order Detail" position="right" size="xl">
         {selectedOrderId && <PharmacyOrderDetail orderId={selectedOrderId} canViewReturns={canViewReturns} />}
       </Drawer>
     </Stack>

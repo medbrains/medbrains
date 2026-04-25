@@ -357,7 +357,7 @@ function ReviewsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Create Utilization Review" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Create Utilization Review" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Admission ID"
@@ -748,7 +748,7 @@ function PayerLogTab() {
         columns={columns}
       />
 
-      <Drawer opened={opened} onClose={close} title="Log Payer Communication" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Log Payer Communication" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Review ID"
@@ -880,7 +880,7 @@ function StatusTrackingTab() {
         columns={columns}
       />
 
-      <Drawer opened={opened} onClose={close} title="Create Status Conversion" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Create Status Conversion" position="right" size="xl">
         <Stack gap="sm">
           <TextInput
             label="Admission ID"

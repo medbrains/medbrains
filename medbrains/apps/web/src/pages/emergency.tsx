@@ -361,7 +361,7 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Register ER Visit" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Register ER Visit" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <Select label="Arrival Mode" data={ARRIVAL_MODES} value={form.arrival_mode ?? null} onChange={(v) => setForm({ ...form, arrival_mode: v ?? undefined })} />
@@ -1264,7 +1264,7 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Activate Mass Casualty Event" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Activate Mass Casualty Event" position="right" size="xl">
         <Stack>
           <TextInput label="Event Name" required value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.currentTarget.value })} />
           <Select label="Event Type" data={MASS_CASUALTY_TYPES} value={form.event_type ?? null} onChange={(v) => setForm({ ...form, event_type: v ?? undefined })} />

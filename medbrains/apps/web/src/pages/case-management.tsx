@@ -463,7 +463,7 @@ function CaseBoardTab() {
       <DataTable columns={columns} data={filteredAssignments} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Assign Case" position="right" size="md">
+      <Drawer opened={createOpen} onClose={createHandlers.close} title="Assign Case" position="right" size="xl">
         <Stack>
           <TextInput
             label="Admission ID"
@@ -538,7 +538,7 @@ function CaseBoardTab() {
       </Drawer>
 
       {/* Edit Drawer */}
-      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Case Assignment" position="right" size="md">
+      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Case Assignment" position="right" size="xl">
         <Stack>
           <Select
             label="Status"
@@ -821,7 +821,7 @@ function DischargeBarriersTab() {
 
       <DataTable columns={columns} data={barriers} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Add Discharge Barrier" position="right" size="md">
+      <Drawer opened={createOpen} onClose={createHandlers.close} title="Add Discharge Barrier" position="right" size="xl">
         <Stack>
           <TextInput
             label="Case Assignment ID"
@@ -976,7 +976,7 @@ function ReferralsTab() {
       <DataTable columns={columns} data={referrals} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Create Referral" position="right" size="md">
+      <Drawer opened={createOpen} onClose={createHandlers.close} title="Create Referral" position="right" size="xl">
         <Stack>
           <TextInput
             label="Case Assignment ID"
@@ -1022,7 +1022,7 @@ function ReferralsTab() {
       </Drawer>
 
       {/* Edit Drawer */}
-      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Referral" position="right" size="md">
+      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Referral" position="right" size="xl">
         <Stack>
           <Select
             label="Status"

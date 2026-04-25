@@ -337,7 +337,7 @@ function TripsTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Book Ambulance Trip" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Book Ambulance Trip" position="right" size="xl">
         <Stack>
           <Select label="Trip Type" required data={[{ value: "emergency", label: "Emergency" }, { value: "scheduled", label: "Scheduled" }, { value: "inter_facility", label: "Inter-Facility" }, { value: "discharge", label: "Discharge" }]} value={form.trip_type ?? null} onChange={(v) => setForm({ ...form, trip_type: v as AmbulanceTripType })} />
           <Select label="Priority" data={[{ value: "critical", label: "Critical" }, { value: "urgent", label: "Urgent" }, { value: "routine", label: "Routine" }]} value={form.priority ?? null} onChange={(v) => setForm({ ...form, priority: v as AmbulanceTripPriority })} />
@@ -401,7 +401,7 @@ function DriversTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Add Driver" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Add Driver" position="right" size="xl">
         <Stack>
           <TextInput label="Employee ID" required value={form.employee_id ?? ""} onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })} />
           <TextInput label="License Number" required value={form.license_number ?? ""} onChange={(e) => setForm({ ...form, license_number: e.currentTarget.value })} />
@@ -485,7 +485,7 @@ function MaintenanceTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Schedule Maintenance" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Schedule Maintenance" position="right" size="xl">
         <Stack>
           <Select label="Ambulance" required searchable data={ambulances.map((a: AmbulanceRow) => ({ value: a.id, label: a.ambulance_code }))} value={(form.ambulance_id as string) ?? null} onChange={(v) => setForm({ ...form, ambulance_id: v ?? "" })} />
           <Select label="Type" required data={["routine_service", "repair", "inspection", "fitness_renewal", "insurance_renewal"]} value={form.maintenance_type ?? null} onChange={(v) => setForm({ ...form, maintenance_type: v ?? "" })} />

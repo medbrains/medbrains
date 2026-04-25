@@ -503,7 +503,7 @@ function EnrollDrawer({
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Enroll Patient" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="Enroll Patient" position="right" size="xl">
       <Stack gap="sm">
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
         <Select

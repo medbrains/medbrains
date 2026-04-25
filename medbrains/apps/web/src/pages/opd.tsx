@@ -404,7 +404,7 @@ function OpdPageInner() {
       </Tabs>
 
       {/* Create encounter drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="New OPD Visit" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="New OPD Visit" position="right" size="xl">
         <Stack>
           <Select
             label="Visit Type"

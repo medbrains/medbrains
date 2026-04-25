@@ -236,7 +236,7 @@ function SurveillanceTab() {
         <DataTable columns={ssiColumns} data={ssiEvents} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No SSI events" />
       )}
 
-      <Drawer opened={opened} onClose={close} title="Report HAI Event" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Report HAI Event" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <Select label="HAI Type" required data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]} value={form.hai_type} onChange={(v) => setForm({ ...form, hai_type: (v ?? "other") as HaiType })} />
@@ -421,7 +421,7 @@ function StewardshipTab() {
         </Paper>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Antibiotic Stewardship Request" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Antibiotic Stewardship Request" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <TextInput label="Antibiotic Name" required value={form.antibiotic_name} onChange={(e) => setForm({ ...form, antibiotic_name: e.currentTarget.value })} />
@@ -567,7 +567,7 @@ function BiowasteTab() {
         </Paper>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Bio-waste Record" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Bio-waste Record" position="right" size="xl">
         <Stack>
           <TextInput label="Department ID" required value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value })} />
           <Select label="Waste Category" required data={["yellow", "red", "white_translucent", "blue", "cytotoxic", "chemical", "radioactive"]} value={form.waste_category} onChange={(v) => setForm({ ...form, waste_category: (v ?? "yellow") as WasteCategoryType })} />
@@ -775,7 +775,7 @@ function HygieneTab() {
         </>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Hand Hygiene Audit" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Hand Hygiene Audit" position="right" size="xl">
         <Stack>
           <TextInput label="Audit Date" type="datetime-local" required value={form.audit_date} onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })} />
           <TextInput label="Department ID" required value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value })} />
@@ -892,7 +892,7 @@ function OutbreakTab() {
 
       <DataTable columns={columns} data={outbreaks} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No outbreaks" />
 
-      <Drawer opened={opened} onClose={close} title="Report Outbreak" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Report Outbreak" position="right" size="xl">
         <Stack>
           <TextInput label="Organism" required value={form.organism} onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })} />
           <TextInput label="Detected Date" type="datetime-local" required value={form.detected_date} onChange={(e) => setForm({ ...form, detected_date: e.currentTarget.value })} />
@@ -1388,7 +1388,7 @@ function MeetingsTab() {
       )}
 
       {/* Create Meeting Drawer */}
-      <Drawer opened={meetingOpened} onClose={closeMeeting} title="New IC Meeting" position="right" size="md">
+      <Drawer opened={meetingOpened} onClose={closeMeeting} title="New IC Meeting" position="right" size="xl">
         <Stack>
           <TextInput label="Meeting Date" type="datetime-local" required value={meetingForm.meeting_date} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_date: e.currentTarget.value })} />
           <Select label="Meeting Type" data={["regular", "emergency", "ad_hoc", "orientation"]} value={meetingForm.meeting_type ?? "regular"} onChange={(v) => setMeetingForm({ ...meetingForm, meeting_type: v ?? "regular" })} />
@@ -1399,7 +1399,7 @@ function MeetingsTab() {
       </Drawer>
 
       {/* Exposure Drawer */}
-      <Drawer opened={exposureOpened} onClose={closeExposure} title="Record Exposure" position="right" size="md">
+      <Drawer opened={exposureOpened} onClose={closeExposure} title="Record Exposure" position="right" size="xl">
         <Stack>
           <Select label="Event Type" required data={["needlestick", "splash", "cut", "bite", "other"]} value={exposureForm.event_type || null} onChange={(v) => setExposureForm({ ...exposureForm, event_type: v ?? "" })} />
           <TextInput label="Exposure Date" type="datetime-local" required value={exposureForm.exposure_date} onChange={(e) => setExposureForm({ ...exposureForm, exposure_date: e.currentTarget.value })} />

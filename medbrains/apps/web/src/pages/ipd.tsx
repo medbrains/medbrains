@@ -370,7 +370,7 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Admission" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="New Admission" position="right" size="xl">
       <Stack>
         <TextInput label="Patient ID" required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
         <TextInput label="Department ID" required value={departmentId} onChange={(e) => setDepartmentId(e.currentTarget.value)} />
@@ -1566,7 +1566,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Ward" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="New Ward" position="right" size="xl">
       <Stack>
         <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} />
         <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
@@ -1624,7 +1624,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
   if (!ward) return null;
 
   return (
-    <Drawer opened={!!ward} onClose={onClose} title={`Edit Ward: ${ward.code}`} position="right" size="md">
+    <Drawer opened={!!ward} onClose={onClose} title={`Edit Ward: ${ward.code}`} position="right" size="xl">
       <Stack>
         <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <Select

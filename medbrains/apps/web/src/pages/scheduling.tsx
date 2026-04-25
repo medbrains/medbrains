@@ -595,7 +595,7 @@ function WaitlistTab({
       />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add to Waitlist" position="right" size="md">
+      <Drawer opened={createOpened} onClose={closeCreate} title="Add to Waitlist" position="right" size="xl">
         <Stack gap="md">
           <TextInput
             label="Patient ID"

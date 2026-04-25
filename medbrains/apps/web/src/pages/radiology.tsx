@@ -285,7 +285,7 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
     .map((m: RadiologyModality) => ({ value: m.id, label: `${m.code} — ${m.name}` }));
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Radiology Order" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="New Radiology Order" position="right" size="xl">
       <Stack>
         <PatientSearchSelect value={form.patient_id ?? ""} onChange={(v) => setForm({ ...form, patient_id: v })} required />
         <Select

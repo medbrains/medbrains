@@ -175,7 +175,7 @@ function RecordsTab() {
       <DataTable columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={closeCreate} title="Index Medical Record" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Index Medical Record" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={createForm.patient_id} onChange={(v) => setCreateForm({ ...createForm, patient_id: v })} required />
           <Select label="Record Type" data={["opd", "ipd", "emergency"]} value={createForm.record_type ?? "opd"} onChange={(v) => setCreateForm({ ...createForm, record_type: v ?? "opd" })} />
@@ -188,7 +188,7 @@ function RecordsTab() {
       </Drawer>
 
       {/* Issue Drawer */}
-      <Drawer opened={issueOpen} onClose={closeIssue} title={`Issue: ${selectedRecord?.record_number ?? ""}`} position="right" size="md">
+      <Drawer opened={issueOpen} onClose={closeIssue} title={`Issue: ${selectedRecord?.record_number ?? ""}`} position="right" size="xl">
         <Stack>
           <TextInput label="Issued To (User ID)" value={issueForm.issued_to_user_id ?? ""} onChange={(e) => setIssueForm({ ...issueForm, issued_to_user_id: e.currentTarget.value || undefined })} />
           <TextInput label="Department ID" value={issueForm.issued_to_department_id ?? ""} onChange={(e) => setIssueForm({ ...issueForm, issued_to_department_id: e.currentTarget.value || undefined })} />
@@ -263,7 +263,7 @@ function BirthsTab() {
       </Group>
       <DataTable columns={columns} data={births} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Register Birth" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Register Birth" position="right" size="xl">
         <Stack>
           <PatientSearchSelect label="Mother Patient" value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <TextInput label="Birth Date" required placeholder="YYYY-MM-DD" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.currentTarget.value })} />
@@ -324,7 +324,7 @@ function DeathsTab() {
       </Group>
       <DataTable columns={columns} data={deaths} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Register Death" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Register Death" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
           <TextInput label="Death Date" required placeholder="YYYY-MM-DD" value={form.death_date} onChange={(e) => setForm({ ...form, death_date: e.currentTarget.value })} />
@@ -467,7 +467,7 @@ function RetentionTab() {
       </Group>
       <DataTable columns={columns} data={policies} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Add Retention Policy" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Add Retention Policy" position="right" size="xl">
         <Stack>
           <Select label="Record Type" data={["opd", "ipd", "emergency", "maternity", "mlc", "pediatric"]} required value={form.record_type} onChange={(v) => setForm({ ...form, record_type: v ?? "" })} />
           <TextInput label="Category" required placeholder="e.g., adult_opd" value={form.category} onChange={(e) => setForm({ ...form, category: e.currentTarget.value })} />

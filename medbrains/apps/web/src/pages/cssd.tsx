@@ -357,7 +357,7 @@ function SterilizationTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title={`Load ${selectedLoad?.load_number ?? ""}`} position="right" size="md">
+      <Drawer opened={detailOpened} onClose={closeDetail} title={`Load ${selectedLoad?.load_number ?? ""}`} position="right" size="xl">
         <Stack>
           {selectedLoad && (
             <>
@@ -626,7 +626,7 @@ function EquipmentTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={maintOpened} onClose={closeMaint} title={`Maintenance — ${selectedSterilizer?.name ?? ""}`} position="right" size="md">
+      <Drawer opened={maintOpened} onClose={closeMaint} title={`Maintenance — ${selectedSterilizer?.name ?? ""}`} position="right" size="xl">
         <Stack>
           {maintLogs.length > 0 && (
             <Table withTableBorder>

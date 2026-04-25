@@ -531,7 +531,7 @@ function ChecklistsTab() {
         <GapAnalysisView checklists={checklists} isLoading={isLoading} />
       )}
 
-      <Drawer opened={opened} onClose={close} title="New Compliance Checklist" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Compliance Checklist" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           <Select
@@ -908,7 +908,7 @@ function AdrTab() {
       />
 
       {/* ADR Create Drawer */}
-      <Drawer opened={adrOpened} onClose={closeAdr} title="New ADR Report" position="right" size="md">
+      <Drawer opened={adrOpened} onClose={closeAdr} title="New ADR Report" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Drug Name" required value={adrForm.drug_name} onChange={(e) => setAdrForm({ ...adrForm, drug_name: e.currentTarget.value })} />
           <TextInput label="Generic Name" value={adrForm.drug_generic_name ?? ""} onChange={(e) => setAdrForm({ ...adrForm, drug_generic_name: e.currentTarget.value })} />
@@ -947,7 +947,7 @@ function AdrTab() {
       </Drawer>
 
       {/* MV Create Drawer */}
-      <Drawer opened={mvOpened} onClose={closeMv} title="New Device Adverse Event" position="right" size="md">
+      <Drawer opened={mvOpened} onClose={closeMv} title="New Device Adverse Event" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Device Name" required value={mvForm.device_name} onChange={(e) => setMvForm({ ...mvForm, device_name: e.currentTarget.value })} />
           <TextInput label="Manufacturer" value={mvForm.device_manufacturer ?? ""} onChange={(e) => setMvForm({ ...mvForm, device_manufacturer: e.currentTarget.value })} />
@@ -1070,7 +1070,7 @@ function PcpndtTab() {
         ]}
       />
 
-      <Drawer opened={opened} onClose={close} title="New PCPNDT Form F" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New PCPNDT Form F" position="right" size="xl">
         <Stack gap="sm">
           <PatientSearchSelect value={form.patient_id} onChange={(id) => setForm({ ...form, patient_id: id })} required />
           <TextInput label="Performing Doctor ID" required value={form.performing_doctor_id} onChange={(e) => setForm({ ...form, performing_doctor_id: e.currentTarget.value })} />
@@ -1193,7 +1193,7 @@ function CalendarTab() {
         <TimelineView events={events} isLoading={isLoading} />
       )}
 
-      <Drawer opened={opened} onClose={close} title="New Calendar Event" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Calendar Event" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
           <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
@@ -1575,7 +1575,7 @@ function SubmissionsTab() {
         ]}
       />
 
-      <Drawer opened={opened} onClose={close} title="New Regulatory Submission" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Regulatory Submission" position="right" size="xl">
         <Stack gap="sm">
           <Select
             label="Submission Type"
@@ -1669,7 +1669,7 @@ function MockSurveysTab() {
         ]}
       />
 
-      <Drawer opened={opened} onClose={close} title="New Mock Survey" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="New Mock Survey" position="right" size="xl">
         <Stack gap="sm">
           <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           <Select

@@ -328,7 +328,7 @@ function TemplatesTab({
         rowKey={(r) => r.id}
       />
 
-      <Drawer opened={opened} onClose={close} title="Create Order Set Template" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Create Order Set Template" position="right" size="xl">
         <Stack>
           <TextInput
             label="Name"
@@ -547,7 +547,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         </>
       )}
 
-      <Drawer opened={itemDrawer} onClose={closeItem} title="Add Item to Order Set" position="right" size="md">
+      <Drawer opened={itemDrawer} onClose={closeItem} title="Add Item to Order Set" position="right" size="xl">
         <Stack>
           <Select
             label="Item Type"

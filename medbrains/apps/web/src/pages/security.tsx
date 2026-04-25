@@ -228,7 +228,7 @@ function AccessControlTab() {
       <DataTable columns={logColumns} data={logs} loading={logsLoading} rowKey={(r) => r.id} />
 
       {/* Zone Drawer */}
-      <Drawer opened={zoneOpened} onClose={closeZone} title="Add Security Zone" position="right" size="md">
+      <Drawer opened={zoneOpened} onClose={closeZone} title="Add Security Zone" position="right" size="xl">
         <Stack>
           <TextInput label="Zone Code" required value={zoneForm.zone_code} onChange={(e) => setZoneForm({ ...zoneForm, zone_code: e.currentTarget.value })} />
           <TextInput label="Zone Name" required value={zoneForm.name} onChange={(e) => setZoneForm({ ...zoneForm, name: e.currentTarget.value })} />
@@ -246,7 +246,7 @@ function AccessControlTab() {
       </Drawer>
 
       {/* Card Drawer */}
-      <Drawer opened={cardOpened} onClose={closeCard} title="Issue Access Card" position="right" size="md">
+      <Drawer opened={cardOpened} onClose={closeCard} title="Issue Access Card" position="right" size="xl">
         <Stack>
           <TextInput label="Employee ID" required value={cardForm.employee_id} onChange={(e) => setCardForm({ ...cardForm, employee_id: e.currentTarget.value })} />
           <TextInput label="Card Number" required value={cardForm.card_number} onChange={(e) => setCardForm({ ...cardForm, card_number: e.currentTarget.value })} />
@@ -256,7 +256,7 @@ function AccessControlTab() {
       </Drawer>
 
       {/* Access Log Drawer */}
-      <Drawer opened={logOpened} onClose={closeLog} title="Record Access Log" position="right" size="md">
+      <Drawer opened={logOpened} onClose={closeLog} title="Record Access Log" position="right" size="xl">
         <Stack>
           <Select label="Zone" required data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))} value={logForm.zone_id || null} onChange={(v) => setLogForm({ ...logForm, zone_id: v ?? "" })} />
           <TextInput label="Person Name" value={logForm.person_name ?? ""} onChange={(e) => setLogForm({ ...logForm, person_name: e.currentTarget.value })} />
@@ -307,7 +307,7 @@ function CctvTab() {
       )}
       <DataTable columns={columns} data={cameras} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Add Camera" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Add Camera" position="right" size="xl">
         <Stack>
           <TextInput label="Camera Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
           <TextInput label="Camera ID" value={form.camera_id ?? ""} onChange={(e) => setForm({ ...form, camera_id: e.currentTarget.value })} />
@@ -478,7 +478,7 @@ function PatientSafetyTab() {
       <Text fw={600} size="lg" mt="lg">Tag Alerts</Text>
       <DataTable columns={alertColumns} data={alerts} loading={alertsLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Activate Patient Safety Tag" position="right" size="md">
+      <Drawer opened={opened} onClose={close} title="Activate Patient Safety Tag" position="right" size="xl">
         <Stack>
           <PatientSearchSelect value={form.patient_id} onChange={(id) => setForm({ ...form, patient_id: id })} required />
           <Select label="Tag Type" required data={TAG_TYPES} value={form.tag_type || null} onChange={(v) => setForm({ ...form, tag_type: (v as CreateSecurityPatientTagRequest["tag_type"]) ?? "infant_rfid" })} />

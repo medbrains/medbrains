@@ -219,7 +219,7 @@ function DonorsTab() {
       />
 
       {/* Create Donor Drawer */}
-      <Drawer opened={createOpen} onClose={closeCreate} title="Register Blood Donor" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Register Blood Donor" position="right" size="xl">
         <CreateDonorForm
           onSubmit={(d) => createMut.mutate(d)}
           loading={createMut.isPending}
@@ -399,7 +399,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         <Text c="dimmed" size="sm">No donations recorded yet</Text>
       )}
 
-      <Drawer opened={donateOpen} onClose={closeDonate} title="Record Donation" position="right" size="md">
+      <Drawer opened={donateOpen} onClose={closeDonate} title="Record Donation" position="right" size="xl">
         <CreateDonationForm onSubmit={(d) => donateMut.mutate(d)} loading={donateMut.isPending} />
       </Drawer>
 
@@ -740,7 +740,7 @@ function InventoryTab() {
         </>
       )}
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Add Blood Component" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Add Blood Component" position="right" size="xl">
         <CreateComponentForm
           onSubmit={(d) => {
             api.createBloodComponent(d).then(() => {
@@ -965,7 +965,7 @@ function CrossmatchTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="New Crossmatch Request" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="New Crossmatch Request" position="right" size="xl">
         <CreateCrossmatchForm onSubmit={(d) => createMut.mutate(d)} loading={createMut.isPending} />
       </Drawer>
     </Stack>
@@ -1086,7 +1086,7 @@ function TransfusionsTab() {
         rowKey={(t) => t.id}
       />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Record Transfusion" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Record Transfusion" position="right" size="xl">
         <CreateTransfusionForm onSubmit={(d) => createMut.mutate(d)} loading={createMut.isPending} />
       </Drawer>
 
@@ -1363,7 +1363,7 @@ function ReturnsAndMsbosTab() {
           </Group>
           <Text c="dimmed" size="sm">Returns are tracked per component. Use the drawer to log a blood return.</Text>
 
-          <Drawer opened={returnOpen} onClose={closeReturn} title="Create Blood Return" position="right" size="md">
+          <Drawer opened={returnOpen} onClose={closeReturn} title="Create Blood Return" position="right" size="xl">
             <Stack>
               <TextInput label="Component ID" required value={returnComponentId} onChange={(e) => setReturnComponentId(e.currentTarget.value)} placeholder="UUID of blood component" />
               <Textarea label="Return Reason" value={returnReason} onChange={(e) => setReturnReason(e.currentTarget.value)} />
@@ -1404,7 +1404,7 @@ function ReturnsAndMsbosTab() {
             rowKey={(r) => r.id}
           />
 
-          <Drawer opened={msbosOpen} onClose={closeMsbos} title="Add MSBOS Guideline" position="right" size="md">
+          <Drawer opened={msbosOpen} onClose={closeMsbos} title="Add MSBOS Guideline" position="right" size="xl">
             <Stack>
               <TextInput label="Procedure Name" required value={msbosName} onChange={(e) => setMsbosName(e.currentTarget.value)} />
               <TextInput label="Procedure Code" required value={msbosCode} onChange={(e) => setMsbosCode(e.currentTarget.value)} />
@@ -1554,7 +1554,7 @@ function ColdChainTab() {
         </Drawer>
       )}
 
-      <Drawer opened={deviceOpen} onClose={closeDevice} title="Add Cold Chain Device" position="right" size="md">
+      <Drawer opened={deviceOpen} onClose={closeDevice} title="Add Cold Chain Device" position="right" size="xl">
         <Stack>
           <TextInput label="Device Name" required value={devName} onChange={(e) => setDevName(e.currentTarget.value)} />
           <TextInput label="Serial Number" value={devSerial} onChange={(e) => setDevSerial(e.currentTarget.value)} />
@@ -1586,7 +1586,7 @@ function ColdChainTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={readingOpen} onClose={closeReading} title="Log Temperature Reading" position="right" size="md">
+      <Drawer opened={readingOpen} onClose={closeReading} title="Log Temperature Reading" position="right" size="xl">
         <Stack>
           <Select
             label="Device"
@@ -1722,7 +1722,7 @@ function LookbackSection() {
 
       <DataTable columns={columns} data={events ?? []} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="Create Lookback Event" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="Create Lookback Event" position="right" size="xl">
         <Stack>
           <Select label="Infection Type" required data={TTI_INFECTION_TYPES} value={infectionType || null} onChange={(v) => setInfectionType(v ?? "")} searchable placeholder="Select infection type" />
           <TextInput label="Detection Date" required value={detectionDate} onChange={(e) => setDetectionDate(e.currentTarget.value)} placeholder="YYYY-MM-DD" />
@@ -1868,7 +1868,7 @@ function RecruitmentSection() {
 
       <DataTable columns={columns} data={campaigns ?? []} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={closeCreate} title="New Recruitment Campaign" position="right" size="md">
+      <Drawer opened={createOpen} onClose={closeCreate} title="New Recruitment Campaign" position="right" size="xl">
         <Stack>
           <TextInput label="Campaign Name" required value={campName} onChange={(e) => setCampName(e.currentTarget.value)} />
           <Select label="Campaign Type" required data={[

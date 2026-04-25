@@ -338,7 +338,7 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
       <Stack>
         <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
         <TextInput label="OT Room ID" required onChange={(e) => setForm({ ...form, ot_room_id: e.currentTarget.value })} />
@@ -1253,7 +1253,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Surgeon Preference Card" position="right" size="md">
+    <Drawer opened={opened} onClose={onClose} title="Surgeon Preference Card" position="right" size="xl">
       <Stack>
         <TextInput label="Surgeon ID" required onChange={(e) => setForm({ ...form, surgeon_id: e.currentTarget.value })} />
         <TextInput label="Procedure Name" required onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })} />
