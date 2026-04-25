@@ -24,3 +24,10 @@ export {
 export { VitalsRecorder, SOAPNotes, DiagnosisPanel, StructuredHistory, ReviewOfSystems, PhysicalExamPanel, PrescriptionWriter, PrescriptionPrint, PrescriptionViews, VisitSummaryPrint } from "./Clinical";
 export { PatientSearchSelect } from "./PatientSearchSelect";
 export { DoctorSearchSelect } from "./DoctorSearchSelect";
+export { DrugSearchSelect } from "./DrugSearchSelect";
+export { EmployeeSearchSelect } from "./EmployeeSearchSelect";
+export { LabTestSearchSelect } from "./LabTestSearchSelect";
+export { DepartmentSelect } from "./DepartmentSelect";
+export { BedSelect } from "./BedSelect";
+export { WardSelect } from "./WardSelect";
+export { EncounterSelect } from "./EncounterSelect";

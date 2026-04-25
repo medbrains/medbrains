@@ -19,6 +19,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { LabTestSearchSelect } from "../components/LabTestSearchSelect";
+import { EncounterSelect } from "../components/EncounterSelect";
 import { LineChart } from "@mantine/charts";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -541,8 +543,8 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
     <Drawer opened={opened} onClose={onClose} title={t("title.newLabOrder")} position="right" size="xl">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <TextInput label={t("label.testId")} required value={testId} onChange={(e) => setTestId(e.currentTarget.value)} />
-        <TextInput label={t("label.encounterId")} value={encounterId} onChange={(e) => setEncounterId(e.currentTarget.value)} />
+        <LabTestSearchSelect value={testId} onChange={(id) => setTestId(id)} required />
+        <EncounterSelect value={encounterId} onChange={(id) => setEncounterId(id)} patientId={patientId || undefined} />
         <Select
           label={t("label.priority")}
           data={[
@@ -1097,7 +1099,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
             <NumberInput label={t("label.panelPrice")} required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, price: Number(v) })} />
           </Group>
           <Group>
-            <TextInput label={t("label.addTestId")} value={testIdInput} onChange={(e) => setTestIdInput(e.currentTarget.value)} w={300} />
+            <LabTestSearchSelect value={testIdInput} onChange={(id) => setTestIdInput(id)} label={t("label.addTestId")} />
             <Button size="xs" variant="light" mt={24} onClick={addTestId}>Add</Button>
           </Group>
           {(form.test_ids ?? []).length > 0 && (
@@ -1275,7 +1277,7 @@ function ReagentLotsSection() {
           </Group>
           <Group grow>
             <TextInput label={t("label.manufacturer")} onChange={(e) => setForm({ ...form, manufacturer: e.currentTarget.value || undefined })} />
-            <TextInput label={t("label.testId")} onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value || undefined })} />
+            <LabTestSearchSelect value={form.test_id ?? ""} onChange={(id) => setForm({ ...form, test_id: id || undefined })} />
           </Group>
           <Group grow>
             <TextInput label={t("label.expiryDate")} type="date" onChange={(e) => setForm({ ...form, expiry_date: e.currentTarget.value || undefined })} />
@@ -1347,7 +1349,7 @@ function QcResultsSection() {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+            <LabTestSearchSelect value={form.test_id ?? ""} onChange={(id) => setForm({ ...form, test_id: id })} required />
             <TextInput label={t("label.lotId")} required onChange={(e) => setForm({ ...form, lot_id: e.currentTarget.value })} />
             <TextInput label={t("label.level")} required placeholder={t("placeholder.e.g.L1,L2")} onChange={(e) => setForm({ ...form, level: e.currentTarget.value })} />
           </Group>
@@ -1520,7 +1522,7 @@ function CalibrationsSection() {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+            <LabTestSearchSelect value={form.test_id ?? ""} onChange={(id) => setForm({ ...form, test_id: id })} required />
             <TextInput label={t("label.instrument")} onChange={(e) => setForm({ ...form, instrument_name: e.currentTarget.value || undefined })} />
             <TextInput label={t("label.calibratorLot")} onChange={(e) => setForm({ ...form, calibrator_lot: e.currentTarget.value || undefined })} />
           </Group>
@@ -2537,7 +2539,7 @@ function B2bRatesSection() {
           {showForm && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label={t("label.testId")} required onChange={(e) => setForm({ ...form, test_id: e.currentTarget.value })} />
+                <LabTestSearchSelect value={form.test_id ?? ""} onChange={(id) => setForm({ ...form, test_id: id })} required />
                 <NumberInput label={t("label.agreedPrice")} min={0} decimalScale={2} onChange={(v) => setForm({ ...form, agreed_price: Number(v) || undefined })} />
                 <NumberInput label={t("label.discount%")} min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, discount_percent: Number(v) || undefined })} />
               </Group>

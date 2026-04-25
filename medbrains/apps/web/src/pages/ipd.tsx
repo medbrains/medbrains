@@ -108,6 +108,11 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DepartmentSelect } from "../components/DepartmentSelect";
+import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
+import { BedSelect } from "../components/BedSelect";
+import { WardSelect } from "../components/WardSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {
@@ -372,11 +377,11 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
   return (
     <Drawer opened={opened} onClose={onClose} title="New Admission" position="right" size="xl">
       <Stack>
-        <TextInput label="Patient ID" required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
-        <TextInput label="Department ID" required value={departmentId} onChange={(e) => setDepartmentId(e.currentTarget.value)} />
-        <TextInput label="Doctor ID" value={doctorId} onChange={(e) => setDoctorId(e.currentTarget.value)} />
-        <TextInput label="Bed ID" value={bedId} onChange={(e) => setBedId(e.currentTarget.value)} />
-        <TextInput label="Ward ID" value={wardId} onChange={(e) => setWardId(e.currentTarget.value)} />
+        <PatientSearchSelect value={patientId} onChange={(id) => setPatientId(id)} required />
+        <DepartmentSelect departmentType="clinical" value={departmentId} onChange={(id) => setDepartmentId(id)} required />
+        <DoctorSearchSelect value={doctorId} onChange={(id) => setDoctorId(id)} />
+        <BedSelect value={bedId} onChange={(id) => setBedId(id)} wardId={wardId || undefined} />
+        <WardSelect value={wardId} onChange={(id) => setWardId(id)} />
         <Select
           label="Admission Source"
           data={[
@@ -1373,7 +1378,7 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
     <Stack>
       {canManage ? (
         <>
-          <TextInput label="New Bed ID" required value={bedId} onChange={(e) => setBedId(e.currentTarget.value)} />
+          <BedSelect label="New Bed" value={bedId} onChange={(id) => setBedId(id)} required />
           <Textarea label="Transfer Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
           <Button leftSection={<IconBed size={16} />} onClick={() => transferMutation.mutate()} loading={transferMutation.isPending}>
             Transfer Bed
@@ -1570,7 +1575,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
       <Stack>
         <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} />
         <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <TextInput label="Department ID" value={departmentId} onChange={(e) => setDepartmentId(e.currentTarget.value)} />
+        <DepartmentSelect value={departmentId} onChange={(id) => setDepartmentId(id)} />
         <Select
           label="Ward Type"
           data={["general", "icu", "nicu", "picu", "isolation", "hdu", "private", "semi_private"]}
@@ -3743,11 +3748,10 @@ function BedTransferModal({ admissionId, opened, onClose }: { admissionId: strin
   return (
     <Modal opened={opened} onClose={onClose} title="Bed Transfer" size="md">
       <Stack>
-        <TextInput
-          label="Target Bed ID"
-          placeholder="Enter the bed UUID to transfer to"
+        <BedSelect
+          label="Target Bed"
           value={toBedId}
-          onChange={(e) => setToBedId(e.currentTarget.value)}
+          onChange={(id) => setToBedId(id)}
           required
         />
         <TextInput

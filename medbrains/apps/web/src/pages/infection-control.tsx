@@ -70,6 +70,8 @@ import type {
 import { DateInput } from "@mantine/dates";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { DepartmentSelect } from "../components/DepartmentSelect";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Color Maps ──────────────────────────────────────────
@@ -569,7 +571,7 @@ function BiowasteTab() {
 
       <Drawer opened={opened} onClose={close} title="Bio-waste Record" position="right" size="xl">
         <Stack>
-          <TextInput label="Department ID" required value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value })} />
+          <DepartmentSelect value={form.department_id} onChange={(id) => setForm({ ...form, department_id: id })} required />
           <Select label="Waste Category" required data={["yellow", "red", "white_translucent", "blue", "cytotoxic", "chemical", "radioactive"]} value={form.waste_category} onChange={(v) => setForm({ ...form, waste_category: (v ?? "yellow") as WasteCategoryType })} />
           <NumberInput label="Weight (kg)" required decimalScale={3} value={form.weight_kg} onChange={(v) => setForm({ ...form, weight_kg: Number(v) })} />
           <TextInput label="Record Date" type="date" required value={form.record_date} onChange={(e) => setForm({ ...form, record_date: e.currentTarget.value })} />
@@ -778,7 +780,7 @@ function HygieneTab() {
       <Drawer opened={opened} onClose={close} title="Hand Hygiene Audit" position="right" size="xl">
         <Stack>
           <TextInput label="Audit Date" type="datetime-local" required value={form.audit_date} onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })} />
-          <TextInput label="Department ID" required value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value })} />
+          <DepartmentSelect value={form.department_id} onChange={(id) => setForm({ ...form, department_id: id })} required />
           <NumberInput label="Total Observations" required value={form.observations} onChange={(v) => setForm({ ...form, observations: Number(v) })} />
           <NumberInput label="Compliant" required value={form.compliant} onChange={(v) => setForm({ ...form, compliant: Number(v) })} />
           <NumberInput label="Non-Compliant" required value={form.non_compliant} onChange={(v) => setForm({ ...form, non_compliant: Number(v) })} />
@@ -1405,7 +1407,7 @@ function MeetingsTab() {
           <TextInput label="Exposure Date" type="datetime-local" required value={exposureForm.exposure_date} onChange={(e) => setExposureForm({ ...exposureForm, exposure_date: e.currentTarget.value })} />
           <Select label="Exposure Type" required data={["percutaneous", "mucocutaneous", "intact_skin", "other"]} value={exposureForm.exposure_type || null} onChange={(v) => setExposureForm({ ...exposureForm, exposure_type: v ?? "" })} />
           <PatientSearchSelect label="Source Patient" value={exposureForm.source_patient_id ?? ""} onChange={(id) => setExposureForm({ ...exposureForm, source_patient_id: id || undefined })} />
-          <TextInput label="Exposed Staff ID" value={exposureForm.exposed_staff_id ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, exposed_staff_id: e.currentTarget.value || undefined })} />
+          <EmployeeSearchSelect label="Exposed Staff" value={exposureForm.exposed_staff_id ?? ""} onChange={(id) => setExposureForm({ ...exposureForm, exposed_staff_id: id || undefined })} />
           <Switch label="PEP Initiated" checked={exposureForm.pep_initiated} onChange={(e) => setExposureForm({ ...exposureForm, pep_initiated: e.currentTarget.checked })} />
           <Textarea label="Notes" value={exposureForm.notes ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, notes: e.currentTarget.value || undefined })} />
           <Button loading={createExposureMut.isPending} onClick={() => createExposureMut.mutate(exposureForm)}>Save</Button>

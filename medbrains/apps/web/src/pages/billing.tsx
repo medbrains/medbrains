@@ -124,6 +124,8 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {
@@ -2072,8 +2074,8 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
           {showEnroll && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Patient ID" required onChange={(e) => setEnrollForm({ ...enrollForm, patient_id: e.currentTarget.value })} />
-                <TextInput label="Employee ID" onChange={(e) => setEnrollForm({ ...enrollForm, employee_id: e.currentTarget.value || undefined })} />
+                <PatientSearchSelect value={enrollForm.patient_id ?? ""} onChange={(id) => setEnrollForm({ ...enrollForm, patient_id: id })} required />
+                <EmployeeSearchSelect value={enrollForm.employee_id ?? ""} onChange={(id) => setEnrollForm({ ...enrollForm, employee_id: id || undefined })} />
                 <TextInput label="Department" onChange={(e) => setEnrollForm({ ...enrollForm, department: e.currentTarget.value || undefined })} />
               </Group>
               <Button size="xs" onClick={() => enrollMutation.mutate(enrollForm as CreateEnrollmentRequest)} loading={enrollMutation.isPending}>

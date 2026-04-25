@@ -1727,7 +1727,7 @@ function LookbackSection() {
           <Select label="Infection Type" required data={TTI_INFECTION_TYPES} value={infectionType || null} onChange={(v) => setInfectionType(v ?? "")} searchable placeholder="Select infection type" />
           <TextInput label="Detection Date" required value={detectionDate} onChange={(e) => setDetectionDate(e.currentTarget.value)} placeholder="YYYY-MM-DD" />
           <TextInput label="Donation ID" value={donationId} onChange={(e) => setDonationId(e.currentTarget.value)} placeholder="Optional UUID" />
-          <TextInput label="Donor ID" value={donorId} onChange={(e) => setDonorId(e.currentTarget.value)} placeholder="Optional UUID" />
+          <PatientSearchSelect label="Donor" value={donorId} onChange={setDonorId} />
           <Textarea label="Investigation Notes" value={invNotes} onChange={(e) => setInvNotes(e.currentTarget.value)} />
           <Button
             onClick={() => {

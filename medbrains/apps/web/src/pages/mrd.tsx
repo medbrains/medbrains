@@ -49,6 +49,8 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { DepartmentSelect } from "../components/DepartmentSelect";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
 
@@ -190,8 +192,8 @@ function RecordsTab() {
       {/* Issue Drawer */}
       <Drawer opened={issueOpen} onClose={closeIssue} title={`Issue: ${selectedRecord?.record_number ?? ""}`} position="right" size="xl">
         <Stack>
-          <TextInput label="Issued To (User ID)" value={issueForm.issued_to_user_id ?? ""} onChange={(e) => setIssueForm({ ...issueForm, issued_to_user_id: e.currentTarget.value || undefined })} />
-          <TextInput label="Department ID" value={issueForm.issued_to_department_id ?? ""} onChange={(e) => setIssueForm({ ...issueForm, issued_to_department_id: e.currentTarget.value || undefined })} />
+          <EmployeeSearchSelect label="Issued To" value={issueForm.issued_to_user_id ?? ""} onChange={(id) => setIssueForm({ ...issueForm, issued_to_user_id: id || undefined })} />
+          <DepartmentSelect value={issueForm.issued_to_department_id ?? ""} onChange={(id) => setIssueForm({ ...issueForm, issued_to_department_id: id || undefined })} />
           <TextInput label="Purpose" value={issueForm.purpose ?? ""} onChange={(e) => setIssueForm({ ...issueForm, purpose: e.currentTarget.value })} />
           <NumberInput label="Due in (days)" value={issueForm.due_days ?? 7} onChange={(v) => setIssueForm({ ...issueForm, due_days: Number(v) })} min={1} />
           <Button onClick={() => issueMut.mutate(issueForm)} loading={issueMut.isPending}>Issue Record</Button>

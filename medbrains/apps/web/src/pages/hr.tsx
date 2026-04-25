@@ -52,6 +52,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Status colors ────────────────────────────────────────────
@@ -436,7 +437,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
 
       <Drawer opened={createOpen} onClose={closeCreate} title="Mark Attendance" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput label="Employee ID" required value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })} placeholder="UUID of employee" />
+          <EmployeeSearchSelect value={form.employee_id} onChange={(id) => setForm({ ...form, employee_id: id })} required />
           <TextInput label="Date" required placeholder="YYYY-MM-DD" value={form.attendance_date} onChange={(e) => setForm({ ...form, attendance_date: e.currentTarget.value })} />
           <TextInput label="Check In" placeholder="HH:MM (ISO timestamp)" value={form.check_in} onChange={(e) => setForm({ ...form, check_in: e.currentTarget.value })} />
           <TextInput label="Check Out" placeholder="HH:MM (ISO timestamp)" value={form.check_out} onChange={(e) => setForm({ ...form, check_out: e.currentTarget.value })} />
@@ -545,7 +546,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
 
       <Drawer opened={createOpen} onClose={closeCreate} title="Apply Leave" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput label="Employee ID" required value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })} placeholder="UUID of employee" />
+          <EmployeeSearchSelect value={form.employee_id} onChange={(id) => setForm({ ...form, employee_id: id })} required />
           <Select label="Leave Type" value={form.leave_type} onChange={(v) => setForm({ ...form, leave_type: v || "casual" })} data={[
             { value: "casual", label: "Casual" }, { value: "earned", label: "Earned" },
             { value: "medical", label: "Medical" }, { value: "maternity", label: "Maternity" },
@@ -706,7 +707,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
       {/* Create Roster Drawer */}
       <Drawer opened={rosterOpen} onClose={closeRoster} title="Add Roster Entry" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput label="Employee ID" required value={rosterForm.employee_id} onChange={(e) => setRosterForm({ ...rosterForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
+          <EmployeeSearchSelect value={rosterForm.employee_id} onChange={(id) => setRosterForm({ ...rosterForm, employee_id: id })} required />
           <Select label="Shift" required value={rosterForm.shift_id} onChange={(v) => setRosterForm({ ...rosterForm, shift_id: v || "" })} data={shifts.map((s: ShiftDefinition) => ({ value: s.id, label: `${s.name} (${s.start_time}-${s.end_time})` }))} />
           <TextInput label="Date" required placeholder="YYYY-MM-DD" value={rosterForm.roster_date} onChange={(e) => setRosterForm({ ...rosterForm, roster_date: e.currentTarget.value })} />
           <Switch label="On-Call" checked={rosterForm.is_on_call} onChange={(e) => setRosterForm({ ...rosterForm, is_on_call: e.currentTarget.checked })} />
@@ -736,7 +737,7 @@ function RosterTab({ canManage, canManageOnCall }: { canManage: boolean; canMana
       {/* Create On-Call Drawer */}
       <Drawer opened={onCallOpen} onClose={closeOnCall} title="Add On-Call Schedule" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput label="Employee ID" required value={onCallForm.employee_id} onChange={(e) => setOnCallForm({ ...onCallForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
+          <EmployeeSearchSelect value={onCallForm.employee_id} onChange={(id) => setOnCallForm({ ...onCallForm, employee_id: id })} required />
           <TextInput label="Date" required placeholder="YYYY-MM-DD" value={onCallForm.schedule_date} onChange={(e) => setOnCallForm({ ...onCallForm, schedule_date: e.currentTarget.value })} />
           <TextInput label="Start Time" required placeholder="HH:MM" value={onCallForm.start_time} onChange={(e) => setOnCallForm({ ...onCallForm, start_time: e.currentTarget.value })} />
           <TextInput label="End Time" required placeholder="HH:MM" value={onCallForm.end_time} onChange={(e) => setOnCallForm({ ...onCallForm, end_time: e.currentTarget.value })} />
@@ -900,7 +901,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
       {/* Record Training Drawer */}
       <Drawer opened={recordOpen} onClose={closeRecord} title="Record Training" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput label="Employee ID" required value={recForm.employee_id} onChange={(e) => setRecForm({ ...recForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
+          <EmployeeSearchSelect value={recForm.employee_id} onChange={(id) => setRecForm({ ...recForm, employee_id: id })} required />
           <Select label="Program" required value={recForm.program_id} onChange={(v) => setRecForm({ ...recForm, program_id: v || "" })} data={programs.map((p: TrainingProgram) => ({ value: p.id, label: p.name }))} />
           <TextInput label="Training Date" required placeholder="YYYY-MM-DD" value={recForm.training_date} onChange={(e) => setRecForm({ ...recForm, training_date: e.currentTarget.value })} />
           <Select label="Status" value={recForm.status} onChange={(v) => setRecForm({ ...recForm, status: v || "completed" })} data={[
@@ -996,7 +997,7 @@ function ComplianceTab({ canManageCredentials, canManageAppraisal }: { canManage
 
         <Drawer opened={appraisalOpen} onClose={closeAppraisal} title="Create Appraisal" position="right" size="xl">
           <Stack gap="sm">
-            <TextInput label="Employee ID" required value={apprForm.employee_id} onChange={(e) => setApprForm({ ...apprForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
+            <EmployeeSearchSelect value={apprForm.employee_id} onChange={(id) => setApprForm({ ...apprForm, employee_id: id })} required />
             <NumberInput label="Year" required value={apprForm.appraisal_year} onChange={(v) => setApprForm({ ...apprForm, appraisal_year: typeof v === "number" ? v : new Date().getFullYear() })} />
             <NumberInput label="Rating" value={apprForm.rating} onChange={(v) => setApprForm({ ...apprForm, rating: typeof v === "number" ? v : 3.0 })} min={0} max={5} step={0.5} decimalScale={1} />
             <Textarea label="Strengths" value={apprForm.strengths} onChange={(e) => setApprForm({ ...apprForm, strengths: e.currentTarget.value })} />
@@ -1016,7 +1017,7 @@ function ComplianceTab({ canManageCredentials, canManageAppraisal }: { canManage
 
         <Drawer opened={statOpen} onClose={closeStat} title="Add Statutory Record" position="right" size="xl">
           <Stack gap="sm">
-            <TextInput label="Employee ID" required value={statForm.employee_id} onChange={(e) => setStatForm({ ...statForm, employee_id: e.currentTarget.value })} placeholder="UUID" />
+            <EmployeeSearchSelect value={statForm.employee_id} onChange={(id) => setStatForm({ ...statForm, employee_id: id })} required />
             <Select label="Record Type" value={statForm.record_type} onChange={(v) => setStatForm({ ...statForm, record_type: v || "posh" })} data={[
               { value: "posh", label: "POSH Training" }, { value: "fire_safety", label: "Fire Safety" },
               { value: "bls_certification", label: "BLS Certification" }, { value: "infection_control", label: "Infection Control" },

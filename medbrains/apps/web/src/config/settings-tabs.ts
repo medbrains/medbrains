@@ -57,6 +57,7 @@ import { SetupWizardSettings } from "../pages/admin/settings/SetupWizardSettings
 import { SystemHealthSettings } from "../pages/admin/settings/SystemHealthSettings";
 import { UnitsLocaleSettings } from "../pages/admin/settings/UnitsLocaleSettings";
 import { UsersRolesSettings } from "../pages/admin/settings/UsersRolesSettings";
+import { ClinicalConfigSettings } from "../pages/admin/settings/ClinicalConfigSettings";
 
 export interface SettingsTabConfig {
   value: string;
@@ -243,6 +244,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconStethoscope",
     requiredPermission: "opd.visit.create",
     component: ConsultationTemplatesSettings,
+  },
+  {
+    value: "clinical-config",
+    i18nKey: "settings.clinicalConfiguration",
+    icon: "IconStethoscope",
+    requiredPermission: "admin.settings.general.manage",
+    component: ClinicalConfigSettings,
   },
   {
     value: "dashboards",

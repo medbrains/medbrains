@@ -9,6 +9,7 @@ import {
   Grid,
   Group,
   Modal,
+  MultiSelect,
   NumberInput,
   Progress,
   SegmentedControl,
@@ -24,6 +25,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DepartmentSelect } from "../components/DepartmentSelect";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { LineChart, DonutChart, BarChart } from "@mantine/charts";
@@ -947,7 +949,7 @@ function IncidentsTab() {
           <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
           <Select label="Incident Type" required data={["medication_error", "fall", "infection", "surgical", "diagnostic", "equipment", "behavioral", "other"]} value={form.incident_type} onChange={(v) => setForm({ ...form, incident_type: v ?? "" })} />
           <Select label="Severity" required data={["near_miss", "minor", "moderate", "major", "sentinel"] satisfies IncidentSeverityType[]} value={form.severity} onChange={(v) => setForm({ ...form, severity: (v ?? "minor") as IncidentSeverityType })} />
-          <TextInput label="Department ID" value={form.department_id ?? ""} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value || undefined })} />
+          <DepartmentSelect value={form.department_id ?? ""} onChange={(id) => setForm({ ...form, department_id: id || undefined })} />
           <TextInput label="Location" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.currentTarget.value || undefined })} />
           <TextInput label="Incident Date" type="date" required value={form.incident_date} onChange={(e) => setForm({ ...form, incident_date: e.currentTarget.value })} />
           <PatientSearchSelect label="Patient (optional)" value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id || undefined })} />
@@ -1751,6 +1753,16 @@ function AuditsTab() {
     queryFn: () => api.listQualityAudits({ status: statusFilter ?? undefined }),
   });
 
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments-list"],
+    queryFn: () => api.listDepartments(),
+    staleTime: 300_000,
+  });
+
+  const departmentOptions = departments
+    .filter((d: { is_active: boolean }) => d.is_active)
+    .map((d: { id: string; name: string }) => ({ value: d.id, label: d.name }));
+
   const [form, setForm] = useState<CreateQualityAuditRequest>({
     audit_type: "internal",
     title: "",
@@ -1870,7 +1882,7 @@ function AuditsTab() {
           <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
           <Select label="Audit Type" required data={["internal", "external", "mock", "surveillance", "follow_up"]} value={form.audit_type} onChange={(v) => setForm({ ...form, audit_type: v ?? "internal" })} />
           <Textarea label="Scope" value={form.scope ?? ""} onChange={(e) => setForm({ ...form, scope: e.currentTarget.value || undefined })} />
-          <TextInput label="Department ID" value={form.department_id ?? ""} onChange={(e) => setForm({ ...form, department_id: e.currentTarget.value || undefined })} />
+          <DepartmentSelect value={form.department_id ?? ""} onChange={(id) => setForm({ ...form, department_id: id || undefined })} />
           <TextInput label="Audit Date" type="date" required value={form.audit_date} onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })} />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
         </Stack>
@@ -1963,7 +1975,7 @@ function AuditsTab() {
       {/* Schedule Audits Drawer */}
       <Drawer opened={scheduleOpened} onClose={closeSchedule} title="Schedule Audits" position="right" size="xl">
         <Stack>
-          <TextInput label="Department IDs (comma-separated)" required value={scheduleForm.department_ids.join(",")} onChange={(e) => setScheduleForm({ ...scheduleForm, department_ids: e.currentTarget.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
+          <MultiSelect label="Departments" required data={departmentOptions} value={scheduleForm.department_ids} onChange={(ids) => setScheduleForm({ ...scheduleForm, department_ids: ids })} searchable placeholder="Select departments..." />
           <Select
             label="Frequency"
             required

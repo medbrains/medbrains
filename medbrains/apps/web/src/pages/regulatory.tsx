@@ -66,6 +66,7 @@ import type {
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const severityColors: Record<string, string> = {
@@ -1073,8 +1074,8 @@ function PcpndtTab() {
       <Drawer opened={opened} onClose={close} title="New PCPNDT Form F" position="right" size="xl">
         <Stack gap="sm">
           <PatientSearchSelect value={form.patient_id} onChange={(id) => setForm({ ...form, patient_id: id })} required />
-          <TextInput label="Performing Doctor ID" required value={form.performing_doctor_id} onChange={(e) => setForm({ ...form, performing_doctor_id: e.currentTarget.value })} />
-          <TextInput label="Referral Doctor ID" value={form.referral_doctor_id ?? ""} onChange={(e) => setForm({ ...form, referral_doctor_id: e.currentTarget.value || undefined })} />
+          <DoctorSearchSelect label="Performing Doctor" value={form.performing_doctor_id} onChange={(id) => setForm({ ...form, performing_doctor_id: id })} required />
+          <DoctorSearchSelect label="Referral Doctor" value={form.referral_doctor_id ?? ""} onChange={(id) => setForm({ ...form, referral_doctor_id: id || undefined })} />
           <Select
             label="Procedure Type"
             required

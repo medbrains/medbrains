@@ -24,6 +24,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { BedSelect } from "../components/BedSelect";
+import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
@@ -381,19 +383,16 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
         size="md"
       >
         <Stack>
-          <TextInput
-            label="Bed ID"
-            required
+          <BedSelect
             value={admitForm.bed_id ?? ""}
-            onChange={(e) => setAdmitForm({ ...admitForm, bed_id: e.currentTarget.value })}
-            placeholder="Enter bed ID"
-          />
-          <TextInput
-            label="Admitting Doctor ID"
+            onChange={(id) => setAdmitForm({ ...admitForm, bed_id: id })}
             required
+          />
+          <DoctorSearchSelect
+            label="Admitting Doctor"
             value={admitForm.admitting_doctor_id ?? ""}
-            onChange={(e) => setAdmitForm({ ...admitForm, admitting_doctor_id: e.currentTarget.value })}
-            placeholder="Enter doctor ID"
+            onChange={(id) => setAdmitForm({ ...admitForm, admitting_doctor_id: id })}
+            required
           />
           <Textarea
             label="Admission Notes"

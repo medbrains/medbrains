@@ -55,6 +55,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
 
@@ -486,7 +487,7 @@ function CampDetail({ camp }: { camp: Camp }) {
 
       <Drawer opened={addOpen} onClose={addHandlers.close} title="Add Team Member" position="right" size="sm">
         <Stack>
-          <TextInput label="Employee ID" required value={teamForm.employee_id} onChange={(e) => setTeamForm({ ...teamForm, employee_id: e.currentTarget.value })} />
+          <EmployeeSearchSelect value={teamForm.employee_id} onChange={(id) => setTeamForm({ ...teamForm, employee_id: id })} required />
           <Select label="Role" data={TEAM_ROLES} value={teamForm.role_in_camp} onChange={(v) => setTeamForm({ ...teamForm, role_in_camp: v ?? "volunteer" })} />
           <Button onClick={() => addMut.mutate()} loading={addMut.isPending} disabled={!teamForm.employee_id}>
             Add

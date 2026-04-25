@@ -14,6 +14,7 @@ import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { DataTable, PageHeader } from "../components";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
 import type {
@@ -128,7 +129,7 @@ function ClinicalTab() {
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
       <Drawer opened={opened} onClose={close} title="Clinical Message" position="right" size="xl">
         <Stack>
-          <TextInput label="Recipient ID" required value={form.recipient_id ?? ""} onChange={(e) => setForm({ ...form, recipient_id: e.currentTarget.value })} />
+          <EmployeeSearchSelect label="Recipient" value={form.recipient_id ?? ""} onChange={(id) => setForm({ ...form, recipient_id: id })} required />
           <Select label="Type" required data={["general", "sbar_handover", "referral", "discharge_comm", "intercom_code"]} value={form.message_type ?? null} onChange={(v) => setForm({ ...form, message_type: v })} />
           <Select label="Priority" data={Object.keys(PRIORITY_COLORS)} value={form.priority ?? null} onChange={(v) => setForm({ ...form, priority: v })} />
           <TextInput label="Subject" value={form.subject ?? ""} onChange={(e) => setForm({ ...form, subject: e.currentTarget.value })} />
