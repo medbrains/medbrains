@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { PatientSearchSelect } from "../../components/PatientSearchSelect";
+import { EmployeeSearchSelect } from "../../components/EmployeeSearchSelect";
 import {
   ActionIcon,
   Badge,
@@ -211,10 +213,10 @@ export function CathLabPage() {
       {/* Create Procedure Drawer */}
       <Drawer opened={procOpen} onClose={procHandlers.close} title="New Cath Procedure" size="lg" position="right">
         <Stack>
-          <TextInput label="Patient ID" required value={procForm.patient_id} onChange={(e) => setProcForm((p) => ({ ...p, patient_id: e.currentTarget.value }))} />
-          <Select label="Procedure Type" required data={PROCEDURE_TYPES} value={procForm.procedure_type} onChange={(v) => setProcForm((p) => ({ ...p, procedure_type: (v ?? "diagnostic_cath") as CathProcedureType }))} />
-          <TextInput label="Operator ID" required value={procForm.operator_id} onChange={(e) => setProcForm((p) => ({ ...p, operator_id: e.currentTarget.value }))} />
-          <Switch label="STEMI" checked={procForm.is_stemi ?? false} onChange={(e) => setProcForm((p) => ({ ...p, is_stemi: e.currentTarget.checked }))} />
+          <PatientSearchSelect value={procForm.patient_id ?? ""} onChange={(id) => setProcForm((p) => ({ ...p, patient_id: id }))} required />
+          <Select label="Procedure Type" required data={PROCEDURE_TYPES} value={procForm.procedure_type ?? null} onChange={(v) => setProcForm((p) => ({ ...p, procedure_type: (v ?? "diagnostic_cath") as CathProcedureType }))} />
+          <EmployeeSearchSelect value={procForm.operator_id ?? ""} onChange={(id) => setProcForm((p) => ({ ...p, operator_id: id }))} label="Operator" required />
+          <Switch label="STEMI" checked={procForm?.is_stemi ?? false} onChange={(e) => { if (e?.currentTarget) setProcForm((p) => ({ ...p, is_stemi: e.currentTarget.checked })); }} />
           <TextInput label="Contrast Type" value={procForm.contrast_type ?? ""} onChange={(e) => setProcForm((p) => ({ ...p, contrast_type: e.currentTarget.value }))} />
           <NumberInput label="Contrast Volume (ml)" value={procForm.contrast_volume_ml ?? ""} onChange={(v) => setProcForm((p) => ({ ...p, contrast_volume_ml: typeof v === "number" ? v : undefined }))} />
           <Button onClick={() => createProc.mutate(procForm)} loading={createProc.isPending}>Create Procedure</Button>
