@@ -1069,39 +1069,74 @@ function HistoryTab({ encounterId, canUpdate }: { encounterId: string; canUpdate
 
 function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
   const queryClient = useQueryClient();
+  const [localRos, setLocalRos] = useState<ROSType>({});
+  const [dirty, setDirty] = useState(false);
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
     queryFn: () => api.getConsultation(encounterId).catch(() => null),
   });
 
+  // Sync server data to local state when loaded
+  const c = consultation as Consultation | null;
+  const serverRos = (c?.review_of_systems as ROSType | null) ?? {};
+
+  // Initialize local state from server (only when not dirty)
+  useState(() => { if (!dirty) setLocalRos(serverRos); });
+
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
+      setDirty(false);
+      notifications.show({ title: "Saved", message: "Review of Systems saved", color: "success" });
+    },
+    onError: () => notifications.show({ title: "Error", message: "Failed to save ROS", color: "danger" }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
+      setDirty(false);
+      notifications.show({ title: "Saved", message: "Review of Systems updated", color: "success" });
+    },
+    onError: () => notifications.show({ title: "Error", message: "Failed to update ROS", color: "danger" }),
   });
 
-  const handleUpdate = (ros: ROSType) => {
+  const handleChange = (ros: ROSType) => {
+    setLocalRos(ros);
+    setDirty(true);
+  };
+
+  const handleSave = () => {
     if (consultation) {
-      updateMutation.mutate({ review_of_systems: ros });
+      updateMutation.mutate({ review_of_systems: localRos });
     } else {
-      createMutation.mutate({ review_of_systems: ros });
+      createMutation.mutate({ review_of_systems: localRos });
     }
   };
 
-  const c = consultation as Consultation | null;
-
   return (
-    <ReviewOfSystems
-      data={(c?.review_of_systems as ROSType | null) ?? {}}
-      canUpdate={canUpdate}
-      onUpdate={handleUpdate}
-    />
+    <Stack>
+      <ReviewOfSystems
+        data={dirty ? localRos : serverRos}
+        canUpdate={canUpdate}
+        onUpdate={handleChange}
+      />
+      {canUpdate && (
+        <Group justify="flex-end">
+          <Button
+            onClick={handleSave}
+            loading={createMutation.isPending || updateMutation.isPending}
+            disabled={!dirty}
+          >
+            Save Review of Systems
+          </Button>
+        </Group>
+      )}
+    </Stack>
   );
 }
 
