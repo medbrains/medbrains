@@ -1327,6 +1327,12 @@ import type {
   CreateBillingServicePackageRequest,
   CopayCalculation,
   ErFastInvoiceRequest,
+  // Billing Concessions
+  BillingConcession,
+  ConcessionListResponse,
+  CreateConcessionRequest,
+  AutoConcessionRulesResponse,
+  AutoConcessionRule,
   CampAnalytics,
   CampReport,
   SchedulePmRequest,
@@ -9261,6 +9267,28 @@ export const api = {
 
   erFastInvoice: (data: ErFastInvoiceRequest) =>
     request<Invoice>("/billing/er-invoice", { method: "POST", body: JSON.stringify(data) }),
+
+  // -- Billing Concessions --
+  listConcessions: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ConcessionListResponse>(`/billing/concessions${qs}`);
+  },
+  createConcession: (data: CreateConcessionRequest) =>
+    request<BillingConcession>("/billing/concessions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveConcession: (id: string) =>
+    request<BillingConcession>(`/billing/concessions/${id}/approve`, { method: "PUT" }),
+  rejectConcession: (id: string) =>
+    request<BillingConcession>(`/billing/concessions/${id}/reject`, { method: "PUT" }),
+  getAutoConcessionRules: () =>
+    request<AutoConcessionRulesResponse>("/billing/concessions/auto-rules"),
+  updateAutoConcessionRules: (data: { rules: AutoConcessionRule[] }) =>
+    request<AutoConcessionRulesResponse>("/billing/concessions/auto-rules", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Camp (extended)

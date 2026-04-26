@@ -38,6 +38,11 @@ pub enum ChargeSource {
     Procedure,
     Radiology,
     Manual,
+    Ot,
+    Emergency,
+    Diet,
+    Cssd,
+    Ambulance,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -753,5 +758,38 @@ pub struct ErpExportLog {
     pub response: Option<serde_json::Value>,
     pub error_message: Option<String>,
     pub exported_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "concession_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ConcessionStatus {
+    Pending,
+    Approved,
+    Rejected,
+    AutoApplied,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct BillingConcession {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub invoice_id: Option<Uuid>,
+    pub invoice_item_id: Option<Uuid>,
+    pub patient_id: Uuid,
+    pub concession_type: String,
+    pub original_amount: rust_decimal::Decimal,
+    pub concession_percent: Option<rust_decimal::Decimal>,
+    pub concession_amount: rust_decimal::Decimal,
+    pub final_amount: rust_decimal::Decimal,
+    pub reason: Option<String>,
+    pub status: ConcessionStatus,
+    pub requested_by: Uuid,
+    pub approved_by: Option<Uuid>,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub auto_rule: Option<String>,
+    pub source_module: Option<String>,
+    pub source_entity_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }

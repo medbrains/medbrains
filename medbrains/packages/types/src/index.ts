@@ -15371,6 +15371,66 @@ export interface ErFastInvoiceRequest {
   additional_charges?: Array<{ description: string; amount: number }>;
 }
 
+// Billing Concessions
+export type ConcessionStatus = "pending" | "approved" | "rejected" | "auto_applied";
+
+export interface BillingConcession {
+  id: string;
+  tenant_id: string;
+  invoice_id: string | null;
+  invoice_item_id: string | null;
+  patient_id: string;
+  concession_type: string;
+  original_amount: number;
+  concession_percent: number | null;
+  concession_amount: number;
+  final_amount: number;
+  reason: string | null;
+  status: ConcessionStatus;
+  requested_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  auto_rule: string | null;
+  source_module: string | null;
+  source_entity_id: string | null;
+  created_at: string;
+}
+
+export interface ConcessionListResponse {
+  concessions: BillingConcession[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface CreateConcessionRequest {
+  invoice_id?: string;
+  invoice_item_id?: string;
+  patient_id: string;
+  concession_type: string;
+  original_amount: number;
+  concession_percent?: number;
+  concession_amount: number;
+  final_amount: number;
+  reason?: string;
+  source_module?: string;
+  source_entity_id?: string;
+}
+
+export interface AutoConcessionRulesResponse {
+  rules: AutoConcessionRule[];
+}
+
+export interface AutoConcessionRule {
+  name: string;
+  concession_type: string;
+  percent: number;
+  reason?: string;
+  is_active: boolean;
+  applicable_modules?: string[];
+  patient_categories?: string[];
+}
+
 // Camp
 export interface CampAnalytics {
   total_camps: number;

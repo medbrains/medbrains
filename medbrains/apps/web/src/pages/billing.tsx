@@ -36,6 +36,7 @@ import {
   IconCopy,
   IconCreditCard,
   IconDatabase,
+  IconDiscount,
   IconDiscount2,
   IconEye,
   IconFileInvoice,
@@ -121,6 +122,9 @@ import type {
   ProfitLossDeptRow,
   TdsDeduction,
   UpdateCreditPatientRequest,
+  // Concessions
+  BillingConcession,
+  AutoConcessionRule,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
@@ -194,6 +198,8 @@ function BillingPageInner() {
   const canTds = useHasPermission(P.BILLING.TDS_LIST);
   const canGst = useHasPermission(P.BILLING.GST_RETURNS_LIST);
   const canErp = useHasPermission(P.BILLING.ERP_EXPORT);
+  const canConcessions = useHasPermission(P.BILLING.CONCESSIONS_LIST);
+  const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
 
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -320,6 +326,7 @@ function BillingPageInner() {
           {canBankRecon && <Tabs.Tab value="bank-recon" leftSection={<IconTransferIn size={14} />}>{t("bankRecon")}</Tabs.Tab>}
           <Tabs.Tab value="financial-mis" leftSection={<IconCoin size={14} />}>{t("financialMis")}</Tabs.Tab>
           {canErp && <Tabs.Tab value="erp-export" leftSection={<IconDatabase size={14} />}>{t("erpExport")}</Tabs.Tab>}
+          {canConcessions && <Tabs.Tab value="concessions" leftSection={<IconDiscount size={14} />}>Concessions</Tabs.Tab>}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>{t("settings")}</Tabs.Tab>
         </Tabs.List>
 
@@ -426,6 +433,12 @@ function BillingPageInner() {
         {canErp && (
           <Tabs.Panel value="erp-export">
             <ErpExportTab />
+          </Tabs.Panel>
+        )}
+
+        {canConcessions && (
+          <Tabs.Panel value="concessions">
+            <ConcessionsTab canApprove={canApproveConcessions} />
           </Tabs.Panel>
         )}
 
@@ -3513,6 +3526,145 @@ function ErpExportTab() {
 
       <Title order={5}>Export History</Title>
       <DataTable columns={columns} data={erpExports ?? []} loading={isLoading} page={1} totalPages={1} onPageChange={() => {}} rowKey={(r) => r.id} />
+    </Stack>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  Concessions Tab
+// ══════════════════════════════════════════════════════════
+
+function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "rules">("list");
+
+  const params: Record<string, string> = {};
+  if (statusFilter) params.status = statusFilter;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["billing", "concessions", params],
+    queryFn: () => api.listConcessions(Object.keys(params).length > 0 ? params : undefined),
+  });
+
+  const { data: rulesData } = useQuery({
+    queryKey: ["billing", "concessions", "auto-rules"],
+    queryFn: () => api.getAutoConcessionRules(),
+    enabled: view === "rules",
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (id: string) => api.approveConcession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
+      notifications.show({ title: "Approved", message: "Concession approved", color: "success" });
+    },
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: (id: string) => api.rejectConcession(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
+      notifications.show({ title: "Rejected", message: "Concession rejected", color: "danger" });
+    },
+  });
+
+  const [rulesDraft, setRulesDraft] = useState("");
+  const saveRulesMut = useMutation({
+    mutationFn: () => {
+      const parsed = JSON.parse(rulesDraft) as AutoConcessionRule[];
+      return api.updateAutoConcessionRules({ rules: parsed });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });
+      notifications.show({ title: "Saved", message: "Auto-concession rules updated", color: "success" });
+    },
+    onError: () => notifications.show({ title: "Error", message: "Invalid JSON or save failed", color: "danger" }),
+  });
+
+  const statusColors: Record<string, string> = {
+    pending: "warning", approved: "success", rejected: "danger", auto_applied: "teal",
+  };
+
+  const columns = [
+    { key: "concession_type", label: "Type", render: (r: BillingConcession) => <Text size="sm">{r.concession_type}</Text> },
+    { key: "original_amount", label: "Original", render: (r: BillingConcession) => <Text size="sm">{Number(r.original_amount).toFixed(2)}</Text> },
+    { key: "concession_amount", label: "Discount", render: (r: BillingConcession) => <Text size="sm" c="danger">-{Number(r.concession_amount).toFixed(2)}</Text> },
+    { key: "final_amount", label: "Final", render: (r: BillingConcession) => <Text size="sm" fw={600}>{Number(r.final_amount).toFixed(2)}</Text> },
+    { key: "status", label: "Status", render: (r: BillingConcession) => <Badge size="sm" color={statusColors[r.status] ?? "slate"}>{r.status}</Badge> },
+    { key: "reason", label: "Reason", render: (r: BillingConcession) => <Text size="sm" lineClamp={1}>{r.reason ?? r.auto_rule ?? "—"}</Text> },
+    { key: "source_module", label: "Source", render: (r: BillingConcession) => <Text size="sm">{r.source_module ?? "manual"}</Text> },
+    { key: "created_at", label: "Date", render: (r: BillingConcession) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text> },
+    {
+      key: "actions", label: "", render: (r: BillingConcession) => r.status === "pending" && canApprove ? (
+        <Group gap={4}>
+          <Tooltip label="Approve"><ActionIcon variant="subtle" color="success" onClick={() => approveMut.mutate(r.id)}><IconCheck size={16} /></ActionIcon></Tooltip>
+          <Tooltip label="Reject"><ActionIcon variant="subtle" color="danger" onClick={() => rejectMut.mutate(r.id)}><IconX size={16} /></ActionIcon></Tooltip>
+        </Group>
+      ) : null,
+    },
+  ];
+
+  return (
+    <Stack>
+      <SegmentedControl
+        data={[
+          { value: "list", label: "Pending Concessions" },
+          { value: "rules", label: "Auto-Concession Rules" },
+        ]}
+        value={view}
+        onChange={(v) => setView(v as "list" | "rules")}
+        w={360}
+      />
+
+      {view === "list" && (
+        <>
+          <Group>
+            <Select
+              placeholder="Filter by status"
+              data={[
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
+                { value: "auto_applied", label: "Auto-Applied" },
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              clearable
+              w={200}
+            />
+          </Group>
+          <DataTable
+            columns={columns}
+            data={data?.concessions ?? []}
+            loading={isLoading}
+            page={1}
+            totalPages={Math.ceil((data?.total ?? 0) / 20)}
+            onPageChange={() => {}}
+            rowKey={(r) => r.id}
+          />
+        </>
+      )}
+
+      {view === "rules" && (
+        <Card withBorder>
+          <Text fw={600} mb="sm">Auto-Concession Rules</Text>
+          <Text size="sm" c="dimmed" mb="md">
+            Define rules as JSON array. Each rule: name, concession_type, percent, reason,
+            is_active, applicable_modules[], patient_categories[].
+          </Text>
+          <Textarea
+            minRows={10}
+            value={rulesDraft || JSON.stringify(rulesData?.rules ?? [], null, 2)}
+            onChange={(e) => setRulesDraft(e.currentTarget.value)}
+            mb="md"
+            styles={{ input: { fontFamily: "JetBrains Mono, monospace", fontSize: 13 } }}
+          />
+          <Button onClick={() => saveRulesMut.mutate()} loading={saveRulesMut.isPending}>
+            Save Rules
+          </Button>
+        </Card>
+      )}
     </Stack>
   );
 }

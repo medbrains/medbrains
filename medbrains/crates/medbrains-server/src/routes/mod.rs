@@ -1398,6 +1398,24 @@ pub fn build_router(state: AppState) -> Router {
             "/api/billing/er-invoice",
             post(billing::er_fast_invoice),
         )
+        // ── Billing Concessions ─────────────────────────
+        .route(
+            "/api/billing/concessions",
+            get(billing::list_concessions).post(billing::create_concession),
+        )
+        .route(
+            "/api/billing/concessions/auto-rules",
+            get(billing::get_auto_concession_rules)
+                .put(billing::update_auto_concession_rules),
+        )
+        .route(
+            "/api/billing/concessions/{id}/approve",
+            put(billing::approve_concession),
+        )
+        .route(
+            "/api/billing/concessions/{id}/reject",
+            put(billing::reject_concession),
+        )
         // ── Payment Gateway ─────────────────────────────
         .route(
             "/api/payments/create-order",

@@ -872,6 +872,9 @@ export const P = {
     GST_RETURNS_LIST: "billing.gst_returns.list",
     GST_RETURNS_MANAGE: "billing.gst_returns.manage",
     ERP_EXPORT: "billing.erp.export",
+    CONCESSIONS_LIST: "billing.concessions.list",
+    CONCESSIONS_CREATE: "billing.concessions.create",
+    CONCESSIONS_APPROVE: "billing.concessions.approve",
   },
   IPD: {
     ADMISSIONS_LIST: "ipd.admissions.list",

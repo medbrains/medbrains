@@ -3,7 +3,8 @@
 use axum::{Extension, Json, extract::{Path, Query, State}};
 use medbrains_core::billing::{
     AdvanceAdjustment, AuditAction, BadDebtWriteOff,
-    BankTransaction, BillingAuditEntry, BillingPackage, BillingPackageItem, ChargeMaster,
+    BankTransaction, BillingAuditEntry, BillingConcession, BillingPackage, BillingPackageItem,
+    ChargeMaster,
     CorporateClient, CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus,
     CurrencyCode, DayEndClose, ErpExportLog, ExchangeRate, GlAccount,
     GstReturnSummary, InsuranceClaim, Invoice, InvoiceDiscount,
@@ -6343,3 +6344,495 @@ pub async fn er_fast_invoice(
     Ok(Json(updated_invoice))
 }
 
+// ══════════════════════════════════════════════════════════
+//  Public service charge helper (used by other modules)
+// ══════════════════════════════════════════════════════════
+
+/// Input for cross-module service charge creation.
+pub(crate) struct ServiceChargeInput<'a> {
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub encounter_id: Uuid,
+    pub charge_code: &'a str,
+    pub quantity: i32,
+    pub source_module: &'a str,
+    pub source_entity_id: Uuid,
+    pub requested_by: Uuid,
+}
+
+/// Create a service charge on behalf of another module.
+/// Resolves price from charge_master + rate_plan, checks auto-concession rules,
+/// creates invoice_item, and logs any concession applied.
+/// Fails gracefully — callers should not let billing failures block module ops.
+pub(crate) async fn create_service_charge(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    inp: ServiceChargeInput<'_>,
+) -> Result<AutoChargeResult, AppError> {
+    let charge_input = AutoChargeInput {
+        patient_id: inp.patient_id,
+        encounter_id: inp.encounter_id,
+        charge_code: inp.charge_code.to_owned(),
+        source: inp.source_module.to_owned(),
+        source_id: inp.source_entity_id,
+        quantity: inp.quantity,
+        description_override: None,
+        unit_price_override: None,
+        tax_percent_override: None,
+    };
+
+    let result = auto_charge(tx, &inp.tenant_id, charge_input).await?;
+
+    // Check auto-concession rules from tenant_settings
+    if !result.skipped_duplicate {
+        let concession_inp = ConcessionCheckInput {
+            tenant_id: inp.tenant_id,
+            patient_id: inp.patient_id,
+            invoice_id: result.invoice_id,
+            invoice_item_id: result.item_id,
+            source_module: inp.source_module,
+            source_entity_id: inp.source_entity_id,
+            requested_by: inp.requested_by,
+        };
+        apply_auto_concessions(tx, concession_inp)
+            .await
+            .ok(); // best-effort — don't fail the charge if concession logic fails
+    }
+
+    Ok(result)
+}
+
+struct ConcessionCheckInput<'a> {
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    invoice_id: Uuid,
+    invoice_item_id: Uuid,
+    source_module: &'a str,
+    source_entity_id: Uuid,
+    requested_by: Uuid,
+}
+
+/// Apply auto-concession rules defined in tenant_settings.
+async fn apply_auto_concessions(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    inp: ConcessionCheckInput<'_>,
+) -> Result<(), AppError> {
+    let tenant_id = &inp.tenant_id;
+    let patient_id = &inp.patient_id;
+    let invoice_id = inp.invoice_id;
+    let invoice_item_id = inp.invoice_item_id;
+    let source_module = inp.source_module;
+    let source_entity_id = &inp.source_entity_id;
+    let requested_by = &inp.requested_by;
+    // Read auto-concession rules from tenant_settings
+    let rules_json = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'auto_concession_rules'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some(rules_val) = rules_json else {
+        return Ok(());
+    };
+
+    let rules: Vec<AutoConcessionRule> =
+        serde_json::from_value(rules_val).unwrap_or_default();
+
+    if rules.is_empty() {
+        return Ok(());
+    }
+
+    // Get patient category for rule matching
+    let patient_category = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT category FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
+
+    // Get the item amount
+    let item = sqlx::query_as::<_, ItemAmount>(
+        "SELECT total_price FROM invoice_items WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(invoice_item_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    for rule in &rules {
+        if !rule.is_active {
+            continue;
+        }
+        // Match by module
+        if let Some(ref modules) = rule.applicable_modules {
+            if !modules.iter().any(|m| m == source_module) {
+                continue;
+            }
+        }
+        // Match by patient category
+        if let Some(ref cats) = rule.patient_categories {
+            let cat_str = patient_category.as_deref().unwrap_or("");
+            if !cats.iter().any(|c| c == cat_str) {
+                continue;
+            }
+        }
+        // Apply the concession
+        let concession_amount =
+            item.total_price * rule.percent / Decimal::from(100);
+        let final_amount = item.total_price - concession_amount;
+
+        sqlx::query(
+            "INSERT INTO billing_concessions \
+             (tenant_id, invoice_id, invoice_item_id, patient_id, concession_type, \
+              original_amount, concession_percent, concession_amount, final_amount, \
+              reason, status, requested_by, approved_by, approved_at, auto_rule, \
+              source_module, source_entity_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, \
+                     'auto_applied'::concession_status, $11, $11, now(), $12, $13, $14)",
+        )
+        .bind(tenant_id)
+        .bind(invoice_id)
+        .bind(invoice_item_id)
+        .bind(patient_id)
+        .bind(&rule.concession_type)
+        .bind(item.total_price)
+        .bind(rule.percent)
+        .bind(concession_amount)
+        .bind(final_amount)
+        .bind(&rule.reason)
+        .bind(requested_by)
+        .bind(&rule.name)
+        .bind(source_module)
+        .bind(source_entity_id)
+        .execute(&mut **tx)
+        .await?;
+
+        // Update item price to reflect concession
+        sqlx::query(
+            "UPDATE invoice_items SET total_price = $2 \
+             WHERE id = $1 AND tenant_id = $3",
+        )
+        .bind(invoice_item_id)
+        .bind(final_amount)
+        .bind(tenant_id)
+        .execute(&mut **tx)
+        .await?;
+
+        recalculate_invoice_totals(tx, invoice_id, *tenant_id).await?;
+
+        // Only apply first matching rule
+        break;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ItemAmount {
+    total_price: Decimal,
+}
+
+#[derive(Debug, Deserialize)]
+struct AutoConcessionRule {
+    name: String,
+    concession_type: String,
+    percent: Decimal,
+    reason: Option<String>,
+    is_active: bool,
+    applicable_modules: Option<Vec<String>>,
+    patient_categories: Option<Vec<String>>,
+}
+
+// ══════════════════════════════════════════════════════════
+//  Concession request / response types
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct ListConcessionsQuery {
+    pub status: Option<String>,
+    pub patient_id: Option<Uuid>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConcessionListResponse {
+    pub concessions: Vec<BillingConcession>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateConcessionRequest {
+    pub invoice_id: Option<Uuid>,
+    pub invoice_item_id: Option<Uuid>,
+    pub patient_id: Uuid,
+    pub concession_type: String,
+    pub original_amount: Decimal,
+    pub concession_percent: Option<Decimal>,
+    pub concession_amount: Decimal,
+    pub final_amount: Decimal,
+    pub reason: Option<String>,
+    pub source_module: Option<String>,
+    pub source_entity_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AutoConcessionRulesResponse {
+    pub rules: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAutoRulesRequest {
+    pub rules: serde_json::Value,
+}
+
+// ══════════════════════════════════════════════════════════
+//  GET /api/billing/concessions
+// ══════════════════════════════════════════════════════════
+
+pub async fn list_concessions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<ListConcessionsQuery>,
+) -> Result<Json<ConcessionListResponse>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let offset = (page - 1) * per_page;
+
+    let mut where_clauses = vec!["tenant_id = $1".to_owned()];
+    let mut bind_idx = 2u32;
+
+    if params.status.is_some() {
+        where_clauses.push(format!("status = ${bind_idx}::concession_status"));
+        bind_idx += 1;
+    }
+    if params.patient_id.is_some() {
+        where_clauses.push(format!("patient_id = ${bind_idx}"));
+        bind_idx += 1;
+    }
+
+    let where_str = where_clauses.join(" AND ");
+
+    let count_sql = format!("SELECT COUNT(*) FROM billing_concessions WHERE {where_str}");
+    let list_sql = format!(
+        "SELECT * FROM billing_concessions WHERE {where_str} \
+         ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
+        bind_idx + 1
+    );
+
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
+    let mut list_q =
+        sqlx::query_as::<_, BillingConcession>(&list_sql).bind(claims.tenant_id);
+
+    if let Some(ref status) = params.status {
+        count_q = count_q.bind(status);
+        list_q = list_q.bind(status);
+    }
+    if let Some(pid) = params.patient_id {
+        count_q = count_q.bind(pid);
+        list_q = list_q.bind(pid);
+    }
+
+    list_q = list_q.bind(per_page).bind(offset);
+
+    let total = count_q.fetch_one(&mut *tx).await?;
+    let concessions = list_q.fetch_all(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(Json(ConcessionListResponse {
+        concessions,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+// ══════════════════════════════════════════════════════════
+//  POST /api/billing/concessions
+// ══════════════════════════════════════════════════════════
+
+pub async fn create_concession(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateConcessionRequest>,
+) -> Result<Json<BillingConcession>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, BillingConcession>(
+        "INSERT INTO billing_concessions \
+         (tenant_id, invoice_id, invoice_item_id, patient_id, concession_type, \
+          original_amount, concession_percent, concession_amount, final_amount, \
+          reason, status, requested_by, source_module, source_entity_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, \
+                 'pending'::concession_status, $11, $12, $13) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.invoice_id)
+    .bind(body.invoice_item_id)
+    .bind(body.patient_id)
+    .bind(&body.concession_type)
+    .bind(body.original_amount)
+    .bind(body.concession_percent)
+    .bind(body.concession_amount)
+    .bind(body.final_amount)
+    .bind(&body.reason)
+    .bind(claims.sub)
+    .bind(&body.source_module)
+    .bind(body.source_entity_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  PUT /api/billing/concessions/{id}/approve
+// ══════════════════════════════════════════════════════════
+
+pub async fn approve_concession(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BillingConcession>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::APPROVE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, BillingConcession>(
+        "UPDATE billing_concessions SET \
+         status = 'approved'::concession_status, \
+         approved_by = $2, approved_at = now() \
+         WHERE id = $1 AND tenant_id = $3 AND status = 'pending'::concession_status \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Apply to invoice if linked
+    if let (Some(inv_id), Some(item_id)) = (row.invoice_id, row.invoice_item_id) {
+        sqlx::query(
+            "UPDATE invoice_items SET total_price = $2 \
+             WHERE id = $1 AND tenant_id = $3",
+        )
+        .bind(item_id)
+        .bind(row.final_amount)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        recalculate_invoice_totals(&mut tx, inv_id, claims.tenant_id).await?;
+    }
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  PUT /api/billing/concessions/{id}/reject
+// ══════════════════════════════════════════════════════════
+
+pub async fn reject_concession(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BillingConcession>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::APPROVE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, BillingConcession>(
+        "UPDATE billing_concessions SET \
+         status = 'rejected'::concession_status, \
+         approved_by = $2, approved_at = now() \
+         WHERE id = $1 AND tenant_id = $3 AND status = 'pending'::concession_status \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  GET /api/billing/concessions/auto-rules
+// ══════════════════════════════════════════════════════════
+
+pub async fn get_auto_concession_rules(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<AutoConcessionRulesResponse>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let val = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'auto_concession_rules'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(AutoConcessionRulesResponse {
+        rules: val.unwrap_or(serde_json::Value::Array(vec![])),
+    }))
+}
+
+// ══════════════════════════════════════════════════════════
+//  PUT /api/billing/concessions/auto-rules
+// ══════════════════════════════════════════════════════════
+
+pub async fn update_auto_concession_rules(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateAutoRulesRequest>,
+) -> Result<Json<AutoConcessionRulesResponse>, AppError> {
+    require_permission(&claims, permissions::billing::concessions::APPROVE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'billing', 'auto_concession_rules', $2) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value",
+    )
+    .bind(claims.tenant_id)
+    .bind(&body.rules)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(AutoConcessionRulesResponse {
+        rules: body.rules,
+    }))
+}

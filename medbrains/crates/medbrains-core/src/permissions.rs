@@ -236,6 +236,12 @@ pub mod billing {
     pub mod erp {
         pub const EXPORT: &str = "billing.erp.export";
     }
+
+    pub mod concessions {
+        pub const LIST: &str = "billing.concessions.list";
+        pub const CREATE: &str = "billing.concessions.create";
+        pub const APPROVE: &str = "billing.concessions.approve";
+    }
 }
 
 pub mod ipd {

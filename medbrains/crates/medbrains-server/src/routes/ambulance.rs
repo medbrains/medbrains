@@ -767,6 +767,36 @@ pub async fn update_trip_status(
         }
     }
 
+    // Auto-bill ambulance transport on trip completion (if billable)
+    if body.status == "completed" && row.is_billable {
+        if let Some(patient_id) = row.patient_id {
+            if super::billing::is_auto_billing_enabled(
+                &mut tx,
+                &claims.tenant_id,
+                "ambulance",
+            )
+            .await
+            .unwrap_or(false)
+            {
+                let encounter_id = row.er_visit_id.unwrap_or(row.id);
+                let _ = super::billing::create_service_charge(
+                    &mut tx,
+                    super::billing::ServiceChargeInput {
+                        tenant_id: claims.tenant_id,
+                        patient_id,
+                        encounter_id,
+                        charge_code: "AMBULANCE_TRANSPORT",
+                        quantity: 1,
+                        source_module: "ambulance",
+                        source_entity_id: row.id,
+                        requested_by: claims.sub,
+                    },
+                )
+                .await;
+            }
+        }
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }

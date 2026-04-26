@@ -238,6 +238,28 @@ pub async fn create_visit(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    // Auto-bill ER consultation charge
+    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
+        .await
+        .unwrap_or(false)
+    {
+        let _ = super::billing::create_service_charge(
+            &mut tx,
+            super::billing::ServiceChargeInput {
+                tenant_id: claims.tenant_id,
+                patient_id: row.patient_id,
+                encounter_id: row.id,
+                charge_code: "ER_CONSULTATION",
+                quantity: 1,
+                source_module: "emergency",
+                source_entity_id: row.id,
+                requested_by: claims.sub,
+            },
+        )
+        .await;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }
