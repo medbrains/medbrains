@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
+import { toDateString, nextOccurrence } from "../../lib/date-utils";
 import {
   ActionIcon,
   Badge,
   Button,
   Card,
+  Checkbox,
   Group,
   Loader,
   Modal,
@@ -88,9 +90,8 @@ function ScheduleFormModal({
   editSchedule: DoctorSchedule | null;
 }) {
   const queryClient = useQueryClient();
-  const [dayOfWeek, setDayOfWeek] = useState<string | null>(
-    editSchedule ? String(editSchedule.day_of_week) : null,
-  );
+  const editDayOfWeek = editSchedule ? String(editSchedule.day_of_week) : null;
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [startTime, setStartTime] = useState<string | null>(
     editSchedule?.start_time ?? null,
   );
@@ -106,16 +107,20 @@ function ScheduleFormModal({
   const [isActive, setIsActive] = useState(editSchedule?.is_active ?? true);
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.createSchedule({
-        doctor_id: doctorId,
-        department_id: departmentId || undefined,
-        day_of_week: parseInt(dayOfWeek!, 10),
-        start_time: startTime!,
-        end_time: endTime!,
-        slot_duration_mins: slotDuration,
-        max_patients: maxPatients,
-      }),
+    mutationFn: async () => {
+      const days = selectedDays.length > 0 ? selectedDays : (editDayOfWeek ? [editDayOfWeek] : []);
+      for (const day of days) {
+        await api.createSchedule({
+          doctor_id: doctorId,
+          department_id: departmentId || undefined,
+          day_of_week: parseInt(day, 10),
+          start_time: startTime!,
+          end_time: endTime!,
+          slot_duration_mins: slotDuration,
+          max_patients: maxPatients,
+        });
+      }
+    },
     onSuccess: () => {
       notifications.show({
         title: "Schedule created",
@@ -155,7 +160,7 @@ function ScheduleFormModal({
     },
   });
 
-  const canSubmit = dayOfWeek !== null && startTime && endTime;
+  const canSubmit = (selectedDays.length > 0 || editDayOfWeek !== null || editSchedule) && startTime && endTime;
 
   return (
     <Modal
@@ -166,15 +171,21 @@ function ScheduleFormModal({
     >
       <Stack gap="sm">
         {!editSchedule && (
-          <Select
-            label="Day of Week"
-            placeholder="Select day"
-            data={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
-            value={dayOfWeek}
-            onChange={setDayOfWeek}
-            required
-            comboboxProps={{ withinPortal: true }}
-          />
+          <div>
+            <Text size="sm" fw={500} mb={4}>Days</Text>
+            <Group gap={4} mb={4}>
+              <Button size="compact-xs" variant="light" onClick={() => setSelectedDays(["1","2","3","4","5"])}>Mon–Fri</Button>
+              <Button size="compact-xs" variant="light" onClick={() => setSelectedDays(["0","1","2","3","4","5","6"])}>All Days</Button>
+              <Button size="compact-xs" variant="subtle" onClick={() => setSelectedDays([])}>Clear</Button>
+            </Group>
+            <Checkbox.Group value={selectedDays} onChange={setSelectedDays}>
+              <Group gap="xs">
+                {DAY_NAMES.map((name, i) => (
+                  <Checkbox key={i} value={String(i)} label={name.slice(0, 3)} size="sm" />
+                ))}
+              </Group>
+            </Checkbox.Group>
+          </div>
         )}
         {editSchedule && (
           <TextInput
@@ -270,7 +281,7 @@ function ExceptionFormModal({
     mutationFn: () =>
       api.createScheduleException({
         doctor_id: doctorId,
-        exception_date: exceptionDate!.toISOString().split("T")[0] ?? "",
+        exception_date: toDateString(exceptionDate),
         is_available: isAvailable,
         start_time: isAvailable ? (startTime ?? undefined) : undefined,
         end_time: isAvailable ? (endTime ?? undefined) : undefined,
@@ -304,9 +315,12 @@ function ExceptionFormModal({
               { label: "Tomorrow", fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setExceptionDate(d); setReason("Day off"); } },
               { label: "This Saturday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
               { label: "This Sunday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (7 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
-              { label: "Republic Day", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 0, 26); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Republic Day"); } },
-              { label: "Independence Day", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 7, 15); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Independence Day"); } },
-              { label: "Gandhi Jayanti", fn: () => { const y = new Date().getFullYear(); const d = new Date(y, 9, 2); if (d < new Date()) d.setFullYear(y + 1); setExceptionDate(d); setReason("Gandhi Jayanti"); } },
+              { label: "Republic Day (Jan 26)", fn: () => { setExceptionDate(nextOccurrence(0, 26)); setReason("Republic Day"); } },
+              { label: "Independence Day (Aug 15)", fn: () => { setExceptionDate(nextOccurrence(7, 15)); setReason("Independence Day"); } },
+              { label: "Gandhi Jayanti (Oct 2)", fn: () => { setExceptionDate(nextOccurrence(9, 2)); setReason("Gandhi Jayanti"); } },
+              { label: "Diwali", fn: () => { setExceptionDate(nextOccurrence(9, 20)); setReason("Diwali"); } },
+              { label: "Christmas (Dec 25)", fn: () => { setExceptionDate(nextOccurrence(11, 25)); setReason("Christmas"); } },
+              { label: "Pongal (Jan 14)", fn: () => { setExceptionDate(nextOccurrence(0, 14)); setReason("Pongal"); } },
             ].map((p) => (
               <Button key={p.label} size="compact-xs" variant="light" onClick={p.fn}>{p.label}</Button>
             ))}
