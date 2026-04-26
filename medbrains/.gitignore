@@ -74,3 +74,4 @@ qa/allure-report/
 
 qa/allure-*/
 qa/kiwi-results/
+apps/web/allure-results/
