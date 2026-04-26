@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            lo.id,\n            tc.name AS test_name,\n            lo.status,\n            lo.priority::text AS priority,\n            u.full_name AS ordered_by_name,\n            (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id) AS result_count,\n            lo.created_at,\n            lo.updated_at\n         FROM lab_orders lo\n         LEFT JOIN lab_test_catalog tc ON tc.id = lo.test_id\n         LEFT JOIN users u ON u.id = lo.ordered_by\n         WHERE lo.patient_id = $1\n         ORDER BY lo.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "test_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": {
+          "Custom": {
+            "name": "lab_order_status",
+            "kind": {
+              "Enum": [
+                "ordered",
+                "sample_collected",
+                "processing",
+                "completed",
+                "verified",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "priority",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "ordered_by_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "result_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "f4574d7878ae1194988ce0195916bc5ec7c9a42449dfd35f1abd7669888d7075"
+}

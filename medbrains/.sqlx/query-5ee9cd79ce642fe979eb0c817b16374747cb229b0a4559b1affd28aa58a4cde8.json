@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patient_merge_history SET unmerged_at = now(), unmerged_by = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5ee9cd79ce642fe979eb0c817b16374747cb229b0a4559b1affd28aa58a4cde8"
+}

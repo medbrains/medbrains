@@ -1,0 +1,181 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO patient_identifiers (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, issuing_country_id, valid_from, valid_until, is_verified, document_url, is_primary) VALUES ($1, $2, $3::identifier_type, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "id_type",
+        "type_info": {
+          "Custom": {
+            "name": "identifier_type",
+            "kind": {
+              "Enum": [
+                "aadhaar",
+                "pan",
+                "voter_id",
+                "driving_license",
+                "passport",
+                "ration_card",
+                "ssn",
+                "nhs_number",
+                "medicare_number",
+                "national_id",
+                "birth_certificate",
+                "employee_id",
+                "disability_certificate",
+                "abha",
+                "abha_address",
+                "emirates_id",
+                "iqama",
+                "uhid_external"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "id_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "id_number_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "issuing_authority",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "issuing_country_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_verified",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "verification_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "document_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_primary",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "identifier_type",
+            "kind": {
+              "Enum": [
+                "aadhaar",
+                "pan",
+                "voter_id",
+                "driving_license",
+                "passport",
+                "ration_card",
+                "ssn",
+                "nhs_number",
+                "medicare_number",
+                "national_id",
+                "birth_certificate",
+                "employee_id",
+                "disability_certificate",
+                "abha",
+                "abha_address",
+                "emirates_id",
+                "iqama",
+                "uhid_external"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Date",
+        "Date",
+        "Bool",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "75a081c07b9f4ff6bd495e5e608546f64c88c212eeb5068ff2650ba258fc5b41"
+}

@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT fl.id, fl.patient_id, fl.related_patient_id, fl.relationship,\n                fl.is_primary_contact, fl.notes, fl.created_at, fl.updated_at,\n                p.uhid AS related_uhid,\n                COALESCE(p.prefix || ' ', '') || p.first_name || ' ' || p.last_name AS related_name,\n                p.phone AS related_phone,\n                p.gender::text AS related_gender\n         FROM patient_family_links fl\n         JOIN patients p ON p.id = fl.related_patient_id\n         WHERE fl.patient_id = $1\n         ORDER BY fl.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "related_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "relationship",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_primary_contact",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "related_uhid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "related_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "related_phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "related_gender",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "15c5e06235ffe49db69f0c589a9f89b2805e9c56a716ace1edf05ab6900c6aab"
+}

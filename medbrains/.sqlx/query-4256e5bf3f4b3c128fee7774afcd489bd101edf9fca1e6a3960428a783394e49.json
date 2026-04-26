@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM patient_addresses WHERE patient_id = $1 AND tenant_id = $2 ORDER BY is_primary DESC, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "address_type",
+        "type_info": {
+          "Custom": {
+            "name": "address_type",
+            "kind": {
+              "Enum": [
+                "current",
+                "permanent",
+                "correspondence",
+                "workplace",
+                "temporary"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "address_line1",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "address_line2",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "village_town",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "district_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "state_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "country_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "postal_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "latitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "longitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_primary",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4256e5bf3f4b3c128fee7774afcd489bd101edf9fca1e6a3960428a783394e49"
+}

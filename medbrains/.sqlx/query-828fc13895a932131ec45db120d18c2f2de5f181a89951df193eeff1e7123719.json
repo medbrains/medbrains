@@ -1,0 +1,172 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patient_addresses SET address_type = COALESCE($1::address_type, address_type), address_line1 = COALESCE($2, address_line1), address_line2 = COALESCE($3, address_line2), village_town = COALESCE($4, village_town), city = COALESCE($5, city), district_id = COALESCE($6, district_id), state_id = COALESCE($7, state_id), country_id = COALESCE($8, country_id), postal_code = COALESCE($9, postal_code), latitude = COALESCE($10, latitude), longitude = COALESCE($11, longitude), is_primary = COALESCE($12, is_primary), valid_from = COALESCE($13, valid_from), valid_until = COALESCE($14, valid_until), updated_at = now() WHERE id = $15 AND patient_id = $16 AND tenant_id = $17 RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "address_type",
+        "type_info": {
+          "Custom": {
+            "name": "address_type",
+            "kind": {
+              "Enum": [
+                "current",
+                "permanent",
+                "correspondence",
+                "workplace",
+                "temporary"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "address_line1",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "address_line2",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "village_town",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "district_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "state_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "country_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "postal_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "latitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "longitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_primary",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "address_type",
+            "kind": {
+              "Enum": [
+                "current",
+                "permanent",
+                "correspondence",
+                "workplace",
+                "temporary"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Numeric",
+        "Numeric",
+        "Bool",
+        "Date",
+        "Date",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "828fc13895a932131ec45db120d18c2f2de5f181a89951df193eeff1e7123719"
+}

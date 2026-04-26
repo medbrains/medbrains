@@ -1,0 +1,153 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patient_insurance SET insurance_provider = COALESCE($1, insurance_provider), policy_number = COALESCE($2, policy_number), group_number = COALESCE($3, group_number), member_id = COALESCE($4, member_id), plan_name = COALESCE($5, plan_name), policy_holder_name = COALESCE($6, policy_holder_name), policy_holder_relation = COALESCE($7, policy_holder_relation), valid_from = COALESCE($8, valid_from), valid_until = COALESCE($9, valid_until), sum_insured = COALESCE($10, sum_insured), tpa_name = COALESCE($11, tpa_name), tpa_id = COALESCE($12, tpa_id), coverage_type = COALESCE($13, coverage_type), priority = COALESCE($14, priority), is_active = COALESCE($15, is_active), updated_at = now() WHERE id = $16 AND patient_id = $17 AND tenant_id = $18 RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "insurance_provider",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "policy_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "group_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "member_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "plan_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "policy_holder_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "policy_holder_relation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "sum_insured",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "tpa_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "tpa_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "coverage_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "priority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Date",
+        "Numeric",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Bool",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fccb9d2ce13aaf853a9b508cc339ccee6e4a53121ead87475018b8e86f9e466b"
+}

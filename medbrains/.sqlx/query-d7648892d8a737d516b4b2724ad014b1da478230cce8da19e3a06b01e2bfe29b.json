@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patients SET is_merged = false, merged_into_patient_id = NULL, is_active = true, updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d7648892d8a737d516b4b2724ad014b1da478230cce8da19e3a06b01e2bfe29b"
+}

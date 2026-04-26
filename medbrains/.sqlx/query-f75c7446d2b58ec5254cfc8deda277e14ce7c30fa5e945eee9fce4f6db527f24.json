@@ -1,0 +1,496 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, tenant_id, uhid, abha_id, prefix, first_name, middle_name, last_name, suffix,\n                  full_name_local, father_name, mother_name, spouse_name, guardian_name,\n                  guardian_relation, date_of_birth, is_dob_estimated, gender, gender_identity,\n                  marital_status, religion, nationality_id, preferred_language, birth_place,\n                  blood_group, blood_group_verified, no_known_allergies, occupation,\n                  education_level, phone, phone_secondary, email, preferred_contact_method,\n                  address, category, registration_type, registration_source, registered_by,\n                  registered_at_facility, financial_class, is_medico_legal, mlc_number,\n                  is_unknown_patient, temporary_name, is_vip, is_deceased, deceased_date,\n                  photo_url, photo_captured_at, data_quality_score, last_visit_date, total_visits,\n                  is_merged, merged_into_patient_id, source_system, legacy_id, attributes,\n                  is_active, created_by, created_at, updated_at\n           FROM patients\n           WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "uhid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "abha_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "middle_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "suffix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "full_name_local",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "father_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "mother_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "spouse_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "guardian_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "guardian_relation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "date_of_birth",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "is_dob_estimated",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 17,
+        "name": "gender",
+        "type_info": {
+          "Custom": {
+            "name": "gender",
+            "kind": {
+              "Enum": [
+                "male",
+                "female",
+                "other",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "gender_identity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "marital_status",
+        "type_info": {
+          "Custom": {
+            "name": "marital_status",
+            "kind": {
+              "Enum": [
+                "single",
+                "married",
+                "divorced",
+                "widowed",
+                "separated",
+                "domestic_partner",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "religion",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "nationality_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 22,
+        "name": "preferred_language",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 23,
+        "name": "birth_place",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 24,
+        "name": "blood_group",
+        "type_info": {
+          "Custom": {
+            "name": "blood_group",
+            "kind": {
+              "Enum": [
+                "a_positive",
+                "a_negative",
+                "b_positive",
+                "b_negative",
+                "ab_positive",
+                "ab_negative",
+                "o_positive",
+                "o_negative",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "blood_group_verified",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 26,
+        "name": "no_known_allergies",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 27,
+        "name": "occupation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 28,
+        "name": "education_level",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 29,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 30,
+        "name": "phone_secondary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 31,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 32,
+        "name": "preferred_contact_method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 33,
+        "name": "address",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 34,
+        "name": "category",
+        "type_info": {
+          "Custom": {
+            "name": "patient_category",
+            "kind": {
+              "Enum": [
+                "general",
+                "private",
+                "insurance",
+                "pmjay",
+                "cghs",
+                "staff",
+                "vip",
+                "mlc",
+                "esi",
+                "corporate",
+                "free",
+                "charity",
+                "research_subject",
+                "staff_dependent"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 35,
+        "name": "registration_type",
+        "type_info": {
+          "Custom": {
+            "name": "registration_type",
+            "kind": {
+              "Enum": [
+                "new",
+                "revisit",
+                "transfer_in",
+                "referral",
+                "emergency",
+                "camp",
+                "telemedicine",
+                "pre_registration"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 36,
+        "name": "registration_source",
+        "type_info": {
+          "Custom": {
+            "name": "registration_source",
+            "kind": {
+              "Enum": [
+                "walk_in",
+                "phone",
+                "online_portal",
+                "mobile_app",
+                "kiosk",
+                "referral",
+                "ambulance",
+                "camp",
+                "telemedicine"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 37,
+        "name": "registered_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 38,
+        "name": "registered_at_facility",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 39,
+        "name": "financial_class",
+        "type_info": {
+          "Custom": {
+            "name": "financial_class",
+            "kind": {
+              "Enum": [
+                "self_pay",
+                "insurance",
+                "government_scheme",
+                "corporate",
+                "charity",
+                "research"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 40,
+        "name": "is_medico_legal",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 41,
+        "name": "mlc_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 42,
+        "name": "is_unknown_patient",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 43,
+        "name": "temporary_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 44,
+        "name": "is_vip",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 45,
+        "name": "is_deceased",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 46,
+        "name": "deceased_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 47,
+        "name": "photo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 48,
+        "name": "photo_captured_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 49,
+        "name": "data_quality_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 50,
+        "name": "last_visit_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 51,
+        "name": "total_visits",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 52,
+        "name": "is_merged",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 53,
+        "name": "merged_into_patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 54,
+        "name": "source_system",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 55,
+        "name": "legacy_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 56,
+        "name": "attributes",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 57,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 58,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 59,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 60,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f75c7446d2b58ec5254cfc8deda277e14ce7c30fa5e945eee9fce4f6db527f24"
+}

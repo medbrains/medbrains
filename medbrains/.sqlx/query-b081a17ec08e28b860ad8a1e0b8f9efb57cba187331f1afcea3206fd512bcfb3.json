@@ -1,0 +1,105 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            e.id,\n            e.encounter_type,\n            e.status,\n            e.encounter_date,\n            u.full_name AS doctor_name,\n            d.name AS department_name,\n            c.chief_complaint,\n            (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id) AS diagnosis_count,\n            (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id) AS prescription_count,\n            (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id) AS lab_order_count,\n            e.created_at\n         FROM encounters e\n         LEFT JOIN users u ON u.id = e.doctor_id\n         LEFT JOIN departments d ON d.id = e.department_id\n         LEFT JOIN consultations c ON c.encounter_id = e.id\n         WHERE e.patient_id = $1\n         ORDER BY e.encounter_date DESC, e.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "encounter_type",
+        "type_info": {
+          "Custom": {
+            "name": "encounter_type",
+            "kind": {
+              "Enum": [
+                "opd",
+                "ipd",
+                "emergency"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": {
+          "Custom": {
+            "name": "encounter_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "in_progress",
+                "completed",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "encounter_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "doctor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "department_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "chief_complaint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "diagnosis_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "prescription_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "lab_order_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "b081a17ec08e28b860ad8a1e0b8f9efb57cba187331f1afcea3206fd512bcfb3"
+}

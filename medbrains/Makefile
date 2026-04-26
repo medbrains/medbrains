@@ -13,19 +13,29 @@ help: ## Show this help
 
 # ── Development ──────────────────────────────────────────────
 
-dev: ## Start everything (db + backend + frontend)
+dev: ## Start everything (db + compile backend + frontend)
 	@echo "Starting PostgreSQL..."
 	@docker compose up -d postgres
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
-	@echo "PostgreSQL ready. Starting backend & frontend..."
+	@echo "PostgreSQL ready. Compiling backend..."
+	@SQLX_OFFLINE=false cargo build 2>&1 || { echo "❌ Backend compilation failed"; exit 1; }
+	@echo "✅ Backend compiled. Starting backend + frontend..."
 	@trap 'kill 0' EXIT; \
-		cargo run & \
-		sleep 3 && pnpm dev:web & \
+		SQLX_OFFLINE=false cargo run & \
+		pnpm dev:web & \
+		wait
+
+dev-fast: ## Start everything (skip compile check — use when already compiled)
+	@docker compose up -d postgres 2>/dev/null
+	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+	@trap 'kill 0' EXIT; \
+		SQLX_OFFLINE=false cargo run & \
+		pnpm dev:web & \
 		wait
 
 dev-backend: db ## Start database + backend only
-	cargo run
+	SQLX_OFFLINE=false cargo run
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web

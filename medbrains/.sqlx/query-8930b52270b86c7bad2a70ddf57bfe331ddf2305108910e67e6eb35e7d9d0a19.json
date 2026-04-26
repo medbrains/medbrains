@@ -1,0 +1,168 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, tenant_id, patient_id, consent_type, consent_status, consent_date,\n                  consent_version, consented_by, consented_by_relation, witness_name, capture_mode,\n                  document_url, valid_until, notes, revoked_at, revoked_reason, created_at, updated_at\n           FROM patient_consents\n           WHERE patient_id = $1 AND tenant_id = $2\n           ORDER BY consent_date DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "consent_type",
+        "type_info": {
+          "Custom": {
+            "name": "consent_type",
+            "kind": {
+              "Enum": [
+                "general_treatment",
+                "data_sharing",
+                "abdm_linking",
+                "research_participation",
+                "sms_communication",
+                "email_communication",
+                "photography",
+                "advance_directive",
+                "organ_donation",
+                "hie_participation"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "consent_status",
+        "type_info": {
+          "Custom": {
+            "name": "consent_status",
+            "kind": {
+              "Enum": [
+                "granted",
+                "denied",
+                "withdrawn",
+                "pending"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "consent_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "consent_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "consented_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "consented_by_relation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "witness_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "capture_mode",
+        "type_info": {
+          "Custom": {
+            "name": "consent_capture_mode",
+            "kind": {
+              "Enum": [
+                "paper_signed",
+                "digital_signature",
+                "biometric",
+                "otp_verified",
+                "verbal_recorded"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "document_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "revoked_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8930b52270b86c7bad2a70ddf57bfe331ddf2305108910e67e6eb35e7d9d0a19"
+}

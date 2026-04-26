@@ -1,0 +1,152 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO patient_insurance (tenant_id, patient_id, insurance_provider, policy_number, group_number, member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "insurance_provider",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "policy_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "group_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "member_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "plan_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "policy_holder_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "policy_holder_relation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "sum_insured",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "tpa_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "tpa_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "coverage_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "priority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Date",
+        "Numeric",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9b2492c8fac4af6f8aa1573fd99fc43e2b15f53d97382a66a3a7064d041576a4"
+}

@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, ( COALESCE(similarity(first_name, $2), 0) * 0.3 + COALESCE(similarity(last_name, $3), 0) * 0.3 + CASE WHEN date_of_birth = $4 THEN 0.25 ELSE 0.0 END + CASE WHEN phone = $5 THEN 0.15 ELSE 0.0 END )::float8 AS score FROM patients WHERE tenant_id = $1 AND is_merged = false AND is_active = true AND ( similarity(first_name, $2) > 0.3 OR similarity(last_name, $3) > 0.3 OR date_of_birth = $4 OR phone = $5 ) ORDER BY score DESC LIMIT 20",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "uhid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "date_of_birth",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "gender",
+        "type_info": {
+          "Custom": {
+            "name": "gender",
+            "kind": {
+              "Enum": [
+                "male",
+                "female",
+                "other",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "score",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Date",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "9fba03d5913c4144141478ff6474cc1e1e3029c4f70d89d638326af4b71ea481"
+}

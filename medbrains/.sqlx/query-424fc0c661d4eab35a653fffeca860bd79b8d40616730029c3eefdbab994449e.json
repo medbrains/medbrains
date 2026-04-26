@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            a.id,\n            a.appointment_date,\n            a.slot_start,\n            a.slot_end,\n            a.appointment_type::text AS appointment_type,\n            a.status::text AS status,\n            u.full_name AS doctor_name,\n            d.name AS department_name,\n            a.reason,\n            a.created_at\n         FROM appointments a\n         LEFT JOIN users u ON u.id = a.doctor_id\n         LEFT JOIN departments d ON d.id = a.department_id\n         WHERE a.patient_id = $1\n         ORDER BY a.appointment_date DESC, a.slot_start DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "appointment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "slot_start",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "slot_end",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "appointment_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "doctor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "department_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "424fc0c661d4eab35a653fffeca860bd79b8d40616730029c3eefdbab994449e"
+}

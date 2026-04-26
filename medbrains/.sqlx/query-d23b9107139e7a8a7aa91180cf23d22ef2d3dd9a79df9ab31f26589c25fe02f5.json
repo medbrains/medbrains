@@ -1,0 +1,157 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO patient_allergies (tenant_id, patient_id, allergy_type, allergen_name, allergen_code, reaction, severity, onset_date, reported_by, is_active) VALUES ($1, $2, $3::allergy_type, $4, $5, $6, $7::allergy_severity, $8, $9, $10) RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "allergy_type",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_type",
+            "kind": {
+              "Enum": [
+                "drug",
+                "food",
+                "environmental",
+                "latex",
+                "contrast_dye",
+                "biological",
+                "other"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "allergen_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "allergen_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "reaction",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "severity",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_severity",
+            "kind": {
+              "Enum": [
+                "mild",
+                "moderate",
+                "severe",
+                "life_threatening"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "onset_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "reported_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "allergy_type",
+            "kind": {
+              "Enum": [
+                "drug",
+                "food",
+                "environmental",
+                "latex",
+                "contrast_dye",
+                "biological",
+                "other"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "allergy_severity",
+            "kind": {
+              "Enum": [
+                "mild",
+                "moderate",
+                "severe",
+                "life_threatening"
+              ]
+            }
+          }
+        },
+        "Date",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d23b9107139e7a8a7aa91180cf23d22ef2d3dd9a79df9ab31f26589c25fe02f5"
+}

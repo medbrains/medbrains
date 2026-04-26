@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM patient_allergies WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "allergy_type",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_type",
+            "kind": {
+              "Enum": [
+                "drug",
+                "food",
+                "environmental",
+                "latex",
+                "contrast_dye",
+                "biological",
+                "other"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "allergen_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "allergen_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "reaction",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "severity",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_severity",
+            "kind": {
+              "Enum": [
+                "mild",
+                "moderate",
+                "severe",
+                "life_threatening"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "onset_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "reported_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c84b8fc75316087c2cea2710c7d51a21827960e40cf5196522715722bedba710"
+}
