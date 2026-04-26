@@ -240,11 +240,11 @@ pub struct ConsentPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsentSignatureBlock {
-    pub signatory_type: String,  // patient, guardian, witness, doctor
+    pub signatory_type: String, // patient, guardian, witness, doctor
     pub name: String,
     pub designation: Option<String>,
     pub relation: Option<String>,
-    pub signature_data: Option<String>,  // Base64 encoded
+    pub signature_data: Option<String>, // Base64 encoded
     pub signed_at: Option<String>,
 }
 
@@ -255,7 +255,7 @@ pub struct TokenSlipPrintData {
     pub token_number: String,
     pub token_date: String,
     pub token_time: String,
-    pub patient_name: Option<String>,  // Privacy configurable
+    pub patient_name: Option<String>, // Privacy configurable
     pub uhid: Option<String>,
     pub department_name: String,
     pub doctor_name: Option<String>,
@@ -394,7 +394,7 @@ pub struct MarAdministration {
     pub scheduled_time: String,
     pub actual_time: Option<String>,
     pub given_by: Option<String>,
-    pub status: String,  // given, held, refused, not_available
+    pub status: String, // given, held, refused, not_available
     pub notes: Option<String>,
 }
 
@@ -3963,7 +3963,7 @@ pub struct MgpsDailyLogPrintData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MgpsReading {
     pub time: String,
-    pub gas_type: String, // O2, N2O, Air, Vacuum, N2
+    pub gas_type: String,   // O2, N2O, Air, Vacuum, N2
     pub line_pressure: f64, // bar
     pub purity_percent: Option<f64>,
     pub flow_rate: Option<f64>,
@@ -4513,7 +4513,7 @@ pub struct StudentAdmissionFormPrintData {
     pub emergency_contact: String,
     pub blood_group: String,
     pub nationality: String,
-    pub category: String, // General, OBC, SC, ST, EWS
+    pub category: String,        // General, OBC, SC, ST, EWS
     pub admission_quota: String, // Government, Management, NRI
     pub neet_score: Option<i32>,
     pub neet_rank: Option<i32>,
@@ -4832,7 +4832,7 @@ pub struct IecApprovalCertificatePrintData {
     pub study_design: String,
     pub sample_size: i32,
     pub study_duration_months: i32,
-    pub approval_type: String, // Full Board, Expedited
+    pub approval_type: String,     // Full Board, Expedited
     pub approval_category: String, // Initial, Amendment, Continuing Review
     pub conditions: Vec<String>,
     pub valid_until: String,
@@ -5120,7 +5120,7 @@ pub struct HospitalBrandingPrintData {
     pub hospital_tagline: Option<String>,
     pub logo_url: String,
     pub logo_position: String, // Left, Center, Right
-    pub logo_size: String, // Small, Medium, Large
+    pub logo_size: String,     // Small, Medium, Large
     pub secondary_logo_url: Option<String>,
     pub header_style: String, // Minimal, Standard, Full
     pub header_background_color: Option<String>,

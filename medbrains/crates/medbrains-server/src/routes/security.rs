@@ -7,16 +7,14 @@ use axum::{
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use medbrains_core::security::{
-    SecurityAccessCard, SecurityAccessLog, SecurityCamera, SecurityCodeDebrief,
-    SecurityIncident, SecurityPatientTag, SecurityTagAlert, SecurityZone,
+    SecurityAccessCard, SecurityAccessLog, SecurityCamera, SecurityCodeDebrief, SecurityIncident,
+    SecurityPatientTag, SecurityTagAlert, SecurityZone,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -267,11 +265,9 @@ pub async fn list_zones(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, SecurityZone>(
-        "SELECT * FROM security_zones ORDER BY zone_code",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = sqlx::query_as::<_, SecurityZone>("SELECT * FROM security_zones ORDER BY zone_code")
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -696,12 +692,11 @@ pub async fn get_incident(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "SELECT * FROM security_incidents WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))

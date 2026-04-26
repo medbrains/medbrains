@@ -32,6 +32,10 @@ function occupancyColor(v: number): string {
   return "success";
 }
 
+function toRows<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function OpdBedTab() {
@@ -76,7 +80,7 @@ function OpdSection({ params }: { params: { from?: string; to?: string } }) {
     queryFn: () => api.getOpdFootfall(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   // Aggregate by date for chart
   const chartData = useMemo(() => {
@@ -145,7 +149,7 @@ function BedSection() {
     refetchInterval: 60_000,
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   const overall = useMemo(() => {
     let totalBeds = 0;

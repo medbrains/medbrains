@@ -308,14 +308,21 @@ pub struct GeneratedDeviceConfig {
 
 /// Generate device config from adapter catalog entry.
 /// This is the "AI" — deterministic lookup + rule application.
-pub fn generate_device_config(adapter: &DeviceAdapterCatalogRow, department_code: Option<&str>) -> GeneratedDeviceConfig {
+pub fn generate_device_config(
+    adapter: &DeviceAdapterCatalogRow,
+    department_code: Option<&str>,
+) -> GeneratedDeviceConfig {
     let mut protocol_config = adapter.default_config.clone();
 
     // Apply known quirks as protocol config overrides
     let mut applied_quirks = Vec::new();
     if let serde_json::Value::Array(quirks) = &adapter.known_quirks {
         for quirk in quirks {
-            if quirk.get("auto_fix").and_then(serde_json::Value::as_bool).unwrap_or(false) {
+            if quirk
+                .get("auto_fix")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+            {
                 if let Some(config) = quirk.get("config") {
                     if let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) =
                         (&mut protocol_config, config)
@@ -333,8 +340,11 @@ pub fn generate_device_config(adapter: &DeviceAdapterCatalogRow, department_code
     }
 
     // Set default port in protocol config
-    if let (Some(port), serde_json::Value::Object(cfg)) = (adapter.default_port, &mut protocol_config) {
-        cfg.entry("port").or_insert(serde_json::Value::Number(port.into()));
+    if let (Some(port), serde_json::Value::Object(cfg)) =
+        (adapter.default_port, &mut protocol_config)
+    {
+        cfg.entry("port")
+            .or_insert(serde_json::Value::Number(port.into()));
     }
 
     // Confidence: verified adapters get 0.95, unverified 0.7
@@ -342,15 +352,28 @@ pub fn generate_device_config(adapter: &DeviceAdapterCatalogRow, department_code
 
     // Generate suggested name and code
     let dept_suffix = department_code.unwrap_or("GEN");
-    let suggested_name = format!("{} {} - {}", adapter.manufacturer, adapter.model, dept_suffix);
-    let suggested_code = format!("{}-{}-001", adapter.model_code.to_uppercase(), dept_suffix.to_uppercase());
+    let suggested_name = format!(
+        "{} {} - {}",
+        adapter.manufacturer, adapter.model, dept_suffix
+    );
+    let suggested_code = format!(
+        "{}-{}-001",
+        adapter.model_code.to_uppercase(),
+        dept_suffix.to_uppercase()
+    );
 
     let mut warnings = Vec::new();
     if !adapter.is_verified {
-        warnings.push("This adapter profile has not been verified by MedBrains. Review config carefully.".to_owned());
+        warnings.push(
+            "This adapter profile has not been verified by MedBrains. Review config carefully."
+                .to_owned(),
+        );
     }
     if adapter.known_quirks != serde_json::Value::Array(vec![]) {
-        warnings.push(format!("{} known quirk(s) auto-applied.", applied_quirks.len()));
+        warnings.push(format!(
+            "{} known quirk(s) auto-applied.",
+            applied_quirks.len()
+        ));
     }
 
     GeneratedDeviceConfig {
@@ -488,7 +511,13 @@ mod tests {
         assert!(config.suggested_name.contains("Test Corp"));
         assert!(config.suggested_name.contains("CHEM"));
         assert!(config.suggested_code.contains("MODEL_X"));
-        assert!(config.warnings.is_empty() || config.warnings.iter().all(|w| !w.contains("not been verified")));
+        assert!(
+            config.warnings.is_empty()
+                || config
+                    .warnings
+                    .iter()
+                    .all(|w| !w.contains("not been verified"))
+        );
     }
 
     #[test]
@@ -497,7 +526,12 @@ mod tests {
         let config = generate_device_config(&adapter, None);
 
         assert_eq!(config.confidence, 0.7);
-        assert!(config.warnings.iter().any(|w| w.contains("not been verified")));
+        assert!(
+            config
+                .warnings
+                .iter()
+                .any(|w| w.contains("not been verified"))
+        );
     }
 
     #[test]

@@ -4,8 +4,8 @@ use argon2::{
     Argon2, PasswordHash, PasswordVerifier,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
-use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum::http::HeaderMap;
+use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -17,9 +17,7 @@ use crate::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
-        cookies::{
-            build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie,
-        },
+        cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
     },
     state::AppState,
 };
@@ -65,41 +63,39 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Find user by username (across all tenants — login does not require tenant context)
-    let row = sqlx::query_as::<_, (Uuid, Uuid, String, String, String, String, String, bool, i32)>(
-        "SELECT id, tenant_id, username, email, password_hash, full_name, role::text, is_active, \
-         perm_version FROM users WHERE username = $1",
+    let row = sqlx::query!(
+        "SELECT id, tenant_id, username, email, password_hash, full_name, \
+         role::text AS \"role!\", is_active, perm_version \
+         FROM users WHERE username = $1",
+        body.username
     )
-    .bind(&body.username)
     .fetch_optional(&state.db)
     .await?;
 
-    let Some((user_id, tenant_id, username, email, password_hash, full_name, role, is_active, perm_version)) =
-        row
-    else {
+    let Some(row) = row else {
         return Err(AppError::Unauthorized);
     };
 
-    if !is_active {
+    if !row.is_active {
         return Err(AppError::Unauthorized);
     }
 
     // Verify password
-    let parsed_hash =
-        PasswordHash::new(&password_hash).map_err(|_| AppError::Unauthorized)?;
+    let parsed_hash = PasswordHash::new(&row.password_hash).map_err(|_| AppError::Unauthorized)?;
     Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::Unauthorized)?;
 
     // Resolve effective permissions from role
-    let permissions = resolve_permissions(&state.db, tenant_id, user_id, &role).await?;
+    let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
 
     // Resolve department_ids for scoping
     let department_ids =
-        resolve_department_ids(&state.db, tenant_id, user_id, &role).await?;
+        resolve_department_ids(&state.db, row.tenant_id, row.id, &row.role).await?;
 
     // Resolve field access levels
     let field_access_map =
-        super::forms::resolve_field_access(&state.db, tenant_id, user_id, &role).await?;
+        super::forms::resolve_field_access(&state.db, row.tenant_id, row.id, &row.role).await?;
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {
@@ -115,12 +111,12 @@ pub async fn login(
     // Issue access token (15 min)
     let now = Utc::now();
     let access_claims = Claims {
-        sub: user_id,
-        tenant_id,
-        role: role.clone(),
+        sub: row.id,
+        tenant_id: row.tenant_id,
+        role: row.role.clone(),
         permissions: permissions.clone(),
         department_ids,
-        perm_version,
+        perm_version: row.perm_version,
         exp: (now + chrono::Duration::minutes(15)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)
@@ -143,31 +139,31 @@ pub async fn login(
         .map(ToOwned::to_owned);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
     // Enforce concurrent session limit: max 5 active tokens per user
-    sqlx::query(
+    sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \
          WHERE user_id = $1 AND revoked = false AND id NOT IN \
          (SELECT id FROM refresh_tokens WHERE user_id = $1 AND revoked = false \
           ORDER BY created_at DESC LIMIT 4)",
+        row.id
     )
-    .bind(user_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO refresh_tokens \
          (tenant_id, user_id, token_hash, expires_at, device_fingerprint, ip_address, user_agent) \
-         VALUES ($1, $2, $3, $4, $5, $6::inet, $7)",
+         VALUES ($1, $2, $3, $4, $5, NULLIF($6::text, '')::inet, $7)",
+        row.tenant_id,
+        row.id,
+        refresh_hash,
+        expires_at,
+        device_fp,
+        client_ip.as_deref(),
+        user_agent.as_deref()
     )
-    .bind(tenant_id)
-    .bind(user_id)
-    .bind(&refresh_hash)
-    .bind(expires_at)
-    .bind(&device_fp)
-    .bind(&client_ip)
-    .bind(&user_agent)
     .execute(&mut *tx)
     .await?;
 
@@ -175,11 +171,11 @@ pub async fn login(
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {
-            tenant_id,
-            user_id: Some(user_id),
+            tenant_id: row.tenant_id,
+            user_id: Some(row.id),
             action: "login",
             entity_type: "user",
-            entity_id: Some(user_id),
+            entity_id: Some(row.id),
             old_values: None,
             new_values: None,
             ip_address: None,
@@ -202,12 +198,12 @@ pub async fn login(
 
     let body = LoginResponse {
         user: UserInfo {
-            id: user_id,
-            tenant_id,
-            username,
-            email,
-            full_name,
-            role,
+            id: row.id,
+            tenant_id: row.tenant_id,
+            username: row.username,
+            email: row.email,
+            full_name: row.full_name,
+            role: row.role,
         },
         csrf_token,
         permissions,
@@ -251,33 +247,34 @@ pub async fn refresh_token(
     let token_hash = hex::encode(hasher.finalize());
 
     // Look up the refresh token with device info for rotation
-    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, String, String, String, String, bool, i32, Option<Uuid>, Option<String>)>(
-        "SELECT rt.id, rt.user_id, rt.tenant_id, u.role::text, u.username, u.email, u.full_name, \
-         rt.revoked, u.perm_version, rt.family_id, rt.device_fingerprint \
+    let row = sqlx::query!(
+        "SELECT rt.id, rt.user_id, rt.tenant_id, u.role::text AS \"role!\", \
+         u.username, u.email, u.full_name, rt.revoked, u.perm_version, \
+         rt.family_id, rt.device_fingerprint \
          FROM refresh_tokens rt \
          JOIN users u ON u.id = rt.user_id \
          WHERE rt.token_hash = $1 AND rt.expires_at > now()",
+        token_hash
     )
-    .bind(&token_hash)
     .fetch_optional(&state.db)
     .await?;
 
-    let Some((token_id, user_id, tenant_id, role, username, email, full_name, revoked, perm_version, family_id, stored_fingerprint)) = row else {
+    let Some(row) = row else {
         return Err(AppError::Unauthorized);
     };
 
     // ── Reuse Detection ──
     // If token is already revoked, it means someone is trying to reuse a rotated token.
     // This signals potential token theft — revoke ALL tokens in this family.
-    if revoked {
-        if let Some(fid) = family_id {
+    if row.revoked {
+        if let Some(fid) = row.family_id {
             let mut tx = state.db.begin().await?;
-            medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+            medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
-            sqlx::query(
+            sqlx::query!(
                 "UPDATE refresh_tokens SET revoked = true WHERE family_id = $1 AND revoked = false",
+                fid
             )
-            .bind(fid)
             .execute(&mut *tx)
             .await?;
 
@@ -286,11 +283,11 @@ pub async fn refresh_token(
             medbrains_db::audit::AuditLogger::log(
                 &mut tx,
                 &medbrains_db::audit::AuditEntry {
-                    tenant_id,
-                    user_id: Some(user_id),
+                    tenant_id: row.tenant_id,
+                    user_id: Some(row.user_id),
                     action: "token_reuse_detected",
                     entity_type: "refresh_token",
-                    entity_id: Some(token_id),
+                    entity_id: Some(row.id),
                     old_values: None,
                     new_values: Some(&reuse_vals),
                     ip_address: None,
@@ -306,20 +303,20 @@ pub async fn refresh_token(
 
     // ── Device Fingerprint Validation ──
     let current_fp = extract_device_fingerprint(&headers);
-    if let Some(ref stored_fp) = stored_fingerprint {
+    if let Some(ref stored_fp) = row.device_fingerprint {
         if *stored_fp != current_fp {
             // Fingerprint mismatch — possible stolen cookie used in different browser
             let mut tx = state.db.begin().await?;
-            medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+            medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
             medbrains_db::audit::AuditLogger::log(
                 &mut tx,
                 &medbrains_db::audit::AuditEntry {
-                    tenant_id,
-                    user_id: Some(user_id),
+                    tenant_id: row.tenant_id,
+                    user_id: Some(row.user_id),
                     action: "device_fingerprint_mismatch",
                     entity_type: "refresh_token",
-                    entity_id: Some(token_id),
+                    entity_id: Some(row.id),
                     old_values: None,
                     new_values: None,
                     ip_address: None,
@@ -329,10 +326,12 @@ pub async fn refresh_token(
             .map_err(AppError::from)?;
 
             // Revoke this token
-            sqlx::query("UPDATE refresh_tokens SET revoked = true WHERE id = $1")
-                .bind(token_id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE refresh_tokens SET revoked = true WHERE id = $1",
+                row.id
+            )
+            .execute(&mut *tx)
+            .await?;
 
             tx.commit().await?;
             return Err(AppError::Unauthorized);
@@ -354,45 +353,47 @@ pub async fn refresh_token(
         .map(ToOwned::to_owned);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
     // Mark old token as used + revoked
-    sqlx::query(
+    sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true, used_at = now() WHERE id = $1",
+        row.id
     )
-    .bind(token_id)
     .execute(&mut *tx)
     .await?;
 
     // Insert new rotated token with same family_id
-    let new_token_id: Uuid = sqlx::query_scalar(
+    let new_token_id = sqlx::query_scalar!(
         "INSERT INTO refresh_tokens \
          (tenant_id, user_id, token_hash, expires_at, family_id, device_fingerprint, ip_address, user_agent) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8) RETURNING id",
+         VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7::text, '')::inet, $8) RETURNING id",
+        row.tenant_id,
+        row.user_id,
+        new_refresh_hash,
+        new_expires,
+        row.family_id,
+        current_fp,
+        client_ip.as_deref(),
+        user_agent_val.as_deref()
     )
-    .bind(tenant_id)
-    .bind(user_id)
-    .bind(&new_refresh_hash)
-    .bind(new_expires)
-    .bind(family_id)
-    .bind(&current_fp)
-    .bind(&client_ip)
-    .bind(&user_agent_val)
     .fetch_one(&mut *tx)
     .await?;
 
     // Link old token → new token
-    sqlx::query("UPDATE refresh_tokens SET replaced_by = $1 WHERE id = $2")
-        .bind(new_token_id)
-        .bind(token_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query!(
+        "UPDATE refresh_tokens SET replaced_by = $1 WHERE id = $2",
+        new_token_id,
+        row.id
+    )
+    .execute(&mut *tx)
+    .await?;
 
     // Log IP change if different from stored
-    let stored_ip: Option<String> = sqlx::query_scalar(
+    let stored_ip = sqlx::query_scalar!(
         "SELECT host(ip_address) FROM refresh_tokens WHERE id = $1",
+        row.id
     )
-    .bind(token_id)
     .fetch_optional(&mut *tx)
     .await?
     .flatten();
@@ -404,11 +405,11 @@ pub async fn refresh_token(
             medbrains_db::audit::AuditLogger::log(
                 &mut tx,
                 &medbrains_db::audit::AuditEntry {
-                    tenant_id,
-                    user_id: Some(user_id),
+                    tenant_id: row.tenant_id,
+                    user_id: Some(row.user_id),
                     action: "ip_change_on_refresh",
                     entity_type: "refresh_token",
-                    entity_id: Some(token_id),
+                    entity_id: Some(row.id),
                     old_values: Some(&old_vals),
                     new_values: Some(&new_vals),
                     ip_address: None,
@@ -422,15 +423,16 @@ pub async fn refresh_token(
     tx.commit().await?;
 
     // Resolve effective permissions
-    let permissions = resolve_permissions(&state.db, tenant_id, user_id, &role).await?;
+    let permissions = resolve_permissions(&state.db, row.tenant_id, row.user_id, &row.role).await?;
 
     // Resolve department_ids for scoping
     let department_ids =
-        resolve_department_ids(&state.db, tenant_id, user_id, &role).await?;
+        resolve_department_ids(&state.db, row.tenant_id, row.user_id, &row.role).await?;
 
     // Resolve field access levels
     let field_access_map =
-        super::forms::resolve_field_access(&state.db, tenant_id, user_id, &role).await?;
+        super::forms::resolve_field_access(&state.db, row.tenant_id, row.user_id, &row.role)
+            .await?;
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {
@@ -445,12 +447,12 @@ pub async fn refresh_token(
 
     // Issue new access token
     let access_claims = Claims {
-        sub: user_id,
-        tenant_id,
-        role: role.clone(),
+        sub: row.user_id,
+        tenant_id: row.tenant_id,
+        role: row.role.clone(),
         permissions: permissions.clone(),
         department_ids,
-        perm_version,
+        perm_version: row.perm_version,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
     };
 
@@ -469,12 +471,12 @@ pub async fn refresh_token(
 
     let resp_body = RefreshResponse {
         user: UserInfo {
-            id: user_id,
-            tenant_id,
-            username,
-            email,
-            full_name,
-            role,
+            id: row.user_id,
+            tenant_id: row.tenant_id,
+            username: row.username,
+            email: row.email,
+            full_name: row.full_name,
+            role: row.role,
         },
         csrf_token,
         permissions,
@@ -511,11 +513,11 @@ pub async fn logout(
         let mut tx = state.db.begin().await?;
         medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-        sqlx::query(
+        sqlx::query!(
             "UPDATE refresh_tokens SET revoked = true WHERE token_hash = $1 AND user_id = $2",
+            token_hash,
+            claims.sub
         )
-        .bind(&token_hash)
-        .bind(claims.sub)
         .execute(&mut *tx)
         .await?;
 
@@ -549,24 +551,25 @@ pub async fn me(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, (Uuid, Uuid, String, String, String, String)>(
-        "SELECT id, tenant_id, username, email, full_name, role::text FROM users WHERE id = $1",
+    let row = sqlx::query!(
+        "SELECT id, tenant_id, username, email, full_name, role::text AS \"role!\" \
+         FROM users WHERE id = $1",
+        claims.sub
     )
-    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
-    let Some((id, tenant_id, username, email, full_name, role)) = row else {
+    let Some(row) = row else {
         return Err(AppError::NotFound);
     };
 
-    let permissions = resolve_permissions(&state.db, tenant_id, id, &role).await?;
+    let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
 
     // Resolve field access levels
     let field_access_map =
-        super::forms::resolve_field_access(&state.db, tenant_id, id, &role).await?;
+        super::forms::resolve_field_access(&state.db, row.tenant_id, row.id, &row.role).await?;
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {
@@ -581,12 +584,12 @@ pub async fn me(
 
     Ok(Json(MeResponse {
         user: UserInfo {
-            id,
-            tenant_id,
-            username,
-            email,
-            full_name,
-            role,
+            id: row.id,
+            tenant_id: row.tenant_id,
+            username: row.username,
+            email: row.email,
+            full_name: row.full_name,
+            role: row.role,
         },
         permissions,
         field_access,
@@ -616,9 +619,8 @@ pub async fn change_password(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get current hash
-    let current_hash: Option<String> =
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
-            .bind(claims.sub)
+    let current_hash =
+        sqlx::query_scalar!("SELECT password_hash FROM users WHERE id = $1", claims.sub)
             .fetch_optional(&mut *tx)
             .await?;
 
@@ -627,8 +629,7 @@ pub async fn change_password(
     };
 
     // Verify current password
-    let parsed_hash =
-        PasswordHash::new(&current_hash).map_err(|_| AppError::Unauthorized)?;
+    let parsed_hash = PasswordHash::new(&current_hash).map_err(|_| AppError::Unauthorized)?;
     Argon2::default()
         .verify_password(body.current_password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::BadRequest("Current password is incorrect".to_owned()))?;
@@ -640,11 +641,13 @@ pub async fn change_password(
         .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
         .to_string();
 
-    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
-        .bind(&new_hash)
-        .bind(claims.sub)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query!(
+        "UPDATE users SET password_hash = $1 WHERE id = $2",
+        new_hash,
+        claims.sub
+    )
+    .execute(&mut *tx)
+    .await?;
 
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
@@ -687,11 +690,11 @@ async fn resolve_permissions(
     }
 
     // Get role permissions from roles table
-    let role_perms_json: Option<serde_json::Value> = sqlx::query_scalar(
+    let role_perms_json = sqlx::query_scalar!(
         "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+        tenant_id,
+        role
     )
-    .bind(tenant_id)
-    .bind(role)
     .fetch_optional(db)
     .await?;
 
@@ -707,11 +710,11 @@ async fn resolve_permissions(
     }
 
     // Get user access_matrix overrides
-    let access_matrix: Option<serde_json::Value> = sqlx::query_scalar(
+    let access_matrix = sqlx::query_scalar!(
         "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+        user_id,
+        tenant_id
     )
-    .bind(user_id)
-    .bind(tenant_id)
     .fetch_optional(db)
     .await?;
 
@@ -795,11 +798,11 @@ async fn resolve_department_ids(
         return Ok(Vec::new());
     }
 
-    let dept_ids: Option<Vec<Uuid>> = sqlx::query_scalar(
+    let dept_ids = sqlx::query_scalar!(
         "SELECT department_ids FROM users WHERE id = $1 AND tenant_id = $2",
+        user_id,
+        tenant_id
     )
-    .bind(user_id)
-    .bind(tenant_id)
     .fetch_optional(db)
     .await?;
 

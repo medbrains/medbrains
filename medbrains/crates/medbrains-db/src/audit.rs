@@ -44,9 +44,7 @@ impl AuditLogger {
             entry.user_id.map_or_else(String::new, |u| u.to_string()),
             entry.action,
             entry.entity_type,
-            entry
-                .entity_id
-                .map_or_else(String::new, |e| e.to_string()),
+            entry.entity_id.map_or_else(String::new, |e| e.to_string()),
             entry
                 .old_values
                 .map_or_else(String::new, ToString::to_string),

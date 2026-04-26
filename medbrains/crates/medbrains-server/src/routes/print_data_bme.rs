@@ -3,8 +3,8 @@
 //! Phase 5: AMC Contracts, Calibration, Breakdown, History, MGPS, Water, DG/UPS, Fire Inspection.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use chrono::Utc;
 use sqlx::PgPool;
@@ -14,11 +14,11 @@ use medbrains_core::print_data::{
     AmcContractPrintData, BatteryStatus, BreakdownEvent, CalibrationCertificatePrintData,
     CalibrationEvent, CalibrationParameter, CylinderBank, DgUpsParameters, DgUpsRunLogPrintData,
     DrillObservation, EmergencyExitCheck, EquipmentBreakdownReportPrintData, EquipmentCoverage,
-    EquipmentHistoryCardPrintData, EscalationContact, FireAlarmCheck, FireEquipmentInspectionPrintData,
-    FireExtinguisherCheck, FireHydrantCheck, FireMockDrillReportPrintData, FirstResponder,
-    FuelStatus, MaintenanceEvent, MateriovigilanceReportPrintData, MgpsConsumption,
-    MgpsDailyLogPrintData, MgpsReading, RunEvent, SprinklerCheck,
-    WaterQualityTestPrintData, WaterTestParameter, MicrobiologicalResult,
+    EquipmentHistoryCardPrintData, EscalationContact, FireAlarmCheck,
+    FireEquipmentInspectionPrintData, FireExtinguisherCheck, FireHydrantCheck,
+    FireMockDrillReportPrintData, FirstResponder, FuelStatus, MaintenanceEvent,
+    MateriovigilanceReportPrintData, MgpsConsumption, MgpsDailyLogPrintData, MgpsReading,
+    MicrobiologicalResult, RunEvent, SprinklerCheck, WaterQualityTestPrintData, WaterTestParameter,
 };
 
 use crate::error::AppError;
@@ -355,7 +355,10 @@ pub async fn get_equipment_breakdown_print_data(
         serial_number: breakdown.serial_number,
         location: breakdown.location,
         department: breakdown.department_name,
-        breakdown_datetime: breakdown.breakdown_time.format("%d-%m-%Y %H:%M").to_string(),
+        breakdown_datetime: breakdown
+            .breakdown_time
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
         reported_by: breakdown.reported_by,
         fault_description: breakdown.fault_description,
         impact_assessment: breakdown.impact,
@@ -366,7 +369,9 @@ pub async fn get_equipment_breakdown_print_data(
         downtime_hours: breakdown.downtime_hours,
         repair_cost: breakdown.repair_cost,
         repaired_by: breakdown.repaired_by,
-        repair_completed_at: breakdown.repair_completed.map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
+        repair_completed_at: breakdown
+            .repair_completed
+            .map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
         verified_by: breakdown.verified_by,
         preventive_measures: breakdown.preventive_measures,
         hospital_name: hospital.name,
@@ -467,9 +472,15 @@ pub async fn get_equipment_history_print_data(
         serial_number: equip.serial_number,
         manufacturer: equip.manufacturer,
         model: equip.model,
-        purchase_date: equip.purchase_date.map(|d| d.format("%d-%m-%Y").to_string()),
-        installation_date: equip.installation_date.map(|d| d.format("%d-%m-%Y").to_string()),
-        warranty_expiry: equip.warranty_expiry.map(|d| d.format("%d-%m-%Y").to_string()),
+        purchase_date: equip
+            .purchase_date
+            .map(|d| d.format("%d-%m-%Y").to_string()),
+        installation_date: equip
+            .installation_date
+            .map(|d| d.format("%d-%m-%Y").to_string()),
+        warranty_expiry: equip
+            .warranty_expiry
+            .map(|d| d.format("%d-%m-%Y").to_string()),
         purchase_cost: equip.purchase_cost,
         location: equip.location,
         department: equip.department_name,
@@ -494,8 +505,8 @@ pub async fn get_mgps_log_print_data(
 ) -> Result<Json<MgpsDailyLogPrintData>, AppError> {
     let pool: &PgPool = &state.db;
 
-    let log_date =
-        chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive());
+    let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
 
     let hospital = get_hospital_info(pool).await?;
 
@@ -655,8 +666,8 @@ pub async fn get_dg_ups_log_print_data(
 ) -> Result<Json<DgUpsRunLogPrintData>, AppError> {
     let pool: &PgPool = &state.db;
 
-    let log_date =
-        chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive());
+    let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
 
     #[derive(sqlx::FromRow)]
     struct EquipRow {
@@ -1038,12 +1049,11 @@ struct HospitalInfo {
 }
 
 async fn get_hospital_info(pool: &PgPool) -> Result<HospitalInfo, AppError> {
-    let name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM tenants WHERE is_active = true LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or_else(|| "Hospital".to_string());
+    let name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE is_active = true LIMIT 1")
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or_else(|| "Hospital".to_string());
 
     Ok(HospitalInfo { name })
 }

@@ -5,21 +5,18 @@
 //! - Emergency announcements
 //! - Bed status changes
 
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
 };
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -79,13 +76,22 @@ impl QueueBroadcaster {
     }
 
     /// Broadcast a "token called" event to a department's TV displays.
-    pub async fn broadcast_token_called(&self, department_id: Uuid, token_number: &str, patient_name: &str) {
-        self.broadcast_queue_event(department_id, QueueEvent::TokenCalled {
-            token_number: token_number.to_owned(),
-            patient_name: patient_name.to_owned(),
-            room: None,
-            counter: None,
-        }).await;
+    pub async fn broadcast_token_called(
+        &self,
+        department_id: Uuid,
+        token_number: &str,
+        patient_name: &str,
+    ) {
+        self.broadcast_queue_event(
+            department_id,
+            QueueEvent::TokenCalled {
+                token_number: token_number.to_owned(),
+                patient_name: patient_name.to_owned(),
+                room: None,
+                counter: None,
+            },
+        )
+        .await;
     }
 
     /// Broadcast an announcement to all connected displays.
@@ -197,9 +203,7 @@ async fn handle_queue_socket(socket: WebSocket, _department_id: Uuid, state: App
     let (mut sender, mut receiver) = socket.split();
 
     // Get broadcaster from state extension (we'll add this)
-    let _broadcaster = state
-        .db
-        .clone(); // Placeholder - we need to add broadcaster to state
+    let _broadcaster = state.db.clone(); // Placeholder - we need to add broadcaster to state
 
     // For now, let's create a simple broadcaster inline
     // In production, this should be part of AppState

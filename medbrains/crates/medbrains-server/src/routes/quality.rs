@@ -1,13 +1,15 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use medbrains_core::permissions;
 use medbrains_core::quality::{
-    AccreditationBody, CapaStatus, CommitteeFrequency, ComplianceStatus,
-    DocumentStatus, IncidentSeverity, IncidentStatus, IndicatorFrequency,
-    QualityAccreditationCompliance, QualityAccreditationStandard, QualityActionItem,
-    QualityAudit, QualityCapa, QualityCommittee, QualityCommitteeMeeting,
-    QualityDocument, QualityDocumentAcknowledgment, QualityIncident,
+    AccreditationBody, CapaStatus, CommitteeFrequency, ComplianceStatus, DocumentStatus,
+    IncidentSeverity, IncidentStatus, IndicatorFrequency, QualityAccreditationCompliance,
+    QualityAccreditationStandard, QualityActionItem, QualityAudit, QualityCapa, QualityCommittee,
+    QualityCommitteeMeeting, QualityDocument, QualityDocumentAcknowledgment, QualityIncident,
     QualityIndicator, QualityIndicatorValue,
 };
 use rust_decimal::Decimal;
@@ -15,9 +17,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -424,10 +424,14 @@ pub async fn record_indicator_value(
 ) -> Result<Json<QualityIndicatorValue>, AppError> {
     require_permission(&claims, permissions::quality::indicators::MANAGE)?;
 
-    let period_start = chrono::NaiveDate::parse_from_str(&body.period_start, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("Invalid period_start format, expected YYYY-MM-DD".into()))?;
-    let period_end = chrono::NaiveDate::parse_from_str(&body.period_end, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("Invalid period_end format, expected YYYY-MM-DD".into()))?;
+    let period_start =
+        chrono::NaiveDate::parse_from_str(&body.period_start, "%Y-%m-%d").map_err(|_| {
+            AppError::BadRequest("Invalid period_start format, expected YYYY-MM-DD".into())
+        })?;
+    let period_end =
+        chrono::NaiveDate::parse_from_str(&body.period_end, "%Y-%m-%d").map_err(|_| {
+            AppError::BadRequest("Invalid period_end format, expected YYYY-MM-DD".into())
+        })?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -783,10 +787,11 @@ pub async fn create_incident(
     let incident_date = chrono::DateTime::parse_from_rfc3339(&body.incident_date)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .or_else(|_| {
-            chrono::NaiveDate::parse_from_str(&body.incident_date, "%Y-%m-%d")
-                .map(|d| {
-                    d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
+            chrono::NaiveDate::parse_from_str(&body.incident_date, "%Y-%m-%d").map(|d| {
+                d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc)
                 })
+            })
         })
         .map_err(|_| AppError::BadRequest("Invalid incident_date format".into()))?;
 
@@ -834,7 +839,10 @@ pub async fn update_incident(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let contributing = body.contributing_factors.clone().unwrap_or(serde_json::json!([]));
+    let contributing = body
+        .contributing_factors
+        .clone()
+        .unwrap_or(serde_json::json!([]));
 
     let row = sqlx::query_as::<_, QualityIncident>(
         "UPDATE quality_incidents SET \
@@ -1133,10 +1141,11 @@ pub async fn create_meeting(
     let scheduled_date = chrono::DateTime::parse_from_rfc3339(&body.scheduled_date)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .or_else(|_| {
-            chrono::NaiveDate::parse_from_str(&body.scheduled_date, "%Y-%m-%d")
-                .map(|d| {
-                    d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
+            chrono::NaiveDate::parse_from_str(&body.scheduled_date, "%Y-%m-%d").map(|d| {
+                d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc)
                 })
+            })
         })
         .map_err(|_| AppError::BadRequest("Invalid scheduled_date format".into()))?;
 
@@ -1179,7 +1188,9 @@ pub async fn update_meeting(
                 chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
                     .ok()
                     .and_then(|nd| nd.and_hms_opt(0, 0, 0))
-                    .map(|ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
+                    .map(|ndt| {
+                        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc)
+                    })
             })
     });
 
@@ -1358,7 +1369,9 @@ pub async fn create_standard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let measurable_elements = body.measurable_elements.clone()
+    let measurable_elements = body
+        .measurable_elements
+        .clone()
         .unwrap_or(serde_json::json!([]));
 
     let row = sqlx::query_as::<_, QualityAccreditationStandard>(
@@ -1428,10 +1441,14 @@ pub async fn update_compliance(
 ) -> Result<Json<QualityAccreditationCompliance>, AppError> {
     require_permission(&claims, permissions::quality::accreditation::MANAGE)?;
 
-    let target_date = body.target_date.as_deref()
+    let target_date = body
+        .target_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
-    let evidence_documents = body.evidence_documents.clone()
+    let evidence_documents = body
+        .evidence_documents
+        .clone()
         .unwrap_or(serde_json::json!([]));
 
     let mut tx = state.db.begin().await?;
@@ -1568,8 +1585,10 @@ pub async fn create_audit(
 ) -> Result<Json<QualityAudit>, AppError> {
     require_permission(&claims, permissions::quality::audits::CREATE)?;
 
-    let audit_date = chrono::NaiveDate::parse_from_str(&body.audit_date, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("Invalid audit_date format, expected YYYY-MM-DD".into()))?;
+    let audit_date =
+        chrono::NaiveDate::parse_from_str(&body.audit_date, "%Y-%m-%d").map_err(|_| {
+            AppError::BadRequest("Invalid audit_date format, expected YYYY-MM-DD".into())
+        })?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1606,7 +1625,9 @@ pub async fn update_audit(
 ) -> Result<Json<QualityAudit>, AppError> {
     require_permission(&claims, permissions::quality::audits::CREATE)?;
 
-    let report_date = body.report_date.as_deref()
+    let report_date = body
+        .report_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let mut tx = state.db.begin().await?;
@@ -2005,8 +2026,9 @@ pub async fn schedule_audits(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::quality::audits::CREATE)?;
 
-    let start = chrono::NaiveDate::parse_from_str(&body.start_date, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("Invalid start_date format, expected YYYY-MM-DD".into()))?;
+    let start = chrono::NaiveDate::parse_from_str(&body.start_date, "%Y-%m-%d").map_err(|_| {
+        AppError::BadRequest("Invalid start_date format, expected YYYY-MM-DD".into())
+    })?;
     let end = chrono::NaiveDate::parse_from_str(&body.end_date, "%Y-%m-%d")
         .map_err(|_| AppError::BadRequest("Invalid end_date format, expected YYYY-MM-DD".into()))?;
 
@@ -2205,17 +2227,21 @@ pub async fn create_mortality_review(
     let incident_date = chrono::DateTime::parse_from_rfc3339(&body.incident_date)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .or_else(|_| {
-            chrono::NaiveDate::parse_from_str(&body.incident_date, "%Y-%m-%d")
-                .map(|d| {
-                    d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
+            chrono::NaiveDate::parse_from_str(&body.incident_date, "%Y-%m-%d").map(|d| {
+                d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc)
                 })
+            })
         })
         .map_err(|_| AppError::BadRequest("Invalid incident_date format".into()))?;
 
-    let contributing = body.contributing_factors.clone().unwrap_or(serde_json::json!({
-        "preventability": body.preventability,
-        "lessons_learned": body.lessons_learned,
-    }));
+    let contributing = body
+        .contributing_factors
+        .clone()
+        .unwrap_or(serde_json::json!({
+            "preventability": body.preventability,
+            "lessons_learned": body.lessons_learned,
+        }));
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2286,12 +2312,14 @@ pub async fn patient_safety_indicators(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let from = params.from_date.as_deref().and_then(|d| {
-        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()
-    });
-    let to = params.to_date.as_deref().and_then(|d| {
-        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()
-    });
+    let from = params
+        .from_date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let to = params
+        .to_date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let rows = sqlx::query_as::<_, PsiRow>(
         "WITH psi_events AS ( \
@@ -2341,12 +2369,14 @@ pub async fn department_scorecard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let from = params.from_date.as_deref().and_then(|d| {
-        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()
-    });
-    let to = params.to_date.as_deref().and_then(|d| {
-        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()
-    });
+    let from = params
+        .from_date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let to = params
+        .to_date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let rows = sqlx::query_as::<_, DeptScorecardRow>(
         "SELECT v.department_id, \

@@ -1,30 +1,30 @@
 #![allow(clippy::too_many_lines, unused_imports)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::NaiveDate;
 use medbrains_core::permissions;
 use medbrains_core::pharmacy::{
     PharmacyCatalog, PharmacyOrder, PharmacyOrderItem, PharmacyStockTransaction,
 };
-use serde_json::json;
 use medbrains_core::pharmacy_phase2::{
-    DeadStockRow, DrugUtilizationRow, NdpsRegisterEntry, NearExpiryRow,
-    PharmacyAbcVedRow, PharmacyBatch, PharmacyConsumptionRow, PharmacyReturn,
-    PharmacyStoreAssignment, PharmacyTransferRequest,
+    DeadStockRow, DrugUtilizationRow, NdpsRegisterEntry, NearExpiryRow, PharmacyAbcVedRow,
+    PharmacyBatch, PharmacyConsumptionRow, PharmacyReturn, PharmacyStoreAssignment,
+    PharmacyTransferRequest,
 };
 use medbrains_core::pharmacy_phase3::{
-    PharmacyPrescriptionRx, PharmacyPosSale, PharmacyPricingTier,
-    PharmacyAllergyCheckLog, PharmacyStockReconciliation,
-    RxQueueRow, PosDaySummary,
+    PharmacyAllergyCheckLog, PharmacyPosSale, PharmacyPrescriptionRx, PharmacyPricingTier,
+    PharmacyStockReconciliation, PosDaySummary, RxQueueRow,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -326,12 +326,18 @@ pub async fn list_orders(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -340,8 +346,12 @@ pub async fn list_orders(
     let count_sql = format!("SELECT COUNT(*) FROM pharmacy_orders WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -352,13 +362,22 @@ pub async fn list_orders(
     );
     let mut dq = sqlx::query_as::<_, PharmacyOrder>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(OrderListResponse { orders, total, page, per_page }))
+    Ok(Json(OrderListResponse {
+        orders,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -373,7 +392,9 @@ pub async fn create_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     if body.items.is_empty() {
-        return Err(AppError::BadRequest("At least one item is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "At least one item is required".to_owned(),
+        ));
     }
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
@@ -502,7 +523,8 @@ pub async fn dispense_order(
     .await?;
 
     // Build a lookup for batch info from the request
-    let batch_map: std::collections::HashMap<Uuid, &DispenseItemInput> = body.items
+    let batch_map: std::collections::HashMap<Uuid, &DispenseItemInput> = body
+        .items
         .as_deref()
         .unwrap_or_default()
         .iter()
@@ -513,7 +535,8 @@ pub async fn dispense_order(
         if let Some(catalog_id) = item.catalog_item_id {
             // Update batch info on order item if provided
             if let Some(dispense_input) = batch_map.get(&item.id) {
-                if dispense_input.batch_number.is_some() || dispense_input.batch_stock_id.is_some() {
+                if dispense_input.batch_number.is_some() || dispense_input.batch_stock_id.is_some()
+                {
                     sqlx::query(
                         "UPDATE pharmacy_order_items SET \
                          batch_number = COALESCE($1, batch_number), \
@@ -622,8 +645,10 @@ pub async fn dispense_order(
     if let Some(encounter_id) = order.encounter_id {
         if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "pharmacy").await? {
             for item in &items {
-                let code = item.catalog_item_id
-                    .map_or_else(|| "PHARMA-GENERIC".to_owned(), |cid| format!("PHARMA-{cid}"));
+                let code = item.catalog_item_id.map_or_else(
+                    || "PHARMA-GENERIC".to_owned(),
+                    |cid| format!("PHARMA-{cid}"),
+                );
                 let _ = super::billing::auto_charge(
                     &mut tx,
                     &claims.tenant_id,
@@ -728,7 +753,10 @@ pub async fn validate_order(
             if let Some(drug) = cat {
                 // Formulary check
                 if drug.formulary_status == "non_formulary" {
-                    blocks.push(format!("{}: Non-formulary drug — approval required", drug.name));
+                    blocks.push(format!(
+                        "{}: Non-formulary drug — approval required",
+                        drug.name
+                    ));
                 } else if drug.formulary_status == "restricted" {
                     warnings.push(format!("{}: Restricted formulary drug", drug.name));
                 }
@@ -738,18 +766,26 @@ pub async fn validate_order(
                     warnings.push(format!(
                         "{}: LASA drug{}",
                         drug.name,
-                        drug.lasa_group.as_deref().map_or_else(String::new, |g| format!(" (group: {g})"))
+                        drug.lasa_group
+                            .as_deref()
+                            .map_or_else(String::new, |g| format!(" (group: {g})"))
                     ));
                 }
 
                 // AWaRe category check
                 if drug.aware_category.as_deref() == Some("reserve") {
-                    warnings.push(format!("{}: Reserve-tier antibiotic — stewardship approval needed", drug.name));
+                    warnings.push(format!(
+                        "{}: Reserve-tier antibiotic — stewardship approval needed",
+                        drug.name
+                    ));
                 }
 
                 // Controlled substance
                 if drug.is_controlled {
-                    warnings.push(format!("{}: Controlled substance — NDPS register entry required", drug.name));
+                    warnings.push(format!(
+                        "{}: Controlled substance — NDPS register entry required",
+                        drug.name
+                    ));
                 }
 
                 // Stock check
@@ -784,7 +820,9 @@ pub async fn create_otc_sale(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     if body.items.is_empty() {
-        return Err(AppError::BadRequest("At least one item is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "At least one item is required".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -860,7 +898,9 @@ pub async fn create_discharge_dispensing(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     if body.items.is_empty() {
-        return Err(AppError::BadRequest("At least one item is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "At least one item is required".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -1207,7 +1247,9 @@ pub async fn list_ndps_entries(
         bind_idx += 1;
     }
     if params.to_date.is_some() {
-        conditions.push(format!("created_at < (${bind_idx}::date + interval '1 day')"));
+        conditions.push(format!(
+            "created_at < (${bind_idx}::date + interval '1 day')"
+        ));
         bind_idx += 1;
     }
 
@@ -1215,10 +1257,18 @@ pub async fn list_ndps_entries(
 
     let count_sql = format!("SELECT COUNT(*) FROM pharmacy_ndps_register WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
-    if let Some(cid) = params.catalog_item_id { cq = cq.bind(cid); }
-    if let Some(ref a) = params.action { cq = cq.bind(a.clone()); }
-    if let Some(fd) = params.from_date { cq = cq.bind(fd); }
-    if let Some(td) = params.to_date { cq = cq.bind(td); }
+    if let Some(cid) = params.catalog_item_id {
+        cq = cq.bind(cid);
+    }
+    if let Some(ref a) = params.action {
+        cq = cq.bind(a.clone());
+    }
+    if let Some(fd) = params.from_date {
+        cq = cq.bind(fd);
+    }
+    if let Some(td) = params.to_date {
+        cq = cq.bind(td);
+    }
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -1227,14 +1277,27 @@ pub async fn list_ndps_entries(
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, NdpsRegisterEntry>(&data_sql).bind(claims.tenant_id);
-    if let Some(cid) = params.catalog_item_id { dq = dq.bind(cid); }
-    if let Some(ref a) = params.action { dq = dq.bind(a.clone()); }
-    if let Some(fd) = params.from_date { dq = dq.bind(fd); }
-    if let Some(td) = params.to_date { dq = dq.bind(td); }
+    if let Some(cid) = params.catalog_item_id {
+        dq = dq.bind(cid);
+    }
+    if let Some(ref a) = params.action {
+        dq = dq.bind(a.clone());
+    }
+    if let Some(fd) = params.from_date {
+        dq = dq.bind(fd);
+    }
+    if let Some(td) = params.to_date {
+        dq = dq.bind(td);
+    }
     let entries = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(NdpsListResponse { entries, total, page, per_page }))
+    Ok(Json(NdpsListResponse {
+        entries,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn create_ndps_entry(
@@ -1351,7 +1414,9 @@ pub async fn list_batches(
         bind_idx += 1;
     }
     if params.expiring_within_days.is_some() {
-        conditions.push(format!("expiry_date <= (CURRENT_DATE + ${bind_idx} * interval '1 day')"));
+        conditions.push(format!(
+            "expiry_date <= (CURRENT_DATE + ${bind_idx} * interval '1 day')"
+        ));
         bind_idx += 1;
     }
     let _ = bind_idx;
@@ -1363,9 +1428,15 @@ pub async fn list_batches(
     );
 
     let mut q = sqlx::query_as::<_, PharmacyBatch>(&sql).bind(claims.tenant_id);
-    if let Some(cid) = params.catalog_item_id { q = q.bind(cid); }
-    if let Some(lid) = params.store_location_id { q = q.bind(lid); }
-    if let Some(days) = params.expiring_within_days { q = q.bind(days); }
+    if let Some(cid) = params.catalog_item_id {
+        q = q.bind(cid);
+    }
+    if let Some(lid) = params.store_location_id {
+        q = q.bind(lid);
+    }
+    if let Some(days) = params.expiring_within_days {
+        q = q.bind(days);
+    }
 
     let rows = q.fetch_all(&mut *tx).await?;
 
@@ -1772,7 +1843,10 @@ pub async fn consumption_analysis(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["o.tenant_id = $1".to_owned(), "o.status = 'dispensed'".to_owned()];
+    let mut conditions = vec![
+        "o.tenant_id = $1".to_owned(),
+        "o.status = 'dispensed'".to_owned(),
+    ];
     let mut bind_idx: usize = 2;
 
     if params.from_date.is_some() {
@@ -1780,7 +1854,9 @@ pub async fn consumption_analysis(
         bind_idx += 1;
     }
     if params.to_date.is_some() {
-        conditions.push(format!("o.created_at < (${bind_idx}::date + interval '1 day')"));
+        conditions.push(format!(
+            "o.created_at < (${bind_idx}::date + interval '1 day')"
+        ));
         bind_idx += 1;
     }
     if params.category.is_some() {
@@ -1803,9 +1879,15 @@ pub async fn consumption_analysis(
     );
 
     let mut q = sqlx::query_as::<_, PharmacyConsumptionRow>(&sql).bind(claims.tenant_id);
-    if let Some(fd) = params.from_date { q = q.bind(fd); }
-    if let Some(td) = params.to_date { q = q.bind(td); }
-    if let Some(ref cat) = params.category { q = q.bind(cat.clone()); }
+    if let Some(fd) = params.from_date {
+        q = q.bind(fd);
+    }
+    if let Some(td) = params.to_date {
+        q = q.bind(td);
+    }
+    if let Some(ref cat) = params.category {
+        q = q.bind(cat.clone());
+    }
 
     let rows = q.fetch_all(&mut *tx).await?;
 
@@ -2175,7 +2257,11 @@ pub async fn review_prescription(
         "approved" => "approved",
         "rejected" => "rejected",
         "on_hold" => "on_hold",
-        _ => return Err(AppError::BadRequest("Invalid action. Use: approved, rejected, on_hold".to_owned())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid action. Use: approved, rejected, on_hold".to_owned(),
+            ));
+        }
     };
 
     let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
@@ -2380,7 +2466,9 @@ pub async fn select_fefo_batch(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(json!({ "batches": batches, "quantity_needed": body.quantity_needed })))
+    Ok(Json(
+        json!({ "batches": batches, "quantity_needed": body.quantity_needed }),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2401,7 +2489,11 @@ pub async fn create_pos_sale(
     // Generate sale number
     let sale_num = format!(
         "PH-SALE-{}",
-        Uuid::new_v4().to_string().split('-').next().unwrap_or("0000")
+        Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("0000")
     );
 
     // Calculate totals
@@ -2467,7 +2559,8 @@ pub async fn create_pos_sale(
 
     // Create sale items + order items + deduct stock
     for item in &body.items {
-        let line_gst = Decimal::from(item.quantity) * item.selling_price * item.gst_rate / Decimal::from(100);
+        let line_gst =
+            Decimal::from(item.quantity) * item.selling_price * item.gst_rate / Decimal::from(100);
         let half_gst = line_gst / Decimal::from(2);
         let line_total = Decimal::from(item.quantity) * item.selling_price + line_gst;
 
@@ -2637,11 +2730,24 @@ pub async fn resolve_drug_price(
     .unwrap_or_else(|| json!({}));
 
     let selling_price = price
-        .or_else(|| catalog.get("mrp").and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
-        .or_else(|| catalog.get("base_price").and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
+        .or_else(|| {
+            catalog
+                .get("mrp")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+        })
+        .or_else(|| {
+            catalog
+                .get("base_price")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+        })
         .unwrap_or(Decimal::ZERO);
 
-    let gst_rate = catalog.get("gst_rate").and_then(|v| v.as_f64()).map_or(Decimal::ZERO, |f| Decimal::try_from(f).unwrap_or_default());
+    let gst_rate = catalog
+        .get("gst_rate")
+        .and_then(|v| v.as_f64())
+        .map_or(Decimal::ZERO, |f| Decimal::try_from(f).unwrap_or_default());
     let gst_amount = selling_price * gst_rate / Decimal::from(100);
 
     tx.commit().await?;
@@ -2678,7 +2784,10 @@ pub async fn upsert_pricing_tier(
     .bind(body.catalog_item_id)
     .bind(&body.tier_name)
     .bind(body.price)
-    .bind(body.effective_from.unwrap_or_else(|| chrono::Utc::now().date_naive()))
+    .bind(
+        body.effective_from
+            .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+    )
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;

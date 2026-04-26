@@ -12,9 +12,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -133,7 +131,10 @@ pub async fn list_registrations(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListMaternityQuery>,
 ) -> Result<Json<Vec<MaternityRegistration>>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::registrations::LIST)?;
+    require_permission(
+        &claims,
+        permissions::specialty::maternity::registrations::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -159,7 +160,10 @@ pub async fn get_registration(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MaternityRegistration>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::registrations::LIST)?;
+    require_permission(
+        &claims,
+        permissions::specialty::maternity::registrations::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -179,7 +183,10 @@ pub async fn create_registration(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMaternityRegRequest>,
 ) -> Result<Json<MaternityRegistration>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::registrations::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::maternity::registrations::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

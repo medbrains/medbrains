@@ -6,16 +6,14 @@ use axum::{
 };
 use medbrains_core::permissions;
 use medbrains_core::specialty::psychiatry::{
-    PsychAssessment, PsychCounselingSession, PsychEctRegister, PsychMhrbNotification,
-    PsychPatient, PsychSeclusionRestraint,
+    PsychAssessment, PsychCounselingSession, PsychEctRegister, PsychMhrbNotification, PsychPatient,
+    PsychSeclusionRestraint,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -152,12 +150,10 @@ pub async fn get_psych_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, PsychPatient>(
-        "SELECT * FROM psych_patients WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, PsychPatient>("SELECT * FROM psych_patients WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -168,7 +164,10 @@ pub async fn create_psych_patient(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePsychPatientRequest>,
 ) -> Result<Json<PsychPatient>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::patients::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::patients::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -204,7 +203,10 @@ pub async fn update_psych_patient(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePsychPatientRequest>,
 ) -> Result<Json<PsychPatient>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::patients::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::patients::UPDATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -243,7 +245,10 @@ pub async fn list_assessments(
     Extension(claims): Extension<Claims>,
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychAssessment>>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::assessments::LIST)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::assessments::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -265,7 +270,10 @@ pub async fn create_assessment(
     Path(psych_patient_id): Path<Uuid>,
     Json(body): Json<CreateAssessmentRequest>,
 ) -> Result<Json<PsychAssessment>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::assessments::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::assessments::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -385,7 +393,10 @@ pub async fn create_restraint(
     Path(psych_patient_id): Path<Uuid>,
     Json(body): Json<CreateRestraintRequest>,
 ) -> Result<Json<PsychSeclusionRestraint>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::restraint::MANAGE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::restraint::MANAGE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -419,7 +430,10 @@ pub async fn release_restraint(
     Path(id): Path<Uuid>,
     Json(body): Json<ReleaseRestraintRequest>,
 ) -> Result<Json<PsychSeclusionRestraint>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::restraint::MANAGE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::restraint::MANAGE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -525,7 +539,10 @@ pub async fn list_counseling_sessions(
     Extension(claims): Extension<Claims>,
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychCounselingSession>>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::assessments::LIST)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::assessments::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -547,7 +564,10 @@ pub async fn create_counseling_session(
     Path(psych_patient_id): Path<Uuid>,
     Json(body): Json<CreateCounselingRequest>,
 ) -> Result<Json<PsychCounselingSession>, AppError> {
-    require_permission(&claims, permissions::specialty::psychiatry::assessments::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::psychiatry::assessments::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

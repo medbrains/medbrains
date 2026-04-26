@@ -85,8 +85,8 @@ async fn process_hl7_message(
     let start = Instant::now();
 
     // Unwrap MLLP framing
-    let raw_message = hl7::mllp_unwrap(frame)
-        .ok_or_else(|| anyhow::anyhow!("invalid MLLP framing"))?;
+    let raw_message =
+        hl7::mllp_unwrap(frame).ok_or_else(|| anyhow::anyhow!("invalid MLLP framing"))?;
 
     // Parse HL7 segments
     let segments = hl7::parse_segments(&raw_message);
@@ -132,20 +132,38 @@ async fn process_hl7_message(
 
     // Determine target module from message type
     let module = match message_type.as_str() {
-        t if t.starts_with("ORU") => "lab",       // Observation result
-        t if t.starts_with("ADT") => "generic",   // Admit/discharge/transfer
-        t if t.starts_with("ORM") => "lab",        // Order message
+        t if t.starts_with("ORU") => "lab",     // Observation result
+        t if t.starts_with("ADT") => "generic", // Admit/discharge/transfer
+        t if t.starts_with("ORM") => "lab",     // Order message
         _ => "generic",
     };
 
     // Try direct delivery, fall back to buffer
-    match ingest::deliver(client, cfg, device_id, module, "hl7_v2", &parsed, &mapped, duration_ms).await {
+    match ingest::deliver(
+        client,
+        cfg,
+        device_id,
+        module,
+        "hl7_v2",
+        &parsed,
+        &mapped,
+        duration_ms,
+    )
+    .await
+    {
         Ok(_) => {
             info!(message_id = %message_id, module = %module, "delivered to MedBrains");
         }
         Err(e) => {
             warn!(error = %e, "API delivery failed — buffering locally");
-            buffer.enqueue(device_id, module, "hl7_v2", &parsed, &mapped, Some(duration_ms))?;
+            buffer.enqueue(
+                device_id,
+                module,
+                "hl7_v2",
+                &parsed,
+                &mapped,
+                Some(duration_ms),
+            )?;
         }
     }
 

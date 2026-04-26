@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -8,9 +11,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -267,7 +268,7 @@ pub async fn ward_patient_grid(
     // Build summary
     let total_beds: i64 = if let Some(ward_id) = params.ward_id {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM ward_bed_mappings WHERE ward_id = $1 AND is_active = true"
+            "SELECT COUNT(*) FROM ward_bed_mappings WHERE ward_id = $1 AND is_active = true",
         )
         .bind(ward_id)
         .fetch_one(&mut *tx)
@@ -275,7 +276,7 @@ pub async fn ward_patient_grid(
         .unwrap_or(0)
     } else {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM ward_bed_mappings WHERE is_active = true"
+            "SELECT COUNT(*) FROM ward_bed_mappings WHERE is_active = true",
         )
         .fetch_one(&mut *tx)
         .await
@@ -283,11 +284,20 @@ pub async fn ward_patient_grid(
     };
 
     let occupied = i64::try_from(patients.len()).unwrap_or(0);
-    let critical_count = i64::try_from(patients.iter().filter(|p| p.is_critical).count()).unwrap_or(0);
-    let isolation_count = i64::try_from(patients.iter().filter(|p| p.isolation_required).count()).unwrap_or(0);
-    let pending_discharges = i64::try_from(patients.iter().filter(|p| {
-        p.expected_discharge_date.is_some_and(|d| d <= chrono::Local::now().date_naive())
-    }).count()).unwrap_or(0);
+    let critical_count =
+        i64::try_from(patients.iter().filter(|p| p.is_critical).count()).unwrap_or(0);
+    let isolation_count =
+        i64::try_from(patients.iter().filter(|p| p.isolation_required).count()).unwrap_or(0);
+    let pending_discharges = i64::try_from(
+        patients
+            .iter()
+            .filter(|p| {
+                p.expected_discharge_date
+                    .is_some_and(|d| d <= chrono::Local::now().date_naive())
+            })
+            .count(),
+    )
+    .unwrap_or(0);
     let overdue_tasks_total: i64 = patients.iter().map(|p| p.overdue_tasks).sum();
 
     tx.commit().await?;
@@ -338,7 +348,7 @@ pub async fn my_tasks(
          ORDER BY nt.priority = 'stat' DESC,
                   nt.priority = 'urgent' DESC,
                   nt.due_at ASC NULLS LAST
-         LIMIT 200"
+         LIMIT 200",
     )
     .bind(claims.sub)
     .bind(params.ward_id)
@@ -369,7 +379,7 @@ pub async fn my_tasks(
            ))
            AND ($2::uuid IS NULL OR a.ward_id = $2)
          ORDER BY m.is_high_alert DESC, m.scheduled_at ASC
-         LIMIT 200"
+         LIMIT 200",
     )
     .bind(claims.sub)
     .bind(params.ward_id)
@@ -414,7 +424,7 @@ pub async fn vitals_checklist(
          WHERE a.status = 'admitted'
            AND ($1::uuid IS NULL OR a.ward_id = $1)
          ORDER BY lv.last_vitals_at ASC NULLS FIRST
-         LIMIT 200"
+         LIMIT 200",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
@@ -436,13 +446,11 @@ pub async fn handover_summary(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get ward name
-    let ward_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM wards WHERE id = $1"
-    )
-    .bind(params.ward_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or_else(|| "Unknown Ward".to_owned());
+    let ward_name = sqlx::query_scalar::<_, String>("SELECT name FROM wards WHERE id = $1")
+        .bind(params.ward_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or_else(|| "Unknown Ward".to_owned());
 
     // Get admitted patients in ward
     let base_patients = sqlx::query_as::<_, HandoverPatientBase>(
@@ -456,7 +464,7 @@ pub async fn handover_summary(
          JOIN patients p ON p.id = a.patient_id
          LEFT JOIN bed_locations bl ON bl.id = a.bed_id
          WHERE a.status = 'admitted' AND a.ward_id = $1
-         ORDER BY a.is_critical DESC, bl.name"
+         ORDER BY a.is_critical DESC, bl.name",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
@@ -470,7 +478,7 @@ pub async fn handover_summary(
         let pending_tasks: Vec<String> = sqlx::query_scalar(
             "SELECT description FROM nursing_tasks \
              WHERE admission_id = $1 AND NOT is_completed \
-             ORDER BY priority = 'stat' DESC, due_at ASC NULLS LAST LIMIT 10"
+             ORDER BY priority = 'stat' DESC, due_at ASC NULLS LAST LIMIT 10",
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
@@ -482,7 +490,7 @@ pub async fn handover_summary(
             "SELECT drug_name || ' ' || dose || ' (' || route || ')' \
              FROM ipd_medication_administration \
              WHERE admission_id = $1 AND status = 'scheduled' \
-             ORDER BY scheduled_at ASC LIMIT 10"
+             ORDER BY scheduled_at ASC LIMIT 10",
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
@@ -493,7 +501,7 @@ pub async fn handover_summary(
         let active_docs: Vec<String> = sqlx::query_scalar(
             "SELECT title FROM ipd_clinical_documentations \
              WHERE admission_id = $1 AND NOT is_resolved \
-             ORDER BY recorded_at DESC LIMIT 5"
+             ORDER BY recorded_at DESC LIMIT 5",
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
@@ -571,7 +579,7 @@ pub async fn discharge_readiness(
                OR tat.discharge_initiated_at IS NOT NULL
            )
            AND ($1::uuid IS NULL OR a.ward_id = $1)
-         ORDER BY a.expected_discharge_date ASC NULLS LAST"
+         ORDER BY a.expected_discharge_date ASC NULLS LAST",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
@@ -594,7 +602,7 @@ pub async fn complete_task(
 
     sqlx::query(
         "UPDATE nursing_tasks SET is_completed = true, completed_at = NOW(), completed_by = $1 \
-         WHERE id = $2"
+         WHERE id = $2",
     )
     .bind(claims.sub)
     .bind(task_id)
@@ -618,13 +626,11 @@ pub async fn update_primary_nurse(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
-        "UPDATE admissions SET primary_nurse_id = $1 WHERE id = $2"
-    )
-    .bind(body.primary_nurse_id)
-    .bind(admission_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE admissions SET primary_nurse_id = $1 WHERE id = $2")
+        .bind(body.primary_nurse_id)
+        .bind(admission_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 

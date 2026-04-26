@@ -14,6 +14,10 @@ function toIso(d: string | null): string | undefined {
   return d ?? undefined;
 }
 
+function toRows<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function fmtMins(mins: number): string {
   if (mins < 60) return `${mins.toFixed(0)}m`;
   const h = Math.floor(mins / 60);
@@ -37,7 +41,7 @@ export function LabTatTab() {
     queryFn: () => api.getLabTat(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   // ── Aggregated stats ──────────────────────────────────
 

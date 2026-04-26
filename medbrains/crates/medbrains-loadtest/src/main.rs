@@ -160,10 +160,11 @@ async fn login(user: &mut GooseUser) -> TransactionResult {
     // Extract CSRF token from login response JSON
     if let Ok(response) = goose.response
         && let Ok(resp_body) = response.json::<serde_json::Value>().await
-            && let Some(token) = resp_body.get("csrf_token").and_then(|v| v.as_str()) {
-                let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
-                session.lock().await.csrf_token = Some(token.to_owned());
-            }
+        && let Some(token) = resp_body.get("csrf_token").and_then(|v| v.as_str())
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.csrf_token = Some(token.to_owned());
+    }
 
     Ok(())
 }
@@ -190,7 +191,9 @@ async fn list_patients_page2(user: &mut GooseUser) -> TransactionResult {
 }
 
 async fn search_patients(user: &mut GooseUser) -> TransactionResult {
-    let names = ["john", "jane", "raj", "priya", "kumar", "singh", "patel", "sharma"];
+    let names = [
+        "john", "jane", "raj", "priya", "kumar", "singh", "patel", "sharma",
+    ];
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

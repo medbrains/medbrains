@@ -52,8 +52,7 @@ flamegraph.svg
 perf.data
 perf.data.old
 
-# SQLx offline data
-.sqlx/
+# SQLx offline data is committed for compile-time query verification
 
 # Docker volumes
 pgdata/

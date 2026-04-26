@@ -1,15 +1,15 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
-use chrono::NaiveDate;
-use medbrains_core::indent::{
-    IndentItem, IndentRequisition, StoreCatalog, StoreStockMovement,
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
 };
+use chrono::NaiveDate;
+use medbrains_core::indent::{IndentItem, IndentRequisition, StoreCatalog, StoreStockMovement};
 use medbrains_core::inventory::{
-    ComplianceCheckRow, ConsumptionAnalysisRow, DeadStockRow,
-    EquipmentCondemnation, FsnAnalysisRow, ImplantRegistryEntry,
-    InventoryValuationRow, PatientConsumableIssue, PurchaseConsumptionTrendRow,
-    ReorderAlert, VedAnalysisRow, AbcAnalysisRow,
+    AbcAnalysisRow, ComplianceCheckRow, ConsumptionAnalysisRow, DeadStockRow,
+    EquipmentCondemnation, FsnAnalysisRow, ImplantRegistryEntry, InventoryValuationRow,
+    PatientConsumableIssue, PurchaseConsumptionTrendRow, ReorderAlert, VedAnalysisRow,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -17,9 +17,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -185,9 +183,7 @@ pub async fn generate_indent_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let seq = seq.ok_or_else(|| {
-        AppError::Internal("INDENT sequence not configured".to_owned())
-    })?;
+    let seq = seq.ok_or_else(|| AppError::Internal("INDENT sequence not configured".to_owned()))?;
 
     let pad = usize::try_from(seq.pad_width).unwrap_or(6);
     Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
@@ -247,34 +243,48 @@ pub async fn list_requisitions(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(ref indent_type) = params.indent_type {
         conditions.push(format!("indent_type = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(indent_type.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(indent_type.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(dept_id) = params.department_id {
         conditions.push(format!("department_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(dept_id), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(dept_id),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(req_by) = params.requested_by {
         conditions.push(format!("requested_by = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(req_by), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(req_by),
+            string_val: None,
+        });
         bind_idx += 1;
     }
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!(
-        "SELECT COUNT(*) FROM indent_requisitions WHERE {where_clause}"
-    );
+    let count_sql = format!("SELECT COUNT(*) FROM indent_requisitions WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -283,16 +293,24 @@ pub async fn list_requisitions(
          ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
-    let mut dq =
-        sqlx::query_as::<_, IndentRequisition>(&data_sql).bind(claims.tenant_id);
+    let mut dq = sqlx::query_as::<_, IndentRequisition>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
     }
     let requisitions = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(RequisitionListResponse { requisitions, total, page, per_page }))
+    Ok(Json(RequisitionListResponse {
+        requisitions,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -313,8 +331,7 @@ pub async fn create_requisition(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let indent_number =
-        generate_indent_number(&mut tx, &claims.tenant_id).await?;
+    let indent_number = generate_indent_number(&mut tx, &claims.tenant_id).await?;
 
     let empty_json = serde_json::json!({});
     let context = body.context.as_ref().unwrap_or(&empty_json);
@@ -339,8 +356,7 @@ pub async fn create_requisition(
 
     for item in &body.items {
         let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
-        let total_price =
-            unit_price * Decimal::from(item.quantity_requested);
+        let total_price = unit_price * Decimal::from(item.quantity_requested);
         let item_ctx = item.item_context.as_ref().unwrap_or(&empty_json);
 
         sqlx::query(
@@ -445,11 +461,7 @@ pub async fn submit_requisition(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| {
-        AppError::BadRequest(
-            "Requisition not found or not in draft status".into(),
-        )
-    })?;
+    .ok_or_else(|| AppError::BadRequest("Requisition not found or not in draft status".into()))?;
 
     tx.commit().await?;
 
@@ -496,9 +508,7 @@ pub async fn approve_requisition(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| {
-        AppError::BadRequest(
-            "Requisition not found or not in submitted status".into(),
-        )
+        AppError::BadRequest("Requisition not found or not in submitted status".into())
     })?;
 
     let mut any_approved = false;
@@ -516,7 +526,9 @@ pub async fn approve_requisition(
         .await?
         .ok_or_else(|| AppError::NotFound)?;
 
-        let qty = item_input.quantity_approved.min(existing.quantity_requested);
+        let qty = item_input
+            .quantity_approved
+            .min(existing.quantity_requested);
         if qty > 0 {
             any_approved = true;
         }
@@ -524,13 +536,11 @@ pub async fn approve_requisition(
             all_approved_fully = false;
         }
 
-        sqlx::query(
-            "UPDATE indent_items SET quantity_approved = $1 WHERE id = $2",
-        )
-        .bind(qty)
-        .bind(item_input.item_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE indent_items SET quantity_approved = $1 WHERE id = $2")
+            .bind(qty)
+            .bind(item_input.item_id)
+            .execute(&mut *tx)
+            .await?;
     }
 
     let new_status = if !any_approved {
@@ -611,9 +621,7 @@ pub async fn reject_requisition(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| {
-        AppError::BadRequest(
-            "Requisition not found or not in submitted status".into(),
-        )
+        AppError::BadRequest("Requisition not found or not in submitted status".into())
     })?;
 
     tx.commit().await?;
@@ -646,9 +654,7 @@ pub async fn issue_requisition(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| {
-        AppError::BadRequest(
-            "Requisition not found or not in approvable status".into(),
-        )
+        AppError::BadRequest("Requisition not found or not in approvable status".into())
     })?;
 
     let mut all_fully_issued = true;
@@ -665,8 +671,7 @@ pub async fn issue_requisition(
         .await?
         .ok_or_else(|| AppError::NotFound)?;
 
-        let max_issuable =
-            existing.quantity_approved - existing.quantity_issued;
+        let max_issuable = existing.quantity_approved - existing.quantity_issued;
         let qty = item_input.quantity_issued.min(max_issuable).max(0);
 
         if qty > 0 {
@@ -717,7 +722,11 @@ pub async fn issue_requisition(
         }
     }
 
-    let new_status = if all_fully_issued { "issued" } else { "partially_issued" };
+    let new_status = if all_fully_issued {
+        "issued"
+    } else {
+        "partially_issued"
+    };
 
     let requisition = sqlx::query_as::<_, IndentRequisition>(
         "UPDATE indent_requisitions SET \
@@ -769,11 +778,7 @@ pub async fn cancel_requisition(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| {
-        AppError::BadRequest(
-            "Requisition not found or cannot be cancelled".into(),
-        )
-    })?;
+    .ok_or_else(|| AppError::BadRequest("Requisition not found or cannot be cancelled".into()))?;
 
     tx.commit().await?;
     Ok(Json(req))
@@ -1012,8 +1017,7 @@ pub async fn list_stock_movements(
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
-    let mut dq = sqlx::query_as::<_, StoreStockMovement>(&data_sql)
-        .bind(claims.tenant_id);
+    let mut dq = sqlx::query_as::<_, StoreStockMovement>(&data_sql).bind(claims.tenant_id);
     if has_item {
         dq = dq.bind(params.catalog_item_id);
     }
@@ -1023,7 +1027,12 @@ pub async fn list_stock_movements(
     let movements = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(StockMovementListResponse { movements, total, page, per_page }))
+    Ok(Json(StockMovementListResponse {
+        movements,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn create_stock_movement(
@@ -1944,7 +1953,9 @@ pub async fn create_implant_entry(
 
     let implant_date = NaiveDate::parse_from_str(&body.implant_date, "%Y-%m-%d")
         .map_err(|_| AppError::BadRequest("Invalid implant_date format".into()))?;
-    let warranty = body.warranty_expiry.as_deref()
+    let warranty = body
+        .warranty_expiry
+        .as_deref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let mut tx = state.db.begin().await?;
@@ -1995,9 +2006,13 @@ pub async fn update_implant_entry(
 ) -> Result<Json<ImplantRegistryEntry>, AppError> {
     require_permission(&claims, permissions::indent::IMPLANTS_MANAGE)?;
 
-    let warranty = body.warranty_expiry.as_deref()
+    let warranty = body
+        .warranty_expiry
+        .as_deref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-    let removal = body.removal_date.as_deref()
+    let removal = body
+        .removal_date
+        .as_deref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let mut tx = state.db.begin().await?;

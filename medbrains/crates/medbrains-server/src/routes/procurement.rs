@@ -1,20 +1,21 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use medbrains_core::inventory::{SupplierPayment, VendorComparisonRow, VendorPerformanceRow};
 use medbrains_core::permissions;
 use medbrains_core::procurement::{
-    BatchStock, GoodsReceiptNote, GrnItem, PurchaseOrder, PurchaseOrderItem,
-    RateContract, RateContractItem, StoreLocation, Vendor,
+    BatchStock, GoodsReceiptNote, GrnItem, PurchaseOrder, PurchaseOrderItem, RateContract,
+    RateContractItem, StoreLocation, Vendor,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -329,12 +330,10 @@ pub async fn list_vendors(
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendors WHERE tenant_id = $1 ORDER BY name",
-        )
-        .bind(claims.tenant_id)
-        .fetch_all(&mut *tx)
-        .await?
+        sqlx::query_as::<_, Vendor>("SELECT * FROM vendors WHERE tenant_id = $1 ORDER BY name")
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?
     };
 
     tx.commit().await?;
@@ -351,14 +350,13 @@ pub async fn get_vendor(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let vendor = sqlx::query_as::<_, Vendor>(
-        "SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let vendor =
+        sqlx::query_as::<_, Vendor>("SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(vendor))
@@ -659,7 +657,12 @@ pub async fn list_purchase_orders(
     let purchase_orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(PoListResponse { purchase_orders, total, page, per_page }))
+    Ok(Json(PoListResponse {
+        purchase_orders,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn get_purchase_order(
@@ -690,7 +693,10 @@ pub async fn get_purchase_order(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(PoDetailResponse { purchase_order, items }))
+    Ok(Json(PoDetailResponse {
+        purchase_order,
+        items,
+    }))
 }
 
 pub async fn create_purchase_order(
@@ -709,7 +715,9 @@ pub async fn create_purchase_order(
 
     let po_number = generate_number(&mut tx, &claims.tenant_id, "PO", "PO").await?;
 
-    let expected_delivery = body.expected_delivery.as_deref()
+    let expected_delivery = body
+        .expected_delivery
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let po = sqlx::query_as::<_, PurchaseOrder>(
@@ -800,7 +808,10 @@ pub async fn create_purchase_order(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(PoDetailResponse { purchase_order, items }))
+    Ok(Json(PoDetailResponse {
+        purchase_order,
+        items,
+    }))
 }
 
 pub async fn approve_purchase_order(
@@ -943,7 +954,12 @@ pub async fn list_grns(
     };
 
     tx.commit().await?;
-    Ok(Json(GrnListResponse { grns, total, page, per_page }))
+    Ok(Json(GrnListResponse {
+        grns,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn get_grn(
@@ -1004,7 +1020,9 @@ pub async fn create_grn(
 
     let grn_number = generate_number(&mut tx, &claims.tenant_id, "GRN", "GRN").await?;
 
-    let invoice_date = body.invoice_date.as_deref()
+    let invoice_date = body
+        .invoice_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let grn = sqlx::query_as::<_, GoodsReceiptNote>(
@@ -1029,9 +1047,13 @@ pub async fn create_grn(
     for item in &body.items {
         let qty_rejected = item.quantity_rejected.unwrap_or(0);
         let total = item.unit_price * Decimal::from(item.quantity_accepted);
-        let expiry = item.expiry_date.as_deref()
+        let expiry = item
+            .expiry_date
+            .as_deref()
             .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-        let mfg = item.manufacture_date.as_deref()
+        let mfg = item
+            .manufacture_date
+            .as_deref()
             .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
         sqlx::query(
@@ -1131,7 +1153,11 @@ pub async fn create_grn(
     .fetch_one(&mut *tx)
     .await?;
 
-    let new_po_status = if pending_count == 0 { "fully_received" } else { "partially_received" };
+    let new_po_status = if pending_count == 0 {
+        "fully_received"
+    } else {
+        "partially_received"
+    };
     sqlx::query(
         "UPDATE purchase_orders SET status = $3::po_status, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2",
@@ -1478,7 +1504,9 @@ pub async fn create_emergency_po(
 
     let po_number = generate_number(&mut tx, &claims.tenant_id, "PO", "EPO").await?;
 
-    let expected_delivery = body.expected_delivery.as_deref()
+    let expected_delivery = body
+        .expected_delivery
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let po = sqlx::query_as::<_, PurchaseOrder>(
@@ -1564,7 +1592,10 @@ pub async fn create_emergency_po(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(PoDetailResponse { purchase_order, items }))
+    Ok(Json(PoDetailResponse {
+        purchase_order,
+        items,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1658,7 +1689,9 @@ pub async fn create_supplier_payment(
         "pending"
     };
 
-    let due_date = body.due_date.as_deref()
+    let due_date = body
+        .due_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let payment_date = if paid > Decimal::ZERO {

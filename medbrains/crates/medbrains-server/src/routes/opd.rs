@@ -1,13 +1,18 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
-use chrono::{NaiveDate, Utc};
+use std::collections::HashMap;
+
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::DateTime;
+use chrono::{NaiveDate, Utc};
 use medbrains_core::consultation::{
-    ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket,
-    Icd10Code, MedicalCertificate, PatientFeedback, PatientReminder, Prescription,
-    PrescriptionItem, PrescriptionTemplate, ProcedureCatalog, ProcedureConsent, ProcedureOrder,
-    Referral, SnomedCode, Vital,
+    ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket, Icd10Code,
+    MedicalCertificate, PatientFeedback, PatientReminder, Prescription, PrescriptionItem,
+    PrescriptionTemplate, ProcedureCatalog, ProcedureConsent, ProcedureOrder, Referral, SnomedCode,
+    Vital,
 };
 use medbrains_core::encounter::{Encounter, OpdQueue};
 use medbrains_core::ipd::Admission;
@@ -17,9 +22,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -203,8 +206,7 @@ async fn generate_opd_token(
         AppError::Internal("OPD_TOKEN sequence not configured for this tenant".to_owned())
     })?;
 
-    i32::try_from(seq.current_val)
-        .map_err(|e| AppError::Internal(format!("token overflow: {e}")))
+    i32::try_from(seq.current_val).map_err(|e| AppError::Internal(format!("token overflow: {e}")))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -225,7 +227,10 @@ pub async fn list_encounters(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned(), "encounter_type = 'opd'".to_owned()];
+    let mut conditions = vec![
+        "tenant_id = $1".to_owned(),
+        "encounter_type = 'opd'".to_owned(),
+    ];
     let mut bind_idx: usize = 2;
 
     #[allow(clippy::items_after_statements, clippy::struct_field_names)]
@@ -238,27 +243,47 @@ pub async fn list_encounters(
 
     if let Some(date) = params.date {
         conditions.push(format!("encounter_date = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: None, date_val: Some(date) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: None,
+            date_val: Some(date),
+        });
         bind_idx += 1;
     }
     if let Some(dept) = params.department_id {
         conditions.push(format!("department_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(dept), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(dept),
+            string_val: None,
+            date_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(doc) = params.doctor_id {
         conditions.push(format!("doctor_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(doc), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(doc),
+            string_val: None,
+            date_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+            date_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(ref status) = params.status {
         conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()), date_val: None });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+            date_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -267,9 +292,15 @@ pub async fn list_encounters(
     let count_sql = format!("SELECT COUNT(*) FROM encounters WHERE {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { count_q = count_q.bind(u); }
-        if let Some(ref s) = b.string_val { count_q = count_q.bind(s.clone()); }
-        if let Some(d) = b.date_val { count_q = count_q.bind(d); }
+        if let Some(u) = b.uuid_val {
+            count_q = count_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            count_q = count_q.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            count_q = count_q.bind(d);
+        }
     }
     let total = count_q.fetch_one(&mut *tx).await?;
 
@@ -280,15 +311,30 @@ pub async fn list_encounters(
     );
     let mut data_q = sqlx::query_as::<_, Encounter>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { data_q = data_q.bind(u); }
-        if let Some(ref s) = b.string_val { data_q = data_q.bind(s.clone()); }
-        if let Some(d) = b.date_val { data_q = data_q.bind(d); }
+        if let Some(u) = b.uuid_val {
+            data_q = data_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            data_q = data_q.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            data_q = data_q.bind(d);
+        }
     }
-    let encounters = data_q.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
+    let encounters = data_q
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
-    Ok(Json(EncounterListResponse { encounters, total, page, per_page }))
+    Ok(Json(EncounterListResponse {
+        encounters,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -377,13 +423,12 @@ pub async fn get_encounter(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let enc = sqlx::query_as::<_, Encounter>(
-        "SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let enc =
+        sqlx::query_as::<_, Encounter>("SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     enc.map_or_else(|| Err(AppError::NotFound), |e| Ok(Json(e)))
@@ -459,17 +504,26 @@ pub async fn list_queue(
 
     if let Some(dept) = params.department_id {
         conditions.push(format!("q.department_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(dept), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(dept),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(doc) = params.doctor_id {
         conditions.push(format!("q.doctor_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(doc), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(doc),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(ref status) = params.status {
         conditions.push(format!("q.status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         let _ = bind_idx; // suppress unused warning
     }
 
@@ -492,8 +546,12 @@ pub async fn list_queue(
         .bind(claims.tenant_id)
         .bind(queue_date);
     for b in &binds {
-        if let Some(u) = b.uuid_val { query = query.bind(u); }
-        if let Some(ref s) = b.string_val { query = query.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            query = query.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            query = query.bind(s.clone());
+        }
     }
 
     let rows = query.fetch_all(&mut *tx).await?;
@@ -620,7 +678,8 @@ pub async fn complete_queue_entry(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
+            let charge_code =
+                dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
 
             let _ = super::billing::auto_charge(
                 &mut tx,
@@ -971,13 +1030,11 @@ pub async fn delete_diagnosis(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM diagnoses WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(did)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM diagnoses WHERE id = $1 AND tenant_id = $2")
+        .bind(did)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -1010,17 +1067,36 @@ pub async fn list_prescriptions(
     .fetch_all(&mut *tx)
     .await?;
 
-    let mut result = Vec::with_capacity(prescriptions.len());
-    for rx in prescriptions {
-        let items = sqlx::query_as::<_, PrescriptionItem>(
-            "SELECT * FROM prescription_items WHERE prescription_id = $1 AND tenant_id = $2 \
-             ORDER BY created_at",
+    let prescription_ids: Vec<Uuid> = prescriptions.iter().map(|rx| rx.id).collect();
+    let items = if prescription_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as::<_, PrescriptionItem>(
+            "SELECT * FROM prescription_items \
+             WHERE prescription_id = ANY($1) AND tenant_id = $2 \
+             ORDER BY prescription_id, created_at",
         )
-        .bind(rx.id)
+        .bind(&prescription_ids)
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
-        .await?;
-        result.push(PrescriptionWithItems { prescription: rx, items });
+        .await?
+    };
+
+    let mut items_by_prescription: HashMap<Uuid, Vec<PrescriptionItem>> = HashMap::new();
+    for item in items {
+        items_by_prescription
+            .entry(item.prescription_id)
+            .or_default()
+            .push(item);
+    }
+
+    let mut result = Vec::with_capacity(prescriptions.len());
+    for rx in prescriptions {
+        let items = items_by_prescription.remove(&rx.id).unwrap_or_default();
+        result.push(PrescriptionWithItems {
+            prescription: rx,
+            items,
+        });
     }
 
     tx.commit().await?;
@@ -1053,7 +1129,10 @@ pub async fn get_prescription(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(PrescriptionWithItems { prescription: rx, items }))
+    Ok(Json(PrescriptionWithItems {
+        prescription: rx,
+        items,
+    }))
 }
 
 pub async fn create_prescription(
@@ -1065,7 +1144,9 @@ pub async fn create_prescription(
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
 
     if body.items.is_empty() {
-        return Err(AppError::BadRequest("At least one prescription item is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "At least one prescription item is required".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -1162,7 +1243,10 @@ pub async fn create_prescription(
     )
     .await;
 
-    Ok(Json(PrescriptionWithItems { prescription: rx, items }))
+    Ok(Json(PrescriptionWithItems {
+        prescription: rx,
+        items,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1314,7 +1398,8 @@ pub async fn list_patient_prescriptions(
         .fetch_optional(&mut *tx)
         .await?;
 
-        let (encounter_date, doctor_name) = row.unwrap_or_else(|| (rx.created_at.date_naive(), None));
+        let (encounter_date, doctor_name) =
+            row.unwrap_or_else(|| (rx.created_at.date_naive(), None));
 
         result.push(PrescriptionHistoryItem {
             prescription: rx.clone(),
@@ -2399,12 +2484,24 @@ pub async fn create_consultation_template(
     .bind(body.department_id)
     .bind(body.is_shared)
     .bind(body.chief_complaints.as_deref().unwrap_or(&[]))
-    .bind(body.default_history.as_ref().unwrap_or(&serde_json::json!({})))
-    .bind(body.default_examination.as_ref().unwrap_or(&serde_json::json!({})))
+    .bind(
+        body.default_history
+            .as_ref()
+            .unwrap_or(&serde_json::json!({})),
+    )
+    .bind(
+        body.default_examination
+            .as_ref()
+            .unwrap_or(&serde_json::json!({})),
+    )
     .bind(body.default_ros.as_ref().unwrap_or(&serde_json::json!({})))
     .bind(&body.default_plan)
     .bind(body.common_diagnoses.as_deref().unwrap_or(&[]))
-    .bind(body.common_medications.as_ref().unwrap_or(&serde_json::json!([])))
+    .bind(
+        body.common_medications
+            .as_ref()
+            .unwrap_or(&serde_json::json!([])),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2504,7 +2601,9 @@ pub async fn book_appointment_group(
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
 
     if body.slot_requests.is_empty() {
-        return Err(AppError::BadRequest("slot_requests must not be empty".into()));
+        return Err(AppError::BadRequest(
+            "slot_requests must not be empty".into(),
+        ));
     }
 
     let group_id = Uuid::new_v4();
@@ -2514,12 +2613,14 @@ pub async fn book_appointment_group(
     let mut appointments = Vec::with_capacity(body.slot_requests.len());
 
     for slot in &body.slot_requests {
-        let start: chrono::NaiveTime = slot.slot_start.parse().map_err(|_| {
-            AppError::BadRequest("Invalid slot_start time format".into())
-        })?;
-        let end: chrono::NaiveTime = slot.slot_end.parse().map_err(|_| {
-            AppError::BadRequest("Invalid slot_end time format".into())
-        })?;
+        let start: chrono::NaiveTime = slot
+            .slot_start
+            .parse()
+            .map_err(|_| AppError::BadRequest("Invalid slot_start time format".into()))?;
+        let end: chrono::NaiveTime = slot
+            .slot_end
+            .parse()
+            .map_err(|_| AppError::BadRequest("Invalid slot_end time format".into()))?;
         let appt_type = slot.appointment_type.as_deref().unwrap_or("new_visit");
 
         let appt = sqlx::query_as::<_, Appointment>(
@@ -2679,14 +2780,13 @@ pub async fn admit_from_opd(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // 1. Validate OPD encounter exists
-    let opd_encounter = sqlx::query_as::<_, Encounter>(
-        "SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let opd_encounter =
+        sqlx::query_as::<_, Encounter>("SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2")
+            .bind(encounter_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?;
 
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
     let today = Utc::now().date_naive();

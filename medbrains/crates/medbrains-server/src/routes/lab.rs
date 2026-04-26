@@ -1,14 +1,16 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::NaiveDate;
 use medbrains_core::lab::{
     LabB2bClient, LabB2bRate, LabCalibration, LabCollectionCenter, LabCriticalAlert,
-    LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection,
-    LabMolecularReport, LabNablDocument, LabOrder, LabOutsourcedOrder, LabPanelTest,
-    LabPhlebotomyQueue, LabProficiencyTest, LabQcResult, LabReagentLot,
-    LabReportDispatch, LabReportTemplate, LabResult, LabResultAmendment,
-    LabSampleArchive, LabTestCatalog, LabTestPanel,
+    LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection, LabMolecularReport,
+    LabNablDocument, LabOrder, LabOutsourcedOrder, LabPanelTest, LabPhlebotomyQueue,
+    LabProficiencyTest, LabQcResult, LabReagentLot, LabReportDispatch, LabReportTemplate,
+    LabResult, LabResultAmendment, LabSampleArchive, LabTestCatalog, LabTestPanel,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -16,9 +18,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -318,22 +318,34 @@ pub async fn list_orders(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(ref priority) = params.priority {
         conditions.push(format!("priority::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(priority.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(priority.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(eid) = params.encounter_id {
         conditions.push(format!("encounter_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(eid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(eid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -342,8 +354,12 @@ pub async fn list_orders(
     let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -354,13 +370,22 @@ pub async fn list_orders(
     );
     let mut dq = sqlx::query_as::<_, LabOrder>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(OrderListResponse { orders, total, page, per_page }))
+    Ok(Json(OrderListResponse {
+        orders,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -415,14 +440,13 @@ pub async fn get_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let order = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let order =
+        sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let results = sqlx::query_as::<_, LabResult>(
         "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 \
@@ -521,7 +545,11 @@ pub async fn complete_order(
     if let Some(ref o) = order {
         if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "lab").await? {
             #[derive(sqlx::FromRow)]
-            struct TestInfo { code: String, name: String, price: Decimal }
+            struct TestInfo {
+                code: String,
+                name: String,
+                price: Decimal,
+            }
             let test_info = sqlx::query_as::<_, TestInfo>(
                 "SELECT code, name, price FROM lab_test_catalog \
                  WHERE id = $1 AND tenant_id = $2",
@@ -642,14 +670,13 @@ pub async fn add_results(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Fetch the order to get patient_id and test_id for delta checks
-    let order = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let order =
+        sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(order_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     // Fetch test catalog for delta check threshold
     #[derive(sqlx::FromRow)]
@@ -669,7 +696,9 @@ pub async fn add_results(
     for r in &body.results {
         // Delta check: find previous result for same patient + parameter
         #[derive(sqlx::FromRow)]
-        struct PrevResult { value: String }
+        struct PrevResult {
+            value: String,
+        }
         let prev = sqlx::query_as::<_, PrevResult>(
             "SELECT lr.value FROM lab_results lr \
              JOIN lab_orders lo ON lr.order_id = lo.id \
@@ -694,8 +723,7 @@ pub async fn add_results(
         if let (Some(pv), Ok(new_val)) = (&previous_value, r.value.parse::<Decimal>()) {
             if let Ok(old_val) = pv.parse::<Decimal>() {
                 if old_val != Decimal::ZERO {
-                    let dp = ((new_val - old_val).abs() / old_val.abs())
-                        * Decimal::from(100);
+                    let dp = ((new_val - old_val).abs() / old_val.abs()) * Decimal::from(100);
                     delta_percent = Some(dp);
                     if let Some(ref tc) = test_config {
                         if let Some(threshold) = tc.delta_check_percent {
@@ -1102,13 +1130,11 @@ pub async fn delete_panel(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM lab_test_panels WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM lab_test_panels WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -1182,14 +1208,13 @@ pub async fn amend_result(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Check report not locked
-    let order = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let order =
+        sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(order_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     if order.is_report_locked {
         return Err(AppError::Conflict("Report is locked".to_owned()));
@@ -1219,7 +1244,12 @@ pub async fn amend_result(
     .bind(order_id)
     .bind(&original.value)
     .bind(&body.amended_value)
-    .bind(original.flag.as_ref().map(|f| format!("{f:?}").to_lowercase()))
+    .bind(
+        original
+            .flag
+            .as_ref()
+            .map(|f| format!("{f:?}").to_lowercase()),
+    )
     .bind(&body.amended_flag)
     .bind(&body.reason)
     .bind(claims.sub)
@@ -1385,7 +1415,9 @@ pub async fn lock_report(
             tx.commit().await?;
             Ok(Json(o))
         }
-        None => Err(AppError::BadRequest("Report already locked or not found".to_owned())),
+        None => Err(AppError::BadRequest(
+            "Report already locked or not found".to_owned(),
+        )),
     }
 }
 
@@ -1418,7 +1450,11 @@ pub async fn get_cumulative_report(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(CumulativeReportResponse { patient_id, test_id, results: rows }))
+    Ok(Json(CumulativeReportResponse {
+        patient_id,
+        test_id,
+        results: rows,
+    }))
 }
 
 pub async fn get_tat_monitoring(
@@ -1966,14 +2002,13 @@ pub async fn add_on_test(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get parent order
-    let parent = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(parent_order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let parent =
+        sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(parent_order_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     // Cannot add-on to a cancelled order
     if parent.status == medbrains_core::lab::LabOrderStatus::Cancelled {
@@ -2322,23 +2357,28 @@ pub async fn list_home_collections(
              WHERE tenant_id = $1 AND status::text = $2 \
              ORDER BY scheduled_date, created_at DESC",
         )
-        .bind(claims.tenant_id).bind(status)
-        .fetch_all(&mut *tx).await?
+        .bind(claims.tenant_id)
+        .bind(status)
+        .fetch_all(&mut *tx)
+        .await?
     } else if let Some(date) = params.date {
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections \
              WHERE tenant_id = $1 AND scheduled_date = $2 \
              ORDER BY created_at DESC",
         )
-        .bind(claims.tenant_id).bind(date)
-        .fetch_all(&mut *tx).await?
+        .bind(claims.tenant_id)
+        .bind(date)
+        .fetch_all(&mut *tx)
+        .await?
     } else {
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections WHERE tenant_id = $1 \
              ORDER BY scheduled_date DESC, created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
-        .fetch_all(&mut *tx).await?
+        .fetch_all(&mut *tx)
+        .await?
     };
 
     tx.commit().await?;
@@ -2360,11 +2400,18 @@ pub async fn create_home_collection(
           address_line, city, pincode, contact_phone, special_instructions) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(body.scheduled_date).bind(&body.scheduled_time_slot)
-    .bind(&body.address_line).bind(&body.city).bind(&body.pincode)
-    .bind(&body.contact_phone).bind(&body.special_instructions)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(body.scheduled_date)
+    .bind(&body.scheduled_time_slot)
+    .bind(&body.address_line)
+    .bind(&body.city)
+    .bind(&body.pincode)
+    .bind(&body.contact_phone)
+    .bind(&body.special_instructions)
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -2388,10 +2435,15 @@ pub async fn update_home_collection(
          notes = COALESCE($4, notes) \
          WHERE id = $5 AND tenant_id = $6 RETURNING *",
     )
-    .bind(body.assigned_phlebotomist).bind(body.scheduled_date)
-    .bind(&body.scheduled_time_slot).bind(&body.notes)
-    .bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(body.assigned_phlebotomist)
+    .bind(body.scheduled_date)
+    .bind(&body.scheduled_time_slot)
+    .bind(&body.notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -2407,15 +2459,23 @@ pub async fn update_home_collection_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let collected_at = if body.status == "collected" { "now()" } else { "collected_at" };
+    let collected_at = if body.status == "collected" {
+        "now()"
+    } else {
+        "collected_at"
+    };
     let sql = format!(
         "UPDATE lab_home_collections SET \
          status = $1::lab_home_collection_status, collected_at = {collected_at} \
          WHERE id = $2 AND tenant_id = $3 RETURNING *"
     );
     let row = sqlx::query_as::<_, LabHomeCollection>(&sql)
-        .bind(&body.status).bind(id).bind(claims.tenant_id)
-        .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+        .bind(&body.status)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -2434,7 +2494,9 @@ pub async fn get_home_collection_stats(
          FROM lab_home_collections WHERE tenant_id = $1 \
          GROUP BY status ORDER BY status",
     )
-    .bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -2453,7 +2515,10 @@ pub async fn list_collection_centers(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabCollectionCenter>(
         "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 ORDER BY name",
-    ).bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -2473,10 +2538,18 @@ pub async fn create_collection_center(
           contact_person, operating_hours, notes) \
          VALUES ($1,$2,$3,$4::lab_collection_center_type,$5,$6,$7,$8,$9,$10) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(&body.code).bind(&body.name).bind(center_type)
-    .bind(&body.address).bind(&body.city).bind(&body.phone)
-    .bind(&body.contact_person).bind(&body.operating_hours).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(&body.code)
+    .bind(&body.name)
+    .bind(center_type)
+    .bind(&body.address)
+    .bind(&body.city)
+    .bind(&body.phone)
+    .bind(&body.contact_person)
+    .bind(&body.operating_hours)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2500,10 +2573,20 @@ pub async fn update_collection_center(
          operating_hours = COALESCE($8, operating_hours), notes = COALESCE($9, notes) \
          WHERE id = $10 AND tenant_id = $11 RETURNING *",
     )
-    .bind(&body.name).bind(&body.center_type).bind(&body.address).bind(&body.city)
-    .bind(&body.phone).bind(&body.contact_person).bind(body.is_active)
-    .bind(&body.operating_hours).bind(&body.notes).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(&body.name)
+    .bind(&body.center_type)
+    .bind(&body.address)
+    .bind(&body.city)
+    .bind(&body.phone)
+    .bind(&body.contact_person)
+    .bind(body.is_active)
+    .bind(&body.operating_hours)
+    .bind(&body.notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2524,12 +2607,19 @@ pub async fn list_sample_archive(
         sqlx::query_as::<_, LabSampleArchive>(
             "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 AND status::text = $2 \
              ORDER BY created_at DESC LIMIT 200",
-        ).bind(claims.tenant_id).bind(status).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .bind(status)
+        .fetch_all(&mut *tx)
+        .await?
     } else {
         sqlx::query_as::<_, LabSampleArchive>(
             "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 \
              ORDER BY created_at DESC LIMIT 200",
-        ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
     };
     tx.commit().await?;
     Ok(Json(rows))
@@ -2549,10 +2639,16 @@ pub async fn create_sample_archive(
           storage_location, archived_by, disposal_date, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(&body.sample_barcode).bind(&body.storage_location)
-    .bind(claims.sub).bind(body.disposal_date).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(&body.sample_barcode)
+    .bind(&body.storage_location)
+    .bind(claims.sub)
+    .bind(body.disposal_date)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2571,8 +2667,13 @@ pub async fn retrieve_sample_archive(
          retrieved_at = now(), retrieved_by = $1 \
          WHERE id = $2 AND tenant_id = $3 \
            AND status = 'stored'::lab_sample_archive_status RETURNING *",
-    ).bind(claims.sub).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    )
+    .bind(claims.sub)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2593,12 +2694,19 @@ pub async fn list_report_dispatches(
         sqlx::query_as::<_, LabReportDispatch>(
             "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND order_id = $2 \
              ORDER BY dispatched_at DESC",
-        ).bind(claims.tenant_id).bind(order_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .bind(order_id)
+        .fetch_all(&mut *tx)
+        .await?
     } else {
         sqlx::query_as::<_, LabReportDispatch>(
             "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 \
              ORDER BY dispatched_at DESC LIMIT 200",
-        ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
     };
     tx.commit().await?;
     Ok(Json(rows))
@@ -2617,9 +2725,15 @@ pub async fn create_report_dispatch(
          (tenant_id, order_id, patient_id, dispatch_method, dispatched_to, dispatched_by, notes) \
          VALUES ($1,$2,$3,$4::lab_dispatch_method,$5,$6,$7) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(&body.dispatch_method).bind(&body.dispatched_to).bind(claims.sub)
-    .bind(&body.notes).fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(&body.dispatch_method)
+    .bind(&body.dispatched_to)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2635,8 +2749,12 @@ pub async fn confirm_report_dispatch(
     let row = sqlx::query_as::<_, LabReportDispatch>(
         "UPDATE lab_report_dispatches SET received_confirmation = true, confirmed_at = now() \
          WHERE id = $1 AND tenant_id = $2 RETURNING *",
-    ).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2657,11 +2775,18 @@ pub async fn list_report_templates(
         sqlx::query_as::<_, LabReportTemplate>(
             "SELECT * FROM lab_report_templates WHERE tenant_id = $1 AND department_id = $2 \
              ORDER BY template_name",
-        ).bind(claims.tenant_id).bind(dept_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .bind(dept_id)
+        .fetch_all(&mut *tx)
+        .await?
     } else {
         sqlx::query_as::<_, LabReportTemplate>(
             "SELECT * FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name",
-        ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
     };
     tx.commit().await?;
     Ok(Json(rows))
@@ -2681,10 +2806,16 @@ pub async fn create_report_template(
           logo_url, report_format, is_default) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8, false)) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.department_id).bind(&body.template_name)
-    .bind(&body.header_html).bind(&body.footer_html).bind(&body.logo_url)
-    .bind(&body.report_format).bind(body.is_default)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.department_id)
+    .bind(&body.template_name)
+    .bind(&body.header_html)
+    .bind(&body.footer_html)
+    .bind(&body.logo_url)
+    .bind(&body.report_format)
+    .bind(body.is_default)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2706,10 +2837,18 @@ pub async fn update_report_template(
          is_default = COALESCE($6, is_default), is_active = COALESCE($7, is_active) \
          WHERE id = $8 AND tenant_id = $9 RETURNING *",
     )
-    .bind(&body.template_name).bind(&body.header_html).bind(&body.footer_html)
-    .bind(&body.logo_url).bind(&body.report_format).bind(body.is_default)
-    .bind(body.is_active).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(&body.template_name)
+    .bind(&body.header_html)
+    .bind(&body.footer_html)
+    .bind(&body.logo_url)
+    .bind(&body.report_format)
+    .bind(body.is_default)
+    .bind(body.is_active)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2738,7 +2877,10 @@ pub async fn list_stat_orders(
                 OR priority = 'urgent'::lab_priority) \
            AND status NOT IN ('cancelled'::lab_order_status) \
          ORDER BY created_at DESC LIMIT 100",
-    ).bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -2759,12 +2901,19 @@ pub async fn list_eqas(
         sqlx::query_as::<_, LabEqasResult>(
             "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND test_id = $2 \
              ORDER BY created_at DESC",
-        ).bind(claims.tenant_id).bind(test_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .bind(test_id)
+        .fetch_all(&mut *tx)
+        .await?
     } else {
         sqlx::query_as::<_, LabEqasResult>(
             "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 \
              ORDER BY created_at DESC LIMIT 200",
-        ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
     };
     tx.commit().await?;
     Ok(Json(rows))
@@ -2786,11 +2935,21 @@ pub async fn create_eqas(
           report_date, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::lab_eqas_evaluation,$10,$11,$12,$13) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(&body.program_name).bind(&body.provider)
-    .bind(body.test_id).bind(&body.cycle).bind(&body.sample_number)
-    .bind(body.expected_value).bind(body.reported_value).bind(evaluation)
-    .bind(body.bias_percent).bind(body.z_score).bind(body.report_date)
-    .bind(&body.notes).fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(&body.program_name)
+    .bind(&body.provider)
+    .bind(body.test_id)
+    .bind(&body.cycle)
+    .bind(&body.sample_number)
+    .bind(body.expected_value)
+    .bind(body.reported_value)
+    .bind(evaluation)
+    .bind(body.bias_percent)
+    .bind(body.z_score)
+    .bind(body.report_date)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2812,9 +2971,16 @@ pub async fn update_eqas(
          z_score = COALESCE($4, z_score), notes = COALESCE($5, notes) \
          WHERE id = $6 AND tenant_id = $7 RETURNING *",
     )
-    .bind(&body.evaluation).bind(body.reported_value).bind(body.bias_percent)
-    .bind(body.z_score).bind(&body.notes).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(&body.evaluation)
+    .bind(body.reported_value)
+    .bind(body.bias_percent)
+    .bind(body.z_score)
+    .bind(&body.notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2833,7 +2999,10 @@ pub async fn list_proficiency_tests(
     let rows = sqlx::query_as::<_, LabProficiencyTest>(
         "SELECT * FROM lab_proficiency_tests WHERE tenant_id = $1 \
          ORDER BY created_at DESC LIMIT 200",
-    ).bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -2853,12 +3022,20 @@ pub async fn create_proficiency_test(
           is_acceptable, evaluation_date, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(&body.program).bind(body.test_id)
-    .bind(&body.survey_round).bind(&body.sample_id)
-    .bind(body.assigned_value).bind(body.reported_value)
-    .bind(body.acceptable_range_low).bind(body.acceptable_range_high)
-    .bind(body.is_acceptable).bind(body.evaluation_date).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(&body.program)
+    .bind(body.test_id)
+    .bind(&body.survey_round)
+    .bind(&body.sample_id)
+    .bind(body.assigned_value)
+    .bind(body.reported_value)
+    .bind(body.acceptable_range_low)
+    .bind(body.acceptable_range_high)
+    .bind(body.is_acceptable)
+    .bind(body.evaluation_date)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2882,26 +3059,40 @@ pub async fn list_nabl_documents(
                 "SELECT * FROM lab_nabl_documents \
                  WHERE tenant_id = $1 AND document_type = $2 AND is_current = true \
                  ORDER BY effective_date DESC",
-            ).bind(claims.tenant_id).bind(doc_type).fetch_all(&mut *tx).await?
+            )
+            .bind(claims.tenant_id)
+            .bind(doc_type)
+            .fetch_all(&mut *tx)
+            .await?
         }
         (Some(doc_type), false) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
                  WHERE tenant_id = $1 AND document_type = $2 ORDER BY effective_date DESC",
-            ).bind(claims.tenant_id).bind(doc_type).fetch_all(&mut *tx).await?
+            )
+            .bind(claims.tenant_id)
+            .bind(doc_type)
+            .fetch_all(&mut *tx)
+            .await?
         }
         (None, true) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
                  WHERE tenant_id = $1 AND is_current = true \
                  ORDER BY document_type, effective_date DESC",
-            ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+            )
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?
         }
         (None, false) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents WHERE tenant_id = $1 \
                  ORDER BY document_type, effective_date DESC",
-            ).bind(claims.tenant_id).fetch_all(&mut *tx).await?
+            )
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?
         }
     };
     tx.commit().await?;
@@ -2922,10 +3113,18 @@ pub async fn create_nabl_document(
           effective_date, review_date, approved_by, file_path, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(&body.document_type).bind(&body.document_number)
-    .bind(&body.title).bind(&body.version).bind(body.effective_date)
-    .bind(body.review_date).bind(claims.sub).bind(&body.file_path).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(&body.document_type)
+    .bind(&body.document_number)
+    .bind(&body.title)
+    .bind(&body.version)
+    .bind(body.effective_date)
+    .bind(body.review_date)
+    .bind(claims.sub)
+    .bind(&body.file_path)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2948,10 +3147,18 @@ pub async fn update_nabl_document(
          is_current = COALESCE($6, is_current), notes = COALESCE($7, notes) \
          WHERE id = $8 AND tenant_id = $9 RETURNING *",
     )
-    .bind(&body.title).bind(&body.version).bind(body.effective_date)
-    .bind(body.review_date).bind(&body.file_path).bind(body.is_current)
-    .bind(&body.notes).bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(&body.title)
+    .bind(&body.version)
+    .bind(body.effective_date)
+    .bind(body.review_date)
+    .bind(&body.file_path)
+    .bind(body.is_current)
+    .bind(&body.notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2972,7 +3179,10 @@ pub async fn get_reagent_consumption(
          reorder_level, consumption_per_test, expiry_date, is_active \
          FROM lab_reagent_lots WHERE tenant_id = $1 AND is_active = true \
          ORDER BY reagent_name",
-    ).bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -2991,8 +3201,12 @@ pub async fn get_histopath_report(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
         "SELECT * FROM lab_histopath_reports WHERE order_id = $1 AND tenant_id = $2",
-    ).bind(order_id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3013,12 +3227,22 @@ pub async fn create_histopath_report(
           pathologist_id, reported_at, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),$14) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(&body.specimen_type).bind(&body.clinical_history).bind(&body.gross_description)
-    .bind(&body.microscopy_findings).bind(&body.special_stains)
-    .bind(&body.immunohistochemistry).bind(&body.synoptic_data)
-    .bind(&body.diagnosis).bind(&body.icd_code).bind(claims.sub).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(&body.specimen_type)
+    .bind(&body.clinical_history)
+    .bind(&body.gross_description)
+    .bind(&body.microscopy_findings)
+    .bind(&body.special_stains)
+    .bind(&body.immunohistochemistry)
+    .bind(&body.synoptic_data)
+    .bind(&body.diagnosis)
+    .bind(&body.icd_code)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3033,8 +3257,12 @@ pub async fn get_cytology_report(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
         "SELECT * FROM lab_cytology_reports WHERE order_id = $1 AND tenant_id = $2",
-    ).bind(order_id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3054,11 +3282,20 @@ pub async fn create_cytology_report(
           cytopathologist_id, reported_at, icd_code, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now(),$11,$12) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(&body.specimen_type).bind(&body.clinical_indication).bind(&body.adequacy)
-    .bind(&body.screening_findings).bind(&body.diagnosis).bind(&body.bethesda_category)
-    .bind(claims.sub).bind(&body.icd_code).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(&body.specimen_type)
+    .bind(&body.clinical_indication)
+    .bind(&body.adequacy)
+    .bind(&body.screening_findings)
+    .bind(&body.diagnosis)
+    .bind(&body.bethesda_category)
+    .bind(claims.sub)
+    .bind(&body.icd_code)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3073,8 +3310,12 @@ pub async fn get_molecular_report(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
         "SELECT * FROM lab_molecular_reports WHERE order_id = $1 AND tenant_id = $2",
-    ).bind(order_id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3094,12 +3335,23 @@ pub async fn create_molecular_report(
           quantitative_unit, kit_name, kit_lot, performed_by, reported_at, notes) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now(),$15) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(body.order_id).bind(body.patient_id)
-    .bind(&body.test_method).bind(&body.target_gene).bind(&body.primer_details)
-    .bind(&body.amplification_data).bind(body.ct_value).bind(&body.result_interpretation)
-    .bind(body.quantitative_value).bind(&body.quantitative_unit)
-    .bind(&body.kit_name).bind(&body.kit_lot).bind(claims.sub).bind(&body.notes)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(body.order_id)
+    .bind(body.patient_id)
+    .bind(&body.test_method)
+    .bind(&body.target_gene)
+    .bind(&body.primer_details)
+    .bind(&body.amplification_data)
+    .bind(body.ct_value)
+    .bind(&body.result_interpretation)
+    .bind(body.quantitative_value)
+    .bind(&body.quantitative_unit)
+    .bind(&body.kit_name)
+    .bind(&body.kit_lot)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3117,7 +3369,10 @@ pub async fn list_b2b_clients(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabB2bClient>(
         "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 ORDER BY name",
-    ).bind(claims.tenant_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -3136,11 +3391,19 @@ pub async fn create_b2b_client(
           email, contact_person, credit_limit, payment_terms_days) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11, 30)) RETURNING *",
     )
-    .bind(claims.tenant_id).bind(&body.code).bind(&body.name)
-    .bind(&body.client_type).bind(&body.address).bind(&body.city)
-    .bind(&body.phone).bind(&body.email).bind(&body.contact_person)
-    .bind(body.credit_limit).bind(body.payment_terms_days)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(&body.code)
+    .bind(&body.name)
+    .bind(&body.client_type)
+    .bind(&body.address)
+    .bind(&body.city)
+    .bind(&body.phone)
+    .bind(&body.email)
+    .bind(&body.contact_person)
+    .bind(body.credit_limit)
+    .bind(body.payment_terms_days)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3165,11 +3428,21 @@ pub async fn update_b2b_client(
          is_active = COALESCE($10, is_active) \
          WHERE id = $11 AND tenant_id = $12 RETURNING *",
     )
-    .bind(&body.name).bind(&body.client_type).bind(&body.address).bind(&body.city)
-    .bind(&body.phone).bind(&body.email).bind(&body.contact_person)
-    .bind(body.credit_limit).bind(body.payment_terms_days).bind(body.is_active)
-    .bind(id).bind(claims.tenant_id)
-    .fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    .bind(&body.name)
+    .bind(&body.client_type)
+    .bind(&body.address)
+    .bind(&body.city)
+    .bind(&body.phone)
+    .bind(&body.email)
+    .bind(&body.contact_person)
+    .bind(body.credit_limit)
+    .bind(body.payment_terms_days)
+    .bind(body.is_active)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3185,7 +3458,11 @@ pub async fn list_b2b_rates(
     let rows = sqlx::query_as::<_, LabB2bRate>(
         "SELECT * FROM lab_b2b_rates WHERE tenant_id = $1 AND client_id = $2 \
          ORDER BY created_at DESC",
-    ).bind(claims.tenant_id).bind(client_id).fetch_all(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .bind(client_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -3211,10 +3488,15 @@ pub async fn create_b2b_rate(
            effective_to = EXCLUDED.effective_to, updated_at = now() \
          RETURNING *",
     )
-    .bind(claims.tenant_id).bind(client_id).bind(body.test_id)
-    .bind(body.agreed_price).bind(body.discount_percent)
-    .bind(body.effective_from).bind(body.effective_to)
-    .fetch_one(&mut *tx).await?;
+    .bind(claims.tenant_id)
+    .bind(client_id)
+    .bind(body.test_id)
+    .bind(body.agreed_price)
+    .bind(body.discount_percent)
+    .bind(body.effective_from)
+    .bind(body.effective_to)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3233,49 +3515,41 @@ pub async fn auto_validate_result(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get result with its order and test catalog info
-    let result = sqlx::query_as::<_, LabResult>(
-        "SELECT * FROM lab_results WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let result = sqlx::query_as::<_, LabResult>("SELECT * FROM lab_results WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     // Get test catalog for critical ranges (used as auto-validation bounds)
-    let order = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1",
-    )
-    .bind(result.order_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let order = sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1")
+        .bind(result.order_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-    let catalog = sqlx::query_as::<_, LabTestCatalog>(
-        "SELECT * FROM lab_test_catalog WHERE id = $1",
-    )
-    .bind(order.test_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let catalog =
+        sqlx::query_as::<_, LabTestCatalog>("SELECT * FROM lab_test_catalog WHERE id = $1")
+            .bind(order.test_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Check if value is within critical ranges (critical_low..critical_high)
-    let is_valid =
-        if let (Some(low), Some(high)) = (catalog.critical_low, catalog.critical_high) {
-            if let Ok(val) = result.value.parse::<Decimal>() {
-                val >= low && val <= high
-            } else {
-                false
-            }
+    let is_valid = if let (Some(low), Some(high)) = (catalog.critical_low, catalog.critical_high) {
+        if let Ok(val) = result.value.parse::<Decimal>() {
+            val >= low && val <= high
         } else {
-            // No critical range defined — cannot auto-validate
             false
-        };
+        }
+    } else {
+        // No critical range defined — cannot auto-validate
+        false
+    };
 
     if is_valid {
-        sqlx::query(
-            "UPDATE lab_results SET is_auto_validated = true WHERE id = $1",
-        )
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE lab_results SET is_auto_validated = true WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
     }
 
     tx.commit().await?;
@@ -3377,13 +3651,11 @@ pub async fn get_order_crossmatch(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let order = sqlx::query_as::<_, LabOrder>(
-        "SELECT * FROM lab_orders WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let order = sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let crossmatches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.created_at DESC), '[]'::json) FROM ( \
@@ -3432,15 +3704,18 @@ pub async fn get_analyzer_worklist(
     .fetch_all(&mut *tx)
     .await?;
 
-    let worklist: Vec<serde_json::Value> = rows.iter().map(|r| {
-        serde_json::json!({
-            "order_id": r.0,
-            "patient_id": r.1,
-            "sample_barcode": r.2,
-            "patient_name": r.3,
-            "ordered_at": r.4,
+    let worklist: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "order_id": r.0,
+                "patient_id": r.1,
+                "sample_barcode": r.2,
+                "patient_name": r.3,
+                "ordered_at": r.4,
+            })
         })
-    }).collect();
+        .collect();
 
     tx.commit().await?;
     Ok(Json(worklist))
@@ -3463,7 +3738,10 @@ pub async fn assign_phlebotomist(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     sqlx::query("UPDATE lab_phlebotomy_queue SET assigned_to = $2 WHERE id = $1")
-        .bind(id).bind(body.assigned_to).execute(&mut *tx).await?;
+        .bind(id)
+        .bind(body.assigned_to)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"status": "assigned"})))
@@ -3496,7 +3774,9 @@ pub async fn bulk_print_reports(
     }
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"dispatched": dispatched, "total": body.order_ids.len()})))
+    Ok(Json(
+        serde_json::json!({"dispatched": dispatched, "total": body.order_ids.len()}),
+    ))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -3538,7 +3818,11 @@ pub async fn update_report_delivery_config(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
          VALUES (gen_random_uuid(),$1,'lab','report_delivery_config',$2) \
          ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
-    ).bind(claims.tenant_id).bind(&body).execute(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .bind(&body)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(body))
@@ -3553,15 +3837,33 @@ pub async fn list_referral_doctors(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, String, Option<String>, Option<String>, Option<String>, Option<f64>, bool)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<f64>,
+            bool,
+        ),
+    >(
         "SELECT id, name, phone, specialization, hospital_name, commission_pct, is_active \
          FROM lab_referral_doctors ORDER BY name",
-    ).fetch_all(&mut *tx).await?;
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "name": r.1, "phone": r.2, "specialization": r.3,
-        "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "name": r.1, "phone": r.2, "specialization": r.3,
+                "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))
@@ -3618,7 +3920,8 @@ pub async fn update_referral_doctor(
     .bind(body["hospital_name"].as_str())
     .bind(body["commission_pct"].as_f64())
     .bind(body["is_active"].as_bool())
-    .execute(&mut *tx).await?;
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"id": id, "status": "updated"})))
@@ -3633,16 +3936,35 @@ pub async fn list_referral_payouts(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, NaiveDate, NaiveDate, i32, Decimal, Decimal, String)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            NaiveDate,
+            NaiveDate,
+            i32,
+            Decimal,
+            Decimal,
+            String,
+        ),
+    >(
         "SELECT p.id, p.referral_doctor_id, p.period_start, p.period_end, \
          p.order_count, p.total_revenue, p.commission_amount, p.status::text \
          FROM lab_referral_payouts p ORDER BY p.period_end DESC LIMIT 100",
-    ).fetch_all(&mut *tx).await?;
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "referral_doctor_id": r.1, "period_start": r.2, "period_end": r.3,
-        "order_count": r.4, "total_revenue": r.5, "commission_amount": r.6, "status": r.7
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "referral_doctor_id": r.1, "period_start": r.2, "period_end": r.3,
+                "order_count": r.4, "total_revenue": r.5, "commission_amount": r.6, "status": r.7
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))
@@ -3687,13 +4009,20 @@ pub async fn get_b2b_credit_summary(
     let rows = sqlx::query_as::<_, (Uuid, String, Option<Decimal>, Option<Decimal>, Option<i32>)>(
         "SELECT id, name, credit_limit, credit_used, payment_terms_days \
          FROM lab_b2b_clients WHERE is_active = true ORDER BY name",
-    ).fetch_all(&mut *tx).await?;
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "name": r.1, "credit_limit": r.2, "credit_used": r.3,
-        "credit_available": r.2.unwrap_or_default() - r.3.unwrap_or_default(),
-        "payment_terms_days": r.4
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "name": r.1, "credit_limit": r.2, "credit_used": r.3,
+                "credit_available": r.2.unwrap_or_default() - r.3.unwrap_or_default(),
+                "payment_terms_days": r.4
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))

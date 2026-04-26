@@ -109,10 +109,7 @@ pub fn encode_jwt(
 }
 
 /// Decode and validate JWT using Ed25519.
-pub fn decode_jwt(
-    token: &str,
-    key: &DecodingKey,
-) -> Result<Claims, jsonwebtoken::errors::Error> {
+pub fn decode_jwt(token: &str, key: &DecodingKey) -> Result<Claims, jsonwebtoken::errors::Error> {
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.set_required_spec_claims(&["exp", "sub"]);
     let data = decode::<Claims>(token, key, &validation)?;
@@ -131,13 +128,12 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppErro
         return Ok(());
     }
 
-    let current: Option<i32> = sqlx::query_scalar(
-        "SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
-    .fetch_optional(db)
-    .await?;
+    let current: Option<i32> =
+        sqlx::query_scalar("SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(claims.sub)
+            .bind(claims.tenant_id)
+            .fetch_optional(db)
+            .await?;
 
     match current {
         Some(v) if v == claims.perm_version => Ok(()),

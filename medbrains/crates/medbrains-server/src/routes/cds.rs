@@ -3,20 +3,21 @@
 //! Clinical Decision Support routes — drug interactions, critical values,
 //! clinical protocols, antibiotic stewardship, pre-authorization, PG logbook.
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, Utc};
 use medbrains_core::cds::{
-    ClinicalProtocol, CoSignatureRequest, CriticalValueRule, DrugInteraction,
-    PgLogbookEntry, PreAuthorizationRequest, RestrictedDrugApproval,
+    ClinicalProtocol, CoSignatureRequest, CriticalValueRule, DrugInteraction, PgLogbookEntry,
+    PreAuthorizationRequest, RestrictedDrugApproval,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -452,14 +453,14 @@ pub async fn create_protocol(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let trigger = body.trigger_conditions.as_ref().map_or_else(
-        || serde_json::json!([]),
-        Clone::clone,
-    );
-    let steps = body.steps.as_ref().map_or_else(
-        || serde_json::json!([]),
-        Clone::clone,
-    );
+    let trigger = body
+        .trigger_conditions
+        .as_ref()
+        .map_or_else(|| serde_json::json!([]), Clone::clone);
+    let steps = body
+        .steps
+        .as_ref()
+        .map_or_else(|| serde_json::json!([]), Clone::clone);
 
     let row = sqlx::query_as::<_, ClinicalProtocol>(
         "INSERT INTO clinical_protocols \
@@ -576,7 +577,11 @@ pub async fn update_restricted_drug_approval(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let approved_at = if body.status == "approved" { Some(Utc::now()) } else { None };
+    let approved_at = if body.status == "approved" {
+        Some(Utc::now())
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, RestrictedDrugApproval>(
         "UPDATE restricted_drug_approvals \
@@ -685,7 +690,11 @@ pub async fn update_pre_auth_request(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let reviewed_at = if body.status.is_some() { Some(Utc::now()) } else { None };
+    let reviewed_at = if body.status.is_some() {
+        Some(Utc::now())
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, PreAuthorizationRequest>(
         "UPDATE pre_authorization_requests SET \
@@ -909,7 +918,11 @@ pub async fn update_co_signature(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let approved_at = if body.status == "approved" { Some(Utc::now()) } else { None };
+    let approved_at = if body.status == "approved" {
+        Some(Utc::now())
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, CoSignatureRequest>(
         "UPDATE co_signature_requests \

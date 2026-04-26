@@ -1,17 +1,21 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}, http::StatusCode};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
 use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_core::scheduling::{NoshowPredictionScore, SchedulingWaitlistEntry, SchedulingOverbookingRule};
 use medbrains_core::permissions;
+use medbrains_core::scheduling::{
+    NoshowPredictionScore, SchedulingOverbookingRule, SchedulingWaitlistEntry,
+};
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -186,9 +190,7 @@ pub async fn list_predictions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut sql = String::from(
-        "SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1",
-    );
+    let mut sql = String::from("SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.patient_id.is_some() {
@@ -209,8 +211,7 @@ pub async fn list_predictions(
 
     sql.push_str(" ORDER BY scored_at DESC LIMIT 200");
 
-    let mut query = sqlx::query_as::<_, NoshowPredictionScore>(&sql)
-        .bind(claims.tenant_id);
+    let mut query = sqlx::query_as::<_, NoshowPredictionScore>(&sql).bind(claims.tenant_id);
 
     if let Some(pid) = params.patient_id {
         query = query.bind(pid);
@@ -240,12 +241,12 @@ pub async fn score_appointment(
 
     // Simple stub: hash appointment_id bytes to get a deterministic "probability"
     let bytes = body.appointment_id.as_bytes();
-    let hash_val = bytes
-        .iter()
-        .fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(u32::from(b)));
+    let hash_val = bytes.iter().fold(0u32, |acc, &b| {
+        acc.wrapping_mul(31).wrapping_add(u32::from(b))
+    });
     let probability = f64::from(hash_val % 1000) / 1000.0;
-    let probability_decimal = rust_decimal::Decimal::from_f64_retain(probability)
-        .unwrap_or(rust_decimal::Decimal::ZERO);
+    let probability_decimal =
+        rust_decimal::Decimal::from_f64_retain(probability).unwrap_or(rust_decimal::Decimal::ZERO);
 
     let risk_level = if probability > 0.7 {
         "high"
@@ -293,9 +294,9 @@ pub async fn score_batch(
 
     for appointment_id in &body.appointment_ids {
         let bytes = appointment_id.as_bytes();
-        let hash_val = bytes
-            .iter()
-            .fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(u32::from(b)));
+        let hash_val = bytes.iter().fold(0u32, |acc, &b| {
+            acc.wrapping_mul(31).wrapping_add(u32::from(b))
+        });
         let probability = f64::from(hash_val % 1000) / 1000.0;
         let probability_decimal = rust_decimal::Decimal::from_f64_retain(probability)
             .unwrap_or(rust_decimal::Decimal::ZERO);
@@ -349,9 +350,7 @@ pub async fn list_waitlist(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut sql = String::from(
-        "SELECT * FROM scheduling_waitlist WHERE tenant_id = $1",
-    );
+    let mut sql = String::from("SELECT * FROM scheduling_waitlist WHERE tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {
@@ -375,8 +374,7 @@ pub async fn list_waitlist(
 
     sql.push_str(" ORDER BY created_at DESC LIMIT 200");
 
-    let mut query = sqlx::query_as::<_, SchedulingWaitlistEntry>(&sql)
-        .bind(claims.tenant_id);
+    let mut query = sqlx::query_as::<_, SchedulingWaitlistEntry>(&sql).bind(claims.tenant_id);
 
     if let Some(did) = params.doctor_id {
         query = query.bind(did);
@@ -591,9 +589,7 @@ pub async fn list_overbooking_rules(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut sql = String::from(
-        "SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1",
-    );
+    let mut sql = String::from("SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {
@@ -613,8 +609,7 @@ pub async fn list_overbooking_rules(
 
     sql.push_str(" ORDER BY doctor_id, day_of_week");
 
-    let mut query = sqlx::query_as::<_, SchedulingOverbookingRule>(&sql)
-        .bind(claims.tenant_id);
+    let mut query = sqlx::query_as::<_, SchedulingOverbookingRule>(&sql).bind(claims.tenant_id);
 
     if let Some(did) = params.doctor_id {
         query = query.bind(did);
@@ -711,13 +706,11 @@ pub async fn delete_overbooking_rule(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
-        "DELETE FROM scheduling_overbooking_rules WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM scheduling_overbooking_rules WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
@@ -835,8 +828,7 @@ pub async fn noshow_rates(
 
     sql.push_str(" GROUP BY a.doctor_id, a.department_id ORDER BY noshow_count DESC");
 
-    let mut query = sqlx::query_as::<_, NoshowRateRow>(&sql)
-        .bind(claims.tenant_id);
+    let mut query = sqlx::query_as::<_, NoshowRateRow>(&sql).bind(claims.tenant_id);
 
     if let Some(did) = params.doctor_id {
         query = query.bind(did);
@@ -860,12 +852,11 @@ pub async fn prediction_accuracy(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (total_predictions,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM noshow_prediction_scores WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (total_predictions,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM noshow_prediction_scores WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
 
@@ -1031,8 +1022,7 @@ pub async fn promote_waitlist(
     let _ = param_idx;
     sql.push_str(" ORDER BY created_at ASC LIMIT 1");
 
-    let mut query = sqlx::query_as::<_, SchedulingWaitlistEntry>(&sql)
-        .bind(claims.tenant_id);
+    let mut query = sqlx::query_as::<_, SchedulingWaitlistEntry>(&sql).bind(claims.tenant_id);
 
     if let Some(did) = body.doctor_id {
         query = query.bind(did);
@@ -1289,10 +1279,13 @@ pub async fn create_recurring(
     }
 
     tx.commit().await?;
-    Ok((StatusCode::CREATED, Json(RecurringResult {
-        created,
-        appointment_ids,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(RecurringResult {
+            created,
+            appointment_ids,
+        }),
+    ))
 }
 
 // ── POST /api/scheduling/blocks ─────────────────────────────

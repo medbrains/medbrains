@@ -12,7 +12,10 @@ use medbrains_core::audit::{
 use medbrains_core::permissions;
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, middleware::authorization::require_permission, state::AppState};
+use crate::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
     s.as_deref().and_then(|v| v.parse::<Uuid>().ok())
@@ -384,8 +387,7 @@ pub async fn export_audit_log(
     }
 
     // Default: CSV
-    let mut csv =
-        String::from("timestamp,user,module,action,entity_type,entity_id,description\n");
+    let mut csv = String::from("timestamp,user,module,action,entity_type,entity_id,description\n");
     for r in &rows {
         csv.push_str(&format!(
             "{},{},{},{},{},{},{}\n",

@@ -52,9 +52,7 @@ fn extract_domain(email: &str) -> Option<&str> {
 
 fn is_public_domain(domain: &str) -> bool {
     let lower = domain.to_lowercase();
-    PUBLIC_EMAIL_DOMAINS
-        .iter()
-        .any(|d| lower == **d)
+    PUBLIC_EMAIL_DOMAINS.iter().any(|d| lower == **d)
 }
 
 // ── GET /api/onboarding/status ──────────────────────────────
@@ -73,11 +71,10 @@ pub async fn status(
 ) -> Result<Json<OnboardingStatusResponse>, AppError> {
     // Multi-tenant: onboarding is always available for new organizations.
     // This is a PUBLIC endpoint — never leak PII (admin emails, hospital names, etc.).
-    let tenant_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM onboarding_progress WHERE is_complete = true",
-    )
-    .fetch_one(&state.db)
-    .await?;
+    let tenant_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM onboarding_progress WHERE is_complete = true")
+            .fetch_one(&state.db)
+            .await?;
 
     Ok(Json(OnboardingStatusResponse {
         // Always allow new orgs to register through the wizard.
@@ -128,12 +125,11 @@ pub async fn init(
 
     // ── Uniqueness checks (multi-tenant safe) ───────────
     // 1. Hospital code must be unique across all tenants
-    let code_taken: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tenants WHERE code = $1)",
-    )
-    .bind(&body.hospital_code)
-    .fetch_one(&state.db)
-    .await?;
+    let code_taken: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE code = $1)")
+            .bind(&body.hospital_code)
+            .fetch_one(&state.db)
+            .await?;
     if code_taken {
         errors.add(
             "hospital_code",
@@ -629,11 +625,7 @@ pub async fn setup(
     if let Some(ref seq) = body.sequences {
         validation::validate_prefix(&mut errors, "sequences.uhid_prefix", &seq.uhid_prefix);
         validation::validate_pad_width(&mut errors, "sequences.uhid_pad_width", seq.uhid_pad_width);
-        validation::validate_prefix(
-            &mut errors,
-            "sequences.invoice_prefix",
-            &seq.invoice_prefix,
-        );
+        validation::validate_prefix(&mut errors, "sequences.invoice_prefix", &seq.invoice_prefix);
         validation::validate_pad_width(
             &mut errors,
             "sequences.invoice_pad_width",
@@ -733,9 +725,7 @@ pub async fn setup(
 
     // 4. Create additional facilities (topological order)
     let mut facility_id_map: HashMap<String, Uuid> = HashMap::new();
-    let facility_order = topological_order(&body.facilities, |f| {
-        f.parent_local_id.as_deref()
-    });
+    let facility_order = topological_order(&body.facilities, |f| f.parent_local_id.as_deref());
 
     for idx in facility_order {
         let f = &body.facilities[idx];
@@ -771,9 +761,7 @@ pub async fn setup(
 
     // 5. Create locations (topological order)
     let mut location_id_map: HashMap<String, Uuid> = HashMap::new();
-    let location_order = topological_order(&body.locations, |l| {
-        l.parent_local_id.as_deref()
-    });
+    let location_order = topological_order(&body.locations, |l| l.parent_local_id.as_deref());
 
     for idx in location_order {
         let l = &body.locations[idx];
@@ -799,9 +787,7 @@ pub async fn setup(
     }
 
     // 6. Create departments (topological order)
-    let dept_order = topological_order(&body.departments, |d| {
-        d.parent_local_id.as_deref()
-    });
+    let dept_order = topological_order(&body.departments, |d| d.parent_local_id.as_deref());
     let mut dept_id_map: HashMap<String, Uuid> = HashMap::new();
 
     for idx in dept_order {
@@ -878,7 +864,10 @@ pub async fn setup(
         .bind(&user.specialization)
         .bind(&user.medical_registration_number)
         .bind(&user.qualification)
-        .bind(user.consultation_fee.and_then(|f| Decimal::try_from(f).ok()))
+        .bind(
+            user.consultation_fee
+                .and_then(|f| Decimal::try_from(f).ok()),
+        )
         .bind(&dept_ids)
         .execute(&mut *tx)
         .await?;
@@ -886,21 +875,81 @@ pub async fn setup(
 
     // 9. Seed default modules + apply status overrides
     let default_modules = [
-        ("registration", "Patient Registration", "Patient registration, UHID generation, demographics"),
-        ("opd", "OPD", "Outpatient department queues, consultations, prescriptions"),
-        ("ipd", "IPD", "Inpatient admissions, bed management, discharge"),
-        ("lab", "Laboratory / LIS", "Lab test catalog, orders, results, verification"),
-        ("pharmacy", "Pharmacy", "Drug catalog, dispensing, stock management"),
-        ("billing", "Billing & Revenue", "Invoices, payments, charge master, insurance"),
-        ("radiology", "Radiology / RIS", "Imaging orders, PACS integration, reporting"),
-        ("blood_bank", "Blood Bank", "Blood inventory, cross-match, transfusion"),
-        ("ot", "Operation Theatre", "Surgery scheduling, OT management"),
-        ("emergency", "Emergency", "Triage, emergency admissions, trauma protocols"),
-        ("nursing", "Nursing", "Nursing assessments, care plans, task management"),
-        ("diet", "Diet & Nutrition", "Meal planning, therapeutic diets, kitchen management"),
-        ("hr", "Human Resources", "Staff management, attendance, payroll"),
-        ("inventory", "Inventory & Stores", "Purchase orders, stock management, vendors"),
-        ("reports", "Reports & Analytics", "Dashboards, MIS reports, data analytics"),
+        (
+            "registration",
+            "Patient Registration",
+            "Patient registration, UHID generation, demographics",
+        ),
+        (
+            "opd",
+            "OPD",
+            "Outpatient department queues, consultations, prescriptions",
+        ),
+        (
+            "ipd",
+            "IPD",
+            "Inpatient admissions, bed management, discharge",
+        ),
+        (
+            "lab",
+            "Laboratory / LIS",
+            "Lab test catalog, orders, results, verification",
+        ),
+        (
+            "pharmacy",
+            "Pharmacy",
+            "Drug catalog, dispensing, stock management",
+        ),
+        (
+            "billing",
+            "Billing & Revenue",
+            "Invoices, payments, charge master, insurance",
+        ),
+        (
+            "radiology",
+            "Radiology / RIS",
+            "Imaging orders, PACS integration, reporting",
+        ),
+        (
+            "blood_bank",
+            "Blood Bank",
+            "Blood inventory, cross-match, transfusion",
+        ),
+        (
+            "ot",
+            "Operation Theatre",
+            "Surgery scheduling, OT management",
+        ),
+        (
+            "emergency",
+            "Emergency",
+            "Triage, emergency admissions, trauma protocols",
+        ),
+        (
+            "nursing",
+            "Nursing",
+            "Nursing assessments, care plans, task management",
+        ),
+        (
+            "diet",
+            "Diet & Nutrition",
+            "Meal planning, therapeutic diets, kitchen management",
+        ),
+        (
+            "hr",
+            "Human Resources",
+            "Staff management, attendance, payroll",
+        ),
+        (
+            "inventory",
+            "Inventory & Stores",
+            "Purchase orders, stock management, vendors",
+        ),
+        (
+            "reports",
+            "Reports & Analytics",
+            "Dashboards, MIS reports, data analytics",
+        ),
     ];
 
     for (code, name, desc) in default_modules {

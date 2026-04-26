@@ -1,14 +1,16 @@
 //! Print-data endpoints — medico-legal forms.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AgeEstimationPrintData, AmaFormPrintData, DeathDeclarationPrintData, EpiphysealFusion,
-    InjuryEntry, MlcDateEntry, MlcDocumentationPrintData, MlcRegisterPrintData,
-    PoliceVisitEntry, SamplePreservedEntry, SecondaryCharacters, WoundCertificatePrintData,
-    WoundEntry,
+    InjuryEntry, MlcDateEntry, MlcDocumentationPrintData, MlcRegisterPrintData, PoliceVisitEntry,
+    SamplePreservedEntry, SecondaryCharacters, WoundCertificatePrintData, WoundEntry,
 };
 
 use crate::{
@@ -279,7 +281,9 @@ pub async fn get_mlc_register_print_data(
         police_dd_number: row.police_dd_number,
         nature_of_case: row.nature_of_case,
         alleged_history: row.alleged_history,
-        date_time_of_incident: row.date_time_of_incident.map(|dt| dt.format("%d-%b-%Y %H:%M").to_string()),
+        date_time_of_incident: row
+            .date_time_of_incident
+            .map(|dt| dt.format("%d-%b-%Y %H:%M").to_string()),
         place_of_incident: row.place_of_incident,
         weapon_used: row.weapon_used,
         condition_on_arrival: row.condition_on_arrival,
@@ -420,8 +424,12 @@ pub async fn get_wound_certificate_print_data(
         mlc_number: row.mlc_number,
         police_requisition_number: row.police_requisition_number,
         police_station: row.police_station,
-        alleged_incident_date: row.alleged_incident_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        alleged_incident_time: row.alleged_incident_time.map(|t| t.format("%H:%M").to_string()),
+        alleged_incident_date: row
+            .alleged_incident_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
+        alleged_incident_time: row
+            .alleged_incident_time
+            .map(|t| t.format("%H:%M").to_string()),
         alleged_incident_place: row.alleged_incident_place,
         alleged_manner: row.alleged_manner,
         general_condition: row.general_condition,
@@ -561,7 +569,9 @@ pub async fn get_age_estimation_print_data(
         purpose_of_examination: row.purpose_of_examination,
         requisition_from: row.requisition_from,
         requisition_number: row.requisition_number,
-        requisition_date: row.requisition_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        requisition_date: row
+            .requisition_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         identification_marks,
         general_physical_development: row.general_physical_development,
         height_cm: row.height_cm,

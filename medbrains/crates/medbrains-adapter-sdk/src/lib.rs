@@ -229,7 +229,10 @@ pub mod hl7 {
                     fields.insert(key, serde_json::Value::String(part.to_string()));
                 }
 
-                MessageSegment { segment_type: seg_type, fields }
+                MessageSegment {
+                    segment_type: seg_type,
+                    fields,
+                }
             })
             .collect()
     }
@@ -238,12 +241,15 @@ pub mod hl7 {
     /// Path format: "PID.3" (segment type + field index).
     pub fn get_field(segments: &[MessageSegment], path: &str) -> Option<String> {
         let parts: Vec<&str> = path.splitn(2, '.').collect();
-        if parts.len() != 2 { return None; }
+        if parts.len() != 2 {
+            return None;
+        }
 
         let seg_type = parts[0];
         let field_key = path;
 
-        segments.iter()
+        segments
+            .iter()
             .find(|s| s.segment_type == seg_type)
             .and_then(|s| s.fields.get(field_key))
             .and_then(|v| v.as_str())
@@ -284,8 +290,12 @@ pub mod hl7 {
     /// MLLP unwrap: extract message from MLLP frame.
     /// Returns None if framing is invalid.
     pub fn mllp_unwrap(data: &[u8]) -> Option<String> {
-        if data.len() < 3 { return None; }
-        if data[0] != 0x0B { return None; }
+        if data.len() < 3 {
+            return None;
+        }
+        if data[0] != 0x0B {
+            return None;
+        }
 
         // Find end marker (0x1C)
         let end = data.iter().position(|&b| b == 0x1C)?;

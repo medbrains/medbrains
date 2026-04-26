@@ -1,6 +1,9 @@
 //! Print-data endpoints — surgical & OT forms.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -9,8 +12,7 @@ use medbrains_core::print_data::{
     CaseSheetCoverPrintData, FluidEntry, OperationNotesPrintData, PostopFluidOrder,
     PostopMedicationOrder, PostopOrdersPrintData, PreopAssessmentPrintData, PreopLabResult,
     PreopVitals, SurgicalSafetyChecklistPrintData, SurgicalSignIn, SurgicalSignOut,
-    SurgicalTimeOut, TransfusionMonitoringEntry, TransfusionMonitoringPrintData,
-    TransfusionVitals,
+    SurgicalTimeOut, TransfusionMonitoringEntry, TransfusionMonitoringPrintData, TransfusionVitals,
 };
 
 use crate::{
@@ -1043,7 +1045,9 @@ pub async fn get_transfusion_monitoring_print_data(
         transfusion_start_time: row.transfusion_start_time.format("%H:%M").to_string(),
         started_by: row.started_by,
         monitoring_entries,
-        transfusion_end_time: row.transfusion_end_time.map(|t| t.format("%H:%M").to_string()),
+        transfusion_end_time: row
+            .transfusion_end_time
+            .map(|t| t.format("%H:%M").to_string()),
         post_vitals: None,
         total_volume_infused_ml: row.total_volume_infused_ml,
         adverse_reaction: row.adverse_reaction,

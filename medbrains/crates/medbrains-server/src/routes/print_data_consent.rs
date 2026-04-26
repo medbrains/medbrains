@@ -4,7 +4,10 @@
 //! Consent forms include patient details, procedure info, risks, alternatives,
 //! and signature blocks for patient, guardian, witness, and doctor.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -505,7 +508,9 @@ pub async fn get_hiv_consent_print_data(
             "Anonymous testing at government centers".to_string(),
             "Home testing kits".to_string(),
         ],
-        special_instructions: Some("Pre-test counseling completed. Post-test counseling will be provided.".to_string()),
+        special_instructions: Some(
+            "Pre-test counseling completed. Post-test counseling will be provided.".to_string(),
+        ),
         blood_group: row.blood_group,
         components_required: vec![],
         reason_for_ama: None,
@@ -678,7 +683,9 @@ pub async fn get_photo_consent_print_data(
             "Consent with face/identifiers obscured".to_string(),
             "Consent for internal use only".to_string(),
         ],
-        special_instructions: Some("Consent is voluntary and can be withdrawn at any time.".to_string()),
+        special_instructions: Some(
+            "Consent is voluntary and can be withdrawn at any time.".to_string(),
+        ),
         blood_group: row.blood_group,
         components_required: vec![],
         reason_for_ama: None,
@@ -805,13 +812,11 @@ pub async fn get_organ_donation_consent_print_data(
     .await?;
 
     // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
 
     tx.commit().await?;
 
@@ -973,13 +978,11 @@ pub async fn get_abdm_consent_print_data(
     .await?;
 
     // Get hospital name (HIP)
-    let h_name: Option<String> = sqlx::query_scalar(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
 
     tx.commit().await?;
 

@@ -251,11 +251,11 @@ pub struct RadiologyQueueStats {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriageLevel {
-    Red,      // Immediate (0 min)
-    Orange,   // Very urgent (10 min)
-    Yellow,   // Urgent (60 min)
-    Green,    // Standard (120 min)
-    Blue,     // Non-urgent (240 min)
+    Red,    // Immediate (0 min)
+    Orange, // Very urgent (10 min)
+    Yellow, // Urgent (60 min)
+    Green,  // Standard (120 min)
+    Blue,   // Non-urgent (240 min)
 }
 
 /// ER triage queue token (privacy-safe - no names on display)
@@ -440,12 +440,27 @@ pub struct QueueMetrics {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum DoctorQueueAction {
     CallNext,
-    Recall { token_id: Uuid },
-    Skip { token_id: Uuid, reason: Option<String> },
-    Hold { token_id: Uuid },
-    Transfer { token_id: Uuid, to_doctor_id: Uuid },
-    CallSpecific { token_id: Uuid },
-    SetBreak { message: String, resume_at: Option<DateTime<Utc>> },
+    Recall {
+        token_id: Uuid,
+    },
+    Skip {
+        token_id: Uuid,
+        reason: Option<String>,
+    },
+    Hold {
+        token_id: Uuid,
+    },
+    Transfer {
+        token_id: Uuid,
+        to_doctor_id: Uuid,
+    },
+    CallSpecific {
+        token_id: Uuid,
+    },
+    SetBreak {
+        message: String,
+        resume_at: Option<DateTime<Utc>>,
+    },
     EndBreak,
 }
 

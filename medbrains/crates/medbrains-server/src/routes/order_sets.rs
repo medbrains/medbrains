@@ -15,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -252,12 +250,11 @@ pub async fn get_template(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let template = sqlx::query_as::<_, OrderSetTemplate>(
-        "SELECT * FROM order_set_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let template =
+        sqlx::query_as::<_, OrderSetTemplate>("SELECT * FROM order_set_templates WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let items = sqlx::query_as::<_, OrderSetTemplateItem>(
         "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order",
@@ -496,13 +493,11 @@ pub async fn delete_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
-        "DELETE FROM order_set_template_items WHERE id = $1 AND template_id = $2",
-    )
-    .bind(item_id)
-    .bind(template_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM order_set_template_items WHERE id = $1 AND template_id = $2")
+        .bind(item_id)
+        .bind(template_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"deleted": true})))
@@ -758,8 +753,8 @@ pub async fn activate_order_set(
     }
 
     let total_items = i32::try_from(template_items.len()).unwrap_or(0);
-    let selected_count = i32::try_from(body.items.iter().filter(|i| i.selected).count())
-        .unwrap_or(0);
+    let selected_count =
+        i32::try_from(body.items.iter().filter(|i| i.selected).count()).unwrap_or(0);
 
     // 4. Create activation record
     let activation = sqlx::query_as::<_, OrderSetActivation>(
@@ -1027,11 +1022,10 @@ pub async fn get_analytics(
     .fetch_one(&mut *tx)
     .await?;
 
-    let activations = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*) as count FROM order_set_activations",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let activations =
+        sqlx::query_as::<_, CountRow>("SELECT COUNT(*) as count FROM order_set_activations")
+            .fetch_one(&mut *tx)
+            .await?;
 
     let doctors = sqlx::query_as::<_, UniqueDoctorsRow>(
         "SELECT COUNT(DISTINCT activated_by) as count FROM order_set_activations",
@@ -1047,8 +1041,7 @@ pub async fn get_analytics(
         )
         .fetch_one(&mut *tx)
         .await?;
-        sum.total.unwrap_or_default()
-            / Decimal::from(total_act)
+        sum.total.unwrap_or_default() / Decimal::from(total_act)
     } else {
         Decimal::ZERO
     };

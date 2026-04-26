@@ -6,43 +6,94 @@ use axum::{
     extract::{Path, Query, State},
 };
 use medbrains_core::it_security::{
+    AccessAlert,
+    AcknowledgeAlertRequest,
+    AddIncidentUpdateRequest,
+    ApproveDisposalRequest,
+    ApproveIncentiveRequest,
+    AssignIncentivePlanRequest,
+    BackupHistory,
+    BreakGlassEvent,
+    BreakGlassEventSummary,
+    BreakGlassQuery,
+    CalculateIncentiveRequest,
+    CompleteOnboardingStepRequest,
+    CompleteTatRecordRequest,
+    ComplianceRequirement,
     // Break-Glass
-    CreateBreakGlassRequest, BreakGlassEvent, EndBreakGlassRequest, BreakGlassQuery,
-    BreakGlassEventSummary, ReviewBreakGlassRequest,
-    // Clinical Access Monitor
-    SensitivePatientSummary, CreateSensitivePatientRequest, SensitivePatient,
-    AccessAlert, AcknowledgeAlertRequest,
-    // Stock Disposal
-    DisposalQuery, StockDisposalSummary, StockDisposalRequest, StockDisposalItem,
-    CreateDisposalRequest, ApproveDisposalRequest, ExecuteDisposalRequest,
-    // TAT Tracking
-    TatBenchmark, CreateTatBenchmarkRequest, TatQuery, TatRecordSummary, TatRecord,
-    CreateTatRecordRequest, CompleteTatRecordRequest, TatDashboard, TatCategoryStats,
-    // Data Migration
-    MigrationQuery, DataMigration, CreateMigrationRequest,
-    // EOD Digest
-    EodDigestSubscription, CreateDigestSubscriptionRequest, EodDigestHistory,
+    CreateBreakGlassRequest,
+    CreateDataQualityRuleRequest,
+    CreateDigestSubscriptionRequest,
+    CreateDisposalRequest,
+    CreateIncentivePlanRequest,
+    CreateIncentiveRuleRequest,
+    CreateMigrationRequest,
+    CreateSecurityIncidentRequest,
+    CreateSensitivePatientRequest,
+    CreateTatBenchmarkRequest,
+    CreateTatRecordRequest,
+    CreateVulnerabilityRequest,
+    DataMigration,
+    DataQualityDashboard,
+    DataQualityIssue,
+    DataQualityQuery,
     // Data Quality
-    DataQualityRule, CreateDataQualityRuleRequest, DataQualityQuery, DataQualityIssue,
-    ResolveIssueRequest, DataQualityDashboard, EntityQualityStats,
-    // CERT-In Compliance
-    IncidentQuery, SecurityIncidentSummary, SecurityIncident, CreateSecurityIncidentRequest,
-    UpdateSecurityIncidentRequest, ReportToCertInRequest, SecurityIncidentUpdate,
-    AddIncidentUpdateRequest, Vulnerability, CreateVulnerabilityRequest,
-    UpdateVulnerabilityRequest, ComplianceRequirement, UpdateComplianceRequest,
-    // System Health
-    SystemHealthDashboard, SystemHealthMetric, BackupHistory,
-    // Onboarding
-    OnboardingProgress, UpdateOnboardingRequest, CompleteOnboardingStepRequest,
+    DataQualityRule,
+    // Stock Disposal
+    DisposalQuery,
+    DoctorIncentiveAssignment,
+    EndBreakGlassRequest,
+    EntityQualityStats,
+    EodDigestHistory,
+    // EOD Digest
+    EodDigestSubscription,
+    ExecuteDisposalRequest,
+    IncentiveCalculation,
     // Incentives
-    IncentivePlan, CreateIncentivePlanRequest, IncentivePlanRule, CreateIncentiveRuleRequest,
-    DoctorIncentiveAssignment, AssignIncentivePlanRequest, IncentiveCalculation,
-    CalculateIncentiveRequest, ApproveIncentiveRequest, MarkIncentivePaidRequest,
+    IncentivePlan,
+    IncentivePlanRule,
+    // CERT-In Compliance
+    IncidentQuery,
+    MarkIncentivePaidRequest,
+    // Data Migration
+    MigrationQuery,
+    // Onboarding
+    OnboardingProgress,
+    ReportToCertInRequest,
+    ResolveIssueRequest,
+    ReviewBreakGlassRequest,
+    SecurityIncident,
+    SecurityIncidentSummary,
+    SecurityIncidentUpdate,
+    SensitivePatient,
+    // Clinical Access Monitor
+    SensitivePatientSummary,
+    StockDisposalItem,
+    StockDisposalRequest,
+    StockDisposalSummary,
+    // System Health
+    SystemHealthDashboard,
+    SystemHealthMetric,
+    // TAT Tracking
+    TatBenchmark,
+    TatCategoryStats,
+    TatDashboard,
+    TatQuery,
+    TatRecord,
+    TatRecordSummary,
+    UpdateComplianceRequest,
+    UpdateOnboardingRequest,
+    UpdateSecurityIncidentRequest,
+    UpdateVulnerabilityRequest,
+    Vulnerability,
 };
 use medbrains_core::permissions;
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, middleware::authorization::require_permission, state::AppState};
+use crate::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
     s.as_deref().and_then(|v| v.parse::<Uuid>().ok())
@@ -94,7 +145,7 @@ pub async fn end_break_glass(
         "UPDATE break_glass_events
          SET is_active = false, end_time = now(), modules_accessed = $2
          WHERE id = $1 AND user_id = $3
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(&body.modules_accessed)
@@ -162,12 +213,11 @@ pub async fn get_break_glass(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BreakGlassEvent>(
-        "SELECT * FROM break_glass_events WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, BreakGlassEvent>("SELECT * FROM break_glass_events WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -189,7 +239,7 @@ pub async fn review_break_glass(
         "UPDATE break_glass_events
          SET reviewed_at = now(), supervisor_id = $2, review_notes = $3
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.sub)
@@ -220,7 +270,7 @@ pub async fn list_sensitive_patients(
          s.sensitivity_type, s.reason, s.alert_on_access, s.created_at
          FROM sensitive_patients s
          JOIN patients p ON p.id = s.patient_id
-         ORDER BY s.created_at DESC"
+         ORDER BY s.created_at DESC",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -245,7 +295,7 @@ pub async fn create_sensitive_patient(
         "INSERT INTO sensitive_patients (id, tenant_id, patient_id, sensitivity_type, reason,
          access_restricted_to, alert_on_access, notify_users, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -300,7 +350,7 @@ pub async fn list_access_alerts(
          JOIN patients p ON p.id = a.patient_id
          JOIN users u ON u.id = a.user_id
          ORDER BY a.created_at DESC
-         LIMIT 200"
+         LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -325,7 +375,7 @@ pub async fn acknowledge_access_alert(
         "UPDATE access_alerts
          SET acknowledged_at = now(), acknowledged_by = $2, notes = $3
          WHERE id = $1
-         RETURNING *, NULL AS patient_name, NULL AS user_name"
+         RETURNING *, NULL AS patient_name, NULL AS user_name",
     )
     .bind(id)
     .bind(claims.sub)
@@ -369,7 +419,7 @@ pub async fn list_disposals(
          AND ($4::timestamptz IS NULL OR d.created_at >= $4::timestamptz)
          AND ($5::timestamptz IS NULL OR d.created_at <= $5::timestamptz)
          ORDER BY d.created_at DESC
-         LIMIT $6 OFFSET $7"
+         LIMIT $6 OFFSET $7",
     )
     .bind(parse_uuid(&params.store_id))
     .bind(&params.disposal_type)
@@ -397,7 +447,7 @@ pub async fn get_disposal(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, StockDisposalRequest>(
-        "SELECT * FROM stock_disposal_requests WHERE id = $1"
+        "SELECT * FROM stock_disposal_requests WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&mut *tx)
@@ -419,7 +469,7 @@ pub async fn get_disposal_items(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, StockDisposalItem>(
-        "SELECT * FROM stock_disposal_items WHERE disposal_id = $1"
+        "SELECT * FROM stock_disposal_items WHERE disposal_id = $1",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -454,7 +504,7 @@ pub async fn create_disposal(
         "INSERT INTO stock_disposal_requests (id, tenant_id, request_number, store_id,
          disposal_type, disposal_method, requested_by, reason, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -477,7 +527,7 @@ pub async fn create_disposal(
         sqlx::query(
             "INSERT INTO stock_disposal_items (id, disposal_id, item_id, item_name, item_code,
              batch_number, expiry_date, quantity, unit, unit_cost, total_cost, reason)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(Uuid::new_v4())
         .bind(id)
@@ -523,7 +573,7 @@ pub async fn approve_disposal(
          SET status = 'approved', approved_by = $2, approved_at = now(),
          notes = COALESCE($3, notes)
          WHERE id = $1 AND status = 'pending'
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.sub)
@@ -552,7 +602,7 @@ pub async fn execute_disposal(
          SET status = 'completed', executed_by = $2, executed_at = now(),
          certificate_number = $3, witness_id = $4, notes = COALESCE($5, notes)
          WHERE id = $1 AND status = 'approved'
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.sub)
@@ -579,7 +629,7 @@ pub async fn list_tat_benchmarks(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TatBenchmark>(
-        "SELECT * FROM tat_benchmarks WHERE is_active = true ORDER BY category, sub_category"
+        "SELECT * FROM tat_benchmarks WHERE is_active = true ORDER BY category, sub_category",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -604,7 +654,7 @@ pub async fn create_tat_benchmark(
         "INSERT INTO tat_benchmarks (id, tenant_id, category, sub_category, benchmark_minutes,
          warning_minutes, critical_minutes, department_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -645,7 +695,7 @@ pub async fn list_tat_records(
          AND ($4::timestamptz IS NULL OR t.created_at >= $4::timestamptz)
          AND ($5::timestamptz IS NULL OR t.created_at <= $5::timestamptz)
          ORDER BY t.created_at DESC
-         LIMIT $6 OFFSET $7"
+         LIMIT $6 OFFSET $7",
     )
     .bind(&params.category)
     .bind(&params.status)
@@ -674,7 +724,7 @@ pub async fn start_tat_record(
     let benchmark = sqlx::query_as::<_, TatBenchmark>(
         "SELECT * FROM tat_benchmarks
          WHERE category = $1 AND ($2::text IS NULL OR sub_category = $2) AND is_active = true
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(body.category)
     .bind(&body.sub_category)
@@ -686,7 +736,7 @@ pub async fn start_tat_record(
         "INSERT INTO tat_records (id, tenant_id, category, sub_category, entity_type, entity_id,
          patient_id, department_id, start_time, benchmark_minutes, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9, 'on_track')
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -760,7 +810,7 @@ pub async fn tat_dashboard(
          COUNT(*) FILTER (WHERE status = 'breached') AS breached,
          AVG(elapsed_minutes)::float AS avg_minutes
          FROM tat_records
-         WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+         WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'",
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -772,7 +822,7 @@ pub async fn tat_dashboard(
          AVG(elapsed_minutes)::float AS avg_minutes
          FROM tat_records
          WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-         GROUP BY category"
+         GROUP BY category",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -820,7 +870,7 @@ pub async fn list_migrations(
          AND ($2::text IS NULL OR entity_type = $2)
          AND ($3::text IS NULL OR status::text = $3)
          ORDER BY created_at DESC
-         LIMIT $4 OFFSET $5"
+         LIMIT $4 OFFSET $5",
     )
     .bind(&params.direction)
     .bind(&params.entity_type)
@@ -845,12 +895,10 @@ pub async fn get_migration(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, DataMigration>(
-        "SELECT * FROM data_migrations WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, DataMigration>("SELECT * FROM data_migrations WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -872,7 +920,7 @@ pub async fn create_migration(
         "INSERT INTO data_migrations (id, tenant_id, direction, entity_type, file_name,
          initiated_by, mapping_config, options)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -901,7 +949,7 @@ pub async fn cancel_migration(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, DataMigration>(
-        "UPDATE data_migrations SET status = 'cancelled' WHERE id = $1 RETURNING *"
+        "UPDATE data_migrations SET status = 'cancelled' WHERE id = $1 RETURNING *",
     )
     .bind(id)
     .fetch_one(&mut *tx)
@@ -924,7 +972,7 @@ pub async fn get_my_digest_subscription(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, EodDigestSubscription>(
-        "SELECT * FROM eod_digest_subscriptions WHERE user_id = $1"
+        "SELECT * FROM eod_digest_subscriptions WHERE user_id = $1",
     )
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
@@ -959,7 +1007,7 @@ pub async fn upsert_digest_subscription(
          email_enabled = COALESCE($11, eod_digest_subscriptions.email_enabled),
          push_enabled = COALESCE($12, eod_digest_subscriptions.push_enabled),
          updated_at = now()
-         RETURNING *"
+         RETURNING *",
     )
     .bind(Uuid::new_v4())
     .bind(claims.tenant_id)
@@ -989,7 +1037,7 @@ pub async fn list_digest_history(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, EodDigestHistory>(
-        "SELECT * FROM eod_digest_history WHERE user_id = $1 ORDER BY digest_date DESC LIMIT 30"
+        "SELECT * FROM eod_digest_history WHERE user_id = $1 ORDER BY digest_date DESC LIMIT 30",
     )
     .bind(claims.sub)
     .fetch_all(&mut *tx)
@@ -1014,7 +1062,7 @@ pub async fn list_dq_rules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, DataQualityRule>(
-        "SELECT * FROM data_quality_rules WHERE is_active = true ORDER BY entity_type, category"
+        "SELECT * FROM data_quality_rules WHERE is_active = true ORDER BY entity_type, category",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1039,7 +1087,7 @@ pub async fn create_dq_rule(
         "INSERT INTO data_quality_rules (id, tenant_id, category, entity_type, field_name,
          rule_name, rule_expression, severity)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1075,7 +1123,7 @@ pub async fn list_dq_issues(
          AND ($3::text IS NULL OR severity = $3)
          AND ($4::boolean IS NULL OR is_resolved = $4)
          ORDER BY created_at DESC
-         LIMIT $5 OFFSET $6"
+         LIMIT $5 OFFSET $6",
     )
     .bind(&params.category)
     .bind(&params.entity_type)
@@ -1104,7 +1152,7 @@ pub async fn resolve_dq_issue(
         "UPDATE data_quality_issues
          SET is_resolved = true, resolved_at = now(), resolved_by = $2, resolution_notes = $3
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.sub)
@@ -1140,7 +1188,7 @@ pub async fn dq_dashboard(
          AVG(timeliness_score)::float AS timeliness,
          AVG(consistency_score)::float AS consistency
          FROM data_quality_scores
-         WHERE score_date >= CURRENT_DATE - INTERVAL '7 days'"
+         WHERE score_date >= CURRENT_DATE - INTERVAL '7 days'",
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -1156,7 +1204,7 @@ pub async fn dq_dashboard(
         "SELECT COUNT(*) AS total,
          COUNT(*) FILTER (WHERE is_resolved = false) AS unresolved,
          COUNT(*) FILTER (WHERE severity = 'critical' AND is_resolved = false) AS critical
-         FROM data_quality_issues"
+         FROM data_quality_issues",
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -1169,7 +1217,7 @@ pub async fn dq_dashboard(
          FROM data_quality_scores s
          LEFT JOIN data_quality_issues i ON i.entity_type = s.entity_type
          WHERE s.score_date >= CURRENT_DATE - INTERVAL '7 days'
-         GROUP BY s.entity_type"
+         GROUP BY s.entity_type",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1218,7 +1266,7 @@ pub async fn list_security_incidents(
          AND ($5::timestamptz IS NULL OR detected_at >= $5::timestamptz)
          AND ($6::timestamptz IS NULL OR detected_at <= $6::timestamptz)
          ORDER BY detected_at DESC
-         LIMIT $7 OFFSET $8"
+         LIMIT $7 OFFSET $8",
     )
     .bind(&params.incident_type)
     .bind(&params.severity)
@@ -1246,12 +1294,11 @@ pub async fn get_security_incident(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "SELECT * FROM security_incidents WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1283,7 +1330,7 @@ pub async fn create_security_incident(
          incident_type, severity, detected_at, detected_by, affected_systems, affected_data_types,
          estimated_impact)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1334,7 +1381,7 @@ pub async fn update_security_incident(
          lessons_learned = COALESCE($9, lessons_learned),
          updated_at = now()
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(&body.title)
@@ -1354,11 +1401,14 @@ pub async fn update_security_incident(
             sqlx::query(
                 "INSERT INTO security_incident_updates (id, incident_id, update_type, description,
                  old_status, new_status, updated_by)
-                 VALUES ($1, $2, 'status_change', $3, $4, $5, $6)"
+                 VALUES ($1, $2, 'status_change', $3, $4, $5, $6)",
             )
             .bind(Uuid::new_v4())
             .bind(id)
-            .bind(format!("Status changed from {:?} to {:?}", old.status, new_status))
+            .bind(format!(
+                "Status changed from {:?} to {:?}",
+                old.status, new_status
+            ))
             .bind(old.status)
             .bind(new_status)
             .bind(claims.sub)
@@ -1388,7 +1438,7 @@ pub async fn report_to_cert_in(
          cert_in_reported = true, cert_in_report_date = now(), cert_in_reference = $2,
          updated_at = now()
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(&body.cert_in_reference)
@@ -1426,7 +1476,7 @@ pub async fn get_incident_updates(
          FROM security_incident_updates su
          LEFT JOIN users u ON u.id = su.updated_by
          WHERE su.incident_id = $1
-         ORDER BY su.created_at DESC"
+         ORDER BY su.created_at DESC",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -1476,7 +1526,7 @@ pub async fn list_vulnerabilities(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vulnerability>(
-        "SELECT * FROM vulnerabilities ORDER BY discovered_at DESC LIMIT 200"
+        "SELECT * FROM vulnerabilities ORDER BY discovered_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1502,7 +1552,7 @@ pub async fn create_vulnerability(
          affected_component, discovered_at, discovered_by, remediation_deadline,
          remediation_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'open')
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1543,7 +1593,7 @@ pub async fn update_vulnerability(
          remediated_by = CASE WHEN $4 THEN $5 ELSE remediated_by END,
          updated_at = now()
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(&body.remediation_status)
@@ -1568,7 +1618,7 @@ pub async fn list_compliance_requirements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ComplianceRequirement>(
-        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code"
+        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1599,7 +1649,7 @@ pub async fn update_compliance_requirement(
          assessed_by = $6,
          updated_at = now()
          WHERE id = $1
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(&body.compliance_status)
@@ -1632,7 +1682,7 @@ pub async fn system_health_dashboard(
         "SELECT * FROM system_health_metrics
          WHERE recorded_at >= now() - INTERVAL '1 hour'
          ORDER BY recorded_at DESC
-         LIMIT 100"
+         LIMIT 100",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1640,16 +1690,23 @@ pub async fn system_health_dashboard(
     tx.commit().await?;
 
     // Determine overall status based on metrics
-    let overall_status = if metrics.iter().any(|m| m.status.as_deref() == Some("critical")) {
+    let overall_status = if metrics
+        .iter()
+        .any(|m| m.status.as_deref() == Some("critical"))
+    {
         "critical"
-    } else if metrics.iter().any(|m| m.status.as_deref() == Some("degraded")) {
+    } else if metrics
+        .iter()
+        .any(|m| m.status.as_deref() == Some("degraded"))
+    {
         "degraded"
     } else {
         "healthy"
     };
 
     let get_component_status = |component: &str| -> String {
-        metrics.iter()
+        metrics
+            .iter()
             .filter(|m| m.component == component)
             .find_map(|m| m.status.clone())
             .unwrap_or_else(|| "unknown".to_string())
@@ -1678,7 +1735,7 @@ pub async fn list_backups(
         "SELECT * FROM backup_history
          WHERE tenant_id IS NULL OR tenant_id = $1
          ORDER BY created_at DESC
-         LIMIT 100"
+         LIMIT 100",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1701,7 +1758,7 @@ pub async fn get_onboarding_progress(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, OnboardingProgress>(
-        "SELECT * FROM onboarding_progress WHERE wizard_type = 'initial_setup'"
+        "SELECT * FROM onboarding_progress WHERE wizard_type = 'initial_setup'",
     )
     .fetch_optional(&mut *tx)
     .await?;
@@ -1755,7 +1812,7 @@ pub async fn complete_onboarding_step(
          step_data = step_data || COALESCE($3, '{}'::jsonb),
          updated_at = now()
          WHERE wizard_type = 'initial_setup'
-         RETURNING *"
+         RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&body.step)
@@ -1779,7 +1836,7 @@ pub async fn complete_onboarding(
         "UPDATE onboarding_progress SET
          is_completed = true, completed_at = now(), updated_at = now()
          WHERE wizard_type = 'initial_setup'
-         RETURNING *"
+         RETURNING *",
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -1803,7 +1860,7 @@ pub async fn list_incentive_plans(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IncentivePlan>(
-        "SELECT * FROM incentive_plans ORDER BY effective_from DESC"
+        "SELECT * FROM incentive_plans ORDER BY effective_from DESC",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1828,7 +1885,7 @@ pub async fn create_incentive_plan(
         "INSERT INTO incentive_plans (id, tenant_id, plan_name, plan_code, description,
          effective_from, effective_to, calculation_basis, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1858,7 +1915,7 @@ pub async fn get_incentive_plan_rules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IncentivePlanRule>(
-        "SELECT * FROM incentive_plan_rules WHERE plan_id = $1"
+        "SELECT * FROM incentive_plan_rules WHERE plan_id = $1",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -1885,7 +1942,7 @@ pub async fn add_incentive_rule(
         "INSERT INTO incentive_plan_rules (id, plan_id, rule_name, service_type, department_id,
          min_threshold, max_threshold, percentage, fixed_amount, multiplier)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING *"
+         RETURNING *",
     )
     .bind(rule_id)
     .bind(id)
@@ -1919,7 +1976,7 @@ pub async fn list_doctor_incentive_assignments(
          FROM doctor_incentive_assignments a
          JOIN users u ON u.id = a.doctor_id
          JOIN incentive_plans p ON p.id = a.plan_id
-         ORDER BY a.effective_from DESC"
+         ORDER BY a.effective_from DESC",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1944,7 +2001,7 @@ pub async fn assign_incentive_plan(
         "INSERT INTO doctor_incentive_assignments (id, tenant_id, doctor_id, plan_id,
          effective_from, effective_to, custom_percentage)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *, NULL AS doctor_name, NULL AS plan_name"
+         RETURNING *, NULL AS doctor_name, NULL AS plan_name",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1974,7 +2031,7 @@ pub async fn list_incentive_calculations(
         "SELECT c.*, u.full_name AS doctor_name
          FROM incentive_calculations c
          JOIN users u ON u.id = c.doctor_id
-         ORDER BY c.period_start DESC"
+         ORDER BY c.period_start DESC",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2000,7 +2057,7 @@ pub async fn calculate_incentive(
          FROM doctor_incentive_assignments a
          WHERE a.doctor_id = $1 AND a.is_active = true
          AND a.effective_from <= $2 AND (a.effective_to IS NULL OR a.effective_to >= $3)
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(body.doctor_id)
     .bind(body.period_start)
@@ -2014,7 +2071,7 @@ pub async fn calculate_incentive(
         "INSERT INTO incentive_calculations (id, tenant_id, doctor_id, plan_id, period_start,
          period_end, gross_revenue, eligible_revenue, incentive_amount, net_payable, status)
          VALUES ($1, $2, $3, $4, $5, $6, 0, 0, 0, 0, 'draft')
-         RETURNING *, NULL AS doctor_name"
+         RETURNING *, NULL AS doctor_name",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2045,7 +2102,7 @@ pub async fn approve_incentive(
         "UPDATE incentive_calculations SET
          status = 'approved', approved_by = $2, approved_at = now(), updated_at = now()
          WHERE id = $1
-         RETURNING *, NULL AS doctor_name"
+         RETURNING *, NULL AS doctor_name",
     )
     .bind(id)
     .bind(claims.sub)
@@ -2072,7 +2129,7 @@ pub async fn mark_incentive_paid(
         "UPDATE incentive_calculations SET
          status = 'paid', paid_at = now(), payment_reference = $2, updated_at = now()
          WHERE id = $1
-         RETURNING *, NULL AS doctor_name"
+         RETURNING *, NULL AS doctor_name",
     )
     .bind(id)
     .bind(&body.payment_reference)

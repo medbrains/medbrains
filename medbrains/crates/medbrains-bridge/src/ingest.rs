@@ -25,11 +25,7 @@ pub async fn deliver(
         "processing_duration_ms": processing_duration_ms,
     });
 
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await?;
+    let resp = client.post(&url).json(&body).send().await?;
 
     if resp.status().is_success() {
         Ok(())

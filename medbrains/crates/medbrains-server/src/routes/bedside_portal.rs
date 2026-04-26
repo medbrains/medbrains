@@ -6,17 +6,15 @@ use axum::{
 };
 use chrono::Utc;
 use medbrains_core::bedside_portal::{
-    BedsideEducationVideo, BedsideEducationView, BedsideNurseRequest,
-    BedsideRealtimeFeedback, BedsideSession,
+    BedsideEducationVideo, BedsideEducationView, BedsideNurseRequest, BedsideRealtimeFeedback,
+    BedsideSession,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 

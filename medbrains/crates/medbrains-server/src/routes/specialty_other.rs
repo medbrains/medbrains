@@ -16,9 +16,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -655,7 +653,10 @@ pub async fn create_mortuary_record(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMortuaryRequest>,
 ) -> Result<Json<MortuaryRecord>, AppError> {
-    require_permission(&claims, permissions::specialty::palliative::mortuary::MANAGE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::palliative::mortuary::MANAGE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -692,7 +693,10 @@ pub async fn update_mortuary_record(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMortuaryRequest>,
 ) -> Result<Json<MortuaryRecord>, AppError> {
-    require_permission(&claims, permissions::specialty::palliative::mortuary::MANAGE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::palliative::mortuary::MANAGE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

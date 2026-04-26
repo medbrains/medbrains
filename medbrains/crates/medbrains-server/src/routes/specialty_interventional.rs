@@ -15,9 +15,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -208,12 +206,10 @@ pub async fn get_cath_procedure(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, CathProcedure>(
-        "SELECT * FROM cath_procedures WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, CathProcedure>("SELECT * FROM cath_procedures WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -224,7 +220,10 @@ pub async fn create_cath_procedure(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCathProcedureRequest>,
 ) -> Result<Json<CathProcedure>, AppError> {
-    require_permission(&claims, permissions::specialty::cath_lab::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::cath_lab::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -259,7 +258,10 @@ pub async fn update_cath_procedure(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateCathProcedureRequest>,
 ) -> Result<Json<CathProcedure>, AppError> {
-    require_permission(&claims, permissions::specialty::cath_lab::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::cath_lab::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -321,7 +323,10 @@ pub async fn create_hemodynamic(
     Path(procedure_id): Path<Uuid>,
     Json(body): Json<CreateHemodynamicRequest>,
 ) -> Result<Json<CathHemodynamic>, AppError> {
-    require_permission(&claims, permissions::specialty::cath_lab::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::cath_lab::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -467,13 +472,11 @@ pub async fn create_stemi_event(
     }
 
     if body.event == "door" {
-        let _ = sqlx::query(
-            "UPDATE cath_procedures SET door_time = $2::timestamptz WHERE id = $1",
-        )
-        .bind(procedure_id)
-        .bind(&body.event_time)
-        .execute(&mut *tx)
-        .await;
+        let _ = sqlx::query("UPDATE cath_procedures SET door_time = $2::timestamptz WHERE id = $1")
+            .bind(procedure_id)
+            .bind(&body.event_time)
+            .execute(&mut *tx)
+            .await;
     }
 
     tx.commit().await?;
@@ -508,7 +511,10 @@ pub async fn create_post_monitoring(
     Path(procedure_id): Path<Uuid>,
     Json(body): Json<CreatePostMonitoringRequest>,
 ) -> Result<Json<CathPostMonitoring>, AppError> {
-    require_permission(&claims, permissions::specialty::cath_lab::monitoring::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::cath_lab::monitoring::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -568,7 +574,10 @@ pub async fn create_endoscopy_procedure(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateEndoscopyProcedureRequest>,
 ) -> Result<Json<EndoscopyProcedure>, AppError> {
-    require_permission(&claims, permissions::specialty::endoscopy::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::endoscopy::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -600,7 +609,10 @@ pub async fn update_endoscopy_procedure(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateEndoscopyProcedureRequest>,
 ) -> Result<Json<EndoscopyProcedure>, AppError> {
-    require_permission(&claims, permissions::specialty::endoscopy::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::endoscopy::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -718,7 +730,10 @@ pub async fn list_reprocessing(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<EndoscopyReprocessing>>, AppError> {
-    require_permission(&claims, permissions::specialty::endoscopy::reprocessing::LIST)?;
+    require_permission(
+        &claims,
+        permissions::specialty::endoscopy::reprocessing::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -737,7 +752,10 @@ pub async fn create_reprocessing(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReprocessingRequest>,
 ) -> Result<Json<EndoscopyReprocessing>, AppError> {
-    require_permission(&claims, permissions::specialty::endoscopy::reprocessing::MANAGE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::endoscopy::reprocessing::MANAGE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -808,7 +826,10 @@ pub async fn create_biopsy_specimen(
     Path(procedure_id): Path<Uuid>,
     Json(body): Json<CreateBiopsySpecimenRequest>,
 ) -> Result<Json<EndoscopyBiopsySpecimen>, AppError> {
-    require_permission(&claims, permissions::specialty::endoscopy::procedures::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::endoscopy::procedures::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -827,12 +848,10 @@ pub async fn create_biopsy_specimen(
     .await?;
 
     // Mark procedure as having biopsy
-    let _ = sqlx::query(
-        "UPDATE endoscopy_procedures SET biopsy_taken = true WHERE id = $1",
-    )
-    .bind(procedure_id)
-    .execute(&mut *tx)
-    .await;
+    let _ = sqlx::query("UPDATE endoscopy_procedures SET biopsy_taken = true WHERE id = $1")
+        .bind(procedure_id)
+        .execute(&mut *tx)
+        .await;
 
     tx.commit().await?;
     Ok(Json(row))

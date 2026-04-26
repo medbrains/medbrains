@@ -4,7 +4,10 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -29,13 +32,11 @@ async fn hospital_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<Option<String>, AppError> {
-    let name = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
+    let name = sqlx::query_scalar::<_, Option<String>>("SELECT name FROM tenants WHERE id = $1")
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten();
     Ok(name)
 }
 
@@ -566,7 +567,10 @@ pub async fn get_ipd_interim_bill_print_data(
     let balance = total - adv;
 
     Ok(Json(IpdInterimBillPrintData {
-        bill_number: format!("INT-{}", admission_id.to_string().split('-').next().unwrap_or("")),
+        bill_number: format!(
+            "INT-{}",
+            admission_id.to_string().split('-').next().unwrap_or("")
+        ),
         bill_date: chrono::Utc::now().format("%d-%b-%Y").to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
@@ -732,7 +736,11 @@ pub async fn get_ipd_final_bill_print_data(
 
     tx.commit().await?;
 
-    let date = row.issued_at.unwrap_or(row.created_at).format("%d-%b-%Y").to_string();
+    let date = row
+        .issued_at
+        .unwrap_or(row.created_at)
+        .format("%d-%b-%Y")
+        .to_string();
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
     let total: f64 = row.total_amount.parse().unwrap_or(0.0);
@@ -749,7 +757,10 @@ pub async fn get_ipd_final_bill_print_data(
         uhid: row.uhid,
         age: age_str,
         gender: row.gender,
-        admission_date: row.admission_date.map(|d| d.format("%d-%b-%Y").to_string()).unwrap_or_default(),
+        admission_date: row
+            .admission_date
+            .map(|d| d.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
         discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -829,7 +840,10 @@ pub async fn get_advance_receipt_print_data(
     let amount_in_words = number_to_words(amount_val);
 
     Ok(Json(AdvanceReceiptPrintData {
-        receipt_number: row.reference_number.clone().unwrap_or_else(|| payment_id.to_string()),
+        receipt_number: row
+            .reference_number
+            .clone()
+            .unwrap_or_else(|| payment_id.to_string()),
         receipt_date: row.paid_at.format("%d-%b-%Y").to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
@@ -1245,9 +1259,26 @@ fn number_to_words(amount: f64) -> String {
     let paise = ((amount.fract() * 100.0).round()) as u64;
 
     let ones = [
-        "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-        "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
-        "Seventeen", "Eighteen", "Nineteen",
+        "",
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Eleven",
+        "Twelve",
+        "Thirteen",
+        "Fourteen",
+        "Fifteen",
+        "Sixteen",
+        "Seventeen",
+        "Eighteen",
+        "Nineteen",
     ];
     let tens = [
         "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
@@ -1259,7 +1290,11 @@ fn number_to_words(amount: f64) -> String {
         } else {
             let t = tens[(n / 10) as usize];
             let o = ones[(n % 10) as usize];
-            if o.is_empty() { t.to_string() } else { format!("{t} {o}") }
+            if o.is_empty() {
+                t.to_string()
+            } else {
+                format!("{t} {o}")
+            }
         }
     }
 
@@ -1277,13 +1312,19 @@ fn number_to_words(amount: f64) -> String {
         let mut parts = Vec::new();
 
         if crore > 0 {
-            parts.push(format!("{} Crore", convert_below_hundred(crore, ones, tens)));
+            parts.push(format!(
+                "{} Crore",
+                convert_below_hundred(crore, ones, tens)
+            ));
         }
         if lakh > 0 {
             parts.push(format!("{} Lakh", convert_below_hundred(lakh, ones, tens)));
         }
         if thousand > 0 {
-            parts.push(format!("{} Thousand", convert_below_hundred(thousand, ones, tens)));
+            parts.push(format!(
+                "{} Thousand",
+                convert_below_hundred(thousand, ones, tens)
+            ));
         }
         if hundred > 0 {
             parts.push(format!("{} Hundred", ones[hundred as usize]));
@@ -1446,7 +1487,9 @@ pub async fn get_credit_note_print_data(
         amount_in_words: amount_to_words(row.total_credit_amount),
         remarks: row.remarks,
         approved_by: row.approved_by,
-        approved_at: row.approved_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        approved_at: row
+            .approved_at
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
         hospital_name: tenant.0,
         hospital_address: tenant.2,
         hospital_gstin: tenant.3,
@@ -1773,7 +1816,9 @@ pub async fn get_insurance_claim_print_data(
 
     tx.commit().await?;
 
-    let age_display = row.age.map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
+    let age_display = row
+        .age
+        .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
 
     Ok(Json(InsuranceClaimPrintData {
         claim_number: row.claim_number,

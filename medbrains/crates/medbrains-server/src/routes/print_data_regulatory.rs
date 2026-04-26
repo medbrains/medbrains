@@ -3,20 +3,23 @@
 //! These endpoints generate data for NABH, NMC, NABL, SPCB, PESO, PCPNDT,
 //! and other regulatory compliance reports.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AebasAttendanceReportPrintData, BirthRegisterEntry, BirthRegisterPrintData, BmwCategory,
-    ComplianceSection, CriticalValueMetrics, DeathRegisterEntry, DeathRegisterPrintData,
-    DepartmentAttendance, DisposalRecord, DrugInspection, DrugLicenseReportPrintData,
-    DrugStockCategory, ExpiryAlert, FormFCompliance, GasIncident, MedicalGasSystem,
-    MlcCaseTypeCount, MlcOutcomeCount, MlcRegisterSummaryEntry, MlcRegisterSummaryPrintData,
-    NablQualityReportPrintData, NabhQualityReportPrintData, NarfCriterion, NarfSection,
-    NmcComplianceReportPrintData, NmcNarfAssessmentPrintData, PcpndtEquipment,
-    PcpndtInspection, PcpndtPersonnel, PcpndtProcedure, PcpndtReportPrintData,
+    ComplianceSection, CriticalValueMetrics, CylinderStorage, DeathRegisterEntry,
+    DeathRegisterPrintData, DepartmentAttendance, DisposalRecord, DrugInspection,
+    DrugLicenseReportPrintData, DrugStockCategory, ExpiryAlert, FormFCompliance, GasIncident,
+    MedicalGasSystem, MlcCaseTypeCount, MlcOutcomeCount, MlcRegisterSummaryEntry,
+    MlcRegisterSummaryPrintData, NabhQualityReportPrintData, NablQualityReportPrintData,
+    NarfCriterion, NarfSection, NmcComplianceReportPrintData, NmcNarfAssessmentPrintData,
+    PcpndtEquipment, PcpndtInspection, PcpndtPersonnel, PcpndtProcedure, PcpndtReportPrintData,
     PesoComplianceReportPrintData, PtResult, QcMetric, QualityIndicator, QualitySummary,
-    SafetyInspection, CylinderStorage, SpcbBmwReturnsPrintData, TatMetric,
+    SafetyInspection, SpcbBmwReturnsPrintData, TatMetric,
 };
 
 use crate::{
@@ -417,7 +420,11 @@ pub async fn get_spcb_bmw_returns_print_data(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Parse quarter (e.g., "2024-Q1") to get year
-    let year: i32 = quarter.split('-').next().and_then(|y| y.parse().ok()).unwrap_or(2024);
+    let year: i32 = quarter
+        .split('-')
+        .next()
+        .and_then(|y| y.parse().ok())
+        .unwrap_or(2024);
 
     let categories = sqlx::query_as::<_, BmwCategoryRow>(
         "SELECT category, color_code, description, quantity_kg, disposal_method \
@@ -443,7 +450,28 @@ pub async fn get_spcb_bmw_returns_print_data(
 
     let total_waste: f64 = categories.iter().map(|c| c.quantity_kg).sum();
 
-    let (total_beds, average_occupancy, cbwtf_name, cbwtf_auth, auth_number, training, attendees, incidents) = sqlx::query_as::<_, (i32, f64, Option<String>, Option<String>, Option<String>, bool, Option<i32>, i32)>(
+    let (
+        total_beds,
+        average_occupancy,
+        cbwtf_name,
+        cbwtf_auth,
+        auth_number,
+        training,
+        attendees,
+        incidents,
+    ) = sqlx::query_as::<
+        _,
+        (
+            i32,
+            f64,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            bool,
+            Option<i32>,
+            i32,
+        ),
+    >(
         "SELECT total_beds, average_occupancy, cbwtf_name, cbwtf_authorization, \
                 authorization_number, training_conducted, training_attendees, incidents_reported \
          FROM bmw_quarterly_summary \
@@ -722,7 +750,21 @@ pub async fn get_drug_license_report_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let tenant = sqlx::query_as::<_, (String, Option<String>, String, String, String, String, Option<String>, Option<String>, Option<String>, bool)>(
+    let tenant = sqlx::query_as::<
+        _,
+        (
+            String,
+            Option<String>,
+            String,
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            bool,
+        ),
+    >(
         "SELECT name, logo_url, drug_license_number, drug_license_type, \
                 drug_license_valid_from, drug_license_valid_until, \
                 licensing_authority, registered_pharmacist, pharmacist_registration, \
@@ -757,7 +799,9 @@ pub async fn get_drug_license_report_print_data(
         license_type: tenant.3,
         valid_from: tenant.4,
         valid_until: tenant.5,
-        licensing_authority: tenant.6.unwrap_or_else(|| "State Drug Controller".to_string()),
+        licensing_authority: tenant
+            .6
+            .unwrap_or_else(|| "State Drug Controller".to_string()),
         registered_pharmacist: tenant.7,
         registration_number: tenant.8,
         authorized_categories,
@@ -1300,7 +1344,10 @@ pub async fn get_mlc_register_summary_print_data(
             .collect(),
         by_outcome: by_outcome
             .into_iter()
-            .map(|(o, c)| MlcOutcomeCount { outcome: o, count: c })
+            .map(|(o, c)| MlcOutcomeCount {
+                outcome: o,
+                count: c,
+            })
             .collect(),
         pending_cases: pending,
         prepared_by: None,

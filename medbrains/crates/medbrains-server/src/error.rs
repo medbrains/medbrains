@@ -59,23 +59,33 @@ impl IntoResponse for AppError {
             }
             Self::YottaDb(_) => {
                 tracing::error!(error = %self, "yottadb error");
-                (StatusCode::BAD_GATEWAY, "yottadb error", "yottadb error".to_owned())
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "yottadb error",
+                    "yottadb error".to_owned(),
+                )
             }
             Self::Config(_) => {
                 tracing::error!(error = %self, "configuration error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "configuration error", "configuration error".to_owned())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "configuration error",
+                    "configuration error".to_owned(),
+                )
             }
             Self::Unauthorized => {
                 tracing::warn!("unauthorized request");
-                (StatusCode::UNAUTHORIZED, "unauthorized", "unauthorized".to_owned())
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "unauthorized",
+                    "unauthorized".to_owned(),
+                )
             }
             Self::Forbidden => {
                 tracing::warn!("forbidden request");
                 (StatusCode::FORBIDDEN, "forbidden", "forbidden".to_owned())
             }
-            Self::NotFound => {
-                (StatusCode::NOT_FOUND, "not found", "not found".to_owned())
-            }
+            Self::NotFound => (StatusCode::NOT_FOUND, "not found", "not found".to_owned()),
             Self::BadRequest(msg) => {
                 tracing::warn!(detail = %msg, "bad request");
                 (StatusCode::BAD_REQUEST, "bad request", msg.clone())
@@ -86,7 +96,11 @@ impl IntoResponse for AppError {
             }
             Self::Internal(msg) => {
                 tracing::error!(detail = %msg, "internal error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal error", msg.clone())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal error",
+                    msg.clone(),
+                )
             }
             Self::ValidationFailed(_) => unreachable!(),
         };

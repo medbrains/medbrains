@@ -1,13 +1,15 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::NaiveDate;
 use medbrains_core::infection_control::{
-    AntibioticConsumptionRecord, AntibioticStewardshipRequest,
-    BiowasteRecord, CultureSurveillance, HandHygieneAudit, InfectionDeviceDay,
-    InfectionSurveillanceEvent, NeedleStickIncident, OutbreakContact,
-    OutbreakEvent, OutbreakStatus, WasteCategory, HaiType, InfectionStatus,
-    AntibioticRequestStatus,
+    AntibioticConsumptionRecord, AntibioticRequestStatus, AntibioticStewardshipRequest,
+    BiowasteRecord, CultureSurveillance, HaiType, HandHygieneAudit, InfectionDeviceDay,
+    InfectionStatus, InfectionSurveillanceEvent, NeedleStickIncident, OutbreakContact,
+    OutbreakEvent, OutbreakStatus, WasteCategory,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -16,9 +18,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -297,13 +297,18 @@ pub async fn create_surveillance(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSurveillanceEventRequest>,
 ) -> Result<Json<InfectionSurveillanceEvent>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let status_str = body.infection_status.and_then(|s| {
-        serde_json::to_value(s).ok().and_then(|v| v.as_str().map(String::from))
+        serde_json::to_value(s)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
     });
 
     let row = sqlx::query_as::<_, InfectionSurveillanceEvent>(
@@ -320,7 +325,11 @@ pub async fn create_surveillance(
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(body.admission_id)
-    .bind(serde_json::to_value(body.hai_type).ok().and_then(|v| v.as_str().map(String::from)))
+    .bind(
+        serde_json::to_value(body.hai_type)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from)),
+    )
     .bind(status_str)
     .bind(&body.organism)
     .bind(&body.susceptibility_pattern)
@@ -382,7 +391,10 @@ pub async fn record_device_days(
     Extension(claims): Extension<Claims>,
     Json(body): Json<RecordDeviceDaysRequest>,
 ) -> Result<Json<InfectionDeviceDay>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
 
     let record_date = parse_date(&body.record_date)?;
 
@@ -670,7 +682,11 @@ pub async fn create_biowaste(
     )
     .bind(claims.tenant_id)
     .bind(body.department_id)
-    .bind(serde_json::to_value(body.waste_category).ok().and_then(|v| v.as_str().map(String::from)))
+    .bind(
+        serde_json::to_value(body.waste_category)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from)),
+    )
     .bind(body.weight_kg)
     .bind(record_date)
     .bind(body.container_count)
@@ -971,7 +987,9 @@ pub async fn create_outbreak(
     require_permission(&claims, permissions::infection_control::outbreak::CREATE)?;
 
     let status_str = body.outbreak_status.and_then(|s| {
-        serde_json::to_value(s).ok().and_then(|v| v.as_str().map(String::from))
+        serde_json::to_value(s)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
     });
 
     let outbreak_number = format!("OB-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
@@ -1019,7 +1037,9 @@ pub async fn update_outbreak(
     require_permission(&claims, permissions::infection_control::outbreak::UPDATE)?;
 
     let status_str = body.outbreak_status.and_then(|s| {
-        serde_json::to_value(s).ok().and_then(|v| v.as_str().map(String::from))
+        serde_json::to_value(s)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
     });
 
     let mut tx = state.db.begin().await?;
@@ -1090,7 +1110,11 @@ pub async fn add_outbreak_contact(
 ) -> Result<Json<OutbreakContact>, AppError> {
     require_permission(&claims, permissions::infection_control::outbreak::CREATE)?;
 
-    let quarantine_start = body.quarantine_start.as_deref().map(parse_date).transpose()?;
+    let quarantine_start = body
+        .quarantine_start
+        .as_deref()
+        .map(parse_date)
+        .transpose()?;
     let quarantine_end = body.quarantine_end.as_deref().map(parse_date).transpose()?;
 
     let mut tx = state.db.begin().await?;
@@ -1527,7 +1551,10 @@ pub async fn create_exposure(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateExposureRequest>,
 ) -> Result<Json<InfectionSurveillanceEvent>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1605,15 +1632,19 @@ pub async fn create_ic_meeting(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateIcMeetingRequest>,
 ) -> Result<Json<IcMeetingRow>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
 
     let scheduled_date = chrono::DateTime::parse_from_rfc3339(&body.scheduled_date)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .or_else(|_| {
-            NaiveDate::parse_from_str(&body.scheduled_date, "%Y-%m-%d")
-                .map(|d| {
-                    d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc))
+            NaiveDate::parse_from_str(&body.scheduled_date, "%Y-%m-%d").map(|d| {
+                d.and_hms_opt(0, 0, 0).map_or_else(chrono::Utc::now, |ndt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ndt, chrono::Utc)
                 })
+            })
         })
         .map_err(|_| AppError::BadRequest("Invalid scheduled_date format".into()))?;
 

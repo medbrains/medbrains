@@ -4,7 +4,10 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -320,13 +323,11 @@ async fn hospital_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<Option<String>, AppError> {
-    let name = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .flatten();
+    let name = sqlx::query_scalar::<_, Option<String>>("SELECT name FROM tenants WHERE id = $1")
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten();
     Ok(name)
 }
 
@@ -915,4 +916,3 @@ pub async fn get_investigation_requisition_print_data(
         barcode_data,
     }))
 }
-

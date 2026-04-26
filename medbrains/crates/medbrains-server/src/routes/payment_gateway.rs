@@ -1,4 +1,8 @@
-use axum::{Extension, Json, extract::{Path, State}, http::HeaderMap};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+    http::HeaderMap,
+};
 use hmac::{Hmac, Mac};
 use medbrains_core::payment::{
     CreateOrderResponse, PaymentGatewayTransaction, VerifyPaymentRequest,
@@ -10,9 +14,7 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -274,9 +276,13 @@ pub async fn verify_payment(
     // Auto-record payment in billing payments table if linked to an invoice
     if let Some(invoice_id) = txn.invoice_id {
         record_invoice_payment(
-            &mut tx, claims.tenant_id, invoice_id,
-            txn.amount, &body.razorpay_payment_id,
-        ).await?;
+            &mut tx,
+            claims.tenant_id,
+            invoice_id,
+            txn.amount,
+            &body.razorpay_payment_id,
+        )
+        .await?;
     }
 
     tx.commit().await?;
@@ -342,7 +348,9 @@ pub async fn razorpay_webhook(
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
-        "payment.captured" => handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?,
+        "payment.captured" => {
+            handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?
+        }
         "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, order_id, &payload).await?,
         "refund.created" => handle_webhook_refund(&mut tx, &txn_row, order_id, &payload).await?,
         _ => tracing::info!(event, "unhandled razorpay webhook event"),
@@ -359,13 +367,18 @@ async fn verify_webhook_signature(
     signature: &str,
 ) -> Result<(), AppError> {
     let config = get_razorpay_config(tx, &txn_row.tenant_id).await?;
-    let secret = config.webhook_secret.as_deref().unwrap_or(&config.key_secret);
+    let secret = config
+        .webhook_secret
+        .as_deref()
+        .unwrap_or(&config.key_secret);
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
     mac.update(body.as_bytes());
     let expected = hex::encode(mac.finalize().into_bytes());
     if expected != signature {
-        return Err(AppError::BadRequest("webhook signature verification failed".to_owned()));
+        return Err(AppError::BadRequest(
+            "webhook signature verification failed".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -396,7 +409,14 @@ async fn handle_webhook_captured(
 
     if let Some(invoice_id) = txn_row.invoice_id {
         if txn_row.status != "captured" {
-            record_invoice_payment(tx, txn_row.tenant_id, invoice_id, txn_row.amount, payment_id).await?;
+            record_invoice_payment(
+                tx,
+                txn_row.tenant_id,
+                invoice_id,
+                txn_row.amount,
+                payment_id,
+            )
+            .await?;
         }
     }
     Ok(())
@@ -538,19 +558,14 @@ pub async fn generate_upi_qr(
         })?;
 
     // Get hospital name for payee name
-    let hospital_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or_else(|| "Hospital".to_owned());
+    let hospital_name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or_else(|| "Hospital".to_owned());
 
     let txn_ref = format!("MDB{}", Uuid::new_v4().simple());
-    let description = body
-        .description
-        .as_deref()
-        .unwrap_or("Hospital Payment");
+    let description = body.description.as_deref().unwrap_or("Hospital Payment");
 
     let upi_uri = format!(
         "upi://pay?pa={vpa}&pn={pn}&am={am}&tn={tn}&tr={tr}",
@@ -639,9 +654,7 @@ pub async fn initiate_refund(
     }
 
     let client = reqwest::Client::new();
-    let url = format!(
-        "https://api.razorpay.com/v1/payments/{gateway_payment_id}/refund"
-    );
+    let url = format!("https://api.razorpay.com/v1/payments/{gateway_payment_id}/refund");
     let response = client
         .post(&url)
         .basic_auth(&config.key_id, Some(&config.key_secret))
@@ -665,10 +678,7 @@ pub async fn initiate_refund(
         .await
         .map_err(|e| AppError::Internal(format!("razorpay refund parse: {e}")))?;
 
-    let refund_id = rz_refund["id"]
-        .as_str()
-        .unwrap_or("unknown")
-        .to_owned();
+    let refund_id = rz_refund["id"].as_str().unwrap_or("unknown").to_owned();
 
     let updated = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "UPDATE payment_gateway_transactions SET \

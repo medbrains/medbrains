@@ -6,8 +6,7 @@ use axum::{
 };
 use medbrains_core::{
     integration::{
-        IntegrationExecution, IntegrationNodeTemplate, IntegrationPipeline,
-        PipelineSummary,
+        IntegrationExecution, IntegrationNodeTemplate, IntegrationPipeline, PipelineSummary,
     },
     permissions,
 };
@@ -115,10 +114,10 @@ pub async fn list_pipelines(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (filter_clause, bind_status) = params.status.as_ref().map_or(
-        ("", None),
-        |s| ("AND p.status = $4", Some(s.clone())),
-    );
+    let (filter_clause, bind_status) = params
+        .status
+        .as_ref()
+        .map_or(("", None), |s| ("AND p.status = $4", Some(s.clone())));
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM integration_pipelines p \
@@ -298,13 +297,11 @@ pub async fn delete_pipeline(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM integration_pipelines WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM integration_pipelines WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -367,9 +364,7 @@ pub async fn trigger_pipeline(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let input = body
-        .input_data
-        .unwrap_or_else(|| serde_json::json!({}));
+    let input = body.input_data.unwrap_or_else(|| serde_json::json!({}));
 
     // Create execution record
     let exec_id = Uuid::new_v4();

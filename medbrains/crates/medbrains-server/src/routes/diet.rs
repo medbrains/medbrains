@@ -1,18 +1,19 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::diet::{
-    DietOrder, DietTemplate, KitchenAudit, KitchenInventory, KitchenMenu,
-    KitchenMenuItem, MealCount, MealPreparation,
+    DietOrder, DietTemplate, KitchenAudit, KitchenInventory, KitchenMenu, KitchenMenuItem,
+    MealCount, MealPreparation,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -185,11 +186,9 @@ pub async fn list_templates(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, DietTemplate>(
-        "SELECT * FROM diet_templates ORDER BY name",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = sqlx::query_as::<_, DietTemplate>("SELECT * FROM diet_templates ORDER BY name")
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -416,11 +415,10 @@ pub async fn list_menus(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, KitchenMenu>(
-        "SELECT * FROM kitchen_menus ORDER BY week_number, name",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows =
+        sqlx::query_as::<_, KitchenMenu>("SELECT * FROM kitchen_menus ORDER BY week_number, name")
+            .fetch_all(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -572,9 +570,21 @@ pub async fn update_meal_prep_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = chrono::Utc::now();
-    let prepared = if body.status == "preparing" { Some(now) } else { None };
-    let dispatched = if body.status == "dispatched" { Some(now) } else { None };
-    let delivered = if body.status == "delivered" { Some(now) } else { None };
+    let prepared = if body.status == "preparing" {
+        Some(now)
+    } else {
+        None
+    };
+    let dispatched = if body.status == "dispatched" {
+        Some(now)
+    } else {
+        None
+    };
+    let delivered = if body.status == "delivered" {
+        Some(now)
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, MealPreparation>(
         "UPDATE meal_preparations SET
@@ -685,11 +695,10 @@ pub async fn list_inventory(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, KitchenInventory>(
-        "SELECT * FROM kitchen_inventory ORDER BY item_name",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows =
+        sqlx::query_as::<_, KitchenInventory>("SELECT * FROM kitchen_inventory ORDER BY item_name")
+            .fetch_all(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(rows))

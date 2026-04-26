@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO refresh_tokens (tenant_id, user_id, token_hash, expires_at, device_fingerprint, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5, NULLIF($6::text, '')::inet, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b7788bececeeba67ca5dc7d6f2ea58ec64fab6dd71c0a889b04a89b441bfe36"
+}

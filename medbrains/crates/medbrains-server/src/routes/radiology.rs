@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use medbrains_core::permissions;
 use medbrains_core::radiology::{
     RadiationDoseRecord, RadiologyModality, RadiologyOrder, RadiologyReport,
@@ -10,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -131,22 +132,34 @@ pub async fn list_orders(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(ref priority) = params.priority {
         conditions.push(format!("priority::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(priority.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(priority.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(mid) = params.modality_id {
         conditions.push(format!("modality_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(mid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(mid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -155,8 +168,12 @@ pub async fn list_orders(
     let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -167,13 +184,22 @@ pub async fn list_orders(
     );
     let mut dq = sqlx::query_as::<_, RadiologyOrder>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(OrderListResponse { orders, total, page, per_page }))
+    Ok(Json(OrderListResponse {
+        orders,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -267,7 +293,11 @@ pub async fn get_order(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, report, dose_records }))
+    Ok(Json(OrderDetailResponse {
+        order,
+        report,
+        dose_records,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -308,8 +338,7 @@ pub async fn update_order_status(
 
     // Auto-billing: charge when radiology order is completed
     if body.status == "completed"
-        && super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "radiology")
-            .await?
+        && super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "radiology").await?
     {
         if let Some(encounter_id) = order.encounter_id {
             let modality_code = sqlx::query_scalar::<_, String>(
@@ -321,7 +350,8 @@ pub async fn update_order_status(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
+            let charge_code =
+                modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
 
             let _ = super::billing::auto_charge(
                 &mut tx,
@@ -600,13 +630,11 @@ pub async fn delete_modality(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM radiology_modalities WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM radiology_modalities WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -817,7 +845,20 @@ pub async fn list_dicom_studies(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>, Option<String>)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            String,
+            String,
+            Option<chrono::NaiveDate>,
+            Option<String>,
+            i32,
+            Option<String>,
+            Option<String>,
+        ),
+    >(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, viewer_url, orthanc_id \
          FROM radiology_dicom_studies \
@@ -828,11 +869,16 @@ pub async fn list_dicom_studies(
     .fetch_all(&mut *tx)
     .await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "patient_id": r.1, "study_instance_uid": r.2, "modality": r.3,
-        "study_date": r.4, "study_description": r.5, "instance_count": r.6,
-        "viewer_url": r.7, "orthanc_id": r.8,
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "patient_id": r.1, "study_instance_uid": r.2, "modality": r.3,
+                "study_date": r.4, "study_description": r.5, "instance_count": r.6,
+                "viewer_url": r.7, "orthanc_id": r.8,
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))
@@ -882,7 +928,9 @@ pub async fn create_share_link(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let token = Uuid::new_v4().to_string();
-    let study_id = body["study_id"].as_str().and_then(|s| Uuid::parse_str(s).ok())
+    let study_id = body["study_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
     let hours = body["expires_hours"].as_i64().unwrap_or(72);
     let expires = chrono::Utc::now() + chrono::Duration::hours(hours);
@@ -976,7 +1024,11 @@ pub async fn update_pacs_config(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
          VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
          ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
-    ).bind(claims.tenant_id).bind(&body).execute(&mut *tx).await?;
+    )
+    .bind(claims.tenant_id)
+    .bind(&body)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(body))
@@ -997,10 +1049,15 @@ pub async fn list_dosimetry_records(
          FROM radiology_dosimetry_records d ORDER BY d.monitoring_period_end DESC LIMIT 100",
     ).fetch_all(&mut *tx).await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "staff_id": r.1, "badge_number": r.2,
-        "period_start": r.3, "period_end": r.4, "dose_mSv": r.5, "is_compliant": r.6,
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "staff_id": r.1, "badge_number": r.2,
+                "period_start": r.3, "period_end": r.4, "dose_mSv": r.5, "is_compliant": r.6,
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))
@@ -1027,19 +1084,34 @@ pub async fn create_dosimetry_record(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
     )
     .bind(claims.tenant_id)
-    .bind(body["staff_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
+    .bind(
+        body["staff_id"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok()),
+    )
     .bind(body["badge_number"].as_str().unwrap_or(""))
-    .bind(body["period_start"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
-    .bind(body["period_end"].as_str().and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
+    .bind(
+        body["period_start"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
+    )
+    .bind(
+        body["period_end"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
+    )
     .bind(dose)
     .bind(limit)
     .bind(compliant)
     .bind(body["notes"].as_str())
     .bind(claims.sub)
-    .fetch_one(&mut *tx).await?;
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"id": id, "is_compliant": compliant})))
+    Ok(Json(
+        serde_json::json!({"id": id, "is_compliant": compliant}),
+    ))
 }
 
 /// GET /api/radiology/download-package/{study_id}

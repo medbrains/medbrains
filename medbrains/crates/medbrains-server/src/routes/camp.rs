@@ -15,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -1361,15 +1359,30 @@ pub async fn camp_report(
     let total_regs = registrations.len() as i64;
     let referred_count = registrations
         .iter()
-        .filter(|r| matches!(r.status, medbrains_core::camp::CampRegistrationStatus::Referred))
+        .filter(|r| {
+            matches!(
+                r.status,
+                medbrains_core::camp::CampRegistrationStatus::Referred
+            )
+        })
         .count() as i64;
     let converted_count = registrations
         .iter()
-        .filter(|r| matches!(r.status, medbrains_core::camp::CampRegistrationStatus::Converted))
+        .filter(|r| {
+            matches!(
+                r.status,
+                medbrains_core::camp::CampRegistrationStatus::Converted
+            )
+        })
         .count() as i64;
     let fu_completed = followups
         .iter()
-        .filter(|f| matches!(f.status, medbrains_core::camp::CampFollowupStatus::Completed))
+        .filter(|f| {
+            matches!(
+                f.status,
+                medbrains_core::camp::CampFollowupStatus::Completed
+            )
+        })
         .count() as i64;
 
     Ok(Json(serde_json::json!({

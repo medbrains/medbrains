@@ -5,8 +5,8 @@ use axum::{
     extract::{Path, Query, State},
 };
 use medbrains_core::housekeeping::{
-    CleaningSchedule, CleaningTask, LaundryBatch, LinenCondemnation, LinenItem,
-    LinenMovement, LinenParLevel, PestControlLog, PestControlSchedule, RoomTurnaround,
+    CleaningSchedule, CleaningTask, LaundryBatch, LinenCondemnation, LinenItem, LinenMovement,
+    LinenParLevel, PestControlLog, PestControlSchedule, RoomTurnaround,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -14,9 +14,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -501,12 +499,11 @@ pub async fn complete_turnaround(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Fetch existing to compute turnaround
-    let existing = sqlx::query_as::<_, RoomTurnaround>(
-        "SELECT * FROM room_turnarounds WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let existing =
+        sqlx::query_as::<_, RoomTurnaround>("SELECT * FROM room_turnarounds WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let now = chrono::Utc::now();
     let minutes = existing
@@ -842,11 +839,10 @@ pub async fn list_laundry_batches(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, LaundryBatch>(
-        "SELECT * FROM laundry_batches ORDER BY created_at DESC",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows =
+        sqlx::query_as::<_, LaundryBatch>("SELECT * FROM laundry_batches ORDER BY created_at DESC")
+            .fetch_all(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(rows))

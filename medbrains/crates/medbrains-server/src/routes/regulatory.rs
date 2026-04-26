@@ -1,13 +1,16 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, Utc};
 use medbrains_core::permissions;
 use medbrains_core::quality::AccreditationBody;
 use medbrains_core::regulatory::{
-    AdverseEventSeverity, AdverseEventStatus, AdrReport, ComplianceCalendarEvent,
-    ComplianceChecklist, ComplianceChecklistItem, ComplianceChecklistStatus, ComplianceDashboard,
-    ComplianceGap, AccreditationScore, DepartmentComplianceScore,
+    AccreditationScore, AdrReport, AdverseEventSeverity, AdverseEventStatus,
+    ComplianceCalendarEvent, ComplianceChecklist, ComplianceChecklistItem,
+    ComplianceChecklistStatus, ComplianceDashboard, ComplianceGap, DepartmentComplianceScore,
     MateriovigilanceReport, PcpndtForm, PcpndtFormStatus,
 };
 use serde::Deserialize;
@@ -15,9 +18,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -315,16 +316,17 @@ pub async fn dashboard(
         .collect();
 
     // Upcoming deadlines (next 30 days)
-    let upcoming_deadlines: Vec<ComplianceCalendarEvent> = sqlx::query_as::<_, ComplianceCalendarEvent>(
-        "SELECT * FROM compliance_calendar \
+    let upcoming_deadlines: Vec<ComplianceCalendarEvent> =
+        sqlx::query_as::<_, ComplianceCalendarEvent>(
+            "SELECT * FROM compliance_calendar \
          WHERE tenant_id = $1 AND status IN ('upcoming', 'overdue') \
          AND due_date <= CURRENT_DATE + INTERVAL '30 days' \
          ORDER BY due_date LIMIT 20",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap_or_default();
 
     // Overdue count
     let overdue_items: i64 = sqlx::query_scalar(
@@ -337,13 +339,12 @@ pub async fn dashboard(
     .unwrap_or(0);
 
     // Checklist counts
-    let total_checklists: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM compliance_checklists WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    let total_checklists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM compliance_checklists WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(0);
 
     let compliant_checklists: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM compliance_checklists \
@@ -467,9 +468,7 @@ pub async fn list_checklists(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut sql = String::from(
-        "SELECT * FROM compliance_checklists WHERE tenant_id = $1",
-    );
+    let mut sql = String::from("SELECT * FROM compliance_checklists WHERE tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.department_id.is_some() {
@@ -569,10 +568,10 @@ pub async fn get_checklist(
 
     tx.commit().await?;
 
-    let mut result = serde_json::to_value(&checklist)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    result["items"] = serde_json::to_value(&items)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let mut result =
+        serde_json::to_value(&checklist).map_err(|e| AppError::Internal(e.to_string()))?;
+    result["items"] =
+        serde_json::to_value(&items).map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(result))
 }
 

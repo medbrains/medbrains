@@ -13,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -420,10 +418,7 @@ pub async fn create_drug_screen(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let specimen_id = format!(
-        "DS-{}",
-        chrono::Utc::now().format("%Y%m%d%H%M%S")
-    );
+    let specimen_id = format!("DS-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
 
     let row = sqlx::query_as::<_, OccHealthDrugScreen>(
         "INSERT INTO occ_health_drug_screens \
@@ -723,11 +718,7 @@ pub async fn create_injury(
 
     let now = chrono::Utc::now();
     let short_uuid = &Uuid::new_v4().to_string()[..8];
-    let report_number = format!(
-        "INJ-{}-{}",
-        now.format("%Y%m%d%H%M%S"),
-        short_uuid
-    );
+    let report_number = format!("INJ-{}-{}", now.format("%Y%m%d%H%M%S"), short_uuid);
 
     let row = sqlx::query_as::<_, OccHealthInjuryReport>(
         "INSERT INTO occ_health_injury_reports \

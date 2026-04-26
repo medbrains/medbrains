@@ -47,7 +47,10 @@ impl RateLimiter {
     pub fn check_and_record(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let window = Duration::from_secs(WINDOW_SECS);
-        let mut map = self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut map = self
+            .attempts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         // Periodic cleanup of stale entries
         let should_cleanup = {

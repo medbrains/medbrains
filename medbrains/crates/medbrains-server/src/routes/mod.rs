@@ -1,22 +1,22 @@
 pub mod admin;
 pub mod admin_forms;
 pub mod ambulance;
-pub mod bedside_portal;
 pub mod analytics;
 pub mod appointments;
 pub mod audit;
 pub mod auth;
+pub mod bedside_portal;
 pub mod billing;
 pub mod blood_bank;
 pub mod bme;
 pub mod camp;
 pub mod care_view;
-pub mod command_center;
-pub mod communications;
 pub mod case_mgmt;
+pub mod cds;
 pub mod chronic_care;
 pub mod cms;
-pub mod cds;
+pub mod command_center;
+pub mod communications;
 pub mod consent;
 pub mod cssd;
 pub mod dashboard;
@@ -43,11 +43,14 @@ pub mod lms;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod occ_health;
-pub mod ot;
 pub mod onboarding;
 pub mod opd;
+pub mod orchestration;
 pub mod order_sets;
+pub mod ot;
 pub mod patients;
+pub mod payment_gateway;
+pub mod pharmacy;
 pub mod print_data;
 pub mod print_data_academic;
 pub mod print_data_admin;
@@ -61,8 +64,6 @@ pub mod print_data_mrd;
 pub mod print_data_quality;
 pub mod print_data_regulatory;
 pub mod print_data_surgical;
-pub mod payment_gateway;
-pub mod pharmacy;
 pub mod procurement;
 pub mod quality;
 pub mod radiology;
@@ -2399,6 +2400,32 @@ pub fn build_router(state: AppState) -> Router {
             "/api/integration/node-templates",
             get(integration::list_node_templates)
                 .post(integration::create_node_template),
+        )
+        // ── Orchestration Engine ────────────────────────────
+        .route(
+            "/api/orchestration/events",
+            get(orchestration::list_events),
+        )
+        .route(
+            "/api/orchestration/connectors",
+            get(orchestration::list_connectors)
+                .post(orchestration::create_connector),
+        )
+        .route(
+            "/api/orchestration/connectors/{id}",
+            put(orchestration::update_connector),
+        )
+        .route(
+            "/api/orchestration/connectors/{id}/test",
+            post(orchestration::test_connector),
+        )
+        .route(
+            "/api/orchestration/jobs",
+            get(orchestration::list_jobs),
+        )
+        .route(
+            "/api/orchestration/jobs/stats",
+            get(orchestration::job_stats),
         )
         // ── Screens — Admin ────────────────────────────────
         .route(
@@ -5963,15 +5990,33 @@ pub fn build_router(state: AppState) -> Router {
 
     // ── Public endpoints (no auth) ──
     let public_booking = Router::new()
-        .route("/api/public/appointments/slots", get(appointments::public_available_slots))
-        .route("/api/public/appointments/book", post(appointments::public_book_appointment))
-        .route("/api/public/kiosk/checkin", post(appointments::kiosk_checkin))
-        .route("/api/public/radiology/viewer/{token}", get(radiology::validate_share_link));
+        .route(
+            "/api/public/appointments/slots",
+            get(appointments::public_available_slots),
+        )
+        .route(
+            "/api/public/appointments/book",
+            post(appointments::public_book_appointment),
+        )
+        .route(
+            "/api/public/kiosk/checkin",
+            post(appointments::kiosk_checkin),
+        )
+        .route(
+            "/api/public/radiology/viewer/{token}",
+            get(radiology::validate_share_link),
+        );
 
     // ── Reminder config (protected) — add to protected routes ──
-    let reminder_routes = Router::new()
-        .route("/api/opd/appointments/reminder-config",
-            get(appointments::get_reminder_config).put(appointments::update_reminder_config));
+    let reminder_routes = Router::new().route(
+        "/api/opd/appointments/reminder-config",
+        get(appointments::get_reminder_config).put(appointments::update_reminder_config),
+    );
 
-    public.merge(protected).merge(bridge_routes).merge(public_booking).merge(reminder_routes).with_state(state)
+    public
+        .merge(protected)
+        .merge(bridge_routes)
+        .merge(public_booking)
+        .merge(reminder_routes)
+        .with_state(state)
 }

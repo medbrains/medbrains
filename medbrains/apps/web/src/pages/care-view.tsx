@@ -177,6 +177,7 @@ function PatientGridTab({ wardId }: { wardId: string | null }) {
   });
 
   const summary = data?.summary;
+  const patients = data?.patients ?? [];
 
   return (
     <Stack gap="md">
@@ -208,12 +209,12 @@ function PatientGridTab({ wardId }: { wardId: string | null }) {
       {isLoading && <Text c="dimmed">Loading patient grid...</Text>}
 
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="sm">
-        {data?.patients.map((p) => (
+        {patients.map((p) => (
           <PatientCard key={p.admission_id} patient={p} />
         ))}
       </SimpleGrid>
 
-      {data?.patients.length === 0 && !isLoading && (
+      {patients.length === 0 && !isLoading && (
         <Text c="dimmed" ta="center" py="xl">
           No admitted patients in the selected ward.
         </Text>
@@ -416,6 +417,8 @@ function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: b
     queryFn: () => api.careViewMyTasks({ ward_id: wardId ?? undefined }),
     refetchInterval: 30_000,
   });
+  const medicationTasks = data?.medication_tasks ?? [];
+  const nursingTasks = data?.nursing_tasks ?? [];
 
   return (
     <Stack gap="md">
@@ -423,15 +426,15 @@ function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: b
         value={segment}
         onChange={setSegment}
         data={[
-          { value: "medications", label: `Medications (${data?.medication_tasks.length ?? 0})` },
-          { value: "nursing", label: `Nursing Tasks (${data?.nursing_tasks.length ?? 0})` },
+          { value: "medications", label: `Medications (${medicationTasks.length})` },
+          { value: "nursing", label: `Nursing Tasks (${nursingTasks.length})` },
         ]}
       />
 
       {segment === "medications" ? (
-        <MedicationsTable items={data?.medication_tasks ?? []} loading={isLoading} />
+        <MedicationsTable items={medicationTasks} loading={isLoading} />
       ) : (
-        <NursingTasksTable items={data?.nursing_tasks ?? []} loading={isLoading} canManage={canManage} />
+        <NursingTasksTable items={nursingTasks} loading={isLoading} canManage={canManage} />
       )}
     </Stack>
   );

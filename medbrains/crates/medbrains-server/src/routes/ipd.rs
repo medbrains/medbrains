@@ -1,19 +1,21 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::encounter::Encounter;
 use medbrains_core::ipd::{
-    Admission, AdmissionAttender, AdmissionChecklist, AdmissionPrintData,
-    AdmissionStatus, BedReservation, BedTurnaroundLog,
-    BillingSummaryResponse, DeptChargeGroup, DischargeSummaryStatus,
-    DischargeSummaryTemplate, DischargeType, EstimatedCostResponse,
+    Admission, AdmissionAttender, AdmissionChecklist, AdmissionPrintData, AdmissionStatus,
+    BedReservation, BedTurnaroundLog, BillingSummaryResponse, DeptChargeGroup,
+    DischargeSummaryStatus, DischargeSummaryTemplate, DischargeType, EstimatedCostResponse,
     InvestigationsResponse, IpType, IpTypeConfiguration, IpdBirthRecord, IpdCarePlan,
-    IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary,
-    IpdDischargeChecklist, IpdDischargeSummary, IpdDischargeTatLog,
-    IpdHandoverReport, IpdIntakeOutput, IpdMedicationAdministration,
-    IpdNursingAssessment, IpdProgressNote, IpdTransferLog, LabOrderSummary,
-    LabResultSummary, MarStatus, NursingShift, NursingTask, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
+    IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary, IpdDischargeChecklist,
+    IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
+    IpdMedicationAdministration, IpdNursingAssessment, IpdProgressNote, IpdTransferLog,
+    LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask, RadiologyOrderSummary,
+    RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -22,9 +24,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -497,22 +497,34 @@ pub async fn list_admissions(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("a.status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(dept) = params.department_id {
         conditions.push(format!("e.department_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(dept), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(dept),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(doc) = params.doctor_id {
         conditions.push(format!("a.admitting_doctor = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(doc), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(doc),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("a.patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -525,8 +537,12 @@ pub async fn list_admissions(
     );
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { count_q = count_q.bind(u); }
-        if let Some(ref s) = b.string_val { count_q = count_q.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            count_q = count_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            count_q = count_q.bind(s.clone());
+        }
     }
     let total = count_q.fetch_one(&mut *tx).await?;
 
@@ -547,14 +563,27 @@ pub async fn list_admissions(
     );
     let mut data_q = sqlx::query_as::<_, AdmissionRow>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { data_q = data_q.bind(u); }
-        if let Some(ref s) = b.string_val { data_q = data_q.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            data_q = data_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            data_q = data_q.bind(s.clone());
+        }
     }
-    let admissions = data_q.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
+    let admissions = data_q
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
-    Ok(Json(AdmissionListResponse { admissions, total, page, per_page }))
+    Ok(Json(AdmissionListResponse {
+        admissions,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -644,7 +673,10 @@ pub async fn create_admission(
     )
     .await;
 
-    Ok(Json(CreateAdmissionResponse { encounter, admission }))
+    Ok(Json(CreateAdmissionResponse {
+        encounter,
+        admission,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -661,22 +693,20 @@ pub async fn get_admission(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let admission = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let admission =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?;
 
-    let encounter = sqlx::query_as::<_, Encounter>(
-        "SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(admission.encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let encounter =
+        sqlx::query_as::<_, Encounter>("SELECT * FROM encounters WHERE id = $1 AND tenant_id = $2")
+            .bind(admission.encounter_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks WHERE admission_id = $1 AND tenant_id = $2 \
@@ -689,7 +719,11 @@ pub async fn get_admission(
 
     tx.commit().await?;
 
-    Ok(Json(AdmissionDetailResponse { admission, encounter, tasks }))
+    Ok(Json(AdmissionDetailResponse {
+        admission,
+        encounter,
+        tasks,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -800,9 +834,9 @@ pub async fn discharge_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let dt: DischargeType = serde_json::from_value(
-        serde_json::Value::String(body.discharge_type.clone()),
-    )
+    let dt: DischargeType = serde_json::from_value(serde_json::Value::String(
+        body.discharge_type.clone(),
+    ))
     .map_err(|_| {
         AppError::BadRequest(format!(
             "Invalid discharge_type '{}'. Valid: normal, lama, dama, absconded, referred, deceased",
@@ -854,7 +888,10 @@ pub async fn discharge_patient(
             .fetch_optional(&mut *tx)
             .await?;
 
-            let charge_code = bed_type.map_or_else(|| "ROOM-GENERAL".to_owned(), |t| format!("ROOM-{}", t.to_uppercase()));
+            let charge_code = bed_type.map_or_else(
+                || "ROOM-GENERAL".to_owned(),
+                |t| format!("ROOM-{}", t.to_uppercase()),
+            );
 
             let desc = if los_days == 1 {
                 "Room charges (1 day)".to_owned()
@@ -1197,7 +1234,11 @@ pub async fn create_assessment(
     .bind(&body.assessment_type)
     .bind(body.score_value)
     .bind(&body.risk_level)
-    .bind(body.score_details.as_ref().unwrap_or(&serde_json::json!({})))
+    .bind(
+        body.score_details
+            .as_ref()
+            .unwrap_or(&serde_json::json!({})),
+    )
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -1290,12 +1331,8 @@ pub async fn update_mar(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let status: MarStatus = serde_json::from_value(
-        serde_json::Value::String(body.status.clone()),
-    )
-    .map_err(|_| {
-        AppError::BadRequest(format!("Invalid MAR status '{}'", body.status))
-    })?;
+    let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
+        .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
 
     let administered_by = if status == MarStatus::Given {
         Some(claims.sub)
@@ -1380,12 +1417,8 @@ pub async fn create_intake_output(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let shift: NursingShift = serde_json::from_value(
-        serde_json::Value::String(body.shift.clone()),
-    )
-    .map_err(|_| {
-        AppError::BadRequest(format!("Invalid shift '{}'", body.shift))
-    })?;
+    let shift: NursingShift = serde_json::from_value(serde_json::Value::String(body.shift.clone()))
+        .map_err(|_| AppError::BadRequest(format!("Invalid shift '{}'", body.shift)))?;
 
     let row = sqlx::query_as::<_, IpdIntakeOutput>(
         "INSERT INTO ipd_intake_output \
@@ -1650,7 +1683,11 @@ pub async fn create_care_plan(
     .bind(id)
     .bind(&body.nursing_diagnosis)
     .bind(&body.goals)
-    .bind(body.interventions.as_ref().unwrap_or(&serde_json::json!([])))
+    .bind(
+        body.interventions
+            .as_ref()
+            .unwrap_or(&serde_json::json!([])),
+    )
     .bind(&body.evaluation)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
@@ -1773,7 +1810,11 @@ pub async fn create_handover(
     .bind(&body.background)
     .bind(&body.assessment)
     .bind(&body.recommendation)
-    .bind(body.pending_tasks.as_ref().unwrap_or(&serde_json::json!([])))
+    .bind(
+        body.pending_tasks
+            .as_ref()
+            .unwrap_or(&serde_json::json!([])),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1974,14 +2015,12 @@ pub async fn get_ward(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let ward = sqlx::query_as::<_, Ward>(
-        "SELECT * FROM wards WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let ward = sqlx::query_as::<_, Ward>("SELECT * FROM wards WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::NotFound)?;
 
     tx.commit().await?;
 
@@ -2123,14 +2162,12 @@ pub async fn assign_bed_to_ward(
     .await?;
 
     // Denormalize ward_id on bed_states
-    sqlx::query(
-        "UPDATE bed_states SET ward_id = $3 WHERE bed_id = $1 AND tenant_id = $2",
-    )
-    .bind(body.bed_location_id)
-    .bind(claims.tenant_id)
-    .bind(ward_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE bed_states SET ward_id = $3 WHERE bed_id = $1 AND tenant_id = $2")
+        .bind(body.bed_location_id)
+        .bind(claims.tenant_id)
+        .bind(ward_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -2521,9 +2558,17 @@ pub async fn create_discharge_summary(
     .bind(&body.condition_at_discharge)
     .bind(&body.course_in_hospital)
     .bind(&body.treatment_given)
-    .bind(body.procedures_performed.as_ref().unwrap_or(&serde_json::json!([])))
+    .bind(
+        body.procedures_performed
+            .as_ref()
+            .unwrap_or(&serde_json::json!([])),
+    )
     .bind(&body.investigation_summary)
-    .bind(body.medications_on_discharge.as_ref().unwrap_or(&serde_json::json!([])))
+    .bind(
+        body.medications_on_discharge
+            .as_ref()
+            .unwrap_or(&serde_json::json!([])),
+    )
     .bind(&body.follow_up_instructions)
     .bind(body.follow_up_date)
     .bind(&body.dietary_advice)
@@ -2633,9 +2678,7 @@ pub async fn finalize_discharge_summary(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| {
-        AppError::BadRequest(
-            "Discharge summary not found or already finalized".to_owned(),
-        )
+        AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
     })?;
 
     tx.commit().await?;
@@ -2683,12 +2726,12 @@ pub async fn report_occupancy(
 ) -> Result<Json<Vec<OccupancyRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
 
-    let from = params.from.ok_or_else(|| {
-        AppError::BadRequest("'from' date is required".to_owned())
-    })?;
-    let to = params.to.ok_or_else(|| {
-        AppError::BadRequest("'to' date is required".to_owned())
-    })?;
+    let from = params
+        .from
+        .ok_or_else(|| AppError::BadRequest("'from' date is required".to_owned()))?;
+    let to = params
+        .to
+        .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2741,12 +2784,12 @@ pub async fn report_alos(
 ) -> Result<Json<Vec<AlosRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
 
-    let from = params.from.ok_or_else(|| {
-        AppError::BadRequest("'from' date is required".to_owned())
-    })?;
-    let to = params.to.ok_or_else(|| {
-        AppError::BadRequest("'to' date is required".to_owned())
-    })?;
+    let from = params
+        .from
+        .ok_or_else(|| AppError::BadRequest("'from' date is required".to_owned()))?;
+    let to = params
+        .to
+        .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2784,12 +2827,12 @@ pub async fn report_discharge_stats(
 ) -> Result<Json<Vec<DischargeStatRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
 
-    let from = params.from.ok_or_else(|| {
-        AppError::BadRequest("'from' date is required".to_owned())
-    })?;
-    let to = params.to.ok_or_else(|| {
-        AppError::BadRequest("'to' date is required".to_owned())
-    })?;
+    let from = params
+        .from
+        .ok_or_else(|| AppError::BadRequest("'from' date is required".to_owned()))?;
+    let to = params
+        .to
+        .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3186,7 +3229,11 @@ pub async fn toggle_checklist_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let completed_by = if body.is_completed { Some(claims.sub) } else { None };
+    let completed_by = if body.is_completed {
+        Some(claims.sub)
+    } else {
+        None
+    };
     let completed_at = if body.is_completed {
         Some(Utc::now())
     } else {
@@ -3241,9 +3288,8 @@ pub async fn list_bed_reservations(
     }
 
     let where_clause = conditions.join(" AND ");
-    let sql = format!(
-        "SELECT * FROM bed_reservations WHERE {where_clause} ORDER BY reserved_from DESC"
-    );
+    let sql =
+        format!("SELECT * FROM bed_reservations WHERE {where_clause} ORDER BY reserved_from DESC");
 
     let mut q = sqlx::query_as::<_, BedReservation>(&sql).bind(claims.tenant_id);
     if let Some(ref s) = params.status {
@@ -4070,10 +4116,8 @@ pub async fn update_discharge_tat(
         .nursing_cleared_at
         .as_ref()
         .and_then(|s| s.parse().ok());
-    let doctor_ts: Option<chrono::DateTime<Utc>> = body
-        .doctor_cleared_at
-        .as_ref()
-        .and_then(|s| s.parse().ok());
+    let doctor_ts: Option<chrono::DateTime<Utc>> =
+        body.doctor_cleared_at.as_ref().and_then(|s| s.parse().ok());
     let completed_ts: Option<chrono::DateTime<Utc>> = body
         .discharge_completed_at
         .as_ref()
@@ -4185,13 +4229,12 @@ pub async fn get_investigations(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let lab_orders = sqlx::query_as::<_, LabOrderSummary>(
         "SELECT lo.id, ltc.name AS test_name, lo.created_at AS ordered_at, \
@@ -4245,7 +4288,11 @@ pub async fn get_investigations(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(InvestigationsResponse { lab_orders, lab_results, radiology_orders }))
+    Ok(Json(InvestigationsResponse {
+        lab_orders,
+        lab_results,
+        radiology_orders,
+    }))
 }
 
 /// GET /api/ipd/admissions/{id}/estimated-cost
@@ -4259,13 +4306,12 @@ pub async fn get_estimated_cost(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let ip_type_val = adm.ip_type.unwrap_or(IpType::General);
     let config = sqlx::query_as::<_, IpTypeConfiguration>(
@@ -4314,13 +4360,12 @@ pub async fn get_admission_advances(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let rows = sqlx::query_as::<_, medbrains_core::billing::Receipt>(
         "SELECT r.* FROM receipts r \
@@ -4348,13 +4393,12 @@ pub async fn get_admission_prior_auth(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let rows = sqlx::query_as::<_, medbrains_core::insurance::PriorAuthRequest>(
         "SELECT * FROM prior_auth_requests \
@@ -4409,13 +4453,12 @@ pub async fn get_admission_mlc(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let mlc = match adm.mlc_case_id {
         Some(mlc_id) => {
@@ -4445,13 +4488,12 @@ pub async fn get_billing_summary(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let charges_by_dept = sqlx::query_as::<_, DeptChargeGroup>(
         "SELECT COALESCE(ii.description, 'Other') AS department_name, \
@@ -4576,13 +4618,12 @@ pub async fn get_admission_consents(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let rows = sqlx::query_as::<_, medbrains_core::consultation::ProcedureConsent>(
         "SELECT * FROM procedure_consents \
@@ -4613,14 +4654,13 @@ pub async fn generate_discharge_summary(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Fetch admission
-    let adm = sqlx::query_as::<_, Admission>(
-        "SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let adm =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(admission_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     // Fetch diagnoses
     let diagnoses = sqlx::query_as::<_, medbrains_core::consultation::Diagnosis>(

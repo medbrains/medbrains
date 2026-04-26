@@ -48,7 +48,10 @@ impl ProxyHttp for MedBrainsProxy {
         req: &mut RequestHeader,
         _ctx: &mut Self::CTX,
     ) -> Result<()> {
-        let ip = session.client_addr().map(|a| a.to_string()).unwrap_or_default();
+        let ip = session
+            .client_addr()
+            .map(|a| a.to_string())
+            .unwrap_or_default();
         req.insert_header("X-Real-IP", &ip)?;
         req.insert_header("X-Forwarded-For", &ip)?;
         req.insert_header("X-Forwarded-Proto", "https")?;
@@ -66,7 +69,10 @@ impl ProxyHttp for MedBrainsProxy {
     {
         resp.insert_header("X-Content-Type-Options", "nosniff")?;
         resp.insert_header("X-Frame-Options", "SAMEORIGIN")?;
-        resp.insert_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")?;
+        resp.insert_header(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )?;
         Ok(())
     }
 }
@@ -84,7 +90,9 @@ fn main() {
         )
         .init();
 
-    let config_path = std::env::args().nth(2).unwrap_or_else(|| "proxy.toml".to_owned());
+    let config_path = std::env::args()
+        .nth(2)
+        .unwrap_or_else(|| "proxy.toml".to_owned());
     let cfg = ProxyConfig::load(&config_path).expect("Failed to load config");
 
     let mut routes = HashMap::new();
@@ -93,10 +101,15 @@ fn main() {
     for (i, r) in cfg.routes.iter().enumerate() {
         tracing::info!(domain = %r.domain, upstream = %r.upstream, "route");
         routes.insert(r.domain.clone(), r.upstream.clone());
-        if i == 0 { default_upstream = r.upstream.clone(); }
+        if i == 0 {
+            default_upstream = r.upstream.clone();
+        }
     }
 
-    let proxy = MedBrainsProxy { routes, default_upstream };
+    let proxy = MedBrainsProxy {
+        routes,
+        default_upstream,
+    };
 
     let mut server = Server::new(None).unwrap();
     server.bootstrap();
@@ -115,14 +128,18 @@ fn main() {
     if let Some(r) = first_tls {
         let cert = r.cert_path.as_ref().unwrap();
         let key = r.key_path.as_ref().unwrap();
-        let tls = pingora::listeners::tls::TlsSettings::intermediate(cert, key)
-            .expect("TLS init failed");
+        let tls =
+            pingora::listeners::tls::TlsSettings::intermediate(cert, key).expect("TLS init failed");
 
         svc.add_tls_with_settings(&format!("0.0.0.0:{https_port}"), None, tls);
         tracing::info!(https = https_port, cert = %cert, "HTTPS ready");
     }
 
     server.add_service(svc);
-    tracing::info!(http = http_port, domains = cfg.routes.len(), "proxy listening");
+    tracing::info!(
+        http = http_port,
+        domains = cfg.routes.len(),
+        "proxy listening"
+    );
     server.run_forever();
 }

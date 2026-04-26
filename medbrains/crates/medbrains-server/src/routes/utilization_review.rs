@@ -1,16 +1,20 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}, http::StatusCode};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_core::utilization_review::{UtilizationReview, UrPayerCommunication, UrStatusConversion};
 use medbrains_core::permissions;
+use medbrains_core::utilization_review::{
+    UrPayerCommunication, UrStatusConversion, UtilizationReview,
+};
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -285,12 +289,11 @@ pub async fn get_review(
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, UtilizationReview>(
-        "SELECT * FROM utilization_reviews WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, UtilizationReview>("SELECT * FROM utilization_reviews WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -309,12 +312,11 @@ pub async fn update_review(
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Fetch current to compute merged values for outlier calculation
-    let current = sqlx::query_as::<_, UtilizationReview>(
-        "SELECT * FROM utilization_reviews WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current =
+        sqlx::query_as::<_, UtilizationReview>("SELECT * FROM utilization_reviews WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let expected = body.expected_los_days.or(current.expected_los_days);
     let actual = body.actual_los_days.or(current.actual_los_days);
@@ -596,11 +598,10 @@ pub async fn analytics_summary(
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Total reviews
-    let total_row = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*)::bigint AS count FROM utilization_reviews",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let total_row =
+        sqlx::query_as::<_, CountRow>("SELECT COUNT(*)::bigint AS count FROM utilization_reviews")
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Average LOS
     let los_row = sqlx::query_as::<_, AvgLosRow>(

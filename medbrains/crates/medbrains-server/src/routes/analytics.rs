@@ -5,26 +5,27 @@ use axum::{
     response::IntoResponse,
 };
 use medbrains_core::analytics::{
-    BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow,
-    DoctorRevenueRow, ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow,
-    OpdFootfallRow, OtUtilizationRow, PharmacySalesRow,
+    BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow, DoctorRevenueRow,
+    ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow, OpdFootfallRow, OtUtilizationRow,
+    PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
 fn default_range(params: &DateRangeQuery) -> (String, String) {
-    let to = params.to.clone().unwrap_or_else(|| {
-        chrono::Utc::now().format("%Y-%m-%d").to_string()
-    });
+    let to = params
+        .to
+        .clone()
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
     let from = params.from.clone().unwrap_or_else(|| {
-        (chrono::Utc::now() - chrono::Duration::days(30)).format("%Y-%m-%d").to_string()
+        (chrono::Utc::now() - chrono::Duration::days(30))
+            .format("%Y-%m-%d")
+            .to_string()
     });
     (from, to)
 }
@@ -50,7 +51,10 @@ pub async fn dept_revenue(
          WHERE i.created_at::date >= $1::date AND i.created_at::date <= $2::date \
          GROUP BY d.name ORDER BY revenue DESC",
     )
-    .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -78,7 +82,10 @@ pub async fn doctor_revenue(
            AND e.doctor_id IS NOT NULL \
          GROUP BY u.full_name, d.name ORDER BY revenue DESC",
     )
-    .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -210,7 +217,10 @@ pub async fn er_volume(
          WHERE arrival_time::date >= $1::date AND arrival_time::date <= $2::date \
          GROUP BY arrival_time::date ORDER BY date",
     )
-    .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -310,21 +320,29 @@ pub async fn bed_occupancy(
 
 // ── 11. Export CSV ─────────────────────────────────────────
 fn rows_to_csv<T: Serialize>(rows: &[T]) -> String {
-    if rows.is_empty() { return String::from("(no data)\n"); }
-    let values: Vec<serde_json::Value> = rows.iter()
-        .filter_map(|r| serde_json::to_value(r).ok()).collect();
-    let hdrs: Vec<String> = values.first()
+    if rows.is_empty() {
+        return String::from("(no data)\n");
+    }
+    let values: Vec<serde_json::Value> = rows
+        .iter()
+        .filter_map(|r| serde_json::to_value(r).ok())
+        .collect();
+    let hdrs: Vec<String> = values
+        .first()
         .and_then(|v| v.as_object())
         .map(|obj| obj.keys().cloned().collect())
         .unwrap_or_default();
     let mut csv = hdrs.join(",");
     csv.push('\n');
     for v in &values {
-        let line: Vec<String> = hdrs.iter().map(|h| match &v[h] {
-            serde_json::Value::Null => String::new(),
-            serde_json::Value::String(s) => s.clone(),
-            other => other.to_string(),
-        }).collect();
+        let line: Vec<String> = hdrs
+            .iter()
+            .map(|h| match &v[h] {
+                serde_json::Value::Null => String::new(),
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            })
+            .collect();
         csv.push_str(&line.join(","));
         csv.push('\n');
     }
@@ -337,23 +355,35 @@ pub async fn export_csv(
     Query(params): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, permissions::analytics::EXPORT)?;
-    let range = DateRangeQuery { from: params.from.clone(), to: params.to.clone() };
+    let range = DateRangeQuery {
+        from: params.from.clone(),
+        to: params.to.clone(),
+    };
     let csv = match params.report.as_str() {
         "dept_revenue" => {
-            let d = dept_revenue(State(state.clone()), Extension(claims.clone()), Query(range)).await?;
+            let d = dept_revenue(
+                State(state.clone()),
+                Extension(claims.clone()),
+                Query(range),
+            )
+            .await?;
             rows_to_csv(&d.0)
         }
         "bed_occupancy" => {
             let d = bed_occupancy(State(state.clone()), Extension(claims.clone())).await?;
             rows_to_csv(&d.0)
         }
-        other => return Err(AppError::BadRequest(
-            format!("Unknown report: {other}. Available: dept_revenue, bed_occupancy"),
-        )),
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "Unknown report: {other}. Available: dept_revenue, bed_occupancy"
+            )));
+        }
     };
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/csv"));
-    headers.insert(header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=analytics_export.csv"));
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=analytics_export.csv"),
+    );
     Ok((headers, csv))
 }

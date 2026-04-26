@@ -12,19 +12,17 @@
 //! - Public API
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    Extension,
 };
 use medbrains_core::cms::{
-    CmsAuthor, CmsCategory, CmsCategoryWithChildren, CmsDashboardStats, CmsMedia, CmsMenu,
-    CmsPage, CmsPost, CmsPostAnalytics, CmsPostDetail, CmsPostList, CmsPostRevision,
-    CmsPostSummary, CmsPublicPost, CmsSettings, CmsSubscriber, CmsTag, CreateCmsAuthor,
-    CreateCmsCategory, CreateCmsMedia, CreateCmsPage, CreateCmsPost, CreateCmsSubscriber,
-    CreateCmsTag, ReviewPostAction, SchedulePostRequest, SubmitPostForReview, UpdateCmsAuthor,
-    UpdateCmsCategory, UpdateCmsMedia, UpdateCmsMenu, UpdateCmsPage, UpdateCmsPost,
-    UpdateCmsSettings, UpdateCmsTag,
+    CmsAuthor, CmsCategory, CmsCategoryWithChildren, CmsDashboardStats, CmsMedia, CmsMenu, CmsPage,
+    CmsPost, CmsPostAnalytics, CmsPostDetail, CmsPostList, CmsPostRevision, CmsPostSummary,
+    CmsPublicPost, CmsSettings, CmsSubscriber, CmsTag, CreateCmsAuthor, CreateCmsCategory,
+    CreateCmsMedia, CreateCmsPage, CreateCmsPost, CreateCmsSubscriber, CreateCmsTag,
+    ReviewPostAction, SchedulePostRequest, SubmitPostForReview, UpdateCmsAuthor, UpdateCmsCategory,
+    UpdateCmsMedia, UpdateCmsMenu, UpdateCmsPage, UpdateCmsPost, UpdateCmsSettings, UpdateCmsTag,
 };
 use serde::Deserialize;
 use uuid::Uuid;

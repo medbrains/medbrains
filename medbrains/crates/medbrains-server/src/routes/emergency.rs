@@ -1,18 +1,19 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::emergency::{
-    ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit,
-    MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
+    ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase,
+    MlcDocument, MlcPoliceIntimation,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -197,13 +198,12 @@ pub async fn get_visit(
     require_permission(&claims, permissions::emergency::visits::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, ErVisit>(
-        "SELECT * FROM er_visits WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, ErVisit>("SELECT * FROM er_visits WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
     tx.commit().await?;
     Ok(Json(row))
 }

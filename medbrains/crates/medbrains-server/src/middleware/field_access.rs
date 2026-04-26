@@ -26,8 +26,7 @@ pub async fn resolve_restricted_fields(
         return Ok(HashMap::new());
     }
 
-    let full_map =
-        crate::routes::forms::resolve_field_access(db, tenant_id, user_id, role).await?;
+    let full_map = crate::routes::forms::resolve_field_access(db, tenant_id, user_id, role).await?;
 
     // Only keep fields that are NOT editable
     Ok(full_map

@@ -1,18 +1,19 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::cssd::{
-    CssdIndicatorResult, CssdInstrument, CssdInstrumentSet, CssdIssuance,
-    CssdLoadItem, CssdMaintenanceLog, CssdSetItem, CssdSterilizationLoad, CssdSterilizer,
+    CssdIndicatorResult, CssdInstrument, CssdInstrumentSet, CssdIssuance, CssdLoadItem,
+    CssdMaintenanceLog, CssdSetItem, CssdSterilizationLoad, CssdSterilizer,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -154,11 +155,9 @@ pub async fn list_instruments(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CssdInstrument>(
-        "SELECT * FROM cssd_instruments ORDER BY name",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = sqlx::query_as::<_, CssdInstrument>("SELECT * FROM cssd_instruments ORDER BY name")
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -307,12 +306,10 @@ pub async fn get_set_items(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CssdSetItem>(
-        "SELECT * FROM cssd_set_items WHERE set_id = $1",
-    )
-    .bind(set_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = sqlx::query_as::<_, CssdSetItem>("SELECT * FROM cssd_set_items WHERE set_id = $1")
+        .bind(set_id)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -331,11 +328,9 @@ pub async fn list_sterilizers(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CssdSterilizer>(
-        "SELECT * FROM cssd_sterilizers ORDER BY name",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = sqlx::query_as::<_, CssdSterilizer>("SELECT * FROM cssd_sterilizers ORDER BY name")
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -483,8 +478,16 @@ pub async fn update_load_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = chrono::Utc::now();
-    let started = if body.status == "running" { Some(now) } else { None };
-    let completed = if body.status == "completed" || body.status == "failed" { Some(now) } else { None };
+    let started = if body.status == "running" {
+        Some(now)
+    } else {
+        None
+    };
+    let completed = if body.status == "completed" || body.status == "failed" {
+        Some(now)
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, CssdSterilizationLoad>(
         "UPDATE cssd_sterilization_loads SET

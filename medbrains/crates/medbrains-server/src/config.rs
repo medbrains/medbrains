@@ -1,4 +1,7 @@
-use figment::{Figment, providers::{Env, Format, Serialized, Toml}};
+use figment::{
+    Figment,
+    providers::{Env, Format, Serialized, Toml},
+};
 use serde::{Deserialize, Serialize};
 
 /// Intermediate config struct for Figment extraction.
@@ -9,6 +12,20 @@ struct RawConfig {
     database_url: Option<String>,
     #[serde(default)]
     yottadb_url: Option<String>,
+    #[serde(default = "default_db_pool_max_connections")]
+    db_pool_max_connections: u32,
+    #[serde(default = "default_db_pool_min_connections")]
+    db_pool_min_connections: u32,
+    #[serde(default = "default_db_pool_acquire_timeout_secs")]
+    db_pool_acquire_timeout_secs: u64,
+    #[serde(default = "default_db_pool_idle_timeout_secs")]
+    db_pool_idle_timeout_secs: u64,
+    #[serde(default = "default_db_pool_max_lifetime_secs")]
+    db_pool_max_lifetime_secs: u64,
+    #[serde(default = "default_db_statement_cache_capacity")]
+    db_statement_cache_capacity: usize,
+    #[serde(default = "default_db_slow_query_ms")]
+    db_slow_query_ms: u64,
     #[serde(default = "default_host")]
     host: String,
     #[serde(default = "default_port")]
@@ -43,6 +60,34 @@ fn default_cors_origin() -> String {
     "http://localhost:5173".to_owned()
 }
 
+const fn default_db_pool_max_connections() -> u32 {
+    20
+}
+
+const fn default_db_pool_min_connections() -> u32 {
+    2
+}
+
+const fn default_db_pool_acquire_timeout_secs() -> u64 {
+    5
+}
+
+const fn default_db_pool_idle_timeout_secs() -> u64 {
+    600
+}
+
+const fn default_db_pool_max_lifetime_secs() -> u64 {
+    1800
+}
+
+const fn default_db_statement_cache_capacity() -> usize {
+    256
+}
+
+const fn default_db_slow_query_ms() -> u64 {
+    250
+}
+
 /// Application configuration loaded from layered sources.
 ///
 /// Layer order (later wins):
@@ -56,6 +101,13 @@ fn default_cors_origin() -> String {
 pub struct AppConfig {
     pub database_url: String,
     pub yottadb_url: Option<String>,
+    pub db_pool_max_connections: u32,
+    pub db_pool_min_connections: u32,
+    pub db_pool_acquire_timeout_secs: u64,
+    pub db_pool_idle_timeout_secs: u64,
+    pub db_pool_max_lifetime_secs: u64,
+    pub db_statement_cache_capacity: usize,
+    pub db_slow_query_ms: u64,
     pub host: String,
     pub port: u16,
     pub jwt_private_key_pem: String,
@@ -76,6 +128,13 @@ impl AppConfig {
             .merge(Serialized::defaults(RawConfig {
                 database_url: None,
                 yottadb_url: None,
+                db_pool_max_connections: default_db_pool_max_connections(),
+                db_pool_min_connections: default_db_pool_min_connections(),
+                db_pool_acquire_timeout_secs: default_db_pool_acquire_timeout_secs(),
+                db_pool_idle_timeout_secs: default_db_pool_idle_timeout_secs(),
+                db_pool_max_lifetime_secs: default_db_pool_max_lifetime_secs(),
+                db_statement_cache_capacity: default_db_statement_cache_capacity(),
+                db_slow_query_ms: default_db_slow_query_ms(),
                 host: default_host(),
                 port: default_port(),
                 jwt_private_key: None,
@@ -94,6 +153,13 @@ impl AppConfig {
         let database_url = raw.database_url.ok_or_else(|| ConfigError::Missing {
             key: "DATABASE_URL".to_owned(),
         })?;
+
+        if raw.db_pool_min_connections > raw.db_pool_max_connections {
+            return Err(ConfigError::Invalid {
+                key: "DB_POOL_MIN_CONNECTIONS".to_owned(),
+                reason: "must be less than or equal to DB_POOL_MAX_CONNECTIONS".to_owned(),
+            });
+        }
 
         // JWT keys: if both are set use them, otherwise generate dev keypair
         let (private_pem, public_pem) = match (raw.jwt_private_key, raw.jwt_public_key) {
@@ -135,6 +201,13 @@ impl AppConfig {
         Ok(Self {
             database_url,
             yottadb_url: raw.yottadb_url,
+            db_pool_max_connections: raw.db_pool_max_connections,
+            db_pool_min_connections: raw.db_pool_min_connections,
+            db_pool_acquire_timeout_secs: raw.db_pool_acquire_timeout_secs,
+            db_pool_idle_timeout_secs: raw.db_pool_idle_timeout_secs,
+            db_pool_max_lifetime_secs: raw.db_pool_max_lifetime_secs,
+            db_statement_cache_capacity: raw.db_statement_cache_capacity,
+            db_slow_query_ms: raw.db_slow_query_ms,
             host: raw.host,
             port: raw.port,
             jwt_private_key_pem: private_pem,
@@ -175,8 +248,7 @@ pub enum ConfigError {
 
 /// Ed25519 PKCS#8 DER prefix (16 bytes) — wraps a 32-byte seed into a valid PKCS#8 structure.
 const PKCS8_ED25519_PREFIX: [u8; 16] = [
-    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
-    0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
 ];
 
 /// Generate an Ed25519 keypair for dev use when no key files are configured.
@@ -190,8 +262,7 @@ fn generate_dev_keypair() -> Result<(String, String), ConfigError> {
 
     // Generate 32 random bytes for Ed25519 seed using getrandom (no rand_core conflict)
     let mut seed = [0u8; 32];
-    getrandom::fill(&mut seed)
-        .map_err(|e| ConfigError::KeyGen(format!("getrandom error: {e}")))?;
+    getrandom::fill(&mut seed).map_err(|e| ConfigError::KeyGen(format!("getrandom error: {e}")))?;
 
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed);
     let verifying_key = signing_key.verifying_key();

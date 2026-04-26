@@ -1,9 +1,4 @@
-use axum::{
-    extract::Request,
-    http::Method,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::Method, middleware::Next, response::Response};
 
 use crate::{error::AppError, middleware::auth::AuthMethod};
 
@@ -12,10 +7,7 @@ use crate::{error::AppError, middleware::auth::AuthMethod};
 /// Skips for safe HTTP methods (GET, HEAD, OPTIONS) and for Bearer-authenticated
 /// requests (mobile/API clients). For cookie-authenticated mutations, validates
 /// that the `csrf_token` cookie matches the `X-CSRF-Token` header.
-pub async fn csrf_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
+pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, AppError> {
     let method = request.method().clone();
 
     // Safe methods don't need CSRF protection

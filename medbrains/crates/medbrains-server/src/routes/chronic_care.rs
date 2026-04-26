@@ -11,11 +11,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
-    middleware::client_ip::ClientIp,
-    state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    middleware::client_ip::ClientIp, state::AppState,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -446,7 +443,13 @@ pub async fn create_program(
 
     let mut tx = state.db.begin().await?;
     let ip_str = client_ip.map(|ip| ip.0.as_str());
-    medbrains_db::pool::set_audit_context(&mut tx, &claims.tenant_id, &claims.sub, ip_str.as_deref()).await?;
+    medbrains_db::pool::set_audit_context(
+        &mut tx,
+        &claims.tenant_id,
+        &claims.sub,
+        ip_str.as_deref(),
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, ChronicProgramRow>(
         "INSERT INTO chronic_programs \
@@ -690,9 +693,7 @@ pub async fn update_enrollment_status(
 
     let now = Utc::now().date_naive();
     let end_date: Option<NaiveDate> = match body.status.as_str() {
-        "completed" | "discontinued" | "transferred" | "lost_to_followup" | "deceased" => {
-            Some(now)
-        }
+        "completed" | "discontinued" | "transferred" | "lost_to_followup" | "deceased" => Some(now),
         _ => None,
     };
 
@@ -1583,9 +1584,7 @@ pub async fn treatment_summary(
     .await?;
 
     let adherence_rate = match (taken.count, total.count) {
-        (Some(t), Some(tot)) if tot > 0 => {
-            Some(Decimal::from(t * 100) / Decimal::from(tot))
-        }
+        (Some(t), Some(tot)) if tot > 0 => Some(Decimal::from(t * 100) / Decimal::from(tot)),
         _ => None,
     };
 

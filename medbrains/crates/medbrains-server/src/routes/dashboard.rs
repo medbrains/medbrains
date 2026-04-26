@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use chrono::Utc;
 use medbrains_core::dashboard::{
     Dashboard, DashboardSummary, DashboardWidget, DashboardWithWidgets, WidgetTemplate, WidgetType,
@@ -10,7 +13,10 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    middleware::{auth::Claims, authorization::{is_bypass_role, require_permission}},
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_permission},
+    },
     state::AppState,
 };
 
@@ -247,8 +253,7 @@ pub async fn list_dashboards(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let role = &claims.role;
-    let dept_ids = serde_json::to_value(&claims.department_ids)
-        .unwrap_or(serde_json::json!([]));
+    let dept_ids = serde_json::to_value(&claims.department_ids).unwrap_or(serde_json::json!([]));
 
     let rows = sqlx::query_as::<_, DashboardSummary>(
         "SELECT d.id, d.name, d.code, d.description, d.is_default, d.role_codes,
@@ -289,8 +294,7 @@ pub async fn get_my_dashboard(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let role = &claims.role;
-    let dept_ids = serde_json::to_value(&claims.department_ids)
-        .unwrap_or(serde_json::json!([]));
+    let dept_ids = serde_json::to_value(&claims.department_ids).unwrap_or(serde_json::json!([]));
 
     // 1. User-specific personal dashboard
     let dashboard = sqlx::query_as::<_, Dashboard>(
@@ -305,33 +309,37 @@ pub async fn get_my_dashboard(
     // 2. Department + role matched dashboard
     let dashboard = match dashboard {
         Some(d) => Some(d),
-        None => sqlx::query_as::<_, Dashboard>(
-            "SELECT * FROM dashboards
+        None => {
+            sqlx::query_as::<_, Dashboard>(
+                "SELECT * FROM dashboards
              WHERE is_active = true AND user_id IS NULL
                AND department_ids != '[]'::jsonb
                AND department_ids ?| ARRAY(SELECT jsonb_array_elements_text($1))
                AND (role_codes = '[]'::jsonb OR role_codes @> $2::jsonb)
              ORDER BY is_default DESC LIMIT 1",
-        )
-        .bind(&dept_ids)
-        .bind(serde_json::json!([role]))
-        .fetch_optional(&mut *tx)
-        .await?,
+            )
+            .bind(&dept_ids)
+            .bind(serde_json::json!([role]))
+            .fetch_optional(&mut *tx)
+            .await?
+        }
     };
 
     // 3. Role-matched dashboard
     let dashboard = match dashboard {
         Some(d) => Some(d),
-        None => sqlx::query_as::<_, Dashboard>(
-            "SELECT * FROM dashboards
+        None => {
+            sqlx::query_as::<_, Dashboard>(
+                "SELECT * FROM dashboards
              WHERE is_active = true AND user_id IS NULL
                AND department_ids = '[]'::jsonb
                AND role_codes @> $1::jsonb
              ORDER BY is_default DESC LIMIT 1",
-        )
-        .bind(serde_json::json!([role]))
-        .fetch_optional(&mut *tx)
-        .await?,
+            )
+            .bind(serde_json::json!([role]))
+            .fetch_optional(&mut *tx)
+            .await?
+        }
     };
 
     // 4. Default dashboard
@@ -365,13 +373,11 @@ pub async fn personalize_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let source = sqlx::query_as::<_, Dashboard>(
-        "SELECT * FROM dashboards WHERE id = $1",
-    )
-    .bind(req.source_dashboard_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let source = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
+        .bind(req.source_dashboard_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let new_code = format!("personal_{}_{}", claims.sub, Utc::now().timestamp());
 
@@ -409,7 +415,10 @@ pub async fn personalize_dashboard(
     let widgets = fetch_visible_widgets(&mut tx, personal.id, &claims).await?;
 
     tx.commit().await?;
-    Ok(Json(DashboardWithWidgets { dashboard: personal, widgets }))
+    Ok(Json(DashboardWithWidgets {
+        dashboard: personal,
+        widgets,
+    }))
 }
 
 /// GET /api/dashboards/{id} — get dashboard with all widgets.
@@ -423,13 +432,11 @@ pub async fn get_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let dashboard = sqlx::query_as::<_, Dashboard>(
-        "SELECT * FROM dashboards WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let dashboard = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let widgets = fetch_visible_widgets(&mut tx, dashboard.id, &claims).await?;
 
@@ -447,18 +454,21 @@ pub async fn admin_create_dashboard(
     State(state): State<AppState>,
     Json(req): Json<CreateDashboardRequest>,
 ) -> Result<Json<Dashboard>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let role_codes = serde_json::to_value(req.role_codes.unwrap_or_default())
-        .unwrap_or(serde_json::json!([]));
+    let role_codes =
+        serde_json::to_value(req.role_codes.unwrap_or_default()).unwrap_or(serde_json::json!([]));
     let department_ids = serde_json::to_value(req.department_ids.unwrap_or_default())
         .unwrap_or(serde_json::json!([]));
-    let layout_config = req.layout_config.unwrap_or_else(||
-        serde_json::json!({"columns": 12, "row_height": 80, "gap": 16})
-    );
+    let layout_config = req
+        .layout_config
+        .unwrap_or_else(|| serde_json::json!({"columns": 12, "row_height": 80, "gap": 16}));
 
     let dashboard = sqlx::query_as::<_, Dashboard>(
         "INSERT INTO dashboards (tenant_id, name, code, description, is_default,
@@ -489,18 +499,19 @@ pub async fn admin_update_dashboard(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateDashboardRequest>,
 ) -> Result<Json<Dashboard>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let existing = sqlx::query_as::<_, Dashboard>(
-        "SELECT * FROM dashboards WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let existing = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let name = req.name.unwrap_or(existing.name);
     let description = req.description.or(existing.description);
@@ -543,7 +554,10 @@ pub async fn admin_delete_dashboard(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -567,18 +581,19 @@ pub async fn admin_duplicate_dashboard(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Dashboard>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let source = sqlx::query_as::<_, Dashboard>(
-        "SELECT * FROM dashboards WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let source = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let new_code = format!("{}_copy_{}", source.code, Utc::now().timestamp());
 
@@ -630,18 +645,20 @@ pub async fn admin_add_widget(
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<CreateWidgetRequest>,
 ) -> Result<Json<DashboardWidget>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Verify dashboard exists
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE id = $1)",
-    )
-    .bind(dashboard_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let exists =
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM dashboards WHERE id = $1)")
+            .bind(dashboard_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     if !exists {
         return Err(AppError::NotFound);
@@ -649,13 +666,12 @@ pub async fn admin_add_widget(
 
     // If a template_id was provided, merge defaults
     let (config, data_source, width, height, icon, color) = if let Some(tid) = req.template_id {
-        let tmpl = sqlx::query_as::<_, WidgetTemplate>(
-            "SELECT * FROM widget_templates WHERE id = $1",
-        )
-        .bind(tid)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::BadRequest("invalid template_id".to_owned()))?;
+        let tmpl =
+            sqlx::query_as::<_, WidgetTemplate>("SELECT * FROM widget_templates WHERE id = $1")
+                .bind(tid)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or(AppError::BadRequest("invalid template_id".to_owned()))?;
 
         (
             req.config.unwrap_or(tmpl.default_config),
@@ -676,9 +692,7 @@ pub async fn admin_add_widget(
         )
     };
 
-    let data_filters = req
-        .data_filters
-        .unwrap_or_else(|| serde_json::json!({}));
+    let data_filters = req.data_filters.unwrap_or_else(|| serde_json::json!({}));
 
     let widget = sqlx::query_as::<_, DashboardWidget>(
         "INSERT INTO dashboard_widgets
@@ -717,7 +731,10 @@ pub async fn admin_update_widget(
     Path((dashboard_id, wid)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateWidgetRequest>,
 ) -> Result<Json<DashboardWidget>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -753,7 +770,11 @@ pub async fn admin_update_widget(
     .bind(req.height.unwrap_or(existing.height))
     .bind(req.refresh_interval.or(existing.refresh_interval))
     .bind(req.is_visible.unwrap_or(existing.is_visible))
-    .bind(req.permission_code.as_ref().or(existing.permission_code.as_ref()))
+    .bind(
+        req.permission_code
+            .as_ref()
+            .or(existing.permission_code.as_ref()),
+    )
     .bind(wid)
     .fetch_one(&mut *tx)
     .await?;
@@ -768,18 +789,19 @@ pub async fn admin_delete_widget(
     State(state): State<AppState>,
     Path((dashboard_id, wid)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2",
-    )
-    .bind(wid)
-    .bind(dashboard_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2")
+        .bind(wid)
+        .bind(dashboard_id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -796,7 +818,10 @@ pub async fn admin_update_layout(
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<UpdateLayoutRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -818,7 +843,9 @@ pub async fn admin_update_layout(
     }
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"status": "updated", "count": req.widgets.len()})))
+    Ok(Json(
+        serde_json::json!({"status": "updated", "count": req.widgets.len()}),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -830,7 +857,10 @@ pub async fn admin_list_widget_templates(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<WidgetTemplate>>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -935,10 +965,7 @@ pub async fn list_widget_templates(
             let dept_ok = match t.required_departments.as_array() {
                 Some(arr) if !arr.is_empty() => arr.iter().any(|d| {
                     d.as_str().is_some_and(|did| {
-                        claims
-                            .department_ids
-                            .iter()
-                            .any(|ud| ud.to_string() == did)
+                        claims.department_ids.iter().any(|ud| ud.to_string() == did)
                     })
                 }),
                 _ => true,
@@ -957,7 +984,10 @@ pub async fn admin_create_widget_template(
     State(state): State<AppState>,
     Json(req): Json<CreateWidgetTemplateRequest>,
 ) -> Result<Json<WidgetTemplate>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::admin::settings::general::MANAGE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::general::MANAGE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1056,12 +1086,8 @@ pub async fn batch_widget_data(
     for widget in &widgets {
         // Re-set department context per widget (each widget may have different scope)
         let filters = resolve_data_filters(widget, &claims);
-        medbrains_db::pool::set_full_context(
-            &mut tx,
-            &claims.tenant_id,
-            &filters.department_ids,
-        )
-        .await?;
+        medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
+            .await?;
 
         let data = resolve_widget_data(&mut tx, widget, &filters).await?;
         results.push(WidgetDataResponse {
@@ -1099,9 +1125,9 @@ async fn fetch_visible_widgets(
     let visible: Vec<DashboardWidget> = all_widgets
         .into_iter()
         .filter(|w| {
-            w.permission_code.as_ref().is_none_or(|perm| {
-                is_bypass || claims.permissions.iter().any(|p| p == perm)
-            })
+            w.permission_code
+                .as_ref()
+                .is_none_or(|perm| is_bypass || claims.permissions.iter().any(|p| p == perm))
         })
         .collect();
 
@@ -1123,15 +1149,25 @@ async fn resolve_widget_data(
 
     match source_type {
         "module_query" => {
-            let module = source.get("module").and_then(serde_json::Value::as_str).unwrap_or("");
-            let query = source.get("query").and_then(serde_json::Value::as_str).unwrap_or("");
-            let params = source.get("params").cloned().unwrap_or_else(|| serde_json::json!({}));
+            let module = source
+                .get("module")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            let query = source
+                .get("query")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            let params = source
+                .get("params")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({}));
 
             resolve_module_query(tx, module, query, &params, filters).await
         }
-        "static" => {
-            Ok(source.get("static_data").cloned().unwrap_or(serde_json::json!(null)))
-        }
+        "static" => Ok(source
+            .get("static_data")
+            .cloned()
+            .unwrap_or(serde_json::json!(null))),
         _ => Ok(serde_json::json!({"error": "unsupported data source type"})),
     }
 }
@@ -1171,7 +1207,10 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"value": count, "label": "Today's Registrations"}))
         }
         ("patients", "recent_registrations") => {
-            let limit = params.get("limit").and_then(serde_json::Value::as_i64).unwrap_or(5);
+            let limit = params
+                .get("limit")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(5);
             let rows = sqlx::query_as::<_, PatientRow>(
                 "SELECT id, uhid, first_name, last_name, created_at
                  FROM patients WHERE is_active = true
@@ -1207,7 +1246,10 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"value": count, "label": "Today's Visits"}))
         }
         ("opd", "active_tokens") => {
-            let limit = params.get("limit").and_then(serde_json::Value::as_i64).unwrap_or(10);
+            let limit = params
+                .get("limit")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(10);
             // opd_queues has department_id → RLS auto-filters
             let rows = sqlx::query_as::<_, OpdTokenRow>(
                 "SELECT q.id, q.token_number AS token_no,
@@ -1274,7 +1316,10 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"value": count, "label": "Completed Today"}))
         }
         ("lab", "recent_results") => {
-            let limit = params.get("limit").and_then(serde_json::Value::as_i64).unwrap_or(5);
+            let limit = params
+                .get("limit")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(5);
             let rows = if has_dept_filter {
                 sqlx::query_as::<_, LabResultRow>(
                     "SELECT lo.id, p.first_name || ' ' || p.last_name AS patient_name,
@@ -1455,15 +1500,13 @@ async fn resolve_module_query(
         }
 
         // ── System ──
-        ("system", "health_check") => {
-            Ok(serde_json::json!({
-                "services": [
-                    {"name": "API Server", "status": "healthy"},
-                    {"name": "PostgreSQL", "status": "connected"},
-                    {"name": "YottaDB", "status": "deferred"}
-                ]
-            }))
-        }
+        ("system", "health_check") => Ok(serde_json::json!({
+            "services": [
+                {"name": "API Server", "status": "healthy"},
+                {"name": "PostgreSQL", "status": "connected"},
+                {"name": "YottaDB", "status": "deferred"}
+            ]
+        })),
 
         // ── Billing analytics ──
         ("billing", "revenue_by_department") => {
@@ -1828,11 +1871,10 @@ pub async fn dashboard_summary(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Total patients
-    let total_patients = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM patients WHERE is_active = true",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let total_patients =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM patients WHERE is_active = true")
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Today's registrations
     let today_registrations = sqlx::query_scalar::<_, i64>(
@@ -1883,12 +1925,11 @@ pub async fn dashboard_summary(
     .unwrap_or(0);
 
     // IPD active admissions
-    let ipd_active = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM admissions WHERE status = 'admitted'",
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(0);
+    let ipd_active =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM admissions WHERE status = 'admitted'")
+            .fetch_optional(&mut *tx)
+            .await?
+            .unwrap_or(0);
 
     // Recent activity — last 10 events across modules
     let recent = sqlx::query_as::<_, RecentActivityRow>(
@@ -2144,7 +2185,9 @@ pub async fn admin_get_role_widget_access(
     .unwrap_or_else(|| serde_json::json!({}));
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"widget_access_defaults": defaults})))
+    Ok(Json(
+        serde_json::json!({"widget_access_defaults": defaults}),
+    ))
 }
 
 /// PUT /api/admin/roles/{id}/widget-access
@@ -2159,13 +2202,11 @@ pub async fn admin_set_role_widget_access(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
-        "UPDATE roles SET widget_access_defaults = $1::jsonb WHERE id = $2",
-    )
-    .bind(&req.widget_overrides)
-    .bind(role_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE roles SET widget_access_defaults = $1::jsonb WHERE id = $2")
+        .bind(&req.widget_overrides)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"updated": true})))

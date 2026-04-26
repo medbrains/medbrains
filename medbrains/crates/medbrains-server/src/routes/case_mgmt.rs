@@ -1,6 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}, http::StatusCode};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,9 +12,7 @@ use medbrains_core::case_mgmt::{CaseAssignment, CaseReferral, DischargeBarrier};
 use medbrains_core::permissions;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -240,13 +242,11 @@ pub async fn get_assignment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, CaseAssignment>(
-        "SELECT * FROM case_assignments WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let row = sqlx::query_as::<_, CaseAssignment>("SELECT * FROM case_assignments WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -352,9 +352,8 @@ pub async fn auto_assign(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let manager = manager_row.ok_or_else(|| {
-        AppError::BadRequest("No case managers available".to_owned())
-    })?;
+    let manager =
+        manager_row.ok_or_else(|| AppError::BadRequest("No case managers available".to_owned()))?;
 
     let row = sqlx::query_as::<_, CaseAssignment>(
         "INSERT INTO case_assignments \
@@ -467,19 +466,17 @@ pub async fn update_barrier(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // If is_resolved is being set to true, auto-fill resolved_date and resolved_by
-    let resolved_date: Option<chrono::NaiveDate> =
-        if body.is_resolved == Some(true) {
-            Some(chrono::Utc::now().date_naive())
-        } else {
-            None
-        };
+    let resolved_date: Option<chrono::NaiveDate> = if body.is_resolved == Some(true) {
+        Some(chrono::Utc::now().date_naive())
+    } else {
+        None
+    };
 
-    let resolved_by: Option<Uuid> =
-        if body.is_resolved == Some(true) {
-            Some(claims.sub)
-        } else {
-            None
-        };
+    let resolved_by: Option<Uuid> = if body.is_resolved == Some(true) {
+        Some(claims.sub)
+    } else {
+        None
+    };
 
     let row = sqlx::query_as::<_, DischargeBarrier>(
         "UPDATE discharge_barriers SET \

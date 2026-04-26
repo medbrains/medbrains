@@ -27,7 +27,9 @@ impl MessageBuffer {
             );
             CREATE INDEX IF NOT EXISTS idx_pending_retry ON pending_messages(retry_count);",
         )?;
-        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     /// Store a message for delivery.
@@ -99,7 +101,6 @@ impl MessageBuffer {
         )?;
         Ok(())
     }
-
 }
 
 pub struct BufferedMessage {

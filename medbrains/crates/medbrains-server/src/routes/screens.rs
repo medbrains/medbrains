@@ -1,12 +1,15 @@
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::screen::{
-    ModuleSidecar, ResolvedScreen, ResolvedSidecar, ScreenMaster, ScreenSidecar,
-    ScreenSummary, ScreenVersionSnapshot, ScreenVersionSummary,
+    ModuleSidecar, ResolvedScreen, ResolvedSidecar, ScreenMaster, ScreenSidecar, ScreenSummary,
+    ScreenVersionSnapshot, ScreenVersionSummary,
 };
 
 use crate::{
@@ -110,12 +113,11 @@ pub struct StatusResponse {
 // ══════════════════════════════════════════════════════════════
 
 async fn require_draft_screen(db: &PgPool, screen_id: Uuid) -> Result<(), AppError> {
-    let status: Option<String> = sqlx::query_scalar(
-        "SELECT status::text FROM screen_masters WHERE id = $1",
-    )
-    .bind(screen_id)
-    .fetch_optional(db)
-    .await?;
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status::text FROM screen_masters WHERE id = $1")
+            .bind(screen_id)
+            .fetch_optional(db)
+            .await?;
 
     let Some(status) = status else {
         return Err(AppError::NotFound);
@@ -218,13 +220,11 @@ pub async fn get_screen(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let db = &state.db;
 
-    let screen = sqlx::query_as::<_, ScreenMaster>(
-        "SELECT * FROM screen_masters WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(db)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let screen = sqlx::query_as::<_, ScreenMaster>("SELECT * FROM screen_masters WHERE id = $1")
+        .bind(id)
+        .fetch_optional(db)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     Ok(Json(screen))
 }
@@ -269,7 +269,9 @@ pub async fn update_screen(
     .execute(db)
     .await?;
 
-    Ok(Json(StatusResponse { status: "updated".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "updated".to_owned(),
+    }))
 }
 
 /// `DELETE /api/admin/screens/{id}`
@@ -288,7 +290,9 @@ pub async fn delete_screen(
         .execute(db)
         .await?;
 
-    Ok(Json(StatusResponse { status: "deleted".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "deleted".to_owned(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -308,16 +312,16 @@ pub async fn publish_screen(
     let mut tx = db.begin().await?;
 
     // Fetch current screen
-    let screen = sqlx::query_as::<_, ScreenMaster>(
-        "SELECT * FROM screen_masters WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let screen = sqlx::query_as::<_, ScreenMaster>("SELECT * FROM screen_masters WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     if screen.status != medbrains_core::form::FormStatus::Draft {
-        return Err(AppError::Conflict("Only draft screens can be published".to_owned()));
+        return Err(AppError::Conflict(
+            "Only draft screens can be published".to_owned(),
+        ));
     }
 
     // Snapshot sidecars
@@ -327,8 +331,7 @@ pub async fn publish_screen(
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
-    let sidecars_json = serde_json::to_value(&sidecars)
-        .unwrap_or(serde_json::json!([]));
+    let sidecars_json = serde_json::to_value(&sidecars).unwrap_or(serde_json::json!([]));
 
     // Snapshot form refs
     let form_refs: Vec<serde_json::Value> = sqlx::query_scalar(
@@ -373,7 +376,9 @@ pub async fn publish_screen(
 
     tx.commit().await?;
 
-    Ok(Json(StatusResponse { status: "published".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "published".to_owned(),
+    }))
 }
 
 /// `POST /api/admin/screens/{id}/new-version`
@@ -385,13 +390,11 @@ pub async fn create_new_version(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let db = &state.db;
 
-    let screen = sqlx::query_as::<_, ScreenMaster>(
-        "SELECT * FROM screen_masters WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(db)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let screen = sqlx::query_as::<_, ScreenMaster>("SELECT * FROM screen_masters WHERE id = $1")
+        .bind(id)
+        .fetch_optional(db)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     if screen.status == medbrains_core::form::FormStatus::Draft {
         return Err(AppError::Conflict("Screen is already a draft".to_owned()));
@@ -511,7 +514,9 @@ pub async fn restore_version(
     .execute(db)
     .await?;
 
-    Ok(Json(StatusResponse { status: "restored".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "restored".to_owned(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -609,7 +614,9 @@ pub async fn update_sidecar(
     .execute(db)
     .await?;
 
-    Ok(Json(StatusResponse { status: "updated".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "updated".to_owned(),
+    }))
 }
 
 /// `DELETE /api/admin/screens/{id}/sidecars/{sid}`
@@ -627,7 +634,9 @@ pub async fn delete_sidecar(
         .execute(db)
         .await?;
 
-    Ok(Json(StatusResponse { status: "deleted".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "deleted".to_owned(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -699,7 +708,9 @@ pub async fn upsert_override(
     .execute(db)
     .await?;
 
-    Ok(Json(StatusResponse { status: "saved".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "saved".to_owned(),
+    }))
 }
 
 /// `DELETE /api/admin/screen-overrides/{screen_id}`
@@ -711,15 +722,15 @@ pub async fn delete_override(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let db = &state.db;
 
-    sqlx::query(
-        "DELETE FROM tenant_screen_overrides WHERE tenant_id = $1 AND screen_id = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(screen_id)
-    .execute(db)
-    .await?;
+    sqlx::query("DELETE FROM tenant_screen_overrides WHERE tenant_id = $1 AND screen_id = $2")
+        .bind(claims.tenant_id)
+        .bind(screen_id)
+        .execute(db)
+        .await?;
 
-    Ok(Json(StatusResponse { status: "deleted".to_owned() }))
+    Ok(Json(StatusResponse {
+        status: "deleted".to_owned(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════════

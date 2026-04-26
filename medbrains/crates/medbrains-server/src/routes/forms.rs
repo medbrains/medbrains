@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,17 +12,11 @@ use medbrains_core::form::{
     RequirementLevel, ResolvedField, ResolvedFormDefinition, ResolvedSection, TenantOverrideRow,
 };
 
-use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    state::AppState,
-};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 // ── List Forms ─────────────────────────────────────────────
 
-pub async fn list_forms(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<FormMaster>>, AppError> {
+pub async fn list_forms(State(state): State<AppState>) -> Result<Json<Vec<FormMaster>>, AppError> {
     let forms = sqlx::query_as::<_, FormMaster>(
         "SELECT id, code, name, version, status, config, \
                 published_at, published_by, created_at, updated_at \
@@ -63,12 +60,11 @@ pub async fn get_form_definition(
 
     // Fallback: if form is in draft, serve from latest active snapshot
     if form_row.is_none() {
-        let draft_exists: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM form_masters WHERE code = $1 AND status = 'draft'",
-        )
-        .bind(&form_code)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let draft_exists: Option<Uuid> =
+            sqlx::query_scalar("SELECT id FROM form_masters WHERE code = $1 AND status = 'draft'")
+                .bind(&form_code)
+                .fetch_optional(&mut *tx)
+                .await?;
 
         if let Some(draft_id) = draft_exists {
             let snapshot_row = sqlx::query_as::<_, medbrains_core::form::FormVersionSnapshot>(
@@ -189,21 +185,14 @@ pub async fn get_form_definition(
     };
 
     // Resolve field access levels for this user
-    let field_access = resolve_field_access(
-        &state.db,
-        tenant_id,
-        claims.sub,
-        &claims.role,
-    )
-    .await?;
+    let field_access = resolve_field_access(&state.db, tenant_id, claims.sub, &claims.role).await?;
 
     // Determine the module code for this form (for field_access key prefix)
-    let module_code: Option<String> = sqlx::query_scalar(
-        "SELECT module_code FROM module_form_links WHERE form_id = $1 LIMIT 1",
-    )
-    .bind(form.id)
-    .fetch_optional(&state.db)
-    .await?;
+    let module_code: Option<String> =
+        sqlx::query_scalar("SELECT module_code FROM module_form_links WHERE form_id = $1 LIMIT 1")
+            .bind(form.id)
+            .fetch_optional(&state.db)
+            .await?;
 
     // Assemble resolved sections
     let sections = assemble_sections(
@@ -376,8 +365,14 @@ fn resolve_field(
         is_hidden,
         access_level,
         regulatory_clauses: clauses,
-        data_source: row.ff_data_source_override.clone().or_else(|| row.fm_data_source.clone()),
-        actions: row.ff_actions_override.clone().or_else(|| row.fm_actions.clone()),
+        data_source: row
+            .ff_data_source_override
+            .clone()
+            .or_else(|| row.fm_data_source.clone()),
+        actions: row
+            .ff_actions_override
+            .clone()
+            .or_else(|| row.fm_actions.clone()),
     }
 }
 
@@ -487,11 +482,10 @@ pub async fn upsert_tenant_override(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let field_id: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM field_masters WHERE code = $1")
-            .bind(&field_code)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let field_id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM field_masters WHERE code = $1")
+        .bind(&field_code)
+        .fetch_optional(&mut *tx)
+        .await?;
 
     let Some(field_id) = field_id else {
         return Err(AppError::NotFound);
@@ -673,18 +667,23 @@ fn parse_access_level(val: &serde_json::Value) -> Option<FieldAccessLevel> {
 // ── Snapshot Resolution ────────────────────────────────────
 
 /// Build a `ResolvedFormDefinition` from a snapshot (used for fallback when form is in draft).
-fn resolve_from_snapshot(snap: &medbrains_core::form::FormVersionSnapshot) -> ResolvedFormDefinition {
+fn resolve_from_snapshot(
+    snap: &medbrains_core::form::FormVersionSnapshot,
+) -> ResolvedFormDefinition {
     use medbrains_core::form::FieldDataType;
 
     let empty_arr = Vec::new();
-    let sections_json = snap.snapshot.get("sections")
+    let sections_json = snap
+        .snapshot
+        .get("sections")
         .and_then(|s| s.as_array())
         .unwrap_or(&empty_arr);
 
     let sections: Vec<ResolvedSection> = sections_json
         .iter()
         .map(|sec| {
-            let fields_json = sec.get("fields")
+            let fields_json = sec
+                .get("fields")
                 .and_then(|f| f.as_array())
                 .unwrap_or(&empty_arr);
 
@@ -692,16 +691,22 @@ fn resolve_from_snapshot(snap: &medbrains_core::form::FormVersionSnapshot) -> Re
                 .iter()
                 .map(|f| {
                     let fms = f.get("field_master_snapshot");
-                    let data_type_str = f.get("data_type")
+                    let data_type_str = f
+                        .get("data_type")
                         .and_then(|v| v.as_str())
                         .unwrap_or("text");
-                    let data_type: FieldDataType = serde_json::from_value(
-                        serde_json::Value::String(data_type_str.to_owned())
-                    ).unwrap_or(FieldDataType::Text);
+                    let data_type: FieldDataType =
+                        serde_json::from_value(serde_json::Value::String(data_type_str.to_owned()))
+                            .unwrap_or(FieldDataType::Text);
 
                     ResolvedField {
-                        field_code: f.get("field_code").and_then(|v| v.as_str()).unwrap_or("").to_owned(),
-                        label: f.get("label_override")
+                        field_code: f
+                            .get("field_code")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_owned(),
+                        label: f
+                            .get("label_override")
                             .and_then(|v| v.as_str())
                             .or_else(|| f.get("field_name").and_then(|v| v.as_str()))
                             .unwrap_or("")
@@ -710,15 +715,27 @@ fn resolve_from_snapshot(snap: &medbrains_core::form::FormVersionSnapshot) -> Re
                         data_type,
                         requirement_level: RequirementLevel::Optional,
                         default_value: None,
-                        placeholder: fms.and_then(|m| m.get("placeholder")).and_then(|v| v.as_str()).map(String::from),
+                        placeholder: fms
+                            .and_then(|m| m.get("placeholder"))
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         validation: fms.and_then(|m| m.get("validation")).cloned(),
                         ui_component: None,
-                        ui_width: fms.and_then(|m| m.get("ui_width")).and_then(|v| v.as_str()).map(String::from),
+                        ui_width: fms
+                            .and_then(|m| m.get("ui_width"))
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         ui_hint: None,
                         icon: f.get("icon").and_then(|v| v.as_str()).map(String::from),
-                        icon_position: f.get("icon_position").and_then(|v| v.as_str()).map(String::from),
+                        icon_position: f
+                            .get("icon_position")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         condition: None,
-                        is_quick_mode: f.get("is_quick_mode").and_then(serde_json::Value::as_bool).unwrap_or(false),
+                        is_quick_mode: f
+                            .get("is_quick_mode")
+                            .and_then(serde_json::Value::as_bool)
+                            .unwrap_or(false),
                         is_hidden: false,
                         access_level: FieldAccessLevel::Edit,
                         regulatory_clauses: vec![],
@@ -729,11 +746,28 @@ fn resolve_from_snapshot(snap: &medbrains_core::form::FormVersionSnapshot) -> Re
                 .collect();
 
             ResolvedSection {
-                code: sec.get("code").and_then(|v| v.as_str()).unwrap_or("").to_owned(),
-                name: sec.get("name").and_then(|v| v.as_str()).unwrap_or("").to_owned(),
-                sort_order: sec.get("sort_order").and_then(serde_json::Value::as_i64).unwrap_or(0) as i32,
-                is_collapsible: sec.get("is_collapsible").and_then(serde_json::Value::as_bool).unwrap_or(true),
-                is_default_open: sec.get("is_default_open").and_then(serde_json::Value::as_bool).unwrap_or(true),
+                code: sec
+                    .get("code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned(),
+                name: sec
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned(),
+                sort_order: sec
+                    .get("sort_order")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(0) as i32,
+                is_collapsible: sec
+                    .get("is_collapsible")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true),
+                is_default_open: sec
+                    .get("is_default_open")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true),
                 icon: sec.get("icon").and_then(|v| v.as_str()).map(String::from),
                 color: sec.get("color").and_then(|v| v.as_str()).map(String::from),
                 fields,

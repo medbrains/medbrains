@@ -26,6 +26,7 @@ pub mod config;
 pub mod error;
 pub mod events;
 pub mod middleware;
+pub mod orchestration;
 pub mod routes;
 pub mod seed;
 pub mod state;

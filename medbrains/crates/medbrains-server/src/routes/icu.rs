@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::icu::{
     IcuBundleCheck, IcuDevice, IcuFlowsheet, IcuNeonatalRecord, IcuNutrition, IcuScore,
     IcuVentilatorRecord,
@@ -10,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 

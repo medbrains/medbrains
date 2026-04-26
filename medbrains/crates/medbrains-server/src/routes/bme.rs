@@ -15,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -364,11 +362,9 @@ pub async fn list_equipment(
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, BmeEquipment>(
-            "SELECT * FROM bme_equipment ORDER BY name LIMIT 500",
-        )
-        .fetch_all(&mut *tx)
-        .await?
+        sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment ORDER BY name LIMIT 500")
+            .fetch_all(&mut *tx)
+            .await?
     };
 
     tx.commit().await?;
@@ -385,12 +381,10 @@ pub async fn get_equipment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BmeEquipment>(
-        "SELECT * FROM bme_equipment WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -701,12 +695,10 @@ pub async fn get_work_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BmeWorkOrder>(
-        "SELECT * FROM bme_work_orders WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, BmeWorkOrder>("SELECT * FROM bme_work_orders WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1341,11 +1333,9 @@ pub async fn get_bme_stats(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*) as count FROM bme_equipment",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let total = sqlx::query_as::<_, CountRow>("SELECT COUNT(*) as count FROM bme_equipment")
+        .fetch_one(&mut *tx)
+        .await?;
 
     let active = sqlx::query_as::<_, CountRow>(
         "SELECT COUNT(*) as count FROM bme_equipment WHERE status = 'active'",

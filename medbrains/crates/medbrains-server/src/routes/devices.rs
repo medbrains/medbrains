@@ -1,4 +1,4 @@
-use axum::{extract::Path, extract::Query, extract::State, Extension, Json};
+use axum::{Extension, Json, extract::Path, extract::Query, extract::State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -211,11 +211,24 @@ pub async fn create_device_instance(
 
     let ai_config = device::generate_device_config(&adapter, None);
 
-    let protocol_config = body.protocol_config.clone().unwrap_or(ai_config.protocol_config);
-    let field_mappings = body.field_mappings.clone().unwrap_or(ai_config.field_mappings);
-    let data_transforms = body.data_transforms.clone().unwrap_or(ai_config.data_transforms);
+    let protocol_config = body
+        .protocol_config
+        .clone()
+        .unwrap_or(ai_config.protocol_config);
+    let field_mappings = body
+        .field_mappings
+        .clone()
+        .unwrap_or(ai_config.field_mappings);
+    let data_transforms = body
+        .data_transforms
+        .clone()
+        .unwrap_or(ai_config.data_transforms);
     let qc_config = body.qc_config.clone().unwrap_or(ai_config.qc_config);
-    let config_source = if body.protocol_config.is_some() { "ai_assisted" } else { "ai_auto" };
+    let config_source = if body.protocol_config.is_some() {
+        "ai_assisted"
+    } else {
+        "ai_auto"
+    };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -228,10 +241,17 @@ pub async fn create_device_instance(
           ai_config_version, ai_confidence, config_source, \
           notes, tags, created_by) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19) \
-         RETURNING {}", INSTANCE_SELECT.trim_start_matches("SELECT ").split(" FROM ").next().unwrap_or("*")
+         RETURNING {}",
+        INSTANCE_SELECT
+            .trim_start_matches("SELECT ")
+            .split(" FROM ")
+            .next()
+            .unwrap_or("*")
     );
 
-    let _rq = format!("{INSTANCE_SELECT} WHERE id = (SELECT id FROM device_instances WHERE tenant_id = $1 AND code = $2)");
+    let _rq = format!(
+        "{INSTANCE_SELECT} WHERE id = (SELECT id FROM device_instances WHERE tenant_id = $1 AND code = $2)"
+    );
 
     // Use a simpler approach: insert then fetch
     sqlx::query(
@@ -557,7 +577,9 @@ pub async fn register_bridge_agent(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(serde_json::json!({"agent_id": agent_id, "status": "registered"})))
+    Ok(Json(
+        serde_json::json!({"agent_id": agent_id, "status": "registered"}),
+    ))
 }
 
 pub async fn bridge_heartbeat(
@@ -644,7 +666,9 @@ pub async fn create_routing_rule(
     .await?;
 
     // Fetch the created rule
-    let q = format!("{RULE_SELECT} WHERE tenant_id = $1 AND name = $2 ORDER BY created_at DESC LIMIT 1");
+    let q = format!(
+        "{RULE_SELECT} WHERE tenant_id = $1 AND name = $2 ORDER BY created_at DESC LIMIT 1"
+    );
     let row = sqlx::query_as::<_, DeviceRoutingRuleRow>(&q)
         .bind(claims.tenant_id)
         .bind(&body.name)
@@ -813,17 +837,22 @@ async fn route_lab_data(
     // Extract identifiers from mapped data
     let identifiers = mapped_data.get("identifiers").unwrap_or(mapped_data);
     let sample_barcode = identifiers
-        .get("sample_barcode").or_else(|| identifiers.get("order_id"))
+        .get("sample_barcode")
+        .or_else(|| identifiers.get("order_id"))
         .and_then(serde_json::Value::as_str);
-    let patient_id_str = identifiers.get("patient_id").and_then(serde_json::Value::as_str);
+    let patient_id_str = identifiers
+        .get("patient_id")
+        .and_then(serde_json::Value::as_str);
 
     // Find matching lab order
     let order_id: Option<Uuid> = if let Some(barcode) = sample_barcode {
-        sqlx::query_scalar("SELECT id FROM lab_orders WHERE sample_barcode = $1 AND tenant_id = $2 LIMIT 1")
-            .bind(barcode)
-            .bind(tenant_id)
-            .fetch_optional(&mut **tx)
-            .await?
+        sqlx::query_scalar(
+            "SELECT id FROM lab_orders WHERE sample_barcode = $1 AND tenant_id = $2 LIMIT 1",
+        )
+        .bind(barcode)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
     } else if let Some(pid) = patient_id_str {
         // Fallback: find most recent pending order for this patient
         sqlx::query_scalar(
@@ -854,11 +883,19 @@ async fn route_lab_data(
     // Strategy 1: structured OBX array
     if let Some(serde_json::Value::Array(obx_list)) = mapped_data.get("results") {
         for obx in obx_list {
-            let name = obx.get("test_code").or_else(|| obx.get("name"))
-                .and_then(serde_json::Value::as_str).unwrap_or("Unknown");
-            let value = obx.get("value").and_then(serde_json::Value::as_str).unwrap_or("");
+            let name = obx
+                .get("test_code")
+                .or_else(|| obx.get("name"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("Unknown");
+            let value = obx
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
             let unit = obx.get("unit").and_then(serde_json::Value::as_str);
-            let range = obx.get("reference_range").and_then(serde_json::Value::as_str);
+            let range = obx
+                .get("reference_range")
+                .and_then(serde_json::Value::as_str);
             let flag_str = obx.get("abnormal_flag").and_then(serde_json::Value::as_str);
 
             let flag = map_hl7_flag(flag_str);

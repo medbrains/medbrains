@@ -11,9 +11,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -200,12 +198,10 @@ pub async fn get_template(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, ConsentTemplate>(
-        "SELECT * FROM consent_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, ConsentTemplate>("SELECT * FROM consent_templates WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -501,10 +497,7 @@ pub async fn patient_summary(
     for r in pc_rows {
         let status = if r.revoked_at.is_some() {
             "withdrawn".to_owned()
-        } else if r
-            .valid_until
-            .is_some_and(|d| d < Utc::now().date_naive())
-        {
+        } else if r.valid_until.is_some_and(|d| d < Utc::now().date_naive()) {
             "expired".to_owned()
         } else {
             r.consent_status.clone()

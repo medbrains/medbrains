@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT rt.id, rt.user_id, rt.tenant_id, u.role::text AS \"role!\", u.username, u.email, u.full_name, rt.revoked, u.perm_version, rt.family_id, rt.device_fingerprint FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE rt.token_hash = $1 AND rt.expires_at > now()",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "role!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "revoked",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "perm_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "family_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "device_fingerprint",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "0c21e52a5e00d5aebca9944862b046f4d82e501175d1e0890c3c480a9f39f694"
+}

@@ -5,7 +5,8 @@
 //!
 //! ## Design
 //!
-//! - **`sqlx`** with runtime queries (`sqlx::query_as::<_, T>()`)
+//! - **`sqlx`** compile-time checked macros for static SQL
+//! - Runtime builders only for genuinely dynamic SQL
 //! - **Transaction-scoped RLS** — every tenant-scoped query sets
 //!   `app.tenant_id` via `SET LOCAL` inside the transaction
 //! - Migrations embedded at compile time via `sqlx::migrate!()`

@@ -2,7 +2,6 @@ mod bed_types;
 mod charge_master;
 mod default_dashboard;
 mod demo_patients;
-mod role_dashboards;
 mod departments;
 mod insurance_providers;
 mod lab_catalog;
@@ -10,6 +9,7 @@ mod locations;
 mod module_config;
 mod payment_methods;
 mod pharmacy_catalog;
+mod role_dashboards;
 mod screens;
 mod services;
 mod store_catalog;
@@ -476,8 +476,7 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
     BuiltInRole {
         code: "facilities_manager",
         name: "Facilities Manager",
-        description:
-            "Facilities management — dashboard, bed management, indent approval, integrations",
+        description: "Facilities management — dashboard, bed management, indent approval, integrations",
         permissions: &[
             permissions::dashboard::VIEW,
             permissions::ipd::beds::MANAGE,

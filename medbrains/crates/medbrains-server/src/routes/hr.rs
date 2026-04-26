@@ -1,19 +1,20 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use medbrains_core::hr::{
-    Appraisal, AttendanceRecord, Designation, DutyRoster, Employee,
-    EmployeeCredential, LeaveBalance, LeaveRequest, OnCallSchedule,
-    ShiftDefinition, StatutoryRecord, TrainingProgram, TrainingRecord,
+    Appraisal, AttendanceRecord, Designation, DutyRoster, Employee, EmployeeCredential,
+    LeaveBalance, LeaveRequest, OnCallSchedule, ShiftDefinition, StatutoryRecord, TrainingProgram,
+    TrainingRecord,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -445,13 +446,12 @@ pub async fn get_employee(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, Employee>(
-        "SELECT * FROM employees WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, Employee>("SELECT * FROM employees WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))

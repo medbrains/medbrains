@@ -1,27 +1,25 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
-use medbrains_core::billing::{
-    AdvanceAdjustment, AuditAction, BadDebtWriteOff,
-    BankTransaction, BillingAuditEntry, BillingConcession, BillingPackage, BillingPackageItem,
-    ChargeMaster,
-    CorporateClient, CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus,
-    CurrencyCode, DayEndClose, ErpExportLog, ExchangeRate, GlAccount,
-    GstReturnSummary, InsuranceClaim, Invoice, InvoiceDiscount,
-    InvoiceItem, JournalEntry, JournalEntryLine,
-    PatientAdvance, Payment, RatePlan, RatePlanItem, Receipt, Refund,
-    TdsDeduction, TpaRateCard,
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
+use medbrains_core::billing::{
+    AdvanceAdjustment, AuditAction, BadDebtWriteOff, BankTransaction, BillingAuditEntry,
+    BillingConcession, BillingPackage, BillingPackageItem, ChargeMaster, CorporateClient,
+    CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus, CurrencyCode, DayEndClose,
+    ErpExportLog, ExchangeRate, GlAccount, GstReturnSummary, InsuranceClaim, Invoice,
+    InvoiceDiscount, InvoiceItem, JournalEntry, JournalEntryLine, PatientAdvance, Payment,
+    RatePlan, RatePlanItem, Receipt, Refund, TdsDeduction, TpaRateCard,
+};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -97,7 +95,9 @@ async fn resolve_price(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some(mut price) = base else { return Ok(None) };
+    let Some(mut price) = base else {
+        return Ok(None);
+    };
 
     // Try rate plan override: patient_category match first, then is_default
     let patient_category = sqlx::query_scalar::<_, Option<String>>(
@@ -211,7 +211,9 @@ pub(crate) async fn auto_charge(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let (invoice_id, was_new) = if let Some(id) = draft_invoice { (id, false) } else {
+    let (invoice_id, was_new) = if let Some(id) = draft_invoice {
+        (id, false)
+    } else {
         let inv_number = generate_invoice_number(tx, tenant_id).await?;
         let id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO invoices \
@@ -230,39 +232,36 @@ pub(crate) async fn auto_charge(
     };
 
     // 3. Resolve price
-    let (unit_price, tax_pct, description) =
-        if let Some(price) = input.unit_price_override {
-            (
-                price,
-                input.tax_percent_override.unwrap_or(Decimal::ZERO),
-                input
-                    .description_override
-                    .unwrap_or_else(|| input.charge_code.clone()),
-            )
-        } else {
-            match resolve_price(tx, tenant_id, &input.patient_id, &input.charge_code).await? {
-                Some(resolved) => (
-                    resolved.unit_price,
-                    resolved.tax_percent,
+    let (unit_price, tax_pct, description) = if let Some(price) = input.unit_price_override {
+        (
+            price,
+            input.tax_percent_override.unwrap_or(Decimal::ZERO),
+            input
+                .description_override
+                .unwrap_or_else(|| input.charge_code.clone()),
+        )
+    } else {
+        match resolve_price(tx, tenant_id, &input.patient_id, &input.charge_code).await? {
+            Some(resolved) => (
+                resolved.unit_price,
+                resolved.tax_percent,
+                input.description_override.unwrap_or(resolved.description),
+            ),
+            None => {
+                // No charge_master entry — use zero price with description
+                (
+                    Decimal::ZERO,
+                    Decimal::ZERO,
                     input
                         .description_override
-                        .unwrap_or(resolved.description),
-                ),
-                None => {
-                    // No charge_master entry — use zero price with description
-                    (
-                        Decimal::ZERO,
-                        Decimal::ZERO,
-                        input
-                            .description_override
-                            .unwrap_or_else(|| input.charge_code.clone()),
-                    )
-                }
+                        .unwrap_or_else(|| input.charge_code.clone()),
+                )
             }
-        };
+        }
+    };
 
-    let total = unit_price * Decimal::from(input.quantity)
-        * (Decimal::ONE + tax_pct / Decimal::from(100));
+    let total =
+        unit_price * Decimal::from(input.quantity) * (Decimal::ONE + tax_pct / Decimal::from(100));
 
     // 4. Insert item
     let item_id = sqlx::query_scalar::<_, Uuid>(
@@ -404,9 +403,8 @@ async fn generate_invoice_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let seq = seq.ok_or_else(|| {
-        AppError::Internal("INVOICE sequence not configured".to_owned())
-    })?;
+    let seq =
+        seq.ok_or_else(|| AppError::Internal("INVOICE sequence not configured".to_owned()))?;
 
     let pad = usize::try_from(seq.pad_width).unwrap_or(6);
     Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
@@ -470,18 +468,27 @@ pub async fn list_invoices(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+        });
         bind_idx += 1;
     }
     if let Some(pid) = params.patient_id {
         conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(pid), string_val: None });
+        binds.push(Bind {
+            uuid_val: Some(pid),
+            string_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
         conditions.push(format!("invoice_number ILIKE ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(pattern) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(pattern),
+        });
         bind_idx += 1;
     }
 
@@ -490,8 +497,12 @@ pub async fn list_invoices(
     let count_sql = format!("SELECT COUNT(*) FROM invoices WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -502,13 +513,22 @@ pub async fn list_invoices(
     );
     let mut dq = sqlx::query_as::<_, Invoice>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
     }
     let invoices = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(InvoiceListResponse { invoices, total, page, per_page }))
+    Ok(Json(InvoiceListResponse {
+        invoices,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -547,10 +567,18 @@ pub async fn create_invoice(
     .await?;
 
     log_billing_audit(
-        &mut tx, claims.tenant_id, AuditAction::InvoiceCreated,
-        "invoice", invoice.id, Some(invoice.id), Some(invoice.patient_id),
-        Some(invoice.total_amount), None, claims.sub,
-    ).await;
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::InvoiceCreated,
+        "invoice",
+        invoice.id,
+        Some(invoice.id),
+        Some(invoice.patient_id),
+        Some(invoice.total_amount),
+        None,
+        claims.sub,
+    )
+    .await;
 
     tx.commit().await?;
 
@@ -585,14 +613,13 @@ pub async fn get_invoice(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let invoice =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, InvoiceItem>(
         "SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \
@@ -613,7 +640,11 @@ pub async fn get_invoice(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(InvoiceDetailResponse { invoice, items, payments }))
+    Ok(Json(InvoiceDetailResponse {
+        invoice,
+        items,
+        payments,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -659,7 +690,8 @@ pub async fn add_invoice_item(
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
-    let total = body.unit_price * Decimal::from(body.quantity)
+    let total = body.unit_price
+        * Decimal::from(body.quantity)
         * (Decimal::ONE + tax_pct / Decimal::from(100));
 
     let mut tx = state.db.begin().await?;
@@ -985,13 +1017,11 @@ pub async fn delete_charge_master(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM charge_master WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM charge_master WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -1194,16 +1224,16 @@ pub async fn delete_package(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM billing_packages WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM billing_packages WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
-    if result.rows_affected() == 0 { return Err(AppError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
@@ -1272,14 +1302,13 @@ pub async fn get_rate_plan(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let plan = sqlx::query_as::<_, RatePlan>(
-        "SELECT * FROM rate_plans WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let plan =
+        sqlx::query_as::<_, RatePlan>("SELECT * FROM rate_plans WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, RatePlanItem>(
         "SELECT * FROM rate_plan_items WHERE rate_plan_id = $1 AND tenant_id = $2",
@@ -1382,16 +1411,16 @@ pub async fn delete_rate_plan(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM rate_plans WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM rate_plans WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
-    if result.rows_affected() == 0 { return Err(AppError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
@@ -1545,12 +1574,11 @@ async fn generate_refund_number(
         Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
     } else {
         // Fallback: use count-based number
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM refunds WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&mut **tx)
-        .await?;
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&mut **tx)
+                .await?;
         Ok(format!("RFD{:0>6}", count + 1))
     }
 }
@@ -1660,12 +1688,11 @@ async fn generate_credit_note_number(
         let pad = usize::try_from(s.pad_width).unwrap_or(6);
         Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
     } else {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&mut **tx)
-        .await?;
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&mut **tx)
+                .await?;
         Ok(format!("CN{:0>6}", count + 1))
     }
 }
@@ -1794,12 +1821,11 @@ async fn generate_receipt_number(
         let pad = usize::try_from(s.pad_width).unwrap_or(6);
         Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
     } else {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM receipts WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&mut **tx)
-        .await?;
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM receipts WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&mut **tx)
+                .await?;
         Ok(format!("RCT{:0>6}", count + 1))
     }
 }
@@ -2130,21 +2156,30 @@ pub async fn trigger_auto_charge(
                     .await?;
 
                     if let Some(t) = test {
-                        match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
-                            patient_id: o.patient_id,
-                            encounter_id: body.encounter_id,
-                            charge_code: t.code,
-                            source: "lab".to_owned(),
-                            source_id: o.id,
-                            quantity: 1,
-                            description_override: Some(t.name),
-                            unit_price_override: Some(t.price),
-                            tax_percent_override: None,
-                        }).await {
+                        match auto_charge(
+                            &mut tx,
+                            &claims.tenant_id,
+                            AutoChargeInput {
+                                patient_id: o.patient_id,
+                                encounter_id: body.encounter_id,
+                                charge_code: t.code,
+                                source: "lab".to_owned(),
+                                source_id: o.id,
+                                quantity: 1,
+                                description_override: Some(t.name),
+                                unit_price_override: Some(t.price),
+                                tax_percent_override: None,
+                            },
+                        )
+                        .await
+                        {
                             Ok(r) => {
                                 last_invoice_id = Some(r.invoice_id);
-                                if r.skipped_duplicate { items_skipped += 1; }
-                                else { items_added += 1; }
+                                if r.skipped_duplicate {
+                                    items_skipped += 1;
+                                } else {
+                                    items_added += 1;
+                                }
                             }
                             Err(e) => errors.push(format!("lab order {}: {e}", o.id)),
                         }
@@ -2172,23 +2207,34 @@ pub async fn trigger_auto_charge(
                     .await?;
 
                     for item in &items {
-                        let code = item.catalog_item_id
-                            .map_or_else(|| "PHARMA-GENERIC".to_owned(), |cid| format!("PHARMA-{cid}"));
-                        match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
-                            patient_id: o.patient_id,
-                            encounter_id: body.encounter_id,
-                            charge_code: code,
-                            source: "pharmacy".to_owned(),
-                            source_id: item.id,
-                            quantity: item.quantity,
-                            description_override: Some(item.drug_name.clone()),
-                            unit_price_override: Some(item.unit_price),
-                            tax_percent_override: None,
-                        }).await {
+                        let code = item.catalog_item_id.map_or_else(
+                            || "PHARMA-GENERIC".to_owned(),
+                            |cid| format!("PHARMA-{cid}"),
+                        );
+                        match auto_charge(
+                            &mut tx,
+                            &claims.tenant_id,
+                            AutoChargeInput {
+                                patient_id: o.patient_id,
+                                encounter_id: body.encounter_id,
+                                charge_code: code,
+                                source: "pharmacy".to_owned(),
+                                source_id: item.id,
+                                quantity: item.quantity,
+                                description_override: Some(item.drug_name.clone()),
+                                unit_price_override: Some(item.unit_price),
+                                tax_percent_override: None,
+                            },
+                        )
+                        .await
+                        {
                             Ok(r) => {
                                 last_invoice_id = Some(r.invoice_id);
-                                if r.skipped_duplicate { items_skipped += 1; }
-                                else { items_added += 1; }
+                                if r.skipped_duplicate {
+                                    items_skipped += 1;
+                                } else {
+                                    items_added += 1;
+                                }
                             }
                             Err(e) => errors.push(format!("pharmacy item {}: {e}", item.id)),
                         }
@@ -2216,23 +2262,33 @@ pub async fn trigger_auto_charge(
                     .fetch_optional(&mut *tx)
                     .await?;
 
-                    let charge_code = modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
+                    let charge_code =
+                        modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
 
-                    match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
-                        patient_id: o.patient_id,
-                        encounter_id: body.encounter_id,
-                        charge_code,
-                        source: "radiology".to_owned(),
-                        source_id: o.id,
-                        quantity: 1,
-                        description_override: None,
-                        unit_price_override: None,
-                        tax_percent_override: None,
-                    }).await {
+                    match auto_charge(
+                        &mut tx,
+                        &claims.tenant_id,
+                        AutoChargeInput {
+                            patient_id: o.patient_id,
+                            encounter_id: body.encounter_id,
+                            charge_code,
+                            source: "radiology".to_owned(),
+                            source_id: o.id,
+                            quantity: 1,
+                            description_override: None,
+                            unit_price_override: None,
+                            tax_percent_override: None,
+                        },
+                    )
+                    .await
+                    {
                         Ok(r) => {
                             last_invoice_id = Some(r.invoice_id);
-                            if r.skipped_duplicate { items_skipped += 1; }
-                            else { items_added += 1; }
+                            if r.skipped_duplicate {
+                                items_skipped += 1;
+                            } else {
+                                items_added += 1;
+                            }
                         }
                         Err(e) => errors.push(format!("radiology order {}: {e}", o.id)),
                     }
@@ -2254,24 +2310,34 @@ pub async fn trigger_auto_charge(
                 for b in &bookings {
                     // Charge procedure
                     let proc_code = format!("OT-PROC-{}", b.id);
-                    match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
-                        patient_id: b.patient_id,
-                        encounter_id: body.encounter_id,
-                        charge_code: proc_code,
-                        source: "ot".to_owned(),
-                        source_id: b.id,
-                        quantity: 1,
-                        description_override: Some(
-                            b.procedure_name.clone()
-                                .unwrap_or_else(|| "OT Procedure".to_owned()),
-                        ),
-                        unit_price_override: None,
-                        tax_percent_override: None,
-                    }).await {
+                    match auto_charge(
+                        &mut tx,
+                        &claims.tenant_id,
+                        AutoChargeInput {
+                            patient_id: b.patient_id,
+                            encounter_id: body.encounter_id,
+                            charge_code: proc_code,
+                            source: "ot".to_owned(),
+                            source_id: b.id,
+                            quantity: 1,
+                            description_override: Some(
+                                b.procedure_name
+                                    .clone()
+                                    .unwrap_or_else(|| "OT Procedure".to_owned()),
+                            ),
+                            unit_price_override: None,
+                            tax_percent_override: None,
+                        },
+                    )
+                    .await
+                    {
                         Ok(r) => {
                             last_invoice_id = Some(r.invoice_id);
-                            if r.skipped_duplicate { items_skipped += 1; }
-                            else { items_added += 1; }
+                            if r.skipped_duplicate {
+                                items_skipped += 1;
+                            } else {
+                                items_added += 1;
+                            }
                         }
                         Err(e) => errors.push(format!("ot booking {}: {e}", b.id)),
                     }
@@ -2279,25 +2345,32 @@ pub async fn trigger_auto_charge(
                     // Charge OT room usage (if room assigned)
                     if let Some(room_id) = b.ot_room_id {
                         let room_code = format!("OT-ROOM-{room_id}");
-                        match auto_charge(&mut tx, &claims.tenant_id, AutoChargeInput {
-                            patient_id: b.patient_id,
-                            encounter_id: body.encounter_id,
-                            charge_code: room_code,
-                            source: "ot".to_owned(),
-                            source_id: room_id,
-                            quantity: 1,
-                            description_override: Some("OT Room Usage".to_owned()),
-                            unit_price_override: None,
-                            tax_percent_override: None,
-                        }).await {
+                        match auto_charge(
+                            &mut tx,
+                            &claims.tenant_id,
+                            AutoChargeInput {
+                                patient_id: b.patient_id,
+                                encounter_id: body.encounter_id,
+                                charge_code: room_code,
+                                source: "ot".to_owned(),
+                                source_id: room_id,
+                                quantity: 1,
+                                description_override: Some("OT Room Usage".to_owned()),
+                                unit_price_override: None,
+                                tax_percent_override: None,
+                            },
+                        )
+                        .await
+                        {
                             Ok(r) => {
                                 last_invoice_id = Some(r.invoice_id);
-                                if r.skipped_duplicate { items_skipped += 1; }
-                                else { items_added += 1; }
+                                if r.skipped_duplicate {
+                                    items_skipped += 1;
+                                } else {
+                                    items_added += 1;
+                                }
                             }
-                            Err(e) => errors.push(
-                                format!("ot room for booking {}: {e}", b.id),
-                            ),
+                            Err(e) => errors.push(format!("ot room for booking {}: {e}", b.id)),
                         }
                     }
                 }
@@ -2643,12 +2716,10 @@ pub async fn create_interim_invoice(
     .await?;
 
     let seq_num = last.as_ref().and_then(|l| l.sequence_number).unwrap_or(0) + 1;
-    let period_start = last
-        .and_then(|l| l.billing_period_end)
-        .unwrap_or_else(|| {
-            // Use encounter start time as first period start
-            chrono::Utc::now()
-        });
+    let period_start = last.and_then(|l| l.billing_period_end).unwrap_or_else(|| {
+        // Use encounter start time as first period start
+        chrono::Utc::now()
+    });
     let period_end = chrono::Utc::now();
 
     let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
@@ -2703,23 +2774,20 @@ pub async fn create_interim_invoice(
         recalculate_invoice_totals(&mut tx, invoice.id, claims.tenant_id).await?;
 
         // Delete the now-empty draft
-        sqlx::query(
-            "DELETE FROM invoices WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(draft)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("DELETE FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(draft)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
     }
 
     // Re-fetch the invoice with updated totals
-    let updated = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(invoice.id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let updated =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(invoice.id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(updated))
@@ -2954,7 +3022,9 @@ pub async fn delete_enrollment(
     .await?;
 
     tx.commit().await?;
-    if result.rows_affected() == 0 { return Err(AppError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
@@ -3204,8 +3274,7 @@ pub async fn report_collection_efficiency(
     let overall_invoiced: Decimal = months.iter().map(|m| m.invoiced).sum();
     let overall_collected: Decimal = months.iter().map(|m| m.collected).sum();
     let overall_rate = if overall_invoiced > Decimal::ZERO {
-        (overall_collected * Decimal::from(100) / overall_invoiced)
-            .round_dp(2)
+        (overall_collected * Decimal::from(100) / overall_invoiced).round_dp(2)
     } else {
         Decimal::ZERO
     };
@@ -3462,8 +3531,8 @@ pub async fn create_day_close(
         }
     }
 
-    let total_collected = expected_cash + total_card + total_upi
-        + total_cheque + total_bank + total_insurance;
+    let total_collected =
+        expected_cash + total_card + total_upi + total_cheque + total_bank + total_insurance;
     let cash_difference = body.actual_cash - expected_cash;
 
     let invoices_count = sqlx::query_scalar::<_, i64>(
@@ -3530,9 +3599,18 @@ pub async fn create_day_close(
     .await?;
 
     log_billing_audit(
-        &mut tx, claims.tenant_id, AuditAction::DayClosed,
-        "day_close", row.id, None, None, Some(total_collected), None, claims.sub,
-    ).await;
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::DayClosed,
+        "day_close",
+        row.id,
+        None,
+        None,
+        Some(total_collected),
+        None,
+        claims.sub,
+    )
+    .await;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -3676,10 +3754,18 @@ pub async fn create_write_off(
     .await?;
 
     log_billing_audit(
-        &mut tx, claims.tenant_id, AuditAction::WriteOffCreated,
-        "write_off", row.id, Some(body.invoice_id), None,
-        Some(body.amount), None, claims.sub,
-    ).await;
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::WriteOffCreated,
+        "write_off",
+        row.id,
+        Some(body.invoice_id),
+        None,
+        Some(body.amount),
+        None,
+        claims.sub,
+    )
+    .await;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -3696,7 +3782,11 @@ pub async fn approve_write_off(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let new_status = if body.approved { "approved" } else { "rejected" };
+    let new_status = if body.approved {
+        "approved"
+    } else {
+        "rejected"
+    };
 
     let row = sqlx::query_as::<_, BadDebtWriteOff>(
         "UPDATE bad_debt_write_offs SET \
@@ -3715,11 +3805,18 @@ pub async fn approve_write_off(
     .ok_or(AppError::NotFound)?;
 
     log_billing_audit(
-        &mut tx, claims.tenant_id, AuditAction::WriteOffApproved,
-        "write_off", row.id, Some(row.invoice_id), None,
-        Some(row.amount), Some(serde_json::json!({ "approved": body.approved })),
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::WriteOffApproved,
+        "write_off",
+        row.id,
+        Some(row.invoice_id),
+        None,
+        Some(row.amount),
+        Some(serde_json::json!({ "approved": body.approved })),
         claims.sub,
-    ).await;
+    )
+    .await;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -3852,16 +3949,16 @@ pub async fn delete_tpa_rate_card(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM tpa_rate_cards WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM tpa_rate_cards WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
-    if result.rows_affected() == 0 { return Err(AppError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
@@ -3879,14 +3976,13 @@ pub async fn clone_invoice(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let original = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let original =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let new_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
 
@@ -3908,7 +4004,12 @@ pub async fn clone_invoice(
     .bind(original.subtotal)
     .bind(original.tax_amount)
     .bind(original.total_amount)
-    .bind(original.notes.as_deref().map(|n| format!("Cloned from {}: {n}", original.invoice_number)))
+    .bind(
+        original
+            .notes
+            .as_deref()
+            .map(|n| format!("Cloned from {}: {n}", original.invoice_number)),
+    )
     .bind(original.cgst_amount)
     .bind(original.sgst_amount)
     .bind(original.igst_amount)
@@ -3962,12 +4063,18 @@ pub async fn clone_invoice(
     }
 
     log_billing_audit(
-        &mut tx, claims.tenant_id, AuditAction::InvoiceCloned,
-        "invoice", cloned.id, Some(cloned.id), Some(cloned.patient_id),
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::InvoiceCloned,
+        "invoice",
+        cloned.id,
+        Some(cloned.id),
+        Some(cloned.patient_id),
         Some(cloned.total_amount),
         Some(serde_json::json!({ "cloned_from": id })),
         claims.sub,
-    ).await;
+    )
+    .await;
 
     tx.commit().await?;
     Ok(Json(cloned))
@@ -4023,22 +4130,38 @@ pub async fn list_audit_log(
 
     if let Some(ref et) = params.entity_type {
         conditions.push(format!("entity_type = ${param_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(et.clone()), date_val: None });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(et.clone()),
+            date_val: None,
+        });
         param_idx += 1;
     }
     if let Some(inv_id) = params.invoice_id {
         conditions.push(format!("invoice_id = ${param_idx}"));
-        binds.push(Bind { uuid_val: Some(inv_id), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(inv_id),
+            string_val: None,
+            date_val: None,
+        });
         param_idx += 1;
     }
     if let Some(from) = params.from {
         conditions.push(format!("created_at::date >= ${param_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: None, date_val: Some(from) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: None,
+            date_val: Some(from),
+        });
         param_idx += 1;
     }
     if let Some(to) = params.to {
         conditions.push(format!("created_at::date <= ${param_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: None, date_val: Some(to) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: None,
+            date_val: Some(to),
+        });
         param_idx += 1;
     }
 
@@ -4047,9 +4170,15 @@ pub async fn list_audit_log(
     let count_sql = format!("SELECT COUNT(*) FROM billing_audit_log WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { cq = cq.bind(u); }
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
-        if let Some(d) = b.date_val { cq = cq.bind(d); }
+        if let Some(u) = b.uuid_val {
+            cq = cq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            cq = cq.bind(d);
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -4060,14 +4189,25 @@ pub async fn list_audit_log(
     );
     let mut dq = sqlx::query_as::<_, BillingAuditEntry>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { dq = dq.bind(u); }
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
-        if let Some(d) = b.date_val { dq = dq.bind(d); }
+        if let Some(u) = b.uuid_val {
+            dq = dq.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            dq = dq.bind(d);
+        }
     }
     let entries = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(AuditLogResponse { entries, total, page, per_page }))
+    Ok(Json(AuditLogResponse {
+        entries,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4221,7 +4361,9 @@ pub async fn report_reconciliation(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let variance = day_close.as_ref().map_or(Decimal::ZERO, |dc| dc.actual_cash - system_cash);
+    let variance = day_close
+        .as_ref()
+        .map_or(Decimal::ZERO, |dc| dc.actual_cash - system_cash);
 
     tx.commit().await?;
 
@@ -4353,13 +4495,12 @@ pub async fn get_invoice_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let invoice =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let items = sqlx::query_as::<_, InvoiceItem>(
         "SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \
@@ -4388,13 +4529,12 @@ pub async fn get_invoice_print_data(
     .await?
     .flatten();
 
-    let hospital_name = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let hospital_name =
+        sqlx::query_scalar::<_, Option<String>>("SELECT name FROM tenants WHERE id = $1")
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten();
 
     let patient_name = sqlx::query_scalar::<_, Option<String>>(
         "SELECT CONCAT(first_name, ' ', last_name) FROM patients \
@@ -4736,13 +4876,12 @@ pub async fn coordinate_dual_insurance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let invoice =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Get primary insurance
     let primary = sqlx::query_as::<_, InsuranceClaim>(
@@ -4755,7 +4894,8 @@ pub async fn coordinate_dual_insurance(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let primary_settled = primary.as_ref()
+    let primary_settled = primary
+        .as_ref()
         .and_then(|p| p.approved_amount)
         .unwrap_or(Decimal::ZERO);
 
@@ -4836,13 +4976,12 @@ pub async fn get_dual_insurance_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let invoice =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let primary = sqlx::query_as::<_, InsuranceClaim>(
         "SELECT * FROM insurance_claims \
@@ -4864,8 +5003,14 @@ pub async fn get_dual_insurance_status(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let settled = primary.as_ref().and_then(|p| p.settled_amount).unwrap_or(Decimal::ZERO)
-        + secondary.as_ref().and_then(|s| s.settled_amount).unwrap_or(Decimal::ZERO);
+    let settled = primary
+        .as_ref()
+        .and_then(|p| p.settled_amount)
+        .unwrap_or(Decimal::ZERO)
+        + secondary
+            .as_ref()
+            .and_then(|s| s.settled_amount)
+            .unwrap_or(Decimal::ZERO);
     let patient_responsibility = (invoice.total_amount - settled).max(Decimal::ZERO);
 
     tx.commit().await?;
@@ -5217,9 +5362,8 @@ async fn generate_je_number(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let seq = seq.ok_or_else(|| {
-        AppError::Internal("JOURNAL_ENTRY sequence not configured".to_owned())
-    })?;
+    let seq =
+        seq.ok_or_else(|| AppError::Internal("JOURNAL_ENTRY sequence not configured".to_owned()))?;
 
     let pad = usize::try_from(seq.pad_width).unwrap_or(6);
     Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
@@ -5422,9 +5566,9 @@ pub async fn import_bank_transactions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let batch = body.import_batch.unwrap_or_else(|| {
-        format!("IMPORT-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"))
-    });
+    let batch = body
+        .import_batch
+        .unwrap_or_else(|| format!("IMPORT-{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
 
     let mut count = 0i32;
     for row in &body.transactions {
@@ -6185,14 +6329,13 @@ pub async fn copay_calculation(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Fetch invoice total
-    let invoice = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(body.invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let invoice =
+        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(body.invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     // Fetch insurance verification for the patient
     let verification = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>, Option<Decimal>)>(
@@ -6217,7 +6360,11 @@ pub async fn copay_calculation(
                 .map(|pct| total * pct / Decimal::from(100))
                 .unwrap_or_default();
             let copay_from_fixed = copay_fixed.unwrap_or_default();
-            let copay = if copay_from_pct > Decimal::ZERO { copay_from_pct } else { copay_from_fixed };
+            let copay = if copay_from_pct > Decimal::ZERO {
+                copay_from_pct
+            } else {
+                copay_from_fixed
+            };
             let max_cov = max_coverage.unwrap_or(total);
             let insurance_pays = (total - copay).min(max_cov);
             let patient_pays = total - insurance_pays;
@@ -6274,9 +6421,7 @@ pub async fn er_fast_invoice(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| {
-        AppError::BadRequest("Emergency visit not found".to_owned())
-    })?;
+    .ok_or_else(|| AppError::BadRequest("Emergency visit not found".to_owned()))?;
 
     // Create a fast invoice from ER charges
     let invoice = sqlx::query_as::<_, Invoice>(
@@ -6393,9 +6538,7 @@ pub(crate) async fn create_service_charge(
             source_entity_id: inp.source_entity_id,
             requested_by: inp.requested_by,
         };
-        apply_auto_concessions(tx, concession_inp)
-            .await
-            .ok(); // best-effort — don't fail the charge if concession logic fails
+        apply_auto_concessions(tx, concession_inp).await.ok(); // best-effort — don't fail the charge if concession logic fails
     }
 
     Ok(result)
@@ -6436,8 +6579,7 @@ async fn apply_auto_concessions(
         return Ok(());
     };
 
-    let rules: Vec<AutoConcessionRule> =
-        serde_json::from_value(rules_val).unwrap_or_default();
+    let rules: Vec<AutoConcessionRule> = serde_json::from_value(rules_val).unwrap_or_default();
 
     if rules.is_empty() {
         return Ok(());
@@ -6480,8 +6622,7 @@ async fn apply_auto_concessions(
             }
         }
         // Apply the concession
-        let concession_amount =
-            item.total_price * rule.percent / Decimal::from(100);
+        let concession_amount = item.total_price * rule.percent / Decimal::from(100);
         let final_amount = item.total_price - concession_amount;
 
         sqlx::query(
@@ -6631,8 +6772,7 @@ pub async fn list_concessions(
     );
 
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
-    let mut list_q =
-        sqlx::query_as::<_, BillingConcession>(&list_sql).bind(claims.tenant_id);
+    let mut list_q = sqlx::query_as::<_, BillingConcession>(&list_sql).bind(claims.tenant_id);
 
     if let Some(ref status) = params.status {
         count_q = count_q.bind(status);
@@ -6832,7 +6972,5 @@ pub async fn update_auto_concession_rules(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(AutoConcessionRulesResponse {
-        rules: body.rules,
-    }))
+    Ok(Json(AutoConcessionRulesResponse { rules: body.rules }))
 }

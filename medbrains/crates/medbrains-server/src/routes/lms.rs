@@ -2,12 +2,14 @@
 //!
 //! Courses, quizzes, enrollments, learning paths, certificates, compliance.
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use medbrains_core::lms::{
-    CourseWithModules, EnrollmentWithCourse, LearningPathWithCourses,
-    LmsCertificate, LmsCourse, LmsCourseModule, LmsComplianceRow,
-    LmsEnrollment, LmsLearningPath, LmsLearningPathCourse,
-    LmsQuiz, LmsQuizAttempt, LmsQuizQuestion, LmsQuizQuestionPublic,
+    CourseWithModules, EnrollmentWithCourse, LearningPathWithCourses, LmsCertificate,
+    LmsComplianceRow, LmsCourse, LmsCourseModule, LmsEnrollment, LmsLearningPath,
+    LmsLearningPathCourse, LmsQuiz, LmsQuizAttempt, LmsQuizQuestion, LmsQuizQuestionPublic,
     PathCourseRow,
 };
 use serde::{Deserialize, Serialize};
@@ -253,13 +255,11 @@ pub async fn get_course(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let course = sqlx::query_as::<_, LmsCourse>(
-        "SELECT * FROM lms_courses WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let course = sqlx::query_as::<_, LmsCourse>("SELECT * FROM lms_courses WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     let modules = sqlx::query_as::<_, LmsCourseModule>(
         "SELECT * FROM lms_course_modules WHERE course_id = $1 ORDER BY sort_order",
@@ -276,7 +276,11 @@ pub async fn get_course(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(CourseWithModules { course, modules, quizzes }))
+    Ok(Json(CourseWithModules {
+        course,
+        modules,
+        quizzes,
+    }))
 }
 
 /// POST /api/lms/courses
@@ -301,7 +305,13 @@ pub async fn create_course(
     .bind(&req.title)
     .bind(&req.description)
     .bind(req.category.as_deref().unwrap_or("general"))
-    .bind(req.duration_hours.map(rust_decimal::Decimal::try_from).transpose().ok().flatten())
+    .bind(
+        req.duration_hours
+            .map(rust_decimal::Decimal::try_from)
+            .transpose()
+            .ok()
+            .flatten(),
+    )
     .bind(req.is_mandatory.unwrap_or(false))
     .bind(req.target_roles.as_ref().unwrap_or(&serde_json::json!([])))
     .bind(&req.thumbnail_url)
@@ -343,7 +353,13 @@ pub async fn update_course(
     .bind(&req.title)
     .bind(&req.description)
     .bind(&req.category)
-    .bind(req.duration_hours.map(rust_decimal::Decimal::try_from).transpose().ok().flatten())
+    .bind(
+        req.duration_hours
+            .map(rust_decimal::Decimal::try_from)
+            .transpose()
+            .ok()
+            .flatten(),
+    )
     .bind(req.is_mandatory)
     .bind(&req.target_roles)
     .bind(&req.thumbnail_url)
@@ -721,12 +737,17 @@ pub async fn assign_course(
     State(state): State<AppState>,
     Json(req): Json<AssignCourseRequest>,
 ) -> Result<Json<LmsEnrollment>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::lms::enrollments::CREATE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::lms::enrollments::CREATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let due = req.due_date.as_deref()
+    let due = req
+        .due_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let enrollment = sqlx::query_as::<_, LmsEnrollment>(
@@ -755,12 +776,17 @@ pub async fn bulk_assign_by_role(
     State(state): State<AppState>,
     Json(req): Json<BulkAssignRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::lms::enrollments::CREATE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::lms::enrollments::CREATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let due = req.due_date.as_deref()
+    let due = req
+        .due_date
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let count = sqlx::query_scalar::<_, i64>(
@@ -793,13 +819,18 @@ pub async fn update_enrollment(
     Path(id): Path<Uuid>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<LmsEnrollment>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::lms::enrollments::UPDATE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::lms::enrollments::UPDATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let status = req.get("status").and_then(serde_json::Value::as_str);
-    let due_date = req.get("due_date").and_then(serde_json::Value::as_str)
+    let due_date = req
+        .get("due_date")
+        .and_then(serde_json::Value::as_str)
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let enrollment = sqlx::query_as::<_, LmsEnrollment>(
@@ -882,12 +913,10 @@ pub async fn my_course_detail(
         .await?;
     }
 
-    let course = sqlx::query_as::<_, LmsCourse>(
-        "SELECT * FROM lms_courses WHERE id = $1",
-    )
-    .bind(enrollment.course_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let course = sqlx::query_as::<_, LmsCourse>("SELECT * FROM lms_courses WHERE id = $1")
+        .bind(enrollment.course_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     let modules = sqlx::query_as::<_, LmsCourseModule>(
         "SELECT * FROM lms_course_modules WHERE course_id = $1 AND is_active = true ORDER BY sort_order",
@@ -904,7 +933,11 @@ pub async fn my_course_detail(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(CourseWithModules { course, modules, quizzes }))
+    Ok(Json(CourseWithModules {
+        course,
+        modules,
+        quizzes,
+    }))
 }
 
 /// PUT /api/lms/my/enrollments/{id}/progress
@@ -1006,7 +1039,11 @@ pub async fn start_quiz_attempt(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(QuizAttemptStart { attempt_id, quiz, questions }))
+    Ok(Json(QuizAttemptStart {
+        attempt_id,
+        quiz,
+        questions,
+    }))
 }
 
 /// PUT /api/lms/my/quiz-attempts/{id}
@@ -1034,20 +1071,17 @@ pub async fn submit_quiz_attempt(
     .ok_or(AppError::NotFound)?;
 
     // Fetch quiz for pass percentage
-    let quiz = sqlx::query_as::<_, LmsQuiz>(
-        "SELECT * FROM lms_quizzes WHERE id = $1",
-    )
-    .bind(attempt.quiz_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let quiz = sqlx::query_as::<_, LmsQuiz>("SELECT * FROM lms_quizzes WHERE id = $1")
+        .bind(attempt.quiz_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     // Fetch correct answers
-    let questions = sqlx::query_as::<_, LmsQuizQuestion>(
-        "SELECT * FROM lms_quiz_questions WHERE quiz_id = $1",
-    )
-    .bind(attempt.quiz_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let questions =
+        sqlx::query_as::<_, LmsQuizQuestion>("SELECT * FROM lms_quiz_questions WHERE quiz_id = $1")
+            .bind(attempt.quiz_id)
+            .fetch_all(&mut *tx)
+            .await?;
 
     // Grade
     let mut score = 0i32;
@@ -1076,7 +1110,11 @@ pub async fn submit_quiz_attempt(
         }
     }
 
-    let percentage = if max_score > 0 { (score * 100) / max_score } else { 0 };
+    let percentage = if max_score > 0 {
+        (score * 100) / max_score
+    } else {
+        0
+    };
     let passed = percentage >= quiz.pass_percentage;
 
     // Update attempt
@@ -1139,13 +1177,12 @@ pub async fn get_path(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let path = sqlx::query_as::<_, LmsLearningPath>(
-        "SELECT * FROM lms_learning_paths WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let path =
+        sqlx::query_as::<_, LmsLearningPath>("SELECT * FROM lms_learning_paths WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let courses = sqlx::query_as::<_, PathCourseRow>(
         "SELECT lpc.id, lpc.course_id, c.title AS course_title, c.code AS course_code,
@@ -1286,7 +1323,10 @@ pub async fn list_certificates(
     State(state): State<AppState>,
     Query(q): Query<CertificateQuery>,
 ) -> Result<Json<Vec<LmsCertificate>>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::lms::certificates::LIST)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::lms::certificates::LIST,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1333,15 +1373,27 @@ pub async fn issue_certificate(
     State(state): State<AppState>,
     Json(req): Json<IssueCertificateRequest>,
 ) -> Result<Json<LmsCertificate>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::lms::certificates::CREATE)?;
+    require_permission(
+        &claims,
+        medbrains_core::permissions::lms::certificates::CREATE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let expires = req.expires_at.as_deref()
+    let expires = req
+        .expires_at
+        .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
-    let cert_no = format!("LMS-CERT-{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("0000"));
+    let cert_no = format!(
+        "LMS-CERT-{}",
+        Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("0000")
+    );
 
     let cert = sqlx::query_as::<_, LmsCertificate>(
         "INSERT INTO lms_certificates (tenant_id, user_id, course_id, path_id, enrollment_id,
@@ -1536,9 +1588,8 @@ pub async fn ai_generate_course(
     State(_state): State<AppState>,
     Json(req): Json<AiGenerateRequest>,
 ) -> Result<Json<AiGeneratedCourse>, AppError> {
-    use rig::providers::anthropic;
     use rig::client::CompletionClient as _;
-    
+    use rig::providers::anthropic;
 
     require_permission(&claims, medbrains_core::permissions::lms::courses::CREATE)?;
 
@@ -1548,7 +1599,10 @@ pub async fn ai_generate_course(
     let num_modules = req.num_modules.unwrap_or(4);
     let num_questions = req.num_quiz_questions.unwrap_or(10);
     let duration = req.duration_hours.unwrap_or(2.0);
-    let roles = req.target_roles.as_ref().map_or_else(|| "all hospital staff".to_owned(), |r| r.join(", "));
+    let roles = req
+        .target_roles
+        .as_ref()
+        .map_or_else(|| "all hospital staff".to_owned(), |r| r.join(", "));
     let lang = req.language.as_deref().unwrap_or("English");
     let category = req.category.as_deref().unwrap_or("general");
 
@@ -1561,7 +1615,7 @@ pub async fn ai_generate_course(
             "You are a medical education expert creating training courses \
              for hospital staff. Generate comprehensive, clinically accurate \
              course content with detailed module text (500-800 words each) \
-             and well-crafted quiz questions with explanations."
+             and well-crafted quiz questions with explanations.",
         )
         .build();
 
@@ -1605,7 +1659,11 @@ pub async fn ai_save_course(
 
     let code = format!(
         "AI-{}",
-        Uuid::new_v4().to_string().split('-').next().unwrap_or("0000")
+        Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("0000")
     );
     let dur = rust_decimal::Decimal::try_from(req.duration_hours).ok();
 

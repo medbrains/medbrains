@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, Utc};
 use medbrains_core::blood_bank::{
     BbBillingItem, BbBloodReturn, BbColdChainDevice, BbColdChainReading, BbLookbackEvent,
@@ -13,9 +16,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -153,12 +154,18 @@ pub async fn list_donors(
 
     if let Some(ref bg) = params.blood_group {
         conditions.push(format!("blood_group::text = ${bind_idx}"));
-        binds.push(Bind { string_val: Some(bg.clone()), bool_val: None });
+        binds.push(Bind {
+            string_val: Some(bg.clone()),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(def) = params.is_deferred {
         conditions.push(format!("is_deferred = ${bind_idx}"));
-        binds.push(Bind { string_val: None, bool_val: Some(def) });
+        binds.push(Bind {
+            string_val: None,
+            bool_val: Some(def),
+        });
         bind_idx += 1;
     }
 
@@ -167,8 +174,12 @@ pub async fn list_donors(
     let count_sql = format!("SELECT COUNT(*) FROM blood_donors WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(ref s) = b.string_val { cq = cq.bind(s.clone()); }
-        if let Some(bv) = b.bool_val { cq = cq.bind(bv); }
+        if let Some(ref s) = b.string_val {
+            cq = cq.bind(s.clone());
+        }
+        if let Some(bv) = b.bool_val {
+            cq = cq.bind(bv);
+        }
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -179,13 +190,22 @@ pub async fn list_donors(
     );
     let mut dq = sqlx::query_as::<_, BloodDonor>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(ref s) = b.string_val { dq = dq.bind(s.clone()); }
-        if let Some(bv) = b.bool_val { dq = dq.bind(bv); }
+        if let Some(ref s) = b.string_val {
+            dq = dq.bind(s.clone());
+        }
+        if let Some(bv) = b.bool_val {
+            dq = dq.bind(bv);
+        }
     }
     let donors = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(DonorListResponse { donors, total, page, per_page }))
+    Ok(Json(DonorListResponse {
+        donors,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn create_donor(
@@ -389,9 +409,7 @@ pub async fn list_components(
     let _ = bind_idx; // suppress unused warning
 
     let where_clause = conditions.join(" AND ");
-    let sql = format!(
-        "SELECT * FROM blood_components WHERE {where_clause} ORDER BY expiry_at ASC"
-    );
+    let sql = format!("SELECT * FROM blood_components WHERE {where_clause} ORDER BY expiry_at ASC");
 
     let mut q = sqlx::query_as::<_, BloodComponent>(&sql).bind(claims.tenant_id);
     for s in &string_binds {
@@ -469,7 +487,10 @@ pub async fn update_component_status(
         q = q.bind(&body.discard_reason);
     }
 
-    let component = q.fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+    let component = q
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(component))
@@ -597,21 +618,13 @@ pub async fn create_transfusion(
     .fetch_one(&mut *tx)
     .await?;
 
-    if let (Some(patient_bg), Some(component_bg)) =
-        (&patient_blood_group, &component_blood_group)
-    {
+    if let (Some(patient_bg), Some(component_bg)) = (&patient_blood_group, &component_blood_group) {
         let compatible = match (patient_bg.as_str(), component_bg.as_str()) {
             (p, c) if p == c => true,
             ("AB+" | "ab_positive", _) => true,
-            ("AB-" | "ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => {
-                true
-            }
+            ("AB-" | "ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => true,
             (_, "O-" | "o_negative") => true,
-            (p, "O+" | "o_positive")
-                if p.ends_with('+') || p.contains("positive") =>
-            {
-                true
-            }
+            (p, "O+" | "o_positive") if p.ends_with('+') || p.contains("positive") => true,
             ("A+" | "a_positive", "A-" | "a_negative") => true,
             ("A-" | "a_negative", "A-" | "a_negative") => true,
             ("B+" | "b_positive", "B-" | "b_negative") => true,
@@ -1435,9 +1448,8 @@ pub async fn list_billing(
     let _ = bind_idx;
 
     let where_clause = conditions.join(" AND ");
-    let sql = format!(
-        "SELECT * FROM bb_billing_items WHERE {where_clause} ORDER BY created_at DESC"
-    );
+    let sql =
+        format!("SELECT * FROM bb_billing_items WHERE {where_clause} ORDER BY created_at DESC");
 
     let mut q = sqlx::query_as::<_, BbBillingItem>(&sql).bind(claims.tenant_id);
     for s in &string_binds {
@@ -1506,19 +1518,17 @@ pub async fn get_sbtc_report(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let donation_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM blood_donations WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let donation_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM blood_donations WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let component_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM blood_components WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let component_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM blood_components WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let discard_count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM blood_components \

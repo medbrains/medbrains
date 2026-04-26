@@ -29,6 +29,10 @@ function toIso(d: string | null): string | undefined {
   return d ?? undefined;
 }
 
+function toRows<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function RevenueTab() {
@@ -52,8 +56,8 @@ export function RevenueTab() {
     queryFn: () => api.getDoctorRevenue(params),
   });
 
-  const deptData = deptQ.data ?? [];
-  const doctorData = doctorQ.data ?? [];
+  const deptData = toRows(deptQ.data);
+  const doctorData = toRows(doctorQ.data);
 
   const totalRevenue = useMemo(
     () => deptData.reduce((s, r) => s + r.revenue, 0),

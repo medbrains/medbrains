@@ -1,5 +1,10 @@
-use axum::{Json, extract::{Path, Query, State}};
-use medbrains_core::geo::{GeoCountry, GeoDistrict, GeoState, GeoSubdistrict, GeoTown, PincodeResult, RegulatoryBody};
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+};
+use medbrains_core::geo::{
+    GeoCountry, GeoDistrict, GeoState, GeoSubdistrict, GeoTown, PincodeResult, RegulatoryBody,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

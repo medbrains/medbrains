@@ -28,23 +28,43 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::state::AppState;
 use medbrains_core::print_data::{
-    StudentAdmissionFormPrintData, InternRotationSchedulePrintData,
-    PgLogbookEntryPrintData, InternalAssessmentMarksPrintData,
-    ExamHallTicketPrintData, OsceScoringSheetPrintData,
-    SimulationDebriefingPrintData, CmeCertificatePrintData,
-    IecApprovalCertificatePrintData, ResearchProposalFormPrintData,
-    HostelAllotmentOrderPrintData, AntiRaggingUndertakingPrintData,
-    DisabilityAccommodationPlanPrintData, InternshipCompletionCertificatePrintData,
-    ServiceBondAgreementPrintData, StipendPaymentAdvicePrintData,
+    AccommodationItem,
+    AdmissionFeeDetails,
+    AntiRaggingUndertakingPrintData,
+    AssessmentComponent,
+    BudgetSummary,
+    CmeCertificatePrintData,
+    CmeFaculty,
+    CoInvestigator,
+    DebriefingPoint,
+    DisabilityAccommodationPlanPrintData,
+    ExamHallTicketPrintData,
+    ExamSubject,
     HospitalBrandingPrintData,
-    // Supporting types
-    SubmittedDocument, AdmissionFeeDetails, InternRotation,
+    HospitalRegistration,
+    HostelAllotmentOrderPrintData,
+    HostelFeeDetails,
+    IecApprovalCertificatePrintData,
+    InternRotation,
+    InternRotationSchedulePrintData,
+    InternalAssessmentMarksPrintData,
+    InternshipCompletionCertificatePrintData,
+    InternshipPosting,
+    OsceGlobalRating,
+    OsceScoringSheetPrintData,
+    OsceTask,
     PgCaseEntry,
-    AssessmentComponent, ExamSubject, OsceTask, OsceGlobalRating,
-    SimulationParticipant, SimulationEvent, DebriefingPoint,
-    CmeFaculty, CoInvestigator, BudgetSummary,
-    HostelFeeDetails, AccommodationItem, InternshipPosting,
-    StipendComponent, HospitalRegistration,
+    PgLogbookEntryPrintData,
+    ResearchProposalFormPrintData,
+    ServiceBondAgreementPrintData,
+    SimulationDebriefingPrintData,
+    SimulationEvent,
+    SimulationParticipant,
+    StipendComponent,
+    StipendPaymentAdvicePrintData,
+    StudentAdmissionFormPrintData,
+    // Supporting types
+    SubmittedDocument,
 };
 
 // ── Student Admission Form ────────────────────────────────────────────────────
@@ -56,7 +76,10 @@ pub async fn get_student_admission_form(
 ) -> Result<Json<StudentAdmissionFormPrintData>, AppError> {
     // Placeholder: In production, fetch from student_admissions table
     let data = StudentAdmissionFormPrintData {
-        admission_number: format!("ADM-{}", admission_id.to_string().split('-').next().unwrap_or("000")),
+        admission_number: format!(
+            "ADM-{}",
+            admission_id.to_string().split('-').next().unwrap_or("000")
+        ),
         admission_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         academic_year: "2025-2026".to_string(),
         course: "MBBS".to_string(),
@@ -237,14 +260,12 @@ pub async fn get_internal_assessment_marks(
                 date: "2025-04-20".to_string(),
             },
         ],
-        practical_marks: vec![
-            AssessmentComponent {
-                component_name: "Practical IA".to_string(),
-                marks_obtained: 18.0,
-                max_marks: 25.0,
-                date: "2025-03-10".to_string(),
-            },
-        ],
+        practical_marks: vec![AssessmentComponent {
+            component_name: "Practical IA".to_string(),
+            marks_obtained: 18.0,
+            max_marks: 25.0,
+            date: "2025-03-10".to_string(),
+        }],
         viva_marks: Some(AssessmentComponent {
             component_name: "Viva".to_string(),
             marks_obtained: 8.0,
@@ -277,7 +298,10 @@ pub async fn get_exam_hall_ticket(
     Path(ticket_id): Path<Uuid>,
 ) -> Result<Json<ExamHallTicketPrintData>, AppError> {
     let data = ExamHallTicketPrintData {
-        hall_ticket_number: format!("HT-{}", ticket_id.to_string().split('-').next().unwrap_or("000")),
+        hall_ticket_number: format!(
+            "HT-{}",
+            ticket_id.to_string().split('-').next().unwrap_or("000")
+        ),
         exam_name: "III MBBS Part I University Examination".to_string(),
         exam_session: "Summer 2025".to_string(),
         academic_year: "2024-2025".to_string(),
@@ -315,7 +339,15 @@ pub async fn get_exam_hall_ticket(
         university_name: "Health University".to_string(),
         college_name: "Medical College".to_string(),
         issue_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
-        barcode: format!("HT{}", ticket_id.to_string().replace('-', "").chars().take(12).collect::<String>()),
+        barcode: format!(
+            "HT{}",
+            ticket_id
+                .to_string()
+                .replace('-', "")
+                .chars()
+                .take(12)
+                .collect::<String>()
+        ),
     };
 
     Ok(Json(data))
@@ -337,7 +369,9 @@ pub async fn get_osce_scoring_sheet(
         time_allowed_minutes: 8,
         candidate_roll: "MBBS-2022-045".to_string(),
         candidate_name: "Candidate Name".to_string(),
-        clinical_scenario: "A 55-year-old male presents with chest pain for 2 hours. Take relevant history.".to_string(),
+        clinical_scenario:
+            "A 55-year-old male presents with chest pain for 2 hours. Take relevant history."
+                .to_string(),
         tasks: vec![
             OsceTask {
                 task_number: 1,
@@ -370,7 +404,9 @@ pub async fn get_osce_scoring_sheet(
         total_marks: 8.0,
         max_marks: 9.0,
         pass_marks: 5.0,
-        examiner_comments: Some("Good communication, needs to explore differentials more".to_string()),
+        examiner_comments: Some(
+            "Good communication, needs to explore differentials more".to_string(),
+        ),
         examiner_name: "Dr. Examiner".to_string(),
         examiner_signature_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         college_name: "Medical College".to_string(),
@@ -431,7 +467,8 @@ pub async fn get_simulation_debriefing(
             DebriefingPoint {
                 category: "Technical".to_string(),
                 observation: "CPR depth and rate were appropriate".to_string(),
-                discussion_summary: "Team discussed importance of minimizing interruptions".to_string(),
+                discussion_summary: "Team discussed importance of minimizing interruptions"
+                    .to_string(),
             },
             DebriefingPoint {
                 category: "Teamwork".to_string(),
@@ -443,9 +480,7 @@ pub async fn get_simulation_debriefing(
             "Importance of early defibrillation".to_string(),
             "Role clarity improves team performance".to_string(),
         ],
-        areas_for_improvement: vec![
-            "Drug dosing confirmation before administration".to_string(),
-        ],
+        areas_for_improvement: vec!["Drug dosing confirmation before administration".to_string()],
         participant_feedback: Some("Very realistic scenario, learned a lot".to_string()),
         facilitator_name: "Dr. Facilitator".to_string(),
         technician_name: Some("Sim Tech".to_string()),
@@ -464,7 +499,14 @@ pub async fn get_cme_certificate(
     Path(certificate_id): Path<Uuid>,
 ) -> Result<Json<CmeCertificatePrintData>, AppError> {
     let data = CmeCertificatePrintData {
-        certificate_number: format!("CME-{}", certificate_id.to_string().split('-').next().unwrap_or("000")),
+        certificate_number: format!(
+            "CME-{}",
+            certificate_id
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("000")
+        ),
         program_name: "Recent Advances in Diabetology".to_string(),
         program_date: "2025-05-15".to_string(),
         program_duration_hours: 6.0,
@@ -518,7 +560,11 @@ pub async fn get_iec_approval_certificate(
         .unwrap_or_default();
 
     let data = IecApprovalCertificatePrintData {
-        approval_number: format!("IEC/{}/{}", chrono::Utc::now().format("%Y"), approval_id.to_string().split('-').next().unwrap_or("000")),
+        approval_number: format!(
+            "IEC/{}/{}",
+            chrono::Utc::now().format("%Y"),
+            approval_id.to_string().split('-').next().unwrap_or("000")
+        ),
         approval_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         study_title: "Efficacy of Novel Drug X in Treatment of Condition Y".to_string(),
         principal_investigator: "Dr. PI Name".to_string(),
@@ -572,15 +618,13 @@ pub async fn get_research_proposal_form(
         pi_department: "Department of Medicine".to_string(),
         pi_email: "pi@medcollege.edu".to_string(),
         pi_phone: "9876543210".to_string(),
-        co_investigators: vec![
-            CoInvestigator {
-                name: "Dr. Co-I 1".to_string(),
-                designation: "Assistant Professor".to_string(),
-                department: "Biochemistry".to_string(),
-                institution: "Medical College".to_string(),
-                role: "Laboratory analysis".to_string(),
-            },
-        ],
+        co_investigators: vec![CoInvestigator {
+            name: "Dr. Co-I 1".to_string(),
+            designation: "Assistant Professor".to_string(),
+            department: "Biochemistry".to_string(),
+            institution: "Medical College".to_string(),
+            role: "Laboratory analysis".to_string(),
+        }],
         research_type: "Clinical".to_string(),
         study_design: "Prospective Cohort Study".to_string(),
         objectives: vec![
@@ -590,7 +634,8 @@ pub async fn get_research_proposal_form(
         background_summary: "Brief background of the research problem and rationale".to_string(),
         methodology_summary: "Detailed methodology including study procedures".to_string(),
         sample_size: 150,
-        sample_size_justification: "Based on previous studies with 80% power and 5% alpha".to_string(),
+        sample_size_justification: "Based on previous studies with 80% power and 5% alpha"
+            .to_string(),
         inclusion_criteria: vec![
             "Age 18-65 years".to_string(),
             "Diagnosed with condition Y".to_string(),
@@ -605,7 +650,8 @@ pub async fn get_research_proposal_form(
             "Primary: Change in biomarker levels at 12 weeks".to_string(),
             "Secondary: Quality of life scores".to_string(),
         ],
-        statistical_methods: "ANOVA for continuous variables, chi-square for categorical".to_string(),
+        statistical_methods: "ANOVA for continuous variables, chi-square for categorical"
+            .to_string(),
         ethical_considerations: "Study adheres to Declaration of Helsinki guidelines".to_string(),
         informed_consent_process: "Written informed consent in local language".to_string(),
         funding_source: "Institutional Research Grant".to_string(),
@@ -636,7 +682,11 @@ pub async fn get_hostel_allotment_order(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<HostelAllotmentOrderPrintData>, AppError> {
     let data = HostelAllotmentOrderPrintData {
-        order_number: format!("HA/{}/{}", chrono::Utc::now().format("%Y"), order_id.to_string().split('-').next().unwrap_or("000")),
+        order_number: format!(
+            "HA/{}/{}",
+            chrono::Utc::now().format("%Y"),
+            order_id.to_string().split('-').next().unwrap_or("000")
+        ),
         order_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         academic_year: "2025-2026".to_string(),
         student_name: "Student Name".to_string(),
@@ -790,7 +840,15 @@ pub async fn get_internship_completion_certificate(
     Path(certificate_id): Path<Uuid>,
 ) -> Result<Json<InternshipCompletionCertificatePrintData>, AppError> {
     let data = InternshipCompletionCertificatePrintData {
-        certificate_number: format!("ICC/{}/{}", chrono::Utc::now().format("%Y"), certificate_id.to_string().split('-').next().unwrap_or("000")),
+        certificate_number: format!(
+            "ICC/{}/{}",
+            chrono::Utc::now().format("%Y"),
+            certificate_id
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("000")
+        ),
         issue_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
         intern_name: "Dr. Intern Name".to_string(),
         intern_registration: "TEMP/MC/2025/001".to_string(),
@@ -900,7 +958,11 @@ pub async fn get_stipend_payment_advice(
 ) -> Result<Json<StipendPaymentAdvicePrintData>, AppError> {
     let now = chrono::Utc::now();
     let data = StipendPaymentAdvicePrintData {
-        advice_number: format!("SPA/{}/{}", now.format("%Y-%m"), advice_id.to_string().split('-').next().unwrap_or("000")),
+        advice_number: format!(
+            "SPA/{}/{}",
+            now.format("%Y-%m"),
+            advice_id.to_string().split('-').next().unwrap_or("000")
+        ),
         payment_month: now.format("%B").to_string(),
         payment_year: now.format("%Y").to_string().parse().unwrap_or(2025),
         payment_date: now.format("%Y-%m-%d").to_string(),
@@ -978,10 +1040,7 @@ pub async fn get_hospital_branding(
         city: "City".to_string(),
         state: "State".to_string(),
         pincode: "123456".to_string(),
-        phone_numbers: vec![
-            "+91 1234567890".to_string(),
-            "+91 9876543210".to_string(),
-        ],
+        phone_numbers: vec!["+91 1234567890".to_string(), "+91 9876543210".to_string()],
         email: "info@hospital.com".to_string(),
         website: Some("www.hospital.com".to_string()),
         registration_numbers: vec![
@@ -1006,7 +1065,10 @@ pub async fn get_hospital_branding(
         jci_accredited: false,
         watermark_text: Some("CONFIDENTIAL".to_string()),
         watermark_opacity: 0.1,
-        footer_disclaimer: Some("This document is computer generated and does not require physical signature.".to_string()),
+        footer_disclaimer: Some(
+            "This document is computer generated and does not require physical signature."
+                .to_string(),
+        ),
     };
 
     Ok(Json(data))

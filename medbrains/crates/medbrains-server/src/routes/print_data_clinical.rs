@@ -1,17 +1,20 @@
 //! Print-data endpoints — wristband, appointment, death certificate, discharge.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
-    DischargeSummaryPrintData, EducationSection, InfantWristbandPrintData, KeyImage,
-    LabParameter, LabReportFullPrintData, OpdPrescriptionPrintData, OpdVitals,
-    ParameterTrend, PatientEducationPrintData, PrescriptionMedication,
-    RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder, TokenSlipPrintData,
-    TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
-    TreatmentChartPrintData, TrendValue, VisitorPassPrintData, WristbandPrintData,
+    DischargeSummaryPrintData, EducationSection, InfantWristbandPrintData, KeyImage, LabParameter,
+    LabReportFullPrintData, OpdPrescriptionPrintData, OpdVitals, ParameterTrend,
+    PatientEducationPrintData, PrescriptionMedication, RadiologyReportFullPrintData,
+    RegistrationCardPrintData, StatOrder, TokenSlipPrintData, TransferSummaryPrintData,
+    TreatmentChartIvFluid, TreatmentChartMedication, TreatmentChartPrintData, TrendValue,
+    VisitorPassPrintData, WristbandPrintData,
 };
 
 use crate::{
@@ -161,9 +164,8 @@ pub async fn get_discharge_print_data(
 
     tx.commit().await?;
 
-    let fmt_ts = |dt: Option<chrono::DateTime<Utc>>| {
-        dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string())
-    };
+    let fmt_ts =
+        |dt: Option<chrono::DateTime<Utc>>| dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string());
 
     Ok(Json(DischargeSummaryPrintData {
         patient_name: row.patient_name,
@@ -690,13 +692,11 @@ pub async fn get_patient_education_print_data(
     .await?;
 
     // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
 
     tx.commit().await?;
 
@@ -778,13 +778,11 @@ pub async fn get_registration_card_print_data(
     .await?;
 
     // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar(
-        "SELECT name FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
 
     tx.commit().await?;
 
@@ -1029,7 +1027,9 @@ pub async fn get_opd_prescription_print_data(
 
     tx.commit().await?;
 
-    let age_display = row.age.map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
+    let age_display = row
+        .age
+        .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
     let bmi = match (row.height_cm, row.weight_kg) {
         (Some(h), Some(w)) if h > 0.0 => Some((w / (h / 100.0).powi(2) * 10.0).round() / 10.0),
         _ => None,
@@ -1211,7 +1211,9 @@ pub async fn get_lab_report_full_print_data(
 
     tx.commit().await?;
 
-    let age_display = row.age.map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
+    let age_display = row
+        .age
+        .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
     let barcode_data = format!("LAB:{}", row.accession_number);
 
     Ok(Json(LabReportFullPrintData {
@@ -1222,7 +1224,9 @@ pub async fn get_lab_report_full_print_data(
         sample_id: row.sample_id,
         accession_number: row.accession_number,
         order_date: row.order_date.format("%d-%b-%Y").to_string(),
-        collection_date: row.collection_date.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        collection_date: row
+            .collection_date
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
         report_date: row.report_date.format("%d-%b-%Y %H:%M").to_string(),
         referring_doctor: row.referring_doctor,
         department: row.department_name,
@@ -1251,7 +1255,9 @@ pub async fn get_lab_report_full_print_data(
         pathologist_registration_number: row.pathologist_reg_number,
         pathologist_signature_url: None,
         technician_name: row.technician_name,
-        verified_at: row.verified_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        verified_at: row
+            .verified_at
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
         nabl_accredited: tenant.2.unwrap_or(false),
         nabl_certificate_number: tenant.3,
         nabl_logo_url: None,
@@ -1367,7 +1373,9 @@ pub async fn get_cumulative_lab_report_print_data(
         })
         .collect();
 
-    let age_display = patient.age.map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
+    let age_display = patient
+        .age
+        .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
     let now = Utc::now();
     let six_months_ago = now - chrono::Duration::days(180);
 
@@ -1509,7 +1517,9 @@ pub async fn get_radiology_report_full_print_data(
 
     tx.commit().await?;
 
-    let age_display = row.age.map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
+    let age_display = row
+        .age
+        .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
 
     Ok(Json(RadiologyReportFullPrintData {
         patient_name: row.patient_name,
@@ -1548,7 +1558,9 @@ pub async fn get_radiology_report_full_print_data(
         radiologist_registration_number: row.radiologist_reg_number,
         radiologist_signature_url: None,
         technologist_name: row.technologist_name,
-        verified_at: row.verified_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        verified_at: row
+            .verified_at
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
         pacs_study_uid: row.pacs_study_uid,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
@@ -1690,9 +1702,13 @@ pub async fn get_death_certificate_print_data(
         .map_or("Unknown".to_string(), |a| format!("{a:.0} years"));
 
     Ok(Json(DeathCertificatePrintData {
-        certificate_number: row.certificate_number.unwrap_or_else(|| "PENDING".to_string()),
+        certificate_number: row
+            .certificate_number
+            .unwrap_or_else(|| "PENDING".to_string()),
         registration_number: row.registration_number,
-        registration_date: row.registration_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        registration_date: row
+            .registration_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         deceased_name: row.deceased_name,
         uhid: row.uhid,
         age_at_death: age_display,
@@ -1716,7 +1732,9 @@ pub async fn get_death_certificate_print_data(
         attended_by_doctor: row.attended_by_doctor,
         attending_doctor_name: row.attending_doctor_name,
         doctor_registration_number: row.doctor_registration_number,
-        hospital_admission_date: row.hospital_admission_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        hospital_admission_date: row
+            .hospital_admission_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         pregnancy_status: row.pregnancy_status,
         pregnancy_contributed: row.pregnancy_contributed,
         mlc_case: row.mlc_case,
@@ -1743,15 +1761,17 @@ use chrono::Utc;
 use sqlx::PgPool;
 
 use medbrains_core::print_data::{
-    BloodDonorFormPrintData, CrossMatchRequisitionPrintData,
-    DataCategory, DataSharingEntity, DonorMedicalHistory, DonorPhysicalExam, DpdpConsentPrintData,
-    GrievanceOfficer, OtRegisterPrintData, OtSurgeryEntry, ProcessingPurpose,
-    RestraintDocumentationPrintData, RestraintMonitoring, VideoConsentPrintData,
+    BloodDonorFormPrintData, CrossMatchRequisitionPrintData, DataCategory, DataSharingEntity,
+    DonorMedicalHistory, DonorPhysicalExam, DpdpConsentPrintData, GrievanceOfficer,
+    OtRegisterPrintData, OtSurgeryEntry, ProcessingPurpose, RestraintDocumentationPrintData,
+    RestraintMonitoring, VideoConsentPrintData,
 };
 
 // ── Helper Functions (Phase 5) ────────────────────────────────────────────────
 
-async fn get_tenant_info(pool: &PgPool) -> Result<(String, Option<String>, Option<String>), AppError> {
+async fn get_tenant_info(
+    pool: &PgPool,
+) -> Result<(String, Option<String>, Option<String>), AppError> {
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, address_line1 FROM tenants WHERE is_active = true LIMIT 1",
     )
@@ -1771,8 +1791,8 @@ pub async fn get_ot_register_print_data(
 ) -> Result<Json<OtRegisterPrintData>, AppError> {
     let pool: &PgPool = &state.db;
 
-    let register_date =
-        chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive());
+    let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
 
     #[derive(sqlx::FromRow)]
     struct OtRow {
@@ -2016,7 +2036,9 @@ pub async fn get_blood_donor_form_print_data(
         occupation: donor.occupation,
         donation_type: donor.donation_type,
         previous_donations: donor.previous_donations,
-        last_donation_date: donor.last_donation_date.map(|d| d.format("%d-%m-%Y").to_string()),
+        last_donation_date: donor
+            .last_donation_date
+            .map(|d| d.format("%d-%m-%Y").to_string()),
         medical_history: DonorMedicalHistory {
             recent_illness: false,
             recent_surgery: false,
@@ -2435,7 +2457,10 @@ pub async fn get_video_consent_print_data(
         video_reference_id: video.video_reference_id.clone(),
         video_duration_seconds: video.video_duration_seconds,
         video_recorded_at: video.video_recorded_at.format("%d-%m-%Y %H:%M").to_string(),
-        qr_code_to_video: format!("https://hospital.com/video-consent/{}", video.video_reference_id),
+        qr_code_to_video: format!(
+            "https://hospital.com/video-consent/{}",
+            video.video_reference_id
+        ),
         video_url: video.video_url,
         video_verified: video.video_verified,
         patient_visible_in_video: video.patient_visible,
@@ -2530,7 +2555,9 @@ pub async fn get_restraint_documentation_print_data(
     // Sample monitoring records
     let monitoring = vec![
         RestraintMonitoring {
-            datetime: (restraint.start_datetime + chrono::Duration::minutes(30)).format("%d-%m-%Y %H:%M").to_string(),
+            datetime: (restraint.start_datetime + chrono::Duration::minutes(30))
+                .format("%d-%m-%Y %H:%M")
+                .to_string(),
             nurse_name: "Nurse on duty".to_string(),
             patient_condition: "Calm, vitals stable".to_string(),
             circulation_checked: true,
@@ -2541,7 +2568,9 @@ pub async fn get_restraint_documentation_print_data(
             remarks: None,
         },
         RestraintMonitoring {
-            datetime: (restraint.start_datetime + chrono::Duration::hours(1)).format("%d-%m-%Y %H:%M").to_string(),
+            datetime: (restraint.start_datetime + chrono::Duration::hours(1))
+                .format("%d-%m-%Y %H:%M")
+                .to_string(),
             nurse_name: "Nurse on duty".to_string(),
             patient_condition: "Resting, no distress".to_string(),
             circulation_checked: true,
@@ -2569,15 +2598,22 @@ pub async fn get_restraint_documentation_print_data(
             "Environmental modification".to_string(),
             "PRN medication offered".to_string(),
         ],
-        start_datetime: restraint.start_datetime.format("%d-%m-%Y %H:%M").to_string(),
+        start_datetime: restraint
+            .start_datetime
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
         planned_duration: restraint.planned_duration,
-        actual_end_datetime: restraint.actual_end.map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
+        actual_end_datetime: restraint
+            .actual_end
+            .map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
         ordering_physician: restraint.ordering_physician,
         physician_assessment: restraint.physician_assessment,
         nursing_monitoring: monitoring,
         patient_condition_on_release: restraint.patient_condition_on_release,
         family_notified: restraint.family_notified,
-        family_notification_datetime: restraint.family_notification_datetime.map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
+        family_notification_datetime: restraint
+            .family_notification_datetime
+            .map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
         patient_rights_explained: restraint.patient_rights_explained,
         consent_obtained: restraint.consent_obtained,
         consent_from: restraint.consent_from,

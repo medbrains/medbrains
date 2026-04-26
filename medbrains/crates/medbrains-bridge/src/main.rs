@@ -59,7 +59,9 @@ async fn main() -> Result<()> {
         let addr = hl7.clone();
         info!(listen = %addr, "starting HL7 MLLP listener");
         tokio::spawn(async move {
-            if let Err(e) = hl7_listener::listen(&addr, listener_db, &listener_client, &listener_cfg).await {
+            if let Err(e) =
+                hl7_listener::listen(&addr, listener_db, &listener_client, &listener_cfg).await
+            {
                 tracing::error!(error = %e, "HL7 listener failed");
             }
         });

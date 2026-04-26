@@ -2,11 +2,14 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::{
     facility::Facility,
     onboarding::{CustomRole, ModuleConfig, TenantSettings},
-    patient::{MasterInsuranceProvider, MasterOccupation, MasterReligion, MasterRelation},
+    patient::{MasterInsuranceProvider, MasterOccupation, MasterRelation, MasterReligion},
     permissions,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -17,9 +20,7 @@ use crate::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
     state::AppState,
-    validation::{
-        self, ValidationErrors,
-    },
+    validation::{self, ValidationErrors},
 };
 
 // ── PUT /api/setup/tenant ───────────────────────────────────
@@ -629,7 +630,10 @@ pub async fn create_department(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let wh = body.working_hours.clone().unwrap_or_else(|| serde_json::json!({}));
+    let wh = body
+        .working_hours
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({}));
     let row = sqlx::query_as::<_, DepartmentRow>(
         "INSERT INTO departments (tenant_id, parent_id, code, name, department_type, working_hours) \
          VALUES ($1, $2, $3, $4, $5::department_type, $6) \
@@ -659,7 +663,10 @@ pub async fn update_department(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let wh = body.working_hours.clone().unwrap_or_else(|| serde_json::json!({}));
+    let wh = body
+        .working_hours
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({}));
     let row = sqlx::query_as::<_, DepartmentRow>(
         "UPDATE departments SET code = $1, name = $2, department_type = $3::department_type, \
          parent_id = $4, working_hours = $5 \
@@ -899,7 +906,9 @@ pub async fn create_user(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let fee = body.consultation_fee.and_then(|f| rust_decimal::Decimal::try_from(f).ok());
+    let fee = body
+        .consultation_fee
+        .and_then(|f| rust_decimal::Decimal::try_from(f).ok());
     let dept_ids = body.department_ids.as_deref().unwrap_or(&[]);
 
     let row = sqlx::query_as::<_, SetupUserRow>(
@@ -941,7 +950,9 @@ pub async fn update_user(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let fee = body.consultation_fee.and_then(|f| rust_decimal::Decimal::try_from(f).ok());
+    let fee = body
+        .consultation_fee
+        .and_then(|f| rust_decimal::Decimal::try_from(f).ok());
     let dept_ids = body.department_ids.as_deref().unwrap_or(&[]);
 
     let row = sqlx::query_as::<_, SetupUserRow>(
@@ -1139,13 +1150,13 @@ pub async fn update_user_access_matrix(
     });
 
     if let Some(fa) = &body.field_access {
-        matrix["field_access"] = serde_json::to_value(fa)
-            .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+        matrix["field_access"] =
+            serde_json::to_value(fa).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
 
     if let Some(wa) = &body.widget_access {
-        matrix["widget_access"] = serde_json::to_value(wa)
-            .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+        matrix["widget_access"] =
+            serde_json::to_value(wa).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
 
     sqlx::query(
@@ -1591,7 +1602,9 @@ pub async fn create_service(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let price = body.base_price.map(|f| rust_decimal::Decimal::try_from(f).unwrap_or_default())
+    let price = body
+        .base_price
+        .map(|f| rust_decimal::Decimal::try_from(f).unwrap_or_default())
         .unwrap_or_default();
 
     let row = sqlx::query_as::<_, ServiceRow>(
@@ -1624,7 +1637,9 @@ pub async fn update_service(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let price = body.base_price.map(|f| rust_decimal::Decimal::try_from(f).unwrap_or_default())
+    let price = body
+        .base_price
+        .map(|f| rust_decimal::Decimal::try_from(f).unwrap_or_default())
         .unwrap_or_default();
 
     let row = sqlx::query_as::<_, ServiceRow>(
@@ -1683,12 +1698,11 @@ pub async fn list_bed_types(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, BedType>(
-        "SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows =
+        sqlx::query_as::<_, BedType>("SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name")
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?;
 
     tx.commit().await?;
 
@@ -2277,11 +2291,8 @@ pub async fn update_secure_device_setting(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let canonical_value = normalize_secure_device_setting(
-        key,
-        existing.as_ref().map(|row| &row.value),
-        &body.value,
-    )?;
+    let canonical_value =
+        normalize_secure_device_setting(key, existing.as_ref().map(|row| &row.value), &body.value)?;
 
     let row = sqlx::query_as::<_, TenantSettings>(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -2297,7 +2308,9 @@ pub async fn update_secure_device_setting(
     .fetch_one(&mut *tx)
     .await?;
 
-    let old_values = existing.as_ref().map(|row| mask_value_for_key(key, &row.value).0);
+    let old_values = existing
+        .as_ref()
+        .map(|row| mask_value_for_key(key, &row.value).0);
     let new_values = mask_value_for_key(key, &canonical_value).0;
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
@@ -2326,7 +2339,10 @@ fn parse_partial_config<T: DeserializeOwned>(
 ) -> Result<T, AppError> {
     serde_json::from_value::<T>(value.clone()).map_err(|_| {
         let mut errors = ValidationErrors::new();
-        errors.add(field_name, "Invalid configuration payload for this device connector");
+        errors.add(
+            field_name,
+            "Invalid configuration payload for this device connector",
+        );
         AppError::ValidationFailed(errors)
     })
 }
@@ -2339,12 +2355,7 @@ fn merge_secret(previous: &str, incoming: Option<String>) -> String {
     }
 }
 
-fn validate_plain_text(
-    errors: &mut ValidationErrors,
-    field: &str,
-    value: &str,
-    max_len: usize,
-) {
+fn validate_plain_text(errors: &mut ValidationErrors, field: &str, value: &str, max_len: usize) {
     if value.len() > max_len {
         errors.add(field, format!("Must be at most {max_len} characters"));
     }
@@ -2479,9 +2490,8 @@ fn normalize_secure_device_setting(
             validate_plain_text(&mut errors, "analyzer_code", &merged.analyzer_code, 64);
             validate_plain_text(&mut errors, "username", &merged.username, 120);
             validate_plain_text(&mut errors, "password", &merged.password, 200);
-            serde_json::to_value(merged).map_err(|e| {
-                AppError::Internal(format!("serialize lab_interface config: {e}"))
-            })?
+            serde_json::to_value(merged)
+                .map_err(|e| AppError::Internal(format!("serialize lab_interface config: {e}")))?
         }
         "biometric" => {
             let input: BiometricDeviceConfigInput = parse_partial_config(incoming, "value")?;
@@ -2511,12 +2521,7 @@ fn normalize_secure_device_setting(
                 api_key: merge_secret(&previous.api_key, input.api_key),
             };
             validation::validate_optional_url(&mut errors, "agent_url", &merged.agent_url);
-            validate_plain_text(
-                &mut errors,
-                "default_printer",
-                &merged.default_printer,
-                120,
-            );
+            validate_plain_text(&mut errors, "default_printer", &merged.default_printer, 120);
             validate_plain_text(&mut errors, "label_printer", &merged.label_printer, 120);
             validate_plain_text(&mut errors, "api_key", &merged.api_key, 200);
             serde_json::to_value(merged)
@@ -2531,7 +2536,9 @@ fn normalize_secure_device_setting(
                     .display_client_url
                     .unwrap_or(previous.display_client_url),
                 location_code: input.location_code.unwrap_or(previous.location_code),
-                websocket_channel: input.websocket_channel.unwrap_or(previous.websocket_channel),
+                websocket_channel: input
+                    .websocket_channel
+                    .unwrap_or(previous.websocket_channel),
                 api_key: merge_secret(&previous.api_key, input.api_key),
             };
             validation::validate_optional_url(
@@ -2547,9 +2554,8 @@ fn normalize_secure_device_setting(
                 120,
             );
             validate_plain_text(&mut errors, "api_key", &merged.api_key, 200);
-            serde_json::to_value(merged).map_err(|e| {
-                AppError::Internal(format!("serialize queue_display config: {e}"))
-            })?
+            serde_json::to_value(merged)
+                .map_err(|e| AppError::Internal(format!("serialize queue_display config: {e}")))?
         }
         _ => {
             errors.add("key", "Unsupported secure device setting key");
@@ -2619,12 +2625,10 @@ pub async fn update_tenant_geo_with_presets(
     // If country changed, auto-populate defaults from country presets
     let mut defaults_applied = false;
     if let Some(country_id) = body.country_id {
-        let country = sqlx::query_as::<_, GeoCountry>(
-            "SELECT * FROM geo_countries WHERE id = $1",
-        )
-        .bind(country_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let country = sqlx::query_as::<_, GeoCountry>("SELECT * FROM geo_countries WHERE id = $1")
+            .bind(country_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
         if let Some(c) = country {
             // Update tenant-level fields
@@ -2649,22 +2653,47 @@ pub async fn update_tenant_geo_with_presets(
 
             // Upsert units settings
             upsert_setting_in_tx(
-                &mut tx, claims.tenant_id, "units", "measurement_system", &c.measurement_system,
-            ).await?;
+                &mut tx,
+                claims.tenant_id,
+                "units",
+                "measurement_system",
+                &c.measurement_system,
+            )
+            .await?;
             upsert_setting_in_tx(
-                &mut tx, claims.tenant_id, "units", "temperature_unit", temp_unit,
-            ).await?;
+                &mut tx,
+                claims.tenant_id,
+                "units",
+                "temperature_unit",
+                temp_unit,
+            )
+            .await?;
             upsert_setting_in_tx(
-                &mut tx, claims.tenant_id, "units", "weight_unit", weight_unit,
-            ).await?;
+                &mut tx,
+                claims.tenant_id,
+                "units",
+                "weight_unit",
+                weight_unit,
+            )
+            .await?;
             upsert_setting_in_tx(
-                &mut tx, claims.tenant_id, "units", "height_unit", height_unit,
-            ).await?;
+                &mut tx,
+                claims.tenant_id,
+                "units",
+                "height_unit",
+                height_unit,
+            )
+            .await?;
 
             // Upsert locale settings
             upsert_setting_in_tx(
-                &mut tx, claims.tenant_id, "locale", "date_format", &c.date_format,
-            ).await?;
+                &mut tx,
+                claims.tenant_id,
+                "locale",
+                "date_format",
+                &c.date_format,
+            )
+            .await?;
 
             defaults_applied = true;
         }
@@ -2703,7 +2732,10 @@ pub async fn list_master_religions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterReligion>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::LIST)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::LIST,
+    )?;
     let rows = sqlx::query_as::<_, MasterReligion>(
         "SELECT * FROM master_religions \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
@@ -2720,7 +2752,10 @@ pub async fn create_master_religion(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterReligion>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::CREATE,
+    )?;
     let mut errors = ValidationErrors::new();
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
@@ -2748,7 +2783,10 @@ pub async fn update_master_religion(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterReligion>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::UPDATE,
+    )?;
     let row = sqlx::query_as::<_, MasterReligion>(
         "UPDATE master_religions SET \
          code = COALESCE($1, code), \
@@ -2766,9 +2804,7 @@ pub async fn update_master_religion(
     .bind(claims.tenant_id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or_else(|| {
-        AppError::NotFound
-    })?;
+    .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
 }
 
@@ -2777,14 +2813,15 @@ pub async fn delete_master_religion(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
-    let result = sqlx::query(
-        "DELETE FROM master_religions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&state.db)
-    .await?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::DELETE,
+    )?;
+    let result = sqlx::query("DELETE FROM master_religions WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -2798,7 +2835,10 @@ pub async fn list_master_occupations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterOccupation>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::LIST)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::LIST,
+    )?;
     let rows = sqlx::query_as::<_, MasterOccupation>(
         "SELECT * FROM master_occupations \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
@@ -2815,7 +2855,10 @@ pub async fn create_master_occupation(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterOccupation>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::CREATE,
+    )?;
     let mut errors = ValidationErrors::new();
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
@@ -2843,7 +2886,10 @@ pub async fn update_master_occupation(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterOccupation>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::UPDATE,
+    )?;
     let row = sqlx::query_as::<_, MasterOccupation>(
         "UPDATE master_occupations SET \
          code = COALESCE($1, code), \
@@ -2861,9 +2907,7 @@ pub async fn update_master_occupation(
     .bind(claims.tenant_id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or_else(|| {
-        AppError::NotFound
-    })?;
+    .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
 }
 
@@ -2872,14 +2916,15 @@ pub async fn delete_master_occupation(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
-    let result = sqlx::query(
-        "DELETE FROM master_occupations WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&state.db)
-    .await?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::DELETE,
+    )?;
+    let result = sqlx::query("DELETE FROM master_occupations WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -2893,7 +2938,10 @@ pub async fn list_master_relations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterRelation>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::LIST)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::LIST,
+    )?;
     let rows = sqlx::query_as::<_, MasterRelation>(
         "SELECT * FROM master_relations \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
@@ -2910,7 +2958,10 @@ pub async fn create_master_relation(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterRelation>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::CREATE,
+    )?;
     let mut errors = ValidationErrors::new();
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
@@ -2938,7 +2989,10 @@ pub async fn update_master_relation(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterRelation>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::UPDATE,
+    )?;
     let row = sqlx::query_as::<_, MasterRelation>(
         "UPDATE master_relations SET \
          code = COALESCE($1, code), \
@@ -2956,9 +3010,7 @@ pub async fn update_master_relation(
     .bind(claims.tenant_id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or_else(|| {
-        AppError::NotFound
-    })?;
+    .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
 }
 
@@ -2967,14 +3019,15 @@ pub async fn delete_master_relation(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
-    let result = sqlx::query(
-        "DELETE FROM master_relations WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&state.db)
-    .await?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::DELETE,
+    )?;
+    let result = sqlx::query("DELETE FROM master_relations WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -3009,7 +3062,10 @@ pub async fn list_insurance_providers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterInsuranceProvider>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::LIST)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::LIST,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -3028,7 +3084,10 @@ pub async fn create_insurance_provider(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateInsuranceProviderRequest>,
 ) -> Result<Json<MasterInsuranceProvider>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::CREATE,
+    )?;
     let mut errors = ValidationErrors::new();
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
@@ -3066,7 +3125,10 @@ pub async fn update_insurance_provider(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateInsuranceProviderRequest>,
 ) -> Result<Json<MasterInsuranceProvider>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::UPDATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -3092,9 +3154,7 @@ pub async fn update_insurance_provider(
     .bind(id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| {
-        AppError::NotFound
-    })?;
+    .ok_or_else(|| AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -3105,16 +3165,17 @@ pub async fn delete_insurance_provider(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::admin::settings::clinical_masters::DELETE)?;
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::DELETE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM master_insurance_providers WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM master_insurance_providers WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -3414,18 +3475,17 @@ pub async fn import_locations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let col_idx = |name: &str| -> Option<usize> {
-        body.headers.iter().position(|h| h.eq_ignore_ascii_case(name))
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
     };
 
-    let code_idx = col_idx("code").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'code' column".to_string())
-    })?;
-    let name_idx = col_idx("name").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'name' column".to_string())
-    })?;
-    let level_idx = col_idx("level").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'level' column".to_string())
-    })?;
+    let code_idx = col_idx("code")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'code' column".to_string()))?;
+    let name_idx = col_idx("name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'name' column".to_string()))?;
+    let level_idx = col_idx("level")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'level' column".to_string()))?;
     let parent_code_idx = col_idx("parent_code");
 
     let mut imported: i64 = 0;
@@ -3434,7 +3494,10 @@ pub async fn import_locations(
 
     for (i, row) in body.rows.iter().enumerate() {
         let row_num = i + 2; // 1-based, skip header
-        if row.values.len() <= code_idx || row.values.len() <= name_idx || row.values.len() <= level_idx {
+        if row.values.len() <= code_idx
+            || row.values.len() <= name_idx
+            || row.values.len() <= level_idx
+        {
             errors.push(format!("Row {row_num}: insufficient columns"));
             skipped += 1;
             continue;
@@ -3528,15 +3591,15 @@ pub async fn import_departments(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let col_idx = |name: &str| -> Option<usize> {
-        body.headers.iter().position(|h| h.eq_ignore_ascii_case(name))
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
     };
 
-    let code_idx = col_idx("code").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'code' column".to_string())
-    })?;
-    let name_idx = col_idx("name").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'name' column".to_string())
-    })?;
+    let code_idx = col_idx("code")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'code' column".to_string()))?;
+    let name_idx = col_idx("name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'name' column".to_string()))?;
     let type_idx = col_idx("type").or_else(|| col_idx("department_type"));
     let parent_code_idx = col_idx("parent_code");
 
@@ -3562,11 +3625,16 @@ pub async fn import_departments(
         }
 
         let dept_type = type_idx
-            .and_then(|idx| row.values.get(idx)).map_or_else(|| "clinical".to_string(), |v| v.trim().to_lowercase());
+            .and_then(|idx| row.values.get(idx))
+            .map_or_else(|| "clinical".to_string(), |v| v.trim().to_lowercase());
 
         let valid_types = [
-            "clinical", "pre_clinical", "para_clinical",
-            "administrative", "support", "academic",
+            "clinical",
+            "pre_clinical",
+            "para_clinical",
+            "administrative",
+            "support",
+            "academic",
         ];
         if !valid_types.contains(&dept_type.as_str()) {
             errors.push(format!("Row {row_num}: invalid type '{dept_type}'"));
@@ -3644,18 +3712,17 @@ pub async fn import_users(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let col_idx = |name: &str| -> Option<usize> {
-        body.headers.iter().position(|h| h.eq_ignore_ascii_case(name))
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
     };
 
-    let username_idx = col_idx("username").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'username' column".to_string())
-    })?;
-    let full_name_idx = col_idx("full_name").ok_or_else(|| {
-        AppError::BadRequest("CSV must have a 'full_name' column".to_string())
-    })?;
-    let email_idx = col_idx("email").ok_or_else(|| {
-        AppError::BadRequest("CSV must have an 'email' column".to_string())
-    })?;
+    let username_idx = col_idx("username")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'username' column".to_string()))?;
+    let full_name_idx = col_idx("full_name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'full_name' column".to_string()))?;
+    let email_idx = col_idx("email")
+        .ok_or_else(|| AppError::BadRequest("CSV must have an 'email' column".to_string()))?;
     let password_idx = col_idx("password");
     let role_idx = col_idx("role");
 
@@ -3689,18 +3756,21 @@ pub async fn import_users(
         }
 
         let password = password_idx
-            .and_then(|idx| row.values.get(idx)).map_or_else(|| format!("Welcome@{}", &username), |v| v.trim().to_string());
+            .and_then(|idx| row.values.get(idx))
+            .map_or_else(
+                || format!("Welcome@{}", &username),
+                |v| v.trim().to_string(),
+            );
 
         let role = role_idx
-            .and_then(|idx| row.values.get(idx)).map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
+            .and_then(|idx| row.values.get(idx))
+            .map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
 
         // Hash password
         let salt = SaltString::generate(&mut OsRng);
         let password_hash = argon2
             .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| {
-                AppError::Internal(format!("Row {row_num}: password hash failed: {e}"))
-            })?
+            .map_err(|e| AppError::Internal(format!("Row {row_num}: password hash failed: {e}")))?
             .to_string();
 
         let result = sqlx::query(
@@ -3904,26 +3974,23 @@ pub async fn assign_user_facilities(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Verify user belongs to this tenant
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2)",
-    )
-    .bind(user_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2)")
+            .bind(user_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     if !exists {
         return Err(AppError::NotFound);
     }
 
     // Remove existing assignments
-    sqlx::query(
-        "DELETE FROM user_facility_assignments WHERE tenant_id = $1 AND user_id = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM user_facility_assignments WHERE tenant_id = $1 AND user_id = $2")
+        .bind(claims.tenant_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
 
     // Insert new assignments
     for fid in &body.facility_ids {
@@ -4087,7 +4154,10 @@ pub async fn bulk_create_users(
         .fetch_one(&mut *tx)
         .await?;
         if username_exists {
-            errors.push(format!("User {idx}: username '{}' already exists", user.username));
+            errors.push(format!(
+                "User {idx}: username '{}' already exists",
+                user.username
+            ));
             continue;
         }
 
@@ -4109,7 +4179,9 @@ pub async fn bulk_create_users(
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
             .to_string();
 
-        let fee = user.consultation_fee.and_then(|f| rust_decimal::Decimal::try_from(f).ok());
+        let fee = user
+            .consultation_fee
+            .and_then(|f| rust_decimal::Decimal::try_from(f).ok());
         let dept_ids = user.department_ids.as_deref().unwrap_or(&[]);
 
         sqlx::query(
@@ -4238,54 +4310,45 @@ pub async fn completeness_check(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (dept_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM departments WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (dept_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM departments WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let (user_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM users WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (user_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-    let (role_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM roles WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (role_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM roles WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-    let (service_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM services WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (service_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM services WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let (location_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM locations WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (location_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM locations WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let (pharmacy_catalog_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM pharmacy_catalog WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (pharmacy_catalog_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM pharmacy_catalog WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let (lab_test_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM lab_test_catalog WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (lab_test_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM lab_test_catalog WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
 
@@ -4311,33 +4374,27 @@ pub async fn system_health(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let (user_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM users WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (user_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-    let (dept_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM departments WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (dept_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM departments WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
-    let (module_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM module_config WHERE tenant_id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (module_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM module_config WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Migration count from _sqlx_migrations (global table, no tenant scope)
-    let (migration_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM _sqlx_migrations",
-    )
-    .fetch_one(&state.db)
-    .await?;
+    let (migration_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM _sqlx_migrations")
+        .fetch_one(&state.db)
+        .await?;
 
     tx.commit().await?;
 
@@ -4449,26 +4506,15 @@ pub async fn import_config(
     // Import departments
     if let Some(departments) = &body.departments {
         for dept in departments {
-            let exists: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM departments WHERE tenant_id = $1 AND code = $2)",
-            )
-            .bind(claims.tenant_id)
-            .bind(&dept.code)
-            .fetch_one(&mut *tx)
-            .await?;
-
-            if exists {
-                continue;
-            }
-
             let wh = dept
                 .working_hours
                 .clone()
                 .unwrap_or_else(|| serde_json::json!({}));
-            sqlx::query(
+            let result = sqlx::query(
                 "INSERT INTO departments \
                  (tenant_id, parent_id, code, name, department_type, working_hours) \
-                 VALUES ($1, $2, $3, $4, $5::department_type, $6)",
+                 VALUES ($1, $2, $3, $4, $5::department_type, $6) \
+                 ON CONFLICT (tenant_id, code) DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(dept.parent_id)
@@ -4479,28 +4525,19 @@ pub async fn import_config(
             .execute(&mut *tx)
             .await?;
 
-            departments_created += 1;
+            if result.rows_affected() > 0 {
+                departments_created += 1;
+            }
         }
     }
 
     // Import roles
     if let Some(roles) = &body.roles {
         for role in roles {
-            let exists: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM roles WHERE tenant_id = $1 AND code = $2)",
-            )
-            .bind(claims.tenant_id)
-            .bind(&role.code)
-            .fetch_one(&mut *tx)
-            .await?;
-
-            if exists {
-                continue;
-            }
-
-            sqlx::query(
+            let result = sqlx::query(
                 "INSERT INTO roles (tenant_id, code, name, description, permissions) \
-                 VALUES ($1, $2, $3, $4, COALESCE($5, '{}'))",
+                 VALUES ($1, $2, $3, $4, COALESCE($5, '{}')) \
+                 ON CONFLICT (tenant_id, code) DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&role.code)
@@ -4510,7 +4547,9 @@ pub async fn import_config(
             .execute(&mut *tx)
             .await?;
 
-            roles_created += 1;
+            if result.rows_affected() > 0 {
+                roles_created += 1;
+            }
         }
     }
 
@@ -4535,15 +4574,34 @@ pub async fn list_brand_entities(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>, Option<String>, bool, bool)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            bool,
+            bool,
+        ),
+    >(
         "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
          FROM brand_entities ORDER BY is_default DESC, name",
-    ).fetch_all(&mut *tx).await?;
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
-    let result: Vec<Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "code": r.1, "name": r.2, "short_name": r.3,
-        "logo_url": r.4, "registration_no": r.5, "is_default": r.6, "is_active": r.7
-    })).collect();
+    let result: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "code": r.1, "name": r.2, "short_name": r.3,
+                "logo_url": r.4, "registration_no": r.5, "is_default": r.6, "is_active": r.7
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))
@@ -4607,7 +4665,8 @@ pub async fn update_brand_entity(
     .bind(body["email"].as_str())
     .bind(body["registration_no"].as_str())
     .bind(body["is_default"].as_bool())
-    .execute(&mut *tx).await?;
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"id": id, "status": "updated"})))
@@ -4624,7 +4683,9 @@ pub async fn delete_brand_entity(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     sqlx::query("UPDATE brand_entities SET is_active = false WHERE id = $1")
-        .bind(id).execute(&mut *tx).await?;
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"status": "deactivated"})))

@@ -1,4 +1,7 @@
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use medbrains_core::{
     integration::{EventSchema, ModuleEntitySchema},
     permissions,
@@ -40,12 +43,9 @@ pub async fn list_modules(
     let modules = rows
         .into_iter()
         .map(|(module_code, _first_entity)| {
-            let display = module_code
-                .chars()
-                .next()
-                .map_or_else(String::new, |c| {
-                    c.to_uppercase().to_string() + &module_code[1..]
-                });
+            let display = module_code.chars().next().map_or_else(String::new, |c| {
+                c.to_uppercase().to_string() + &module_code[1..]
+            });
             ModuleSummary {
                 label: display,
                 module_code,
@@ -103,13 +103,12 @@ pub async fn get_event_schema(
 ) -> Result<Json<EventSchema>, AppError> {
     require_permission(&claims, permissions::integration::LIST)?;
 
-    let schema = sqlx::query_as::<_, EventSchema>(
-        "SELECT * FROM event_schemas WHERE event_type = $1",
-    )
-    .bind(&event_type)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let schema =
+        sqlx::query_as::<_, EventSchema>("SELECT * FROM event_schemas WHERE event_type = $1")
+            .bind(&event_type)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     Ok(Json(schema))
 }

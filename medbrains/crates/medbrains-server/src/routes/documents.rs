@@ -7,16 +7,14 @@ use axum::{
 use chrono::Utc;
 use medbrains_core::document::{
     DocumentFormReviewSchedule, DocumentOutput, DocumentOutputSignature, DocumentTemplate,
-    DocumentTemplateVersion, PrinterConfig, PrintJob,
+    DocumentTemplateVersion, PrintJob, PrinterConfig,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -350,12 +348,11 @@ pub async fn get_template(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, DocumentTemplate>(
-        "SELECT * FROM document_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row =
+        sqlx::query_as::<_, DocumentTemplate>("SELECT * FROM document_templates WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -526,12 +523,11 @@ pub async fn set_default_template(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get the template's category first
-    let category: String = sqlx::query_scalar(
-        "SELECT category::text FROM document_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let category: String =
+        sqlx::query_scalar("SELECT category::text FROM document_templates WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Unset is_default for all templates in same category
     sqlx::query(
@@ -595,9 +591,7 @@ pub async fn generate_document(
     let counter = count_row.count + 1;
     let document_number = format!("DOC-{today}-{counter:04}");
 
-    let context_snapshot = body
-        .context_data
-        .unwrap_or_else(|| serde_json::json!({}));
+    let context_snapshot = body.context_data.unwrap_or_else(|| serde_json::json!({}));
 
     let row = sqlx::query_as::<_, DocumentOutput>(
         "INSERT INTO document_outputs \
@@ -617,7 +611,11 @@ pub async fn generate_document(
     .bind(claims.tenant_id)
     .bind(template.id)
     .bind(template.version)
-    .bind(body.module_code.as_deref().or(template.module_code.as_deref()))
+    .bind(
+        body.module_code
+            .as_deref()
+            .or(template.module_code.as_deref()),
+    )
     .bind(&body.source_table)
     .bind(body.source_id)
     .bind(body.patient_id)
@@ -658,9 +656,7 @@ pub async fn preview_document(
 
     tx.commit().await?;
 
-    let context_data = body
-        .context_data
-        .unwrap_or_else(|| serde_json::json!({}));
+    let context_data = body.context_data.unwrap_or_else(|| serde_json::json!({}));
 
     Ok(Json(PreviewDocumentResponse {
         template,
@@ -796,12 +792,10 @@ pub async fn get_output(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, DocumentOutput>(
-        "SELECT * FROM document_outputs WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, DocumentOutput>("SELECT * FROM document_outputs WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -914,11 +908,10 @@ pub async fn output_stats(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Total documents
-    let total_row = sqlx::query_as::<_, TotalCount>(
-        "SELECT COUNT(*)::bigint AS count FROM document_outputs",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let total_row =
+        sqlx::query_as::<_, TotalCount>("SELECT COUNT(*)::bigint AS count FROM document_outputs")
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Total prints
     let prints_row = sqlx::query_as::<_, TotalPrints>(
@@ -1108,8 +1101,7 @@ pub async fn create_review_schedule(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Compute next_review_due from now + cycle months
-    let next_due = Utc::now().date_naive()
-        + chrono::Months::new(body.review_cycle_months as u32);
+    let next_due = Utc::now().date_naive() + chrono::Months::new(body.review_cycle_months as u32);
 
     let row = sqlx::query_as::<_, DocumentFormReviewSchedule>(
         "INSERT INTO document_form_review_schedule \
@@ -1150,8 +1142,7 @@ pub async fn mark_reviewed(
     .fetch_one(&mut *tx)
     .await?;
 
-    let next_due = now.date_naive()
-        + chrono::Months::new(current.review_cycle_months as u32);
+    let next_due = now.date_naive() + chrono::Months::new(current.review_cycle_months as u32);
 
     let row = sqlx::query_as::<_, DocumentFormReviewSchedule>(
         "UPDATE document_form_review_schedule SET \

@@ -18,12 +18,11 @@ use axum::{
     routing::get,
 };
 use medbrains_core::print_data::{
-    DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem,
-    GrnItem, GrnPrintData, IndentFormPrintData, IndentItem, IssueItem,
-    MaterialIssueVoucherPrintData, NdpsBalance, NdpsRegisterPrintData, NdpsTransaction,
-    PartReplaced, PmChecklistItem, PmChecklistPrintData, PoItem, PurchaseOrderPrintData,
-    RepairHistoryEntry, StockTransferNotePrintData, TransferItem, WorkOrderMaterial,
-    WorkOrderPrintData,
+    DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
+    GrnPrintData, IndentFormPrintData, IndentItem, IssueItem, MaterialIssueVoucherPrintData,
+    NdpsBalance, NdpsRegisterPrintData, NdpsTransaction, PartReplaced, PmChecklistItem,
+    PmChecklistPrintData, PoItem, PurchaseOrderPrintData, RepairHistoryEntry,
+    StockTransferNotePrintData, TransferItem, WorkOrderMaterial, WorkOrderPrintData,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -32,16 +31,43 @@ use crate::{error::AppError, state::AppState};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/print-data/indent-form/{indent_id}", get(get_indent_form_print_data))
-        .route("/print-data/purchase-order/{po_id}", get(get_purchase_order_print_data))
+        .route(
+            "/print-data/indent-form/{indent_id}",
+            get(get_indent_form_print_data),
+        )
+        .route(
+            "/print-data/purchase-order/{po_id}",
+            get(get_purchase_order_print_data),
+        )
         .route("/print-data/grn/{grn_id}", get(get_grn_print_data))
-        .route("/print-data/material-issue-voucher/{voucher_id}", get(get_material_issue_voucher_print_data))
-        .route("/print-data/stock-transfer-note/{transfer_id}", get(get_stock_transfer_note_print_data))
-        .route("/print-data/ndps-register/{period}", get(get_ndps_register_print_data))
-        .route("/print-data/drug-expiry-alert/{store_id}", get(get_drug_expiry_alert_print_data))
-        .route("/print-data/equipment-condemnation/{condemnation_id}", get(get_equipment_condemnation_print_data))
-        .route("/print-data/work-order/{work_order_id}", get(get_work_order_print_data))
-        .route("/print-data/pm-checklist/{pm_id}", get(get_pm_checklist_print_data))
+        .route(
+            "/print-data/material-issue-voucher/{voucher_id}",
+            get(get_material_issue_voucher_print_data),
+        )
+        .route(
+            "/print-data/stock-transfer-note/{transfer_id}",
+            get(get_stock_transfer_note_print_data),
+        )
+        .route(
+            "/print-data/ndps-register/{period}",
+            get(get_ndps_register_print_data),
+        )
+        .route(
+            "/print-data/drug-expiry-alert/{store_id}",
+            get(get_drug_expiry_alert_print_data),
+        )
+        .route(
+            "/print-data/equipment-condemnation/{condemnation_id}",
+            get(get_equipment_condemnation_print_data),
+        )
+        .route(
+            "/print-data/work-order/{work_order_id}",
+            get(get_work_order_print_data),
+        )
+        .route(
+            "/print-data/pm-checklist/{pm_id}",
+            get(get_pm_checklist_print_data),
+        )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -763,7 +789,9 @@ pub async fn get_ndps_register_print_data(
     // Parse period (YYYY-MM format)
     let parts: Vec<&str> = period.split('-').collect();
     if parts.len() != 2 {
-        return Err(AppError::BadRequest("Invalid period format. Use YYYY-MM".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid period format. Use YYYY-MM".to_string(),
+        ));
     }
 
     // Query store and license info (first NDPS-licensed store)
@@ -1481,8 +1509,25 @@ fn number_to_words(n: i64) -> String {
     }
 
     let ones = [
-        "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
-        "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen",
+        "",
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Eleven",
+        "Twelve",
+        "Thirteen",
+        "Fourteen",
+        "Fifteen",
+        "Sixteen",
+        "Seventeen",
+        "Eighteen",
         "Nineteen",
     ];
     let tens = [
@@ -1495,14 +1540,20 @@ fn number_to_words(n: i64) -> String {
     // Crores (1,00,00,000)
     if num >= 10_000_000 {
         let crores = num / 10_000_000;
-        result.push_str(&format!("{} Crore ", two_digit_to_words(crores, &ones, &tens)));
+        result.push_str(&format!(
+            "{} Crore ",
+            two_digit_to_words(crores, &ones, &tens)
+        ));
         num %= 10_000_000;
     }
 
     // Lakhs (1,00,000)
     if num >= 100_000 {
         let lakhs = num / 100_000;
-        result.push_str(&format!("{} Lakh ", two_digit_to_words(lakhs, &ones, &tens)));
+        result.push_str(&format!(
+            "{} Lakh ",
+            two_digit_to_words(lakhs, &ones, &tens)
+        ));
         num %= 100_000;
     }
 

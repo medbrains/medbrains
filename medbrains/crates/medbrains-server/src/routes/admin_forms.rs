@@ -1,9 +1,12 @@
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use medbrains_core::form::{FormVersionSnapshot, FormVersionSummary, FieldMasterAuditEntry};
+use medbrains_core::form::{FieldMasterAuditEntry, FormVersionSnapshot, FormVersionSummary};
 use medbrains_core::permissions;
 
 use crate::{
@@ -17,12 +20,11 @@ use crate::{
 
 /// Returns `Err(Conflict)` if the form is not in draft status.
 async fn require_draft_form(db: &PgPool, form_id: Uuid) -> Result<(), AppError> {
-    let status: Option<String> = sqlx::query_scalar(
-        "SELECT status::text FROM form_masters WHERE id = $1",
-    )
-    .bind(form_id)
-    .fetch_optional(db)
-    .await?;
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status::text FROM form_masters WHERE id = $1")
+            .bind(form_id)
+            .fetch_optional(db)
+            .await?;
 
     let Some(status) = status else {
         return Err(AppError::NotFound);
@@ -310,15 +312,13 @@ pub async fn get_form_detail(
     .await?;
 
     // Get section_id for each form_field to group them
-    let field_section_ids: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, section_id FROM form_fields WHERE form_id = $1",
-    )
-    .bind(id)
-    .fetch_all(&state.db)
-    .await?;
+    let field_section_ids: Vec<(Uuid, Uuid)> =
+        sqlx::query_as("SELECT id, section_id FROM form_fields WHERE form_id = $1")
+            .bind(id)
+            .fetch_all(&state.db)
+            .await?;
 
-    let mut ff_to_section: std::collections::HashMap<Uuid, Uuid> =
-        std::collections::HashMap::new();
+    let mut ff_to_section: std::collections::HashMap<Uuid, Uuid> = std::collections::HashMap::new();
     for (ff_id, section_id) in &field_section_ids {
         ff_to_section.insert(*ff_id, *section_id);
     }
@@ -411,12 +411,11 @@ pub async fn create_form(
 
     // If setting to active, check for existing active form with same code
     if status == "active" {
-        let existing: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM form_masters WHERE code = $1 AND status = 'active'",
-        )
-        .bind(&body.code)
-        .fetch_optional(&state.db)
-        .await?;
+        let existing: Option<Uuid> =
+            sqlx::query_scalar("SELECT id FROM form_masters WHERE code = $1 AND status = 'active'")
+                .bind(&body.code)
+                .fetch_optional(&state.db)
+                .await?;
 
         if existing.is_some() {
             return Err(AppError::Conflict(format!(
@@ -854,13 +853,12 @@ pub async fn create_section(
     let sort_order = if let Some(so) = body.sort_order {
         so
     } else {
-        let max_so: Option<i32> = sqlx::query_scalar(
-            "SELECT MAX(sort_order) FROM form_sections WHERE form_id = $1",
-        )
-        .bind(form_id)
-        .fetch_optional(&state.db)
-        .await?
-        .flatten();
+        let max_so: Option<i32> =
+            sqlx::query_scalar("SELECT MAX(sort_order) FROM form_sections WHERE form_id = $1")
+                .bind(form_id)
+                .fetch_optional(&state.db)
+                .await?
+                .flatten();
         max_so.unwrap_or(0) + 1
     };
 
@@ -942,13 +940,11 @@ pub async fn delete_section(
     require_permission(&claims, permissions::admin::settings::forms::MANAGE)?;
     require_draft_form(&state.db, path.form_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM form_sections WHERE id = $1 AND form_id = $2",
-    )
-    .bind(path.id)
-    .bind(path.form_id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM form_sections WHERE id = $1 AND form_id = $2")
+        .bind(path.id)
+        .bind(path.form_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -975,14 +971,12 @@ pub async fn reorder_sections(
     let mut tx = state.db.begin().await?;
 
     for item in &items {
-        sqlx::query(
-            "UPDATE form_sections SET sort_order = $1 WHERE id = $2 AND form_id = $3",
-        )
-        .bind(item.sort_order)
-        .bind(item.id)
-        .bind(form_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE form_sections SET sort_order = $1 WHERE id = $2 AND form_id = $3")
+            .bind(item.sort_order)
+            .bind(item.id)
+            .bind(form_id)
+            .execute(&mut *tx)
+            .await?;
     }
 
     tx.commit().await?;
@@ -1116,13 +1110,11 @@ pub async fn remove_field_from_form(
     require_permission(&claims, permissions::admin::settings::forms::MANAGE)?;
     require_draft_form(&state.db, path.form_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM form_fields WHERE id = $1 AND form_id = $2",
-    )
-    .bind(path.ff_id)
-    .bind(path.form_id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM form_fields WHERE id = $1 AND form_id = $2")
+        .bind(path.ff_id)
+        .bind(path.form_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -1143,14 +1135,12 @@ pub async fn reorder_fields(
     let mut tx = state.db.begin().await?;
 
     for item in &items {
-        sqlx::query(
-            "UPDATE form_fields SET sort_order = $1 WHERE id = $2 AND form_id = $3",
-        )
-        .bind(item.sort_order)
-        .bind(item.id)
-        .bind(form_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE form_fields SET sort_order = $1 WHERE id = $2 AND form_id = $3")
+            .bind(item.sort_order)
+            .bind(item.id)
+            .bind(form_id)
+            .execute(&mut *tx)
+            .await?;
     }
 
     tx.commit().await?;
@@ -1575,12 +1565,11 @@ pub async fn publish_form(
     require_draft_form(&state.db, form_id).await?;
 
     // Verify form has at least 1 section with at least 1 field
-    let field_count: Option<i64> = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM form_fields WHERE form_id = $1",
-    )
-    .bind(form_id)
-    .fetch_one(&state.db)
-    .await?;
+    let field_count: Option<i64> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM form_fields WHERE form_id = $1")
+            .bind(form_id)
+            .fetch_one(&state.db)
+            .await?;
 
     if field_count.unwrap_or(0) == 0 {
         return Err(AppError::BadRequest(
@@ -1588,12 +1577,11 @@ pub async fn publish_form(
         ));
     }
 
-    let section_count: Option<i64> = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM form_sections WHERE form_id = $1",
-    )
-    .bind(form_id)
-    .fetch_one(&state.db)
-    .await?;
+    let section_count: Option<i64> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM form_sections WHERE form_id = $1")
+            .bind(form_id)
+            .fetch_one(&state.db)
+            .await?;
 
     if section_count.unwrap_or(0) == 0 {
         return Err(AppError::BadRequest(
@@ -1657,12 +1645,11 @@ pub async fn create_new_version(
     require_permission(&claims, permissions::admin::settings::forms::MANAGE)?;
 
     // Must be active to create a new version
-    let status: Option<String> = sqlx::query_scalar(
-        "SELECT status::text FROM form_masters WHERE id = $1",
-    )
-    .bind(form_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status::text FROM form_masters WHERE id = $1")
+            .bind(form_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     let Some(status) = status else {
         return Err(AppError::NotFound);
@@ -1847,17 +1834,13 @@ pub async fn restore_form_version(
     };
 
     // Find max version
-    let max_version: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(version) FROM form_version_snapshots WHERE form_id = $1",
-    )
-    .bind(path.form_id)
-    .fetch_one(&state.db)
-    .await?;
+    let max_version: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(version) FROM form_version_snapshots WHERE form_id = $1")
+            .bind(path.form_id)
+            .fetch_one(&state.db)
+            .await?;
 
-    let new_version = std::cmp::max(
-        max_version.unwrap_or(form.version) + 1,
-        form.version + 1,
-    );
+    let new_version = std::cmp::max(max_version.unwrap_or(form.version) + 1, form.version + 1);
 
     // Delete current sections/fields and recreate from snapshot
     let mut tx = state.db.begin().await?;
@@ -1877,9 +1860,18 @@ pub async fn restore_form_version(
         for sec in sections {
             let sec_code = sec.get("code").and_then(|v| v.as_str()).unwrap_or("");
             let sec_name = sec.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let sort_order = sec.get("sort_order").and_then(serde_json::Value::as_i64).unwrap_or(0);
-            let is_collapsible = sec.get("is_collapsible").and_then(serde_json::Value::as_bool).unwrap_or(true);
-            let is_default_open = sec.get("is_default_open").and_then(serde_json::Value::as_bool).unwrap_or(true);
+            let sort_order = sec
+                .get("sort_order")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
+            let is_collapsible = sec
+                .get("is_collapsible")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
+            let is_default_open = sec
+                .get("is_default_open")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
             let icon = sec.get("icon").and_then(|v| v.as_str());
             let color = sec.get("color").and_then(|v| v.as_str());
 
@@ -1904,9 +1896,15 @@ pub async fn restore_form_version(
                 for field in fields_arr {
                     let field_id_str = field.get("field_id").and_then(|v| v.as_str()).unwrap_or("");
                     let field_id = Uuid::parse_str(field_id_str).unwrap_or_default();
-                    let f_sort = field.get("sort_order").and_then(serde_json::Value::as_i64).unwrap_or(0);
+                    let f_sort = field
+                        .get("sort_order")
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(0);
                     let label_ov = field.get("label_override").and_then(|v| v.as_str());
-                    let is_qm = field.get("is_quick_mode").and_then(serde_json::Value::as_bool).unwrap_or(false);
+                    let is_qm = field
+                        .get("is_quick_mode")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false);
                     let f_icon = field.get("icon").and_then(|v| v.as_str());
                     let f_icon_pos = field.get("icon_position").and_then(|v| v.as_str());
 
@@ -2063,8 +2061,14 @@ struct DiffResult {
 #[allow(clippy::too_many_lines)]
 fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -> DiffResult {
     let empty_arr = Vec::new();
-    let sections1 = snap1.get("sections").and_then(|s| s.as_array()).unwrap_or(&empty_arr);
-    let sections2 = snap2.get("sections").and_then(|s| s.as_array()).unwrap_or(&empty_arr);
+    let sections1 = snap1
+        .get("sections")
+        .and_then(|s| s.as_array())
+        .unwrap_or(&empty_arr);
+    let sections2 = snap2
+        .get("sections")
+        .and_then(|s| s.as_array())
+        .unwrap_or(&empty_arr);
 
     let mut summary = DiffSummary {
         sections_added: 0,
@@ -2091,11 +2095,18 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
     for (code, sec) in &sec1_map {
         if !sec2_map.contains_key(code) {
             summary.sections_removed += 1;
-            let fields = sec.get("fields").and_then(|f| f.as_array()).unwrap_or(&empty_arr);
+            let fields = sec
+                .get("fields")
+                .and_then(|f| f.as_array())
+                .unwrap_or(&empty_arr);
             summary.fields_removed += fields.len() as u32;
             section_changes.push(SectionChange {
                 code: (*code).to_owned(),
-                name: sec.get("name").and_then(|n| n.as_str()).unwrap_or("").to_owned(),
+                name: sec
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_owned(),
                 change_type: "removed".to_owned(),
                 field_changes: vec![],
             });
@@ -2106,8 +2117,14 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
     for (code, sec2) in &sec2_map {
         if let Some(sec1) = sec1_map.get(code) {
             // Potentially modified — compare fields
-            let fields1 = sec1.get("fields").and_then(|f| f.as_array()).unwrap_or(&empty_arr);
-            let fields2 = sec2.get("fields").and_then(|f| f.as_array()).unwrap_or(&empty_arr);
+            let fields1 = sec1
+                .get("fields")
+                .and_then(|f| f.as_array())
+                .unwrap_or(&empty_arr);
+            let fields2 = sec2
+                .get("fields")
+                .and_then(|f| f.as_array())
+                .unwrap_or(&empty_arr);
 
             let f1_map: std::collections::HashMap<&str, &serde_json::Value> = fields1
                 .iter()
@@ -2125,7 +2142,11 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
                     summary.fields_removed += 1;
                     field_changes.push(FieldChange {
                         field_code: (*fc).to_owned(),
-                        field_name: f1.get("field_name").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
+                        field_name: f1
+                            .get("field_name")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("")
+                            .to_owned(),
                         change_type: "removed".to_owned(),
                         property_changes: vec![],
                     });
@@ -2152,7 +2173,11 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
                         summary.fields_modified += 1;
                         field_changes.push(FieldChange {
                             field_code: (*fc).to_owned(),
-                            field_name: f2.get("field_name").and_then(|n| n.as_str()).unwrap_or("").to_owned(),
+                            field_name: f2
+                                .get("field_name")
+                                .and_then(|n| n.as_str())
+                                .unwrap_or("")
+                                .to_owned(),
                             change_type: "modified".to_owned(),
                             property_changes: pchanges,
                         });
@@ -2161,7 +2186,11 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
                     summary.fields_added += 1;
                     field_changes.push(FieldChange {
                         field_code: (*fc).to_owned(),
-                        field_name: f2.get("field_name").and_then(|n| n.as_str()).unwrap_or("").to_owned(),
+                        field_name: f2
+                            .get("field_name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("")
+                            .to_owned(),
                         change_type: "added".to_owned(),
                         property_changes: vec![],
                     });
@@ -2172,18 +2201,29 @@ fn compute_snapshot_diff(snap1: &serde_json::Value, snap2: &serde_json::Value) -
                 summary.sections_modified += 1;
                 section_changes.push(SectionChange {
                     code: (*code).to_owned(),
-                    name: sec2.get("name").and_then(|n| n.as_str()).unwrap_or("").to_owned(),
+                    name: sec2
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("")
+                        .to_owned(),
                     change_type: "modified".to_owned(),
                     field_changes,
                 });
             }
         } else {
             summary.sections_added += 1;
-            let fields = sec2.get("fields").and_then(|f| f.as_array()).unwrap_or(&empty_arr);
+            let fields = sec2
+                .get("fields")
+                .and_then(|f| f.as_array())
+                .unwrap_or(&empty_arr);
             summary.fields_added += fields.len() as u32;
             section_changes.push(SectionChange {
                 code: (*code).to_owned(),
-                name: sec2.get("name").and_then(|n| n.as_str()).unwrap_or("").to_owned(),
+                name: sec2
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_owned(),
                 change_type: "added".to_owned(),
                 field_changes: vec![],
             });

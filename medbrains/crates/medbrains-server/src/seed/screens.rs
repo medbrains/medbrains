@@ -452,9 +452,7 @@ const SCREENS: &[ScreenDef] = &[
 
 /// Seed system screen definitions.
 /// Idempotent — skips screens that already exist (by code where `tenant_id` IS NULL).
-pub(super) async fn seed_screens(
-    pool: &PgPool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) async fn seed_screens(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     for screen in SCREENS {
         sqlx::query(
             "INSERT INTO screen_masters \

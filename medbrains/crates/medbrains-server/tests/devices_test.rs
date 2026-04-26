@@ -12,7 +12,10 @@ async fn test_list_catalog() {
 
     let body: serde_json::Value = resp.json().await.expect("json");
     let adapters = body.as_array().expect("array");
-    assert!(adapters.len() >= 20, "should have at least 20 seeded adapters");
+    assert!(
+        adapters.len() >= 20,
+        "should have at least 20 seeded adapters"
+    );
 
     // Check roche cobas exists
     let has_cobas = adapters
@@ -49,13 +52,19 @@ async fn test_preview_config() {
     let csrf = app.login_admin().await;
 
     let resp = app
-        .get(&app.client, "/api/devices/catalog/roche_cobas_6000/preview-config")
+        .get(
+            &app.client,
+            "/api/devices/catalog/roche_cobas_6000/preview-config",
+        )
         .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body: serde_json::Value = resp.json().await.expect("json");
     let confidence = body["confidence"].as_f64().expect("confidence");
-    assert!(confidence > 0.9, "verified adapter should have >0.9 confidence");
+    assert!(
+        confidence > 0.9,
+        "verified adapter should have >0.9 confidence"
+    );
     assert!(body["field_mappings"].is_array());
     assert_eq!(body["default_port"], 2575);
 }
@@ -65,7 +74,8 @@ async fn test_create_device() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let resp = app.client
+    let resp = app
+        .client
         .post(app.url("/api/devices/instances"))
         .header("x-csrf-token", csrf)
         .json(&serde_json::json!({
@@ -94,7 +104,8 @@ async fn test_ingest() {
     let csrf = app.login_admin().await;
 
     // First create a device
-    let create_resp = app.client
+    let create_resp = app
+        .client
         .post(app.url("/api/devices/instances"))
         .header("x-csrf-token", csrf.clone())
         .json(&serde_json::json!({
@@ -109,7 +120,8 @@ async fn test_ingest() {
     let device_id = device["id"].as_str().expect("device id");
 
     // Send ingest data
-    let ingest_resp = app.client
+    let ingest_resp = app
+        .client
         .post(app.url("/api/device-ingest/lab"))
         .header("x-csrf-token", csrf)
         .json(&serde_json::json!({

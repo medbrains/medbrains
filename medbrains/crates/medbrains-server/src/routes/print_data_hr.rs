@@ -3,8 +3,8 @@
 //! Phase 5: Employee ID, Duty Roster, Leave, Attendance, Training, Credentials, Visitor Register.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use chrono::Utc;
 use sqlx::PgPool;
@@ -67,7 +67,9 @@ pub async fn get_employee_id_card_print_data(
 
     let now = Utc::now();
     let valid_from = now.format("%d-%m-%Y").to_string();
-    let valid_until = (now + chrono::Duration::days(365)).format("%d-%m-%Y").to_string();
+    let valid_until = (now + chrono::Duration::days(365))
+        .format("%d-%m-%Y")
+        .to_string();
 
     Ok(Json(EmployeeIdCardPrintData {
         employee_id: emp.employee_code.clone(),
@@ -281,7 +283,9 @@ pub async fn get_leave_application_print_data(
             .unwrap_or_default(),
         employee_name: leave.employee_name,
         employee_id: leave.employee_code,
-        department: leave.department_name.unwrap_or_else(|| "General".to_string()),
+        department: leave
+            .department_name
+            .unwrap_or_else(|| "General".to_string()),
         designation: leave.designation.unwrap_or_else(|| "Staff".to_string()),
         leave_type: leave.leave_type,
         leave_from: leave.leave_from.format("%d-%m-%Y").to_string(),
@@ -367,11 +371,7 @@ pub async fn get_staff_attendance_print_data(
                             }
                             (
                                 "P",
-                                Some(if status_idx == 0 {
-                                    "09:15"
-                                } else {
-                                    "08:55"
-                                }),
+                                Some(if status_idx == 0 { "09:15" } else { "08:55" }),
                                 Some("17:30"),
                             )
                         }
@@ -500,7 +500,8 @@ pub async fn get_training_certificate_print_data(
     let hospital = get_hospital_info(pool).await?;
 
     let duration = training
-        .duration_hours.map_or_else(|| "1 day".to_string(), |h| format!("{h} hours"));
+        .duration_hours
+        .map_or_else(|| "1 day".to_string(), |h| format!("{h} hours"));
 
     let grade = training.score.map(|s| {
         if s >= 90.0 {
@@ -544,7 +545,9 @@ pub async fn get_training_certificate_print_data(
         score: training.score,
         grade,
         certificate_valid_until: None,
-        issued_by: training.issued_by.unwrap_or_else(|| "HR Department".to_string()),
+        issued_by: training
+            .issued_by
+            .unwrap_or_else(|| "HR Department".to_string()),
         qr_verification_url: Some(format!(
             "https://hospital.com/verify/training/{training_id}"
         )),
@@ -661,7 +664,9 @@ pub async fn get_staff_credentials_print_data(
             .collect()
     };
 
-    let all_verified = credentials.iter().all(|c| c.verification_status == "Verified");
+    let all_verified = credentials
+        .iter()
+        .all(|c| c.verification_status == "Verified");
     let hospital = get_hospital_info(pool).await?;
 
     Ok(Json(StaffCredentialFormPrintData {
@@ -672,12 +677,7 @@ pub async fn get_staff_credentials_print_data(
         designation: emp.designation.unwrap_or_else(|| "Staff".to_string()),
         department: emp.department_name.unwrap_or_else(|| "General".to_string()),
         credentials,
-        verification_status: if all_verified {
-            "Complete"
-        } else {
-            "Pending"
-        }
-        .to_string(),
+        verification_status: if all_verified { "Complete" } else { "Pending" }.to_string(),
         verified_by: Some("HR Department".to_string()),
         remarks: None,
         hospital_name: hospital.name,
@@ -693,8 +693,8 @@ pub async fn get_visitor_register_print_data(
 ) -> Result<Json<VisitorRegisterPrintData>, AppError> {
     let pool: &PgPool = &state.db;
 
-    let register_date =
-        chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").unwrap_or_else(|_| Utc::now().date_naive());
+    let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
 
     #[derive(sqlx::FromRow)]
     struct VisitorRow {
@@ -744,23 +744,21 @@ pub async fn get_visitor_register_print_data(
 
     let entries: Vec<VisitorEntry> = if visitors.is_empty() {
         // Sample entries if none exist
-        vec![
-            VisitorEntry {
-                serial_no: 1,
-                visitor_name: "Sample Visitor".to_string(),
-                visitor_phone: Some("9876543210".to_string()),
-                visitor_id_type: Some("Aadhaar".to_string()),
-                visitor_id_number: Some("XXXX-XXXX-1234".to_string()),
-                purpose: "Patient Visit".to_string(),
-                visiting_department: Some("General Medicine".to_string()),
-                visiting_person: None,
-                patient_name: Some("Patient Name".to_string()),
-                patient_uhid: Some("UHID001".to_string()),
-                in_time: "10:30".to_string(),
-                out_time: Some("12:15".to_string()),
-                badge_number: Some("V-001".to_string()),
-            },
-        ]
+        vec![VisitorEntry {
+            serial_no: 1,
+            visitor_name: "Sample Visitor".to_string(),
+            visitor_phone: Some("9876543210".to_string()),
+            visitor_id_type: Some("Aadhaar".to_string()),
+            visitor_id_number: Some("XXXX-XXXX-1234".to_string()),
+            purpose: "Patient Visit".to_string(),
+            visiting_department: Some("General Medicine".to_string()),
+            visiting_person: None,
+            patient_name: Some("Patient Name".to_string()),
+            patient_uhid: Some("UHID001".to_string()),
+            in_time: "10:30".to_string(),
+            out_time: Some("12:15".to_string()),
+            badge_number: Some("V-001".to_string()),
+        }]
     } else {
         visitors
             .into_iter()

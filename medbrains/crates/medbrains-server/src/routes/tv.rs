@@ -271,9 +271,7 @@ pub async fn update_display(
     Json(req): Json<UpdateDisplayRequest>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
     // Build dynamic update query
-    let language_json = req
-        .language
-        .and_then(|l| serde_json::to_value(l).ok());
+    let language_json = req.language.and_then(|l| serde_json::to_value(l).ok());
 
     let display = sqlx::query_as::<_, TvDisplay>(
         r"
@@ -355,14 +353,13 @@ pub async fn create_token(
     let priority = req.priority.as_deref().unwrap_or("normal");
 
     // Get department code for token prefix
-    let dept_row: Option<(String,)> = sqlx::query_as(
-        "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(req.department_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let dept_row: Option<(String,)> =
+        sqlx::query_as("SELECT code FROM departments WHERE id = $1 AND tenant_id = $2")
+            .bind(req.department_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let dept_code = dept_row.map_or_else(|| "TKN".to_string(), |r| r.0);
 
@@ -426,19 +423,23 @@ pub async fn create_token(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Get department name
-    let dept_name: (String,) = sqlx::query_as(
-        "SELECT name FROM departments WHERE id = $1",
-    )
-    .bind(req.department_id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let dept_name: (String,) = sqlx::query_as("SELECT name FROM departments WHERE id = $1")
+        .bind(req.department_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Estimate wait time (rough: 5 min per patient)
     let estimated_wait = Some((position.0 as i32) * 5);
 
     // Broadcast queue update
-    broadcast_queue_update(&state.queue_broadcaster, &state.db, claims.tenant_id, req.department_id).await;
+    broadcast_queue_update(
+        &state.queue_broadcaster,
+        &state.db,
+        claims.tenant_id,
+        req.department_id,
+    )
+    .await;
 
     Ok(Json(CreateTokenResponse {
         id: token.id,
@@ -507,7 +508,13 @@ pub async fn call_token(
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
 
     // Broadcast the update
-    broadcast_queue_update(&state.queue_broadcaster, &state.db, claims.tenant_id, token.department_id).await;
+    broadcast_queue_update(
+        &state.queue_broadcaster,
+        &state.db,
+        claims.tenant_id,
+        token.department_id,
+    )
+    .await;
 
     Ok(Json(token))
 }
@@ -537,7 +544,13 @@ pub async fn complete_token(
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
 
     // Broadcast the update
-    broadcast_queue_update(&state.queue_broadcaster, &state.db, claims.tenant_id, token.department_id).await;
+    broadcast_queue_update(
+        &state.queue_broadcaster,
+        &state.db,
+        claims.tenant_id,
+        token.department_id,
+    )
+    .await;
 
     Ok(Json(token))
 }
@@ -567,7 +580,13 @@ pub async fn no_show_token(
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
 
     // Broadcast the update
-    broadcast_queue_update(&state.queue_broadcaster, &state.db, claims.tenant_id, token.department_id).await;
+    broadcast_queue_update(
+        &state.queue_broadcaster,
+        &state.db,
+        claims.tenant_id,
+        token.department_id,
+    )
+    .await;
 
     Ok(Json(token))
 }
@@ -586,21 +605,22 @@ pub async fn get_queue_state(
     let today = Utc::now().date_naive();
 
     // Get department name
-    let dept: (String,) = sqlx::query_as(
-        "SELECT name FROM departments WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(department_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Department not found".to_string()))?;
+    let dept: (String,) =
+        sqlx::query_as("SELECT name FROM departments WHERE id = $1 AND tenant_id = $2")
+            .bind(department_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .ok_or((StatusCode::NOT_FOUND, "Department not found".to_string()))?;
 
     // Get waiting tokens
-    let waiting_tokens = get_queue_tokens(&state.db, claims.tenant_id, department_id, today, "waiting").await?;
+    let waiting_tokens =
+        get_queue_tokens(&state.db, claims.tenant_id, department_id, today, "waiting").await?;
 
     // Get called/in_progress token (current)
-    let current_tokens = get_queue_tokens(&state.db, claims.tenant_id, department_id, today, "called").await?;
+    let current_tokens =
+        get_queue_tokens(&state.db, claims.tenant_id, department_id, today, "called").await?;
 
     // Get counts
     let waiting_count: (i64,) = sqlx::query_as(
@@ -677,7 +697,9 @@ pub async fn broadcast_announcement(
     };
 
     // Broadcast via WebSocket
-    state.queue_broadcaster.broadcast_announcement(event.clone());
+    state
+        .queue_broadcaster
+        .broadcast_announcement(event.clone());
 
     Ok(Json(event))
 }
@@ -795,7 +817,9 @@ async fn broadcast_queue_update(
         completed_count,
     };
 
-    broadcaster.broadcast_queue_event(department_id, event).await;
+    broadcaster
+        .broadcast_queue_event(department_id, event)
+        .await;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -896,11 +920,11 @@ pub struct RadiologyQueueDisplay {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriageLevel {
-    Red,      // Immediate (0 min target)
-    Orange,   // Very urgent (10 min target)
-    Yellow,   // Urgent (60 min target)
-    Green,    // Standard (120 min target)
-    Blue,     // Non-urgent (240 min target)
+    Red,    // Immediate (0 min target)
+    Orange, // Very urgent (10 min target)
+    Yellow, // Urgent (60 min target)
+    Green,  // Standard (120 min target)
+    Blue,   // Non-urgent (240 min target)
 }
 
 /// ER triage queue token (privacy-safe - no names on display).
@@ -1113,14 +1137,13 @@ pub async fn get_queue_analytics(
     let today = Utc::now().date_naive();
 
     // Get department name
-    let dept: Option<(String,)> = sqlx::query_as(
-        "SELECT name FROM departments WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(department_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let dept: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM departments WHERE id = $1 AND tenant_id = $2")
+            .bind(department_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let dept_name = dept.map_or_else(|| "Unknown".to_string(), |d| d.0);
 

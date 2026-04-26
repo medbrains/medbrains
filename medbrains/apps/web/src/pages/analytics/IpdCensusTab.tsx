@@ -14,6 +14,10 @@ function toIso(d: string | null): string | undefined {
   return d ?? undefined;
 }
 
+function toRows<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function IpdCensusTab() {
@@ -30,7 +34,7 @@ export function IpdCensusTab() {
     queryFn: () => api.getIpdCensus(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   const totals = useMemo(() => {
     let admissions = 0;

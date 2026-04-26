@@ -47,15 +47,8 @@ pub async fn emit_event(
 
     for pipeline in &pipelines {
         // Each pipeline execution gets its own transaction with tenant context
-        let result = execute_pipeline_safe(
-            pool,
-            tenant_id,
-            user_id,
-            pipeline,
-            event_type,
-            &payload,
-        )
-        .await;
+        let result =
+            execute_pipeline_safe(pool, tenant_id, user_id, pipeline, event_type, &payload).await;
 
         if let Err(e) = result {
             tracing::warn!(
@@ -177,10 +170,7 @@ async fn walk_pipeline(
         })
         .ok_or_else(|| AppError::Internal("no trigger node in pipeline".to_owned()))?;
 
-    let trigger_id = trigger_node
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or("");
+    let trigger_id = trigger_node.get("id").and_then(Value::as_str).unwrap_or("");
 
     node_results.insert(
         trigger_id.to_owned(),
@@ -207,10 +197,7 @@ async fn walk_pipeline(
             .collect();
 
         for edge in outgoing {
-            let target_id = edge
-                .get("target")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let target_id = edge.get("target").and_then(Value::as_str).unwrap_or("");
 
             let target_node = nodes.iter().find(|n| {
                 n.get("id")
@@ -231,15 +218,8 @@ async fn walk_pipeline(
                 .cloned()
                 .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
 
-            let result = execute_node(
-                tx,
-                tenant_id,
-                user_id,
-                node_type,
-                &node_data,
-                &current_data,
-            )
-            .await;
+            let result =
+                execute_node(tx, tenant_id, user_id, node_type, &node_data, &current_data).await;
 
             match result {
                 Ok(output) => {
@@ -317,15 +297,11 @@ async fn execute_node(
         "action.create_order" | "action_create_order" => {
             execute_create_order(tx, tenant_id, user_id, &config, input).await
         }
-        "action.send_notification" | "action_send_notification" => {
-            Ok(serde_json::json!({
-                "status": "notification_queued",
-                "channel": config.get("channel").and_then(Value::as_str).unwrap_or("in_app"),
-            }))
-        }
-        "action.update_record" | "action_update_record" => {
-            Ok(execute_update_record(&config))
-        }
+        "action.send_notification" | "action_send_notification" => Ok(serde_json::json!({
+            "status": "notification_queued",
+            "channel": config.get("channel").and_then(Value::as_str).unwrap_or("in_app"),
+        })),
+        "action.update_record" | "action_update_record" => Ok(execute_update_record(&config)),
         "action.webhook_call" | "action_webhook_call" => {
             // Webhook calls are deferred — record intent but don't block
             Ok(serde_json::json!({
@@ -339,23 +315,14 @@ async fn execute_node(
 }
 
 fn execute_condition(config: &Value, input: &Value) -> Value {
-    let field = config
-        .get("field")
-        .and_then(Value::as_str)
-        .unwrap_or("");
+    let field = config.get("field").and_then(Value::as_str).unwrap_or("");
     let operator = config
         .get("operator")
         .and_then(Value::as_str)
         .unwrap_or("eq");
-    let compare_value = config
-        .get("value")
-        .and_then(Value::as_str)
-        .unwrap_or("");
+    let compare_value = config.get("value").and_then(Value::as_str).unwrap_or("");
 
-    let actual = input
-        .get(field)
-        .and_then(Value::as_str)
-        .unwrap_or("");
+    let actual = input.get(field).and_then(Value::as_str).unwrap_or("");
 
     let matched = match operator {
         "neq" => actual != compare_value,
@@ -396,8 +363,7 @@ async fn execute_create_indent(
         .unwrap_or("normal");
 
     // Generate indent number using the sequence system
-    let indent_number =
-        super::routes::indent::generate_indent_number(tx, &tenant_id).await?;
+    let indent_number = super::routes::indent::generate_indent_number(tx, &tenant_id).await?;
 
     let indent_id = Uuid::new_v4();
     let context = serde_json::json!({
@@ -473,10 +439,7 @@ async fn execute_create_order(
 }
 
 fn execute_update_record(config: &Value) -> Value {
-    let entity = config
-        .get("entity")
-        .and_then(Value::as_str)
-        .unwrap_or("");
+    let entity = config.get("entity").and_then(Value::as_str).unwrap_or("");
 
     // Placeholder — full implementation would dispatch to entity-specific update logic
     serde_json::json!({
@@ -526,10 +489,7 @@ fn resolve_source(mapping: &Value, input: &Value) -> Value {
         .unwrap_or("single");
 
     if combine_mode == "single" || combine_mode.is_empty() {
-        let from = mapping
-            .get("from")
-            .and_then(Value::as_str)
-            .unwrap_or("");
+        let from = mapping.get("from").and_then(Value::as_str).unwrap_or("");
         return resolve_path(input, from);
     }
 
@@ -570,10 +530,7 @@ fn resolve_source(mapping: &Value, input: &Value) -> Value {
                 .unwrap_or("");
             let mut result = template_str.to_owned();
             for (i, s) in sources.iter().enumerate() {
-                let path = s
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
+                let path = s.get("path").and_then(Value::as_str).unwrap_or("");
                 let key = path.rsplit('.').next().unwrap_or(path);
                 let placeholder = format!("{{{{{key}}}}}");
                 let val = values.get(i).map(value_to_string).unwrap_or_default();
@@ -681,7 +638,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "camel_case" => {
             let s = value_to_string(&value);
-            let parts: Vec<&str> = s.split(|c: char| !c.is_alphanumeric()).filter(|p| !p.is_empty()).collect();
+            let parts: Vec<&str> = s
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|p| !p.is_empty())
+                .collect();
             let result = parts
                 .iter()
                 .enumerate()
@@ -726,7 +686,13 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             let s = value_to_string(&value).to_lowercase();
             let result: String = s
                 .chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '-' {
+                        c
+                    } else {
+                        '-'
+                    }
+                })
                 .collect();
             // Collapse multiple hyphens
             let mut prev_dash = false;
@@ -734,7 +700,9 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
                 .chars()
                 .filter(|&c| {
                     if c == '-' {
-                        if prev_dash { return false; }
+                        if prev_dash {
+                            return false;
+                        }
                         prev_dash = true;
                     } else {
                         prev_dash = false;
@@ -771,7 +739,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         "substring" => {
             let s = value_to_string(&value);
             let start = config.get("start").and_then(Value::as_u64).unwrap_or(0) as usize;
-            let end = config.get("end").and_then(Value::as_u64).map(|e| e as usize);
+            let end = config
+                .get("end")
+                .and_then(Value::as_u64)
+                .map(|e| e as usize);
             let chars: Vec<char> = s.chars().collect();
             let end_idx = end.unwrap_or(chars.len()).min(chars.len());
             let start_idx = start.min(end_idx);
@@ -780,13 +751,19 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         "replace" => {
             let s = value_to_string(&value);
             let find = config.get("find").and_then(Value::as_str).unwrap_or("");
-            let replace_with = config.get("replaceWith").and_then(Value::as_str).unwrap_or("");
+            let replace_with = config
+                .get("replaceWith")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             Value::String(s.replace(find, replace_with))
         }
         "regex_replace" => {
             let s = value_to_string(&value);
             let pattern = config.get("regex").and_then(Value::as_str).unwrap_or("");
-            let replace_with = config.get("replaceWith").and_then(Value::as_str).unwrap_or("");
+            let replace_with = config
+                .get("replaceWith")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             match regex::Regex::new(pattern) {
                 Ok(re) => Value::String(re.replace_all(&s, replace_with).into_owned()),
                 Err(_) => Value::String(s),
@@ -805,19 +782,31 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "split" => {
             let s = value_to_string(&value);
-            let sep = config.get("separator").and_then(Value::as_str).unwrap_or(",");
+            let sep = config
+                .get("separator")
+                .and_then(Value::as_str)
+                .unwrap_or(",");
             let parts: Vec<Value> = s.split(sep).map(|p| Value::String(p.to_owned())).collect();
             Value::Array(parts)
         }
         "template" => {
-            let template_str = config.get("templateString").and_then(Value::as_str).unwrap_or("{{value}}");
+            let template_str = config
+                .get("templateString")
+                .and_then(Value::as_str)
+                .unwrap_or("{{value}}");
             let result = template_str.replace("{{value}}", &value_to_string(&value));
             Value::String(result)
         }
         "truncate" => {
             let s = value_to_string(&value);
-            let max_len = config.get("maxLength").and_then(Value::as_u64).unwrap_or(100) as usize;
-            let suffix = config.get("suffix").and_then(Value::as_str).unwrap_or("...");
+            let max_len = config
+                .get("maxLength")
+                .and_then(Value::as_u64)
+                .unwrap_or(100) as usize;
+            let suffix = config
+                .get("suffix")
+                .and_then(Value::as_str)
+                .unwrap_or("...");
             if s.chars().count() <= max_len {
                 Value::String(s)
             } else {
@@ -841,7 +830,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
 
         // ── Array operations ──────────────────────────────
         "join" => {
-            let sep = config.get("separator").and_then(Value::as_str).unwrap_or(",");
+            let sep = config
+                .get("separator")
+                .and_then(Value::as_str)
+                .unwrap_or(",");
             match &value {
                 Value::Array(arr) => {
                     let parts: Vec<String> = arr.iter().map(value_to_string).collect();
@@ -930,7 +922,9 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
                             arr.into_iter()
                                 .filter(|v| {
                                     let fv = v.get(field);
-                                    fv.is_some_and(|f| !f.is_null() && !f.as_str().is_some_and(str::is_empty))
+                                    fv.is_some_and(|f| {
+                                        !f.is_null() && !f.as_str().is_some_and(str::is_empty)
+                                    })
                                 })
                                 .collect(),
                         )
@@ -958,10 +952,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "sum" => match &value {
             Value::Array(arr) => {
-                let total: f64 = arr
-                    .iter()
-                    .filter_map(Value::as_f64)
-                    .sum();
+                let total: f64 = arr.iter().filter_map(Value::as_f64).sum();
                 serde_json::json!(total)
             }
             _ => value,
@@ -978,28 +969,23 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             _ => value,
         },
         "array_min" => match &value {
-            Value::Array(arr) => {
-                arr.iter()
-                    .filter_map(Value::as_f64)
-                    .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                    .map_or(Value::Null, |n| serde_json::json!(n))
-            }
+            Value::Array(arr) => arr
+                .iter()
+                .filter_map(Value::as_f64)
+                .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .map_or(Value::Null, |n| serde_json::json!(n)),
             _ => value,
         },
         "array_max" => match &value {
-            Value::Array(arr) => {
-                arr.iter()
-                    .filter_map(Value::as_f64)
-                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                    .map_or(Value::Null, |n| serde_json::json!(n))
-            }
+            Value::Array(arr) => arr
+                .iter()
+                .filter_map(Value::as_f64)
+                .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .map_or(Value::Null, |n| serde_json::json!(n)),
             _ => value,
         },
         "push" => {
-            let push_val = config
-                .get("defaultValue")
-                .cloned()
-                .unwrap_or(Value::Null);
+            let push_val = config.get("defaultValue").cloned().unwrap_or(Value::Null);
             match value {
                 Value::Array(mut arr) => {
                     arr.push(push_val);
@@ -1016,7 +1002,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "slice" => {
             let start = config.get("start").and_then(Value::as_u64).unwrap_or(0) as usize;
-            let end = config.get("end").and_then(Value::as_u64).map(|e| e as usize);
+            let end = config
+                .get("end")
+                .and_then(Value::as_u64)
+                .map(|e| e as usize);
             match value {
                 Value::Array(arr) => {
                     let end_idx = end.unwrap_or(arr.len()).min(arr.len());
@@ -1027,13 +1016,15 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             }
         }
         "chunk" => {
-            let size = config.get("chunkSize").and_then(Value::as_u64).unwrap_or(1).max(1) as usize;
+            let size = config
+                .get("chunkSize")
+                .and_then(Value::as_u64)
+                .unwrap_or(1)
+                .max(1) as usize;
             match value {
                 Value::Array(arr) => {
-                    let chunks: Vec<Value> = arr
-                        .chunks(size)
-                        .map(|c| Value::Array(c.to_vec()))
-                        .collect();
+                    let chunks: Vec<Value> =
+                        arr.chunks(size).map(|c| Value::Array(c.to_vec())).collect();
                     Value::Array(chunks)
                 }
                 _ => value,
@@ -1049,7 +1040,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             }
         }
         "round" => {
-            let dp = config.get("decimalPlaces").and_then(Value::as_u64).unwrap_or(0);
+            let dp = config
+                .get("decimalPlaces")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
             match value.as_f64() {
                 Some(n) => {
                     let factor = 10_f64.powi(dp as i32);
@@ -1110,15 +1104,22 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             let max_val = config.get("maxValue").and_then(Value::as_f64);
             match value.as_f64() {
                 Some(mut n) => {
-                    if let Some(lo) = min_val { n = n.max(lo); }
-                    if let Some(hi) = max_val { n = n.min(hi); }
+                    if let Some(lo) = min_val {
+                        n = n.max(lo);
+                    }
+                    if let Some(hi) = max_val {
+                        n = n.min(hi);
+                    }
                     serde_json::json!(n)
                 }
                 None => value,
             }
         }
         "format_number" => {
-            let dp = config.get("decimalPlaces").and_then(Value::as_u64).unwrap_or(2) as usize;
+            let dp = config
+                .get("decimalPlaces")
+                .and_then(Value::as_u64)
+                .unwrap_or(2) as usize;
             match value.as_f64() {
                 Some(n) => Value::String(format!("{n:.dp$}")),
                 None => value,
@@ -1129,7 +1130,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         "to_date" | "parse_date" => {
             // Attempt to parse and return the ISO string
             let s = value_to_string(&value);
-            let fmt = config.get("dateFormat").and_then(Value::as_str).unwrap_or("");
+            let fmt = config
+                .get("dateFormat")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             if fmt.is_empty() {
                 // Try ISO parsing
                 match chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S") {
@@ -1152,7 +1156,10 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "format_date" => {
             let s = value_to_string(&value);
-            let out_fmt = config.get("dateFormat").and_then(Value::as_str).unwrap_or("YYYY-MM-DD");
+            let out_fmt = config
+                .get("dateFormat")
+                .and_then(Value::as_str)
+                .unwrap_or("YYYY-MM-DD");
             let chrono_fmt = date_format_to_chrono(out_fmt);
             // Try parsing as ISO first
             if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S") {
@@ -1192,9 +1199,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
             }
             Value::Null
         }
-        "now" => {
-            Value::String(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string())
-        }
+        "now" => Value::String(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string()),
         "extract_year" => {
             let s = value_to_string(&value);
             if let Ok(d) = chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
@@ -1256,10 +1261,7 @@ fn apply_operation(op: &str, config: &Value, value: Value) -> Value {
         }
         "default_value" => {
             if value.is_null() || value.as_str().is_some_and(str::is_empty) {
-                config
-                    .get("defaultValue")
-                    .cloned()
-                    .unwrap_or(Value::Null)
+                config.get("defaultValue").cloned().unwrap_or(Value::Null)
             } else {
                 value
             }

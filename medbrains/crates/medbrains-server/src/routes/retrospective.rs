@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -94,14 +92,14 @@ pub async fn get_retro_settings(
 
     let max_hours: Option<String> = sqlx::query_scalar(
         "SELECT value::text FROM tenant_settings \
-         WHERE category = 'retrospective' AND key = 'max_backdate_hours'"
+         WHERE category = 'retrospective' AND key = 'max_backdate_hours'",
     )
     .fetch_optional(&mut *tx)
     .await?;
 
     let requires_approval: Option<String> = sqlx::query_scalar(
         "SELECT value::text FROM tenant_settings \
-         WHERE category = 'retrospective' AND key = 'requires_approval'"
+         WHERE category = 'retrospective' AND key = 'requires_approval'",
     )
     .fetch_optional(&mut *tx)
     .await?;
@@ -175,7 +173,7 @@ pub async fn create_retro_encounter(
     // Read max_backdate_hours setting
     let max_hours_str: Option<String> = sqlx::query_scalar(
         "SELECT value::text FROM tenant_settings \
-         WHERE category = 'retrospective' AND key = 'max_backdate_hours'"
+         WHERE category = 'retrospective' AND key = 'max_backdate_hours'",
     )
     .fetch_optional(&mut *tx)
     .await?;
@@ -195,7 +193,7 @@ pub async fn create_retro_encounter(
 
     if body.clinical_event_date > now {
         return Err(AppError::BadRequest(
-            "Clinical event date cannot be in the future".to_string()
+            "Clinical event date cannot be in the future".to_string(),
         ));
     }
 
@@ -205,7 +203,7 @@ pub async fn create_retro_encounter(
          encounter_date, visit_type, chief_complaint, notes, status, is_retrospective) \
          VALUES ((current_setting('app.tenant_id'))::uuid, $1, $2, $3, $4, \
          COALESCE($5, 'follow_up'), $6, $7, 'completed', true) \
-         RETURNING id"
+         RETURNING id",
     )
     .bind(body.patient_id)
     .bind(body.department_id)
@@ -220,7 +218,7 @@ pub async fn create_retro_encounter(
     // Read requires_approval setting
     let requires_str: Option<String> = sqlx::query_scalar(
         "SELECT value::text FROM tenant_settings \
-         WHERE category = 'retrospective' AND key = 'requires_approval'"
+         WHERE category = 'retrospective' AND key = 'requires_approval'",
     )
     .fetch_optional(&mut *tx)
     .await?;
@@ -229,7 +227,11 @@ pub async fn create_retro_encounter(
         .and_then(|v| v.trim_matches('"').parse::<bool>().ok())
         .unwrap_or(true);
 
-    let initial_status = if requires_approval { "pending" } else { "approved" };
+    let initial_status = if requires_approval {
+        "pending"
+    } else {
+        "approved"
+    };
 
     // Create retrospective entry
     let retro_id: Uuid = sqlx::query_scalar(
@@ -238,7 +240,7 @@ pub async fn create_retro_encounter(
           entered_by, reason, status) \
          VALUES ((current_setting('app.tenant_id'))::uuid, 'encounters', $1, $2, $3, $4, \
                  $5::retrospective_entry_status) \
-         RETURNING id"
+         RETURNING id",
     )
     .bind(encounter_id)
     .bind(body.clinical_event_date)
@@ -249,13 +251,11 @@ pub async fn create_retro_encounter(
     .await?;
 
     // Link encounter to retro entry
-    sqlx::query(
-        "UPDATE encounters SET retrospective_entry_id = $1 WHERE id = $2"
-    )
-    .bind(retro_id)
-    .bind(encounter_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE encounters SET retrospective_entry_id = $1 WHERE id = $2")
+        .bind(retro_id)
+        .bind(encounter_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -288,7 +288,7 @@ pub async fn list_retro_entries(
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
          WHERE ($1::text IS NULL OR re.status::text = $1) \
            AND ($2::text IS NULL OR re.source_table = $2) \
-         ORDER BY re.created_at DESC"
+         ORDER BY re.created_at DESC",
     )
     .bind(&q.status)
     .bind(&q.source_table)
@@ -320,7 +320,7 @@ pub async fn get_retro_entry(
          FROM retrospective_entries re \
          JOIN users u ON u.id = re.entered_by \
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
-         WHERE re.id = $1"
+         WHERE re.id = $1",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
@@ -347,7 +347,7 @@ pub async fn approve_retro_entry(
     let affected = sqlx::query(
         "UPDATE retrospective_entries \
          SET status = 'approved', reviewed_by = $1, reviewed_at = now(), review_notes = $2 \
-         WHERE id = $3 AND status = 'pending'"
+         WHERE id = $3 AND status = 'pending'",
     )
     .bind(claims.sub)
     .bind(&body.review_notes)
@@ -358,7 +358,7 @@ pub async fn approve_retro_entry(
 
     if affected == 0 {
         return Err(AppError::BadRequest(
-            "Entry not found or already reviewed".into()
+            "Entry not found or already reviewed".into(),
         ));
     }
 
@@ -382,7 +382,7 @@ pub async fn reject_retro_entry(
     let affected = sqlx::query(
         "UPDATE retrospective_entries \
          SET status = 'rejected', reviewed_by = $1, reviewed_at = now(), review_notes = $2 \
-         WHERE id = $3 AND status = 'pending'"
+         WHERE id = $3 AND status = 'pending'",
     )
     .bind(claims.sub)
     .bind(&body.review_notes)
@@ -393,7 +393,7 @@ pub async fn reject_retro_entry(
 
     if affected == 0 {
         return Err(AppError::BadRequest(
-            "Entry not found or already reviewed".into()
+            "Entry not found or already reviewed".into(),
         ));
     }
 
@@ -423,7 +423,7 @@ pub async fn retro_audit_trail(
          JOIN users u ON u.id = re.entered_by \
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
          WHERE re.source_table = $1 AND re.source_record_id = $2 \
-         ORDER BY re.created_at DESC"
+         ORDER BY re.created_at DESC",
     )
     .bind(&source_table)
     .bind(source_id)

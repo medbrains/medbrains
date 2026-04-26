@@ -1,6 +1,6 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
        build build-backend build-frontend \
-       check check-backend check-frontend lint check-api \
+       check check-backend check-frontend lint check-api check-sqlx prepare-sqlx \
        check-ui-api check-types check-all \
        smoke-test e2e-test generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
@@ -67,6 +67,12 @@ check: check-backend check-frontend ## Run all checks
 
 check-backend: ## Run cargo clippy
 	cargo clippy -- -D warnings
+
+prepare-sqlx: ## Refresh SQLx offline metadata from the configured database
+	SQLX_OFFLINE=false DATABASE_URL="$${DATABASE_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}" cargo sqlx prepare --workspace
+
+check-sqlx: ## Verify SQLx offline metadata matches schema and query text
+	SQLX_OFFLINE=false DATABASE_URL="$${DATABASE_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}" cargo sqlx prepare --check --workspace
 
 check-frontend: ## Run TypeScript typecheck
 	pnpm typecheck --filter=@medbrains/web

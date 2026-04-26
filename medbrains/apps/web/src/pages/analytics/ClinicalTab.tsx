@@ -25,6 +25,10 @@ function pct(v: number): string {
   return `${v.toFixed(1)}%`;
 }
 
+function toRows<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function ClinicalTab() {
@@ -72,7 +76,7 @@ function OtSection({ params }: { params: { from?: string; to?: string } }) {
     queryFn: () => api.getOtUtilization(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   const chartData = useMemo(
     () => rows.map((r) => ({ name: r.room_name, "Utilization %": r.utilization_pct })),
@@ -123,7 +127,7 @@ function ErSection({ params }: { params: { from?: string; to?: string } }) {
     queryFn: () => api.getErVolume(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
 
   const chartData = useMemo(
     () =>
@@ -184,7 +188,7 @@ function IndicatorsSection({ params }: { params: { from?: string; to?: string } 
     queryFn: () => api.getClinicalIndicators(params),
   });
 
-  const rows = data ?? [];
+  const rows = toRows(data);
   const latest = rows.length > 0 ? rows[rows.length - 1] : null;
 
   const chartData = useMemo(

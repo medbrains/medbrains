@@ -1,0 +1,237 @@
+{
+  "authMe": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "tenant_id": "22222222-2222-2222-2222-222222222222",
+    "username": "mock.admin",
+    "email": "mock.admin@medbrains.local",
+    "full_name": "Mock Super Admin",
+    "role": "super_admin",
+    "permissions": [],
+    "field_access": {}
+  },
+  "tenantSettings": [],
+  "secureDeviceSettings": [
+    {
+      "id": "33333333-3333-3333-3333-333333333331",
+      "tenant_id": "22222222-2222-2222-2222-222222222222",
+      "category": "device_integrations",
+      "key": "pacs_dicom",
+      "value": {
+        "mode": "dicom",
+        "aet": "MEDBRAINS_PACS",
+        "host": "10.20.30.10",
+        "port": 104,
+        "username": "masked",
+        "password": "********"
+      },
+      "updated_at": "2026-04-26T09:00:00Z",
+      "updated_by": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "33333333-3333-3333-3333-333333333332",
+      "tenant_id": "22222222-2222-2222-2222-222222222222",
+      "category": "device_integrations",
+      "key": "biometric",
+      "value": {
+        "mode": "sdk",
+        "host": "10.20.30.11",
+        "port": 4370,
+        "site_code": "OPD-GATE-01",
+        "password": "********"
+      },
+      "updated_at": "2026-04-26T09:00:00Z",
+      "updated_by": "11111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "systemHealth": {
+    "status": "healthy",
+    "postgres": "up",
+    "yottadb": "up",
+    "redis": "up",
+    "version": "mock",
+    "uptime_seconds": 86400
+  },
+  "devices": {
+    "manufacturers": [
+      {
+        "code": "siemens",
+        "name": "Siemens",
+        "model_count": 2
+      },
+      {
+        "code": "ge",
+        "name": "GE Healthcare",
+        "model_count": 1
+      }
+    ],
+    "catalog": [
+      {
+        "id": "44444444-4444-4444-4444-444444444441",
+        "adapter_code": "siemens_ct_somatom_go",
+        "manufacturer": "Siemens",
+        "manufacturer_code": "siemens",
+        "model": "SOMATOM go.Top",
+        "model_code": "somatom_go_top",
+        "device_category": "ct_scanner",
+        "device_subcategory": "radiology",
+        "protocol": "dicom",
+        "transport": "tcp",
+        "default_port": 104,
+        "default_baud_rate": null,
+        "default_config": {
+          "aet": "CT_AE"
+        },
+        "field_mappings": [],
+        "data_transforms": [],
+        "qc_recommendations": [],
+        "known_quirks": [],
+        "supported_tests": [],
+        "adapter_version": "1.0.0",
+        "sdk_version": "mock",
+        "wasm_hash": null,
+        "wasm_size_bytes": null,
+        "is_verified": true,
+        "contributed_by": "medbrains",
+        "documentation_url": null,
+        "is_active": true
+      },
+      {
+        "id": "44444444-4444-4444-4444-444444444442",
+        "adapter_code": "ge_ct_revolution",
+        "manufacturer": "GE Healthcare",
+        "manufacturer_code": "ge",
+        "model": "Revolution ACT",
+        "model_code": "revolution_act",
+        "device_category": "ct_scanner",
+        "device_subcategory": "radiology",
+        "protocol": "dicom",
+        "transport": "tcp",
+        "default_port": 104,
+        "default_baud_rate": null,
+        "default_config": {
+          "aet": "GE_CT"
+        },
+        "field_mappings": [],
+        "data_transforms": [],
+        "qc_recommendations": [],
+        "known_quirks": [],
+        "supported_tests": [],
+        "adapter_version": "1.0.0",
+        "sdk_version": "mock",
+        "wasm_hash": null,
+        "wasm_size_bytes": null,
+        "is_verified": true,
+        "contributed_by": "medbrains",
+        "documentation_url": null,
+        "is_active": true
+      }
+    ],
+    "instances": [
+      {
+        "id": "55555555-5555-5555-5555-555555555551",
+        "tenant_id": "22222222-2222-2222-2222-222222222222",
+        "adapter_code": "siemens_ct_somatom_go",
+        "facility_id": null,
+        "department_id": null,
+        "name": "CT Room 1",
+        "code": "CT-ROOM-1",
+        "serial_number": "CT-0001",
+        "hostname": "10.20.40.10",
+        "port": 104,
+        "protocol_config": {
+          "type": "dicom"
+        },
+        "field_mappings": [],
+        "data_transforms": [],
+        "qc_config": {},
+        "ai_config_version": 1,
+        "ai_confidence": 0.94,
+        "human_overrides": {},
+        "config_source": "ai",
+        "status": "active",
+        "last_heartbeat": "2026-04-26T09:00:00Z",
+        "last_message_at": "2026-04-26T09:05:00Z",
+        "last_error": null,
+        "error_count_24h": 0,
+        "message_count_24h": 128,
+        "bridge_agent_id": "66666666-6666-6666-6666-666666666661",
+        "notes": "Primary CT machine",
+        "tags": [
+          "radiology",
+          "ct"
+        ],
+        "is_active": true,
+        "created_at": "2026-04-01T09:00:00Z",
+        "updated_at": "2026-04-26T09:00:00Z"
+      },
+      {
+        "id": "55555555-5555-5555-5555-555555555552",
+        "tenant_id": "22222222-2222-2222-2222-222222222222",
+        "adapter_code": "ge_ct_revolution",
+        "facility_id": null,
+        "department_id": null,
+        "name": "CT Room 2",
+        "code": "CT-ROOM-2",
+        "serial_number": "CT-0002",
+        "hostname": "10.20.40.11",
+        "port": 104,
+        "protocol_config": {
+          "type": "dicom"
+        },
+        "field_mappings": [],
+        "data_transforms": [],
+        "qc_config": {},
+        "ai_config_version": 1,
+        "ai_confidence": 0.91,
+        "human_overrides": {},
+        "config_source": "ai",
+        "status": "active",
+        "last_heartbeat": "2026-04-26T09:00:00Z",
+        "last_message_at": "2026-04-26T09:04:00Z",
+        "last_error": null,
+        "error_count_24h": 0,
+        "message_count_24h": 112,
+        "bridge_agent_id": "66666666-6666-6666-6666-666666666661",
+        "notes": "Backup CT machine",
+        "tags": [
+          "radiology",
+          "ct"
+        ],
+        "is_active": true,
+        "created_at": "2026-04-01T09:00:00Z",
+        "updated_at": "2026-04-26T09:00:00Z"
+      }
+    ],
+    "routingRules": [
+      {
+        "id": "77777777-7777-7777-7777-777777777771",
+        "route_name": "CT -> Radiology Worklist",
+        "source_device_type": "ct_scanner",
+        "target_module": "radiology",
+        "is_active": true
+      }
+    ],
+    "agents": [
+      {
+        "id": "66666666-6666-6666-6666-666666666661",
+        "tenant_id": "22222222-2222-2222-2222-222222222222",
+        "name": "Bridge Agent A",
+        "deployment_mode": "edge",
+        "version": "1.0.0",
+        "hostname": "bridge-agent-a.local",
+        "capabilities": [
+          "dicom",
+          "hl7"
+        ],
+        "status": "active",
+        "last_heartbeat": "2026-04-26T09:00:00Z",
+        "devices_connected": 2,
+        "buffer_depth": 0,
+        "is_active": true,
+        "created_at": "2026-04-01T09:00:00Z"
+      }
+    ],
+    "messages": [],
+    "configHistory": []
+  }
+}

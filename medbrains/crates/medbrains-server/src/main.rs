@@ -1,5 +1,5 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
+use std::{net::SocketAddr, time::Duration};
 
 use axum::{
     Router,
@@ -7,9 +7,7 @@ use axum::{
 };
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use tower_http::{
-    cors::CorsLayer,
-    request_id::SetRequestIdLayer,
-    set_header::SetResponseHeaderLayer,
+    cors::CorsLayer, request_id::SetRequestIdLayer, set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -17,8 +15,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 use medbrains_server::{
     config::AppConfig,
     middleware::request_id::{MakeRequestUuid, request_id_header},
-    routes,
-    seed,
+    orchestration, routes, seed,
     state::{AppState, CookieConfig},
 };
 
@@ -42,7 +39,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(bind = %config.bind_addr(), "starting MedBrains server");
 
     // Connect to PostgreSQL
-    let db_pool = medbrains_db::pool::create_pool(&config.database_url).await?;
+    let pool_config = medbrains_db::pool::PoolConfig {
+        max_connections: config.db_pool_max_connections,
+        min_connections: config.db_pool_min_connections,
+        acquire_timeout: Duration::from_secs(config.db_pool_acquire_timeout_secs),
+        idle_timeout: Duration::from_secs(config.db_pool_idle_timeout_secs),
+        max_lifetime: Duration::from_secs(config.db_pool_max_lifetime_secs),
+        statement_cache_capacity: config.db_statement_cache_capacity,
+        slow_statement_threshold: Duration::from_millis(config.db_slow_query_ms),
+    };
+    let db_pool =
+        medbrains_db::pool::create_pool_with_config(&config.database_url, &pool_config).await?;
 
     // Run migrations
     medbrains_db::pool::run_migrations(&db_pool).await?;
@@ -57,10 +64,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Build JWT keys from Ed25519 PEM/base64
-    let encoding_key =
-        EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
-    let decoding_key =
-        DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
+    let encoding_key = EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
+    let decoding_key = DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
 
     // Cookie configuration
     let cookie_config = CookieConfig {
@@ -137,11 +142,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Static file serving — SPA fallback for frontend dist
-    let static_dir = config.static_dir.clone().unwrap_or_else(|| "/var/www/medbrains".to_owned());
-    let spa_fallback = tower_http::services::ServeDir::new(&static_dir)
-        .not_found_service(tower_http::services::ServeFile::new(
-            format!("{static_dir}/index.html"),
-        ));
+    let static_dir = config
+        .static_dir
+        .clone()
+        .unwrap_or_else(|| "/var/www/medbrains".to_owned());
+    let spa_fallback = tower_http::services::ServeDir::new(&static_dir).not_found_service(
+        tower_http::services::ServeFile::new(format!("{static_dir}/index.html")),
+    );
 
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
@@ -155,6 +162,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
+
+    // Start orchestration background tasks
+    orchestration::jobs::start_job_worker(db_pool.clone());
+    orchestration::scheduler::start_scheduler(db_pool);
 
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;

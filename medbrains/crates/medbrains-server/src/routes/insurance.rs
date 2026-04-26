@@ -1,6 +1,9 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, Utc};
 use medbrains_core::insurance::{
     AppealStatus, DenialReasonCount, InsuranceDashboard, InsuranceVerification, PaCheckResult,
@@ -13,9 +16,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -366,13 +367,12 @@ pub async fn get_verification(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: InsuranceVerification = sqlx::query_as(
-        "SELECT * FROM insurance_verifications WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row: InsuranceVerification =
+        sqlx::query_as("SELECT * FROM insurance_verifications WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -450,13 +450,12 @@ pub async fn get_prior_auth(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: PriorAuthRequest = sqlx::query_as(
-        "SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row: PriorAuthRequest =
+        sqlx::query_as("SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -579,13 +578,12 @@ pub async fn submit_prior_auth(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Get current to determine TAT
-    let current: PriorAuthRequest = sqlx::query_as(
-        "SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current: PriorAuthRequest =
+        sqlx::query_as("SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let tat_hours = match current.urgency {
         PaUrgency::Standard => 72,
@@ -636,13 +634,12 @@ pub async fn respond_prior_auth(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let current: PriorAuthRequest = sqlx::query_as(
-        "SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current: PriorAuthRequest =
+        sqlx::query_as("SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let row: PriorAuthRequest = sqlx::query_as(
         "UPDATE prior_auth_requests SET \
@@ -699,13 +696,12 @@ pub async fn cancel_prior_auth(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let current: PriorAuthRequest = sqlx::query_as(
-        "SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current: PriorAuthRequest =
+        sqlx::query_as("SELECT * FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let row: PriorAuthRequest = sqlx::query_as(
         "UPDATE prior_auth_requests SET status = 'cancelled' \
@@ -959,8 +955,7 @@ pub async fn create_appeal(
     .await?;
     let level = (count_row.count + 1) as i32;
 
-    let appeal_number =
-        generate_number(&mut tx, claims.tenant_id, "pa_appeal", "APL").await?;
+    let appeal_number = generate_number(&mut tx, claims.tenant_id, "pa_appeal", "APL").await?;
 
     let deadline = (Utc::now() + chrono::Duration::days(30)).date_naive();
 

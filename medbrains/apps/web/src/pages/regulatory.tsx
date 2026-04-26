@@ -214,6 +214,10 @@ function DashboardTab() {
 }
 
 function DashboardOverview({ dashboard, gaps }: { dashboard: ComplianceDashboard; gaps: ComplianceGap[] }) {
+  const upcomingDeadlines = dashboard.upcoming_deadlines ?? [];
+  const accreditationScores = dashboard.accreditation_scores ?? [];
+  const departmentScores = dashboard.department_scores ?? [];
+
   return (
     <Stack gap="lg">
 
@@ -244,16 +248,16 @@ function DashboardOverview({ dashboard, gaps }: { dashboard: ComplianceDashboard
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
           <Paper p="md" withBorder>
             <Text size="sm" c="dimmed">Upcoming Deadlines</Text>
-            <Title order={2}>{dashboard.upcoming_deadlines.length}</Title>
+            <Title order={2}>{upcomingDeadlines.length}</Title>
           </Paper>
         </Grid.Col>
       </Grid>
 
-      {dashboard.accreditation_scores.length > 0 && (
+      {accreditationScores.length > 0 && (
         <Paper p="md" withBorder>
           <Text fw={600} mb="sm">Accreditation Scores</Text>
           <Grid>
-            {dashboard.accreditation_scores.map((s) => (
+            {accreditationScores.map((s) => (
               <Grid.Col key={s.body} span={{ base: 6, md: 3 }}>
                 <Group>
                   <RingProgress
@@ -274,11 +278,11 @@ function DashboardOverview({ dashboard, gaps }: { dashboard: ComplianceDashboard
         </Paper>
       )}
 
-      {dashboard.department_scores.length > 0 && (
+      {departmentScores.length > 0 && (
         <Paper p="md" withBorder>
           <Text fw={600} mb="sm">Department Compliance Scores</Text>
           <DataTable
-            data={dashboard.department_scores}
+            data={departmentScores}
             rowKey={(r) => r.department_id}
             loading={false}
             columns={[

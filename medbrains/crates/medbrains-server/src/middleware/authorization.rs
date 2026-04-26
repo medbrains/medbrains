@@ -40,10 +40,7 @@ pub fn require_any_permission(claims: &Claims, perms: &[&str]) -> Result<(), App
 /// Require the user to have access to a specific department.
 /// Bypass roles always have access. Other roles must have the department
 /// in their `department_ids` list.
-pub fn require_department_access(
-    claims: &Claims,
-    department_id: &Uuid,
-) -> Result<(), AppError> {
+pub fn require_department_access(claims: &Claims, department_id: &Uuid) -> Result<(), AppError> {
     if is_bypass_role(claims) {
         return Ok(());
     }

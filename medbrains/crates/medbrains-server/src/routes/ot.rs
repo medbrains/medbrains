@@ -1,21 +1,21 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{NaiveDate, Utc};
 use medbrains_core::ipd::{AnesthesiaComplicationEntry, SurgeonCaseloadEntry};
 use medbrains_core::ot::{
-    OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory,
-    OtConsumableUsage, OtPostopRecord, OtPreopAssessment, OtRoom,
-    OtSurgeonPreference, OtSurgicalSafetyChecklist,
+    OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory, OtConsumableUsage,
+    OtPostopRecord, OtPreopAssessment, OtRoom, OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -375,22 +375,38 @@ pub async fn list_bookings(
 
     if let Some(ref status) = params.status {
         conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: Some(status.clone()), date_val: None });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(status.clone()),
+            date_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(date) = params.date {
         conditions.push(format!("scheduled_date = ${bind_idx}"));
-        binds.push(Bind { uuid_val: None, string_val: None, date_val: Some(date) });
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: None,
+            date_val: Some(date),
+        });
         bind_idx += 1;
     }
     if let Some(room_id) = params.room_id {
         conditions.push(format!("ot_room_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(room_id), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(room_id),
+            string_val: None,
+            date_val: None,
+        });
         bind_idx += 1;
     }
     if let Some(surgeon_id) = params.surgeon_id {
         conditions.push(format!("primary_surgeon_id = ${bind_idx}"));
-        binds.push(Bind { uuid_val: Some(surgeon_id), string_val: None, date_val: None });
+        binds.push(Bind {
+            uuid_val: Some(surgeon_id),
+            string_val: None,
+            date_val: None,
+        });
         bind_idx += 1;
     }
 
@@ -399,9 +415,15 @@ pub async fn list_bookings(
     let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { count_q = count_q.bind(u); }
-        if let Some(ref s) = b.string_val { count_q = count_q.bind(s.clone()); }
-        if let Some(d) = b.date_val { count_q = count_q.bind(d); }
+        if let Some(u) = b.uuid_val {
+            count_q = count_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            count_q = count_q.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            count_q = count_q.bind(d);
+        }
     }
     let total = count_q.fetch_one(&mut *tx).await?;
 
@@ -413,14 +435,29 @@ pub async fn list_bookings(
     );
     let mut data_q = sqlx::query_as::<_, OtBooking>(&data_sql).bind(claims.tenant_id);
     for b in &binds {
-        if let Some(u) = b.uuid_val { data_q = data_q.bind(u); }
-        if let Some(ref s) = b.string_val { data_q = data_q.bind(s.clone()); }
-        if let Some(d) = b.date_val { data_q = data_q.bind(d); }
+        if let Some(u) = b.uuid_val {
+            data_q = data_q.bind(u);
+        }
+        if let Some(ref s) = b.string_val {
+            data_q = data_q.bind(s.clone());
+        }
+        if let Some(d) = b.date_val {
+            data_q = data_q.bind(d);
+        }
     }
-    let bookings = data_q.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
+    let bookings = data_q
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
-    Ok(Json(BookingListResponse { bookings, total, page, per_page }))
+    Ok(Json(BookingListResponse {
+        bookings,
+        total,
+        page,
+        per_page,
+    }))
 }
 
 pub async fn get_booking(
@@ -1000,7 +1037,11 @@ pub async fn create_anesthesia(
     .bind(&body.anesthesia_type)
     .bind(&body.asa_class)
     .bind(body.induction_time)
-    .bind(body.airway_details.as_ref().unwrap_or(&serde_json::json!({})))
+    .bind(
+        body.airway_details
+            .as_ref()
+            .unwrap_or(&serde_json::json!({})),
+    )
     .bind(body.drugs_administered.as_ref().unwrap_or(&empty))
     .bind(&empty)
     .bind(&empty)
@@ -1107,7 +1148,11 @@ pub async fn create_postop(
     .bind(&body.recovery_status)
     .bind(body.arrival_time)
     .bind(body.aldrete_score_arrival)
-    .bind(body.vitals_on_arrival.as_ref().unwrap_or(&serde_json::json!({})))
+    .bind(
+        body.vitals_on_arrival
+            .as_ref()
+            .unwrap_or(&serde_json::json!({})),
+    )
     .bind(&body.pain_assessment)
     .fetch_one(&mut *tx)
     .await?;
@@ -1177,9 +1222,9 @@ pub async fn list_surgeon_preferences(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = if let Some(surgeon_id) = params.get("surgeon_id") {
-        let sid: Uuid = surgeon_id.parse().map_err(|_| {
-            AppError::BadRequest("Invalid surgeon_id".to_owned())
-        })?;
+        let sid: Uuid = surgeon_id
+            .parse()
+            .map_err(|_| AppError::BadRequest("Invalid surgeon_id".to_owned()))?;
         sqlx::query_as::<_, OtSurgeonPreference>(
             "SELECT * FROM ot_surgeon_preferences \
              WHERE tenant_id = $1 AND surgeon_id = $2 AND is_active = true \
@@ -1478,9 +1523,9 @@ pub async fn ot_utilization(
 ) -> Result<Json<Vec<RoomUtilization>>, AppError> {
     require_permission(&claims, permissions::ot::consumables::MANAGE)?;
 
-    let from = params.from.unwrap_or_else(|| {
-        (Utc::now() - chrono::Duration::days(30)).date_naive()
-    });
+    let from = params
+        .from
+        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(30)).date_naive());
     let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
 
     let mut tx = state.db.begin().await?;
@@ -1521,9 +1566,9 @@ pub async fn get_surgeon_caseload(
 ) -> Result<Json<Vec<SurgeonCaseloadEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
 
-    let from = params.from.unwrap_or_else(|| {
-        (Utc::now() - chrono::Duration::days(90)).date_naive()
-    });
+    let from = params
+        .from
+        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
     let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
 
     let mut tx = state.db.begin().await?;
@@ -1563,9 +1608,9 @@ pub async fn list_anesthesia_complications(
 ) -> Result<Json<Vec<AnesthesiaComplicationEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
 
-    let from = params.from.unwrap_or_else(|| {
-        (Utc::now() - chrono::Duration::days(90)).date_naive()
-    });
+    let from = params
+        .from
+        .unwrap_or_else(|| (Utc::now() - chrono::Duration::days(90)).date_naive());
     let to = params.to.unwrap_or_else(|| Utc::now().date_naive());
 
     let mut tx = state.db.begin().await?;

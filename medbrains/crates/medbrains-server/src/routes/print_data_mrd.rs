@@ -4,7 +4,10 @@
 //! progress notes, nursing assessments, MAR, vitals charts, I/O charts, and
 //! discharge checklists.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -84,10 +87,18 @@ pub async fn get_progress_note_print_data(
     .await?;
 
     // Get latest vitals if available
-    let vitals: Option<VitalSignsBlock> = sqlx::query_as::<_, (
-        Option<String>, Option<String>, Option<String>, Option<String>,
-        Option<String>, Option<String>, Option<String>,
-    )>(
+    let vitals: Option<VitalSignsBlock> = sqlx::query_as::<
+        _,
+        (
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+    >(
         "SELECT \
            temperature::text, \
            pulse_rate::text, \
@@ -191,10 +202,18 @@ pub async fn get_nursing_assessment_print_data(
     .await?;
 
     // Get latest vitals
-    let vitals: VitalSignsBlock = sqlx::query_as::<_, (
-        Option<String>, Option<String>, Option<String>, Option<String>,
-        Option<String>, Option<String>, Option<String>,
-    )>(
+    let vitals: VitalSignsBlock = sqlx::query_as::<
+        _,
+        (
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+    >(
         "SELECT \
            temperature::text, \
            pulse_rate::text, \
@@ -213,23 +232,26 @@ pub async fn get_nursing_assessment_print_data(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .map_or(VitalSignsBlock {
-        temperature: None,
-        pulse: None,
-        bp_systolic: None,
-        bp_diastolic: None,
-        respiratory_rate: None,
-        spo2: None,
-        pain_score: None,
-    }, |(temp, pulse, sys, dia, rr, spo2, pain)| VitalSignsBlock {
-        temperature: temp,
-        pulse,
-        bp_systolic: sys,
-        bp_diastolic: dia,
-        respiratory_rate: rr,
-        spo2,
-        pain_score: pain,
-    });
+    .map_or(
+        VitalSignsBlock {
+            temperature: None,
+            pulse: None,
+            bp_systolic: None,
+            bp_diastolic: None,
+            respiratory_rate: None,
+            spo2: None,
+            pain_score: None,
+        },
+        |(temp, pulse, sys, dia, rr, spo2, pain)| VitalSignsBlock {
+            temperature: temp,
+            pulse,
+            bp_systolic: sys,
+            bp_diastolic: dia,
+            respiratory_rate: rr,
+            spo2,
+            pain_score: pain,
+        },
+    );
 
     tx.commit().await?;
 
@@ -351,10 +373,16 @@ pub async fn get_mar_print_data(
             let scheduled_times = match m.frequency.to_lowercase().as_str() {
                 "od" | "qd" => vec!["08:00".to_string()],
                 "bd" | "bid" => vec!["08:00".to_string(), "20:00".to_string()],
-                "tid" => vec!["08:00".to_string(), "14:00".to_string(), "20:00".to_string()],
+                "tid" => vec![
+                    "08:00".to_string(),
+                    "14:00".to_string(),
+                    "20:00".to_string(),
+                ],
                 "qid" => vec![
-                    "06:00".to_string(), "12:00".to_string(),
-                    "18:00".to_string(), "22:00".to_string(),
+                    "06:00".to_string(),
+                    "12:00".to_string(),
+                    "18:00".to_string(),
+                    "22:00".to_string(),
                 ],
                 "sos" | "prn" => vec![],
                 _ => vec!["08:00".to_string()],
@@ -781,14 +809,12 @@ pub async fn get_discharge_checklist_print_data(
         },
     ];
 
-    let follow_up_appointments = vec![
-        FollowUpItem {
-            department: "General Medicine".to_string(),
-            doctor_name: None,
-            recommended_date: "1 week".to_string(),
-            reason: Some("Post-discharge review".to_string()),
-        },
-    ];
+    let follow_up_appointments = vec![FollowUpItem {
+        department: "General Medicine".to_string(),
+        doctor_name: None,
+        recommended_date: "1 week".to_string(),
+        reason: Some("Post-discharge review".to_string()),
+    }];
 
     Ok(Json(DischargeChecklistPrintData {
         patient_name: row.patient_name,
@@ -796,7 +822,9 @@ pub async fn get_discharge_checklist_print_data(
         age: age_str,
         gender: row.gender,
         admission_date: row.admission_date,
-        expected_discharge_date: row.expected_discharge_date.unwrap_or_else(|| now.format("%d-%b-%Y").to_string()),
+        expected_discharge_date: row
+            .expected_discharge_date
+            .unwrap_or_else(|| now.format("%d-%b-%Y").to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         diagnosis: row.diagnosis,
@@ -1121,7 +1149,9 @@ pub async fn get_fall_risk_assessment_print_data(
         call_bell_within_reach: row.call_bell_within_reach,
         non_slip_footwear: row.non_slip_footwear,
         assessed_by: row.assessed_by,
-        next_reassessment_date: row.next_reassessment_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        next_reassessment_date: row
+            .next_reassessment_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
     }))
 }
 
@@ -1244,7 +1274,9 @@ pub async fn get_pressure_ulcer_risk_print_data(
         moisture_management: row.moisture_management,
         other_interventions,
         assessed_by: row.assessed_by,
-        next_reassessment_date: row.next_reassessment_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        next_reassessment_date: row
+            .next_reassessment_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
     }))
 }
 
@@ -1459,7 +1491,9 @@ pub async fn get_transfusion_requisition_print_data(
         pregnancy_history: row.pregnancy_history,
         consent_obtained: row.consent_obtained,
         sample_collected_by: row.sample_collected_by,
-        sample_collected_at: row.sample_collected_at.map(|t| t.format("%d-%b-%Y %H:%M").to_string()),
+        sample_collected_at: row
+            .sample_collected_at
+            .map(|t| t.format("%d-%b-%Y %H:%M").to_string()),
         requested_by: row.requested_by,
         requested_at: row.requested_at.format("%d-%b-%Y %H:%M").to_string(),
     }))

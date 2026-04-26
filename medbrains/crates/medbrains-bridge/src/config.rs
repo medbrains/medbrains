@@ -18,10 +18,18 @@ pub struct BridgeConfig {
     pub deployment_mode: String,
 }
 
-fn default_buffer_path() -> String { "bridge_buffer.db".to_owned() }
-fn default_heartbeat_interval() -> u64 { 30 }
-fn default_drain_interval() -> u64 { 5 }
-fn default_deployment_mode() -> String { "on_premise".to_owned() }
+fn default_buffer_path() -> String {
+    "bridge_buffer.db".to_owned()
+}
+fn default_heartbeat_interval() -> u64 {
+    30
+}
+fn default_drain_interval() -> u64 {
+    5
+}
+fn default_deployment_mode() -> String {
+    "on_premise".to_owned()
+}
 
 impl BridgeConfig {
     pub fn load(path: &str) -> Result<Self> {

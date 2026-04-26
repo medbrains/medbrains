@@ -1,29 +1,28 @@
 #![allow(clippy::too_many_lines)]
 
-use axum::{Extension, Json, extract::{Path, Query, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, Query, State},
+};
 use chrono::{DateTime, NaiveDate, Utc};
+use medbrains_core::billing::InvoiceStatus;
+use medbrains_core::encounter::{EncounterStatus, EncounterType};
+use medbrains_core::lab::LabOrderStatus;
 use medbrains_core::patient::{
-    AddressType, AllergyType, AllergySeverity, BloodGroup, ConsentCaptureMode, ConsentStatus,
+    AddressType, AllergySeverity, AllergyType, BloodGroup, ConsentCaptureMode, ConsentStatus,
     ConsentType, FinancialClass, Gender, IdentifierType, MaritalStatus, MasterOccupation,
     MasterRelation, MasterReligion, Patient, PatientAddress, PatientAllergy, PatientCategory,
     PatientConsent, PatientContact, PatientDocument, PatientFamilyLink, PatientIdentifier,
     PatientInsurance, PatientMergeHistory, RegistrationSource, RegistrationType,
 };
 use medbrains_core::permissions;
-use medbrains_core::encounter::{EncounterStatus, EncounterType};
-use medbrains_core::lab::LabOrderStatus;
-use medbrains_core::billing::InvoiceStatus;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::require_permission,
-        field_access,
-    },
+    middleware::{auth::Claims, authorization::require_permission, field_access},
     state::AppState,
     validation::{self, ValidationErrors},
 };
@@ -470,49 +469,73 @@ pub async fn list_patients(
             "(uhid ILIKE ${bind_idx} OR first_name ILIKE ${bind_idx} \
              OR last_name ILIKE ${bind_idx} OR phone ILIKE ${bind_idx})"
         ));
-        binds.push(BindVal { string_val: Some(pattern), bool_val: None });
+        binds.push(BindVal {
+            string_val: Some(pattern),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
 
     if let Some(ref category) = params.category {
         conditions.push(format!("category::text = ${bind_idx}"));
-        binds.push(BindVal { string_val: Some(category.clone()), bool_val: None });
+        binds.push(BindVal {
+            string_val: Some(category.clone()),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
 
     if let Some(ref fc) = params.financial_class {
         conditions.push(format!("financial_class::text = ${bind_idx}"));
-        binds.push(BindVal { string_val: Some(fc.clone()), bool_val: None });
+        binds.push(BindVal {
+            string_val: Some(fc.clone()),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
 
     if let Some(ref bg) = params.blood_group {
         conditions.push(format!("blood_group::text = ${bind_idx}"));
-        binds.push(BindVal { string_val: Some(bg.clone()), bool_val: None });
+        binds.push(BindVal {
+            string_val: Some(bg.clone()),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
 
     if let Some(ref rt) = params.registration_type {
         conditions.push(format!("registration_type::text = ${bind_idx}"));
-        binds.push(BindVal { string_val: Some(rt.clone()), bool_val: None });
+        binds.push(BindVal {
+            string_val: Some(rt.clone()),
+            bool_val: None,
+        });
         bind_idx += 1;
     }
 
     if let Some(is_vip) = params.is_vip {
         conditions.push(format!("is_vip = ${bind_idx}"));
-        binds.push(BindVal { string_val: None, bool_val: Some(is_vip) });
+        binds.push(BindVal {
+            string_val: None,
+            bool_val: Some(is_vip),
+        });
         bind_idx += 1;
     }
 
     if let Some(is_mlc) = params.is_medico_legal {
         conditions.push(format!("is_medico_legal = ${bind_idx}"));
-        binds.push(BindVal { string_val: None, bool_val: Some(is_mlc) });
+        binds.push(BindVal {
+            string_val: None,
+            bool_val: Some(is_mlc),
+        });
         bind_idx += 1;
     }
 
     if let Some(is_active) = params.is_active {
         conditions.push(format!("is_active = ${bind_idx}"));
-        binds.push(BindVal { string_val: None, bool_val: Some(is_active) });
+        binds.push(BindVal {
+            string_val: None,
+            bool_val: Some(is_active),
+        });
         bind_idx += 1;
     }
 
@@ -575,8 +598,12 @@ pub async fn create_patient(
 
     // Validate field-level write access
     let restricted = field_access::resolve_restricted_fields(
-        &state.db, claims.tenant_id, claims.sub, &claims.role,
-    ).await?;
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
     let body_json = serde_json::to_value(&body)
         .map_err(|e| AppError::Internal(format!("serialize error: {e}")))?;
     field_access::validate_write_access(&body_json, &restricted, "patients")?;
@@ -712,13 +739,12 @@ pub async fn get_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let patient = sqlx::query_as::<_, Patient>(
-        "SELECT * FROM patients WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let patient =
+        sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     tx.commit().await?;
 
@@ -739,8 +765,12 @@ pub async fn update_patient(
 
     // Validate field-level write access
     let restricted = field_access::resolve_restricted_fields(
-        &state.db, claims.tenant_id, claims.sub, &claims.role,
-    ).await?;
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
     let body_json = serde_json::to_value(&body)
         .map_err(|e| AppError::Internal(format!("serialize error: {e}")))?;
     field_access::validate_write_access(&body_json, &restricted, "patients")?;
@@ -2209,16 +2239,15 @@ pub async fn merge_patients(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Snapshot the merged patient before marking
-    let merged_patient = sqlx::query_as::<_, Patient>(
-        "SELECT * FROM patients WHERE id = $1 AND is_merged = false",
-    )
-    .bind(body.merged_patient_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let merged_patient =
+        sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE id = $1 AND is_merged = false")
+            .bind(body.merged_patient_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?;
 
-    let merge_data = serde_json::to_value(&merged_patient)
-        .unwrap_or_else(|_| serde_json::json!({}));
+    let merge_data =
+        serde_json::to_value(&merged_patient).unwrap_or_else(|_| serde_json::json!({}));
 
     // Mark the merged patient
     sqlx::query(
@@ -2421,13 +2450,11 @@ pub async fn delete_family_link(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM patient_family_links WHERE id = $1 AND patient_id = $2",
-    )
-    .bind(id)
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM patient_family_links WHERE id = $1 AND patient_id = $2")
+        .bind(id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -2517,13 +2544,11 @@ pub async fn delete_patient_document(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2",
-    )
-    .bind(id)
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?;
+    let result = sqlx::query("DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2")
+        .bind(id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);

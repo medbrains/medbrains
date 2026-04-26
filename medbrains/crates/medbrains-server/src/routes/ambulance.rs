@@ -14,9 +14,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -572,12 +570,10 @@ pub async fn get_trip(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, AmbulanceTrip>(
-        "SELECT * FROM ambulance_trips WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = sqlx::query_as::<_, AmbulanceTrip>("SELECT * FROM ambulance_trips WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -770,13 +766,9 @@ pub async fn update_trip_status(
     // Auto-bill ambulance transport on trip completion (if billable)
     if body.status == "completed" && row.is_billable {
         if let Some(patient_id) = row.patient_id {
-            if super::billing::is_auto_billing_enabled(
-                &mut tx,
-                &claims.tenant_id,
-                "ambulance",
-            )
-            .await
-            .unwrap_or(false)
+            if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ambulance")
+                .await
+                .unwrap_or(false)
             {
                 let encounter_id = row.er_visit_id.unwrap_or(row.id);
                 let _ = super::billing::create_service_charge(

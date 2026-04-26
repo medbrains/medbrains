@@ -32,6 +32,14 @@ export default defineConfig({
         storageState: "e2e/.auth/user.json",
       },
       dependencies: ["setup"],
+      testIgnore: /mock\/.*\.spec\.ts/,
+    },
+    {
+      name: "mock-chromium",
+      testMatch: /mock\/.*\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+      },
     },
   ],
 });

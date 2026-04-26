@@ -37,8 +37,9 @@ impl ValidationErrors {
 
 // ── Regex patterns ───────────────────────────────────────
 
-static CODE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$").unwrap_or_else(|_| unreachable!()));
+static CODE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$").unwrap_or_else(|_| unreachable!())
+});
 
 static USERNAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-z][a-z0-9_]*$").unwrap_or_else(|_| unreachable!()));
@@ -202,8 +203,8 @@ pub fn validate_no_html(errors: &mut ValidationErrors, field: &str, value: &str)
 /// Validate that a value is a known Mantine color name.
 /// Prevents CSS injection through section/field color properties.
 const MANTINE_COLORS: &[&str] = &[
-    "dark", "gray", "red", "pink", "grape", "violet", "indigo", "blue",
-    "cyan", "teal", "green", "lime", "yellow", "orange",
+    "dark", "gray", "red", "pink", "grape", "violet", "indigo", "blue", "cyan", "teal", "green",
+    "lime", "yellow", "orange",
 ];
 
 pub fn validate_mantine_color(errors: &mut ValidationErrors, field: &str, value: &str) {

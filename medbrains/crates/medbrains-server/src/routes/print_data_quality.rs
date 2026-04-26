@@ -1,14 +1,17 @@
 //! Print-data endpoints — quality & safety forms.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AdrReportPrintData, CapaAction, CapaFormPrintData, ConcomitantDrug, CorrectiveAction,
-    FishboneCategory, FiveWhyEntry, IncidentReportPrintData, PreventiveAction,
-    RcaTeamMember, RcaTemplatePrintData, RcaTimelineEntry, StaffInvolvedEntry,
-    SuspectedDrug, TransfusionReactionPrintData, TransfusionVitals,
+    FishboneCategory, FiveWhyEntry, IncidentReportPrintData, PreventiveAction, RcaTeamMember,
+    RcaTemplatePrintData, RcaTimelineEntry, StaffInvolvedEntry, SuspectedDrug,
+    TransfusionReactionPrintData, TransfusionVitals,
 };
 
 use crate::{
@@ -288,7 +291,10 @@ pub async fn get_rca_template_print_data(
 
     let mut fishbone_categories: Vec<FishboneCategory> = Vec::new();
     for row in fishbone_rows {
-        if let Some(cat) = fishbone_categories.iter_mut().find(|c| c.category == row.category) {
+        if let Some(cat) = fishbone_categories
+            .iter_mut()
+            .find(|c| c.category == row.category)
+        {
             cat.causes.push(row.cause);
         } else {
             fishbone_categories.push(FishboneCategory {
@@ -368,7 +374,9 @@ pub async fn get_rca_template_print_data(
         incident_date: row.incident_date.format("%d-%b-%Y").to_string(),
         incident_description: row.incident_description,
         rca_start_date: row.rca_start_date.format("%d-%b-%Y").to_string(),
-        rca_completion_date: row.rca_completion_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        rca_completion_date: row
+            .rca_completion_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         rca_team,
         problem_statement: row.problem_statement,
         data_sources,
@@ -509,13 +517,19 @@ pub async fn get_capa_form_print_data(
         root_cause_method: row.root_cause_method,
         proposed_actions,
         implementation_status: row.implementation_status,
-        implementation_date: row.implementation_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        implementation_date: row
+            .implementation_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         implemented_by: row.implemented_by,
         verification_method: row.verification_method,
-        verification_date: row.verification_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        verification_date: row
+            .verification_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         verified_by: row.verified_by,
         verification_result: row.verification_result,
-        effectiveness_check_date: row.effectiveness_check_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        effectiveness_check_date: row
+            .effectiveness_check_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         effectiveness_result: row.effectiveness_result,
         effectiveness_evidence: row.effectiveness_evidence,
         closure_date: row.closure_date.map(|d| d.format("%d-%b-%Y").to_string()),
@@ -659,7 +673,9 @@ pub async fn get_adr_report_print_data(
         patient_height_cm: row.patient_height_cm,
         reaction_description: row.reaction_description,
         reaction_start_date: row.reaction_start_date.format("%d-%b-%Y").to_string(),
-        reaction_end_date: row.reaction_end_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        reaction_end_date: row
+            .reaction_end_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         reaction_outcome: row.reaction_outcome,
         seriousness: row.seriousness,
         seriousness_criteria,
@@ -838,21 +854,24 @@ pub async fn get_transfusion_reaction_print_data(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let vital_signs_during_reaction = vitals_row.map_or(TransfusionVitals {
-        bp_systolic: None,
-        bp_diastolic: None,
-        pulse: None,
-        temperature: None,
-        spo2: None,
-        respiratory_rate: None,
-    }, |v| TransfusionVitals {
-        bp_systolic: v.bp_systolic,
-        bp_diastolic: v.bp_diastolic,
-        pulse: v.pulse,
-        temperature: v.temperature,
-        spo2: v.spo2,
-        respiratory_rate: v.respiratory_rate,
-    });
+    let vital_signs_during_reaction = vitals_row.map_or(
+        TransfusionVitals {
+            bp_systolic: None,
+            bp_diastolic: None,
+            pulse: None,
+            temperature: None,
+            spo2: None,
+            respiratory_rate: None,
+        },
+        |v| TransfusionVitals {
+            bp_systolic: v.bp_systolic,
+            bp_diastolic: v.bp_diastolic,
+            pulse: v.pulse,
+            temperature: v.temperature,
+            spo2: v.spo2,
+            respiratory_rate: v.respiratory_rate,
+        },
+    );
 
     tx.commit().await?;
 
@@ -880,7 +899,9 @@ pub async fn get_transfusion_reaction_print_data(
         vital_signs_during_reaction,
         severity: row.severity,
         transfusion_stopped: row.transfusion_stopped,
-        transfusion_stopped_time: row.transfusion_stopped_time.map(|t| t.format("%H:%M").to_string()),
+        transfusion_stopped_time: row
+            .transfusion_stopped_time
+            .map(|t| t.format("%H:%M").to_string()),
         iv_line_kept_open: row.iv_line_kept_open,
         doctor_informed: row.doctor_informed,
         doctor_name: row.doctor_name,

@@ -10,20 +10,19 @@
 //! - Group-level master data
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    Extension,
 };
 use chrono::NaiveDate;
 use medbrains_core::multi_hospital::{
     AssignHospitalToGroup, CreateDoctorRotation, CreateGroupTemplate, CreateHospitalGroup,
-    CreateHospitalRegion, CreatePatientTransfer, CreateStockTransfer,
-    CreateUserHospitalAssignment, DoctorRotationDisplay, DoctorRotationSchedule, GroupDashboard,
-    GroupDrugMaster, GroupKpiSnapshot, GroupTariffMaster, GroupTemplate, GroupTestMaster,
-    HospitalGroup, HospitalInGroup, HospitalKpiSummary, HospitalPriceOverride, HospitalRegion,
-    PatientTransfer, PatientTransferDisplay, StockTransfer, StockTransferItem,
-    UpdateHospitalGroup, UpdateTransferStatus, UserHospitalAssignment, UserWithAssignments,
+    CreateHospitalRegion, CreatePatientTransfer, CreateStockTransfer, CreateUserHospitalAssignment,
+    DoctorRotationDisplay, DoctorRotationSchedule, GroupDashboard, GroupDrugMaster,
+    GroupKpiSnapshot, GroupTariffMaster, GroupTemplate, GroupTestMaster, HospitalGroup,
+    HospitalInGroup, HospitalKpiSummary, HospitalPriceOverride, HospitalRegion, PatientTransfer,
+    PatientTransferDisplay, StockTransfer, StockTransferItem, UpdateHospitalGroup,
+    UpdateTransferStatus, UserHospitalAssignment, UserWithAssignments,
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -78,10 +77,7 @@ pub async fn create_group(
 ) -> Result<Json<HospitalGroup>, (StatusCode, String)> {
     // TODO: Insert new hospital group
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Update a hospital group
@@ -93,10 +89,7 @@ pub async fn update_group(
 ) -> Result<Json<HospitalGroup>, (StatusCode, String)> {
     // TODO: Update hospital group
     let _ = (id, payload);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Delete a hospital group
@@ -142,10 +135,7 @@ pub async fn create_region(
 ) -> Result<Json<HospitalRegion>, (StatusCode, String)> {
     // TODO: Insert new region
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Delete a region
@@ -180,10 +170,7 @@ pub async fn assign_hospital_to_group(
 ) -> Result<Json<HospitalInGroup>, (StatusCode, String)> {
     // TODO: Update tenant with group_id, region_id, branch_code
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Remove a hospital from a group
@@ -229,10 +216,7 @@ pub async fn create_user_assignment(
 ) -> Result<Json<UserHospitalAssignment>, (StatusCode, String)> {
     // TODO: Insert user_hospital_assignment
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Remove user assignment
@@ -289,10 +273,7 @@ pub async fn create_patient_transfer(
 ) -> Result<Json<PatientTransfer>, (StatusCode, String)> {
     // TODO: Insert patient_transfer with status=requested
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Update transfer status (approve, reject, mark in-transit, receive)
@@ -304,10 +285,7 @@ pub async fn update_patient_transfer(
 ) -> Result<Json<PatientTransfer>, (StatusCode, String)> {
     // TODO: Update patient_transfer status
     let _ = (id, payload);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 // ── Stock Transfers ───────────────────────────────────────────────────────────
@@ -364,10 +342,7 @@ pub async fn create_stock_transfer(
 ) -> Result<Json<StockTransfer>, (StatusCode, String)> {
     // TODO: Insert stock transfer and items
     let _ = payload;
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Update stock transfer status
@@ -379,10 +354,7 @@ pub async fn update_stock_transfer(
 ) -> Result<Json<StockTransfer>, (StatusCode, String)> {
     // TODO: Update stock transfer status
     let _ = (id, payload);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 // ── Group KPIs & Dashboard ────────────────────────────────────────────────────
@@ -458,10 +430,7 @@ pub async fn create_doctor_rotation(
 ) -> Result<Json<DoctorRotationSchedule>, (StatusCode, String)> {
     // TODO: Insert doctor_rotation_schedule
     let _ = (group_id, payload);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Delete rotation entry
@@ -553,10 +522,7 @@ pub async fn create_group_template(
 ) -> Result<Json<GroupTemplate>, (StatusCode, String)> {
     // TODO: Insert group_template
     let _ = (group_id, payload);
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        "Not implemented".to_string(),
-    ))
+    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
 /// Delete a group template

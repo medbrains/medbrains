@@ -11,8 +11,7 @@ use reqwest::{Client, StatusCode};
 use tokio::net::TcpListener;
 
 use medbrains_server::{
-    routes,
-    seed,
+    routes, seed,
     state::{AppState, CookieConfig},
 };
 
@@ -32,7 +31,8 @@ impl TestApp {
     /// Login as admin using the shared client (cookies auto-stored).
     /// Returns the CSRF token for mutation requests.
     pub async fn login_admin(&self) -> String {
-        let resp = self.client
+        let resp = self
+            .client
             .post(self.url("/api/auth/login"))
             .json(&serde_json::json!({
                 "username": "admin",
@@ -79,8 +79,9 @@ pub async fn spawn_app() -> TestApp {
     // Load .env
     let _ = dotenvy::dotenv();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://medbrains:medbrains_dev@localhost:5435/medbrains".to_owned());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://medbrains:medbrains_dev@localhost:5435/medbrains".to_owned()
+    });
 
     // Connect to DB
     let db = medbrains_db::pool::create_pool(&database_url)
@@ -101,8 +102,8 @@ pub async fn spawn_app() -> TestApp {
 
     // PKCS#8 DER format for Ed25519
     let pkcs8_prefix: [u8; 16] = [
-        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
-        0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
+        0x20,
     ];
     let mut pkcs8_der = Vec::with_capacity(48);
     pkcs8_der.extend_from_slice(&pkcs8_prefix);
@@ -117,7 +118,7 @@ pub async fn spawn_app() -> TestApp {
         jwt_encoding_key: encoding_key,
         jwt_decoding_key: decoding_key,
         cookie_config: CookieConfig {
-            domain: None,  // no domain restriction for tests
+            domain: None, // no domain restriction for tests
             secure: false,
             cors_origin: "http://localhost:5173".to_owned(),
         },
