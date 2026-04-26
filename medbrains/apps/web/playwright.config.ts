@@ -8,7 +8,6 @@ export default defineConfig({
   workers: 1,
   reporter: [
     // Always generate Allure results
-    ["allure-playwright", { outputFolder: "../../qa/allure-results" }],
     // Plus: GitHub annotations in CI, HTML locally
     ...(process.env.CI
       ? [["github" as const]]

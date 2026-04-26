@@ -159,9 +159,5 @@ kiwi-sync: ## Sync YAML test cases → Kiwi TCMS
 test-coverage: ## Show QA coverage report from YAML registry
 	python3 qa/coverage-report.py
 
-test-report: ## Generate + open Allure report (after running tests)
-	npx allure generate --output qa/allure-report qa/allure-results
-	npx allure open qa/allure-report
-
-test-report-generate: ## Generate Allure report without opening
-	npx allure generate --output qa/allure-report qa/allure-results
+test-report: ## Show QA test coverage report
+	python3 qa/coverage-report.py
