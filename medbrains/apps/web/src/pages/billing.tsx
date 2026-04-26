@@ -127,6 +127,7 @@ import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDo
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -179,6 +180,7 @@ export function BillingPage() {
 }
 
 function BillingPageInner() {
+  const { t } = useTranslation("billing");
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
   const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
   const canDayClose = useHasPermission(P.BILLING.DAY_CLOSE_CREATE);
@@ -280,8 +282,8 @@ function BillingPageInner() {
   return (
     <div>
       <PageHeader
-        title="Billing"
-        subtitle="Invoices and payments"
+        title={t("title.billing")}
+        subtitle={t("subtitle.invoicesAndPayments")}
         icon={<IconReceipt size={20} stroke={1.5} />}
         color="orange"
         actions={
@@ -300,24 +302,24 @@ function BillingPageInner() {
 
       <Tabs defaultValue="invoices">
         <Tabs.List mb="md">
-          <Tabs.Tab value="invoices" leftSection={<IconFileInvoice size={14} />}>Invoices</Tabs.Tab>
-          <Tabs.Tab value="charge-master" leftSection={<IconTags size={14} />}>Charge Master</Tabs.Tab>
-          <Tabs.Tab value="packages" leftSection={<IconPackage size={14} />}>Packages</Tabs.Tab>
-          <Tabs.Tab value="rate-plans" leftSection={<IconCreditCard size={14} />}>Rate Plans</Tabs.Tab>
-          <Tabs.Tab value="refunds" leftSection={<IconRefresh size={14} />}>Refunds & Credits</Tabs.Tab>
-          <Tabs.Tab value="insurance" leftSection={<IconShieldCheck size={14} />}>Insurance Claims</Tabs.Tab>
-          <Tabs.Tab value="advances" leftSection={<IconWallet size={14} />}>Advances</Tabs.Tab>
-          <Tabs.Tab value="corporate" leftSection={<IconBuildingBank size={14} />}>Corporate</Tabs.Tab>
-          <Tabs.Tab value="reports" leftSection={<IconChartBar size={14} />}>Reports</Tabs.Tab>
-          {canDayClose && <Tabs.Tab value="day-close" leftSection={<IconCalendarCheck size={14} />}>Day Close</Tabs.Tab>}
-          {canAudit && <Tabs.Tab value="audit-log" leftSection={<IconClipboardList size={14} />}>Audit Log</Tabs.Tab>}
-          {canCredit && <Tabs.Tab value="credit-patients" leftSection={<IconMoneybag size={14} />}>Credit Patients</Tabs.Tab>}
-          {canGst && <Tabs.Tab value="gst-tds" leftSection={<IconReportMoney size={14} />}>GST & TDS</Tabs.Tab>}
-          {canJournal && <Tabs.Tab value="journal" leftSection={<IconScale size={14} />}>Journal Entries</Tabs.Tab>}
-          {canBankRecon && <Tabs.Tab value="bank-recon" leftSection={<IconTransferIn size={14} />}>Bank Recon</Tabs.Tab>}
-          <Tabs.Tab value="financial-mis" leftSection={<IconCoin size={14} />}>Financial MIS</Tabs.Tab>
-          {canErp && <Tabs.Tab value="erp-export" leftSection={<IconDatabase size={14} />}>ERP Export</Tabs.Tab>}
-          <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>Settings</Tabs.Tab>
+          <Tabs.Tab value="invoices" leftSection={<IconFileInvoice size={14} />}>{t("invoices")}</Tabs.Tab>
+          <Tabs.Tab value="charge-master" leftSection={<IconTags size={14} />}>{t("chargeMaster")}</Tabs.Tab>
+          <Tabs.Tab value="packages" leftSection={<IconPackage size={14} />}>{t("packages")}</Tabs.Tab>
+          <Tabs.Tab value="rate-plans" leftSection={<IconCreditCard size={14} />}>{t("ratePlans")}</Tabs.Tab>
+          <Tabs.Tab value="refunds" leftSection={<IconRefresh size={14} />}>{t("refunds&Credits")}</Tabs.Tab>
+          <Tabs.Tab value="insurance" leftSection={<IconShieldCheck size={14} />}>{t("insuranceClaims")}</Tabs.Tab>
+          <Tabs.Tab value="advances" leftSection={<IconWallet size={14} />}>{t("advances")}</Tabs.Tab>
+          <Tabs.Tab value="corporate" leftSection={<IconBuildingBank size={14} />}>{t("corporate")}</Tabs.Tab>
+          <Tabs.Tab value="reports" leftSection={<IconChartBar size={14} />}>{t("reports")}</Tabs.Tab>
+          {canDayClose && <Tabs.Tab value="day-close" leftSection={<IconCalendarCheck size={14} />}>{t("dayClose")}</Tabs.Tab>}
+          {canAudit && <Tabs.Tab value="audit-log" leftSection={<IconClipboardList size={14} />}>{t("auditLog")}</Tabs.Tab>}
+          {canCredit && <Tabs.Tab value="credit-patients" leftSection={<IconMoneybag size={14} />}>{t("creditPatients")}</Tabs.Tab>}
+          {canGst && <Tabs.Tab value="gst-tds" leftSection={<IconReportMoney size={14} />}>{t("gst&Tds")}</Tabs.Tab>}
+          {canJournal && <Tabs.Tab value="journal" leftSection={<IconScale size={14} />}>{t("journalEntries")}</Tabs.Tab>}
+          {canBankRecon && <Tabs.Tab value="bank-recon" leftSection={<IconTransferIn size={14} />}>{t("bankRecon")}</Tabs.Tab>}
+          <Tabs.Tab value="financial-mis" leftSection={<IconCoin size={14} />}>{t("financialMis")}</Tabs.Tab>
+          {canErp && <Tabs.Tab value="erp-export" leftSection={<IconDatabase size={14} />}>{t("erpExport")}</Tabs.Tab>}
+          <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>{t("settings")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="invoices">

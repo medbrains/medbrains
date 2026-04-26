@@ -48,6 +48,8 @@
   "label.quantity": "Quantity",
   "label.action": "Action",
   "label.approve": "Approve",
+  "rxQueue": "Rx Queue",
+  "posCounter": "POS Counter",
   "orders": "Orders",
   "drugCatalog": "Drug Catalog",
   "stock": "Stock",

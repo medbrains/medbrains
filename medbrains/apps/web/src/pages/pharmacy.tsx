@@ -82,6 +82,7 @@ import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensin
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 import { instructionsDisplayText } from "../lib/medication-timing-utils";
 import type { PrescriptionWithItems } from "@medbrains/types";
 
@@ -131,6 +132,7 @@ export function PharmacyPage() {
 }
 
 function PharmacyPageInner() {
+  const { t } = useTranslation("pharmacy");
   const canDispense = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
   const canManageStock = useHasPermission(P.PHARMACY.STOCK_MANAGE);
   const canViewNdps = useHasPermission(P.PHARMACY.NDPS_LIST);
@@ -178,8 +180,8 @@ function PharmacyPageInner() {
   return (
     <div>
       <PageHeader
-        title="Pharmacy"
-        subtitle="Drug inventory & dispensing"
+        title={t("title.pharmacy")}
+        subtitle={t("subtitle.drugInventory&Dispensing")}
         icon={<IconPill size={20} stroke={1.5} />}
         color="success"
         actions={
@@ -199,15 +201,15 @@ function PharmacyPageInner() {
 
       <Tabs defaultValue={canViewRxQueue ? "rx-queue" : "orders"}>
         <Tabs.List mb="md">
-          {canViewRxQueue && <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>Rx Queue</Tabs.Tab>}
-          {(canCreatePos || canViewPos) && <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>POS Counter</Tabs.Tab>}
-          <Tabs.Tab value="orders">Orders</Tabs.Tab>
-          <Tabs.Tab value="catalog">Drug Catalog</Tabs.Tab>
-          <Tabs.Tab value="stock">Stock</Tabs.Tab>
-          {canViewNdps && <Tabs.Tab value="ndps">NDPS Register</Tabs.Tab>}
-          {canManageStock && <Tabs.Tab value="batches">Batch & Expiry</Tabs.Tab>}
-          {canViewStores && <Tabs.Tab value="stores">Stores & Transfers</Tabs.Tab>}
-          {canViewAnalytics && <Tabs.Tab value="analytics">Analytics & Reports</Tabs.Tab>}
+          {canViewRxQueue && <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>{t("rxQueue")}</Tabs.Tab>}
+          {(canCreatePos || canViewPos) && <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>{t("posCounter")}</Tabs.Tab>}
+          <Tabs.Tab value="orders">{t("orders")}</Tabs.Tab>
+          <Tabs.Tab value="catalog">{t("drugCatalog")}</Tabs.Tab>
+          <Tabs.Tab value="stock">{t("stock")}</Tabs.Tab>
+          {canViewNdps && <Tabs.Tab value="ndps">{t("ndpsRegister")}</Tabs.Tab>}
+          {canManageStock && <Tabs.Tab value="batches">{t("batch&Expiry")}</Tabs.Tab>}
+          {canViewStores && <Tabs.Tab value="stores">{t("stores&Transfers")}</Tabs.Tab>}
+          {canViewAnalytics && <Tabs.Tab value="analytics">{t("analytics&Reports")}</Tabs.Tab>}
         </Tabs.List>
 
         {canViewRxQueue && (

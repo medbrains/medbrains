@@ -63,6 +63,7 @@ import type {
 import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "../components";
 
 // ── Constants ──────────────────────────────────────────
@@ -227,6 +228,7 @@ function WaitTimeBadge({ arrivalTime, doorToDoctorMins }: { arrivalTime: string;
 
 export function EmergencyPage() {
   useRequirePermission(P.EMERGENCY.VISITS_LIST);
+  const { t } = useTranslation("emergency");
 
   const canCreateVisit = useHasPermission(P.EMERGENCY.VISITS_CREATE);
   const canCreateCode = useHasPermission(P.EMERGENCY.CODES_CREATE);
@@ -238,15 +240,15 @@ export function EmergencyPage() {
   return (
     <div>
       <PageHeader
-        title="Emergency Department"
-        subtitle="ER visits, triage, MLC management, mass casualty"
+        title={t("title.emergencyDepartment")}
+        subtitle={t("subtitle.erVisits,Triage,MlcManagement,MassCasualty")}
       />
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
-          <Tabs.Tab value="visits" leftSection={<IconUrgent size={16} />}>ER Visits</Tabs.Tab>
-          <Tabs.Tab value="codes" leftSection={<IconHeartbeat size={16} />}>Code Activations</Tabs.Tab>
-          <Tabs.Tab value="mlc" leftSection={<IconGavel size={16} />}>MLC Cases</Tabs.Tab>
-          <Tabs.Tab value="mass-casualty" leftSection={<IconUsers size={16} />}>Mass Casualty</Tabs.Tab>
+          <Tabs.Tab value="visits" leftSection={<IconUrgent size={16} />}>{t("erVisits")}</Tabs.Tab>
+          <Tabs.Tab value="codes" leftSection={<IconHeartbeat size={16} />}>{t("codeActivations")}</Tabs.Tab>
+          <Tabs.Tab value="mlc" leftSection={<IconGavel size={16} />}>{t("mlcCases")}</Tabs.Tab>
+          <Tabs.Tab value="mass-casualty" leftSection={<IconUsers size={16} />}>{t("massCasualty")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="visits"><VisitsTab canCreate={canCreateVisit} /></Tabs.Panel>

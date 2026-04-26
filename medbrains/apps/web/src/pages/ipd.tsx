@@ -114,6 +114,7 @@ import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { BedSelect } from "../components/BedSelect";
 import { WardSelect } from "../components/WardSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -169,6 +170,7 @@ export function IpdPage() {
 }
 
 function IpdPageInner() {
+  const { t } = useTranslation("ipd");
   const canViewBedDashboard = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
   const canManageWards = useHasPermission(P.IPD.WARDS_MANAGE);
   const canViewReports = useHasPermission(P.IPD.REPORTS_VIEW);
@@ -176,25 +178,25 @@ function IpdPageInner() {
   return (
     <div>
       <PageHeader
-        title="IPD"
-        subtitle="Inpatient department"
+        title={t("title.ipd")}
+        subtitle={t("subtitle.inpatientDepartment")}
         icon={<IconBed size={20} stroke={1.5} />}
         color="primary"
       />
 
       <Tabs defaultValue="admissions">
         <Tabs.List mb="md">
-          <Tabs.Tab value="admissions" leftSection={<IconBed size={16} />}>Admissions</Tabs.Tab>
+          <Tabs.Tab value="admissions" leftSection={<IconBed size={16} />}>{t("admissions")}</Tabs.Tab>
           {(canManageWards || canViewBedDashboard) && (
-            <Tabs.Tab value="wards" leftSection={<IconBuildingHospital size={16} />}>Wards</Tabs.Tab>
+            <Tabs.Tab value="wards" leftSection={<IconBuildingHospital size={16} />}>{t("wards")}</Tabs.Tab>
           )}
           {canViewBedDashboard && (
-            <Tabs.Tab value="bed-dashboard" leftSection={<IconLayoutGrid size={16} />}>Bed Dashboard</Tabs.Tab>
+            <Tabs.Tab value="bed-dashboard" leftSection={<IconLayoutGrid size={16} />}>{t("bedDashboard")}</Tabs.Tab>
           )}
           {canViewReports && (
-            <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>Reports</Tabs.Tab>
+            <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>{t("reports")}</Tabs.Tab>
           )}
-          <Tabs.Tab value="expected-discharges" leftSection={<IconCalendarTime size={16} />}>Expected Discharges</Tabs.Tab>
+          <Tabs.Tab value="expected-discharges" leftSection={<IconCalendarTime size={16} />}>{t("expectedDischarges")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="admissions">

@@ -41,6 +41,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { DataTable, DynamicForm, PageHeader, StatusDot } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
@@ -224,6 +225,7 @@ function mapCategory(raw: string | undefined): PatientCategory {
 
 export function PatientsPage() {
   useRequirePermission(P.PATIENTS.LIST);
+  const { t } = useTranslation("patients");
   const canCreate = useHasPermission(P.PATIENTS.CREATE);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -403,8 +405,8 @@ export function PatientsPage() {
   return (
     <div>
       <PageHeader
-        title="Patients"
-        subtitle="Registration & records"
+        title={t("title.patients")}
+        subtitle={t("subtitle.registration&Records")}
         icon={<IconUsers size={20} stroke={1.5} />}
         color="teal"
         actions={

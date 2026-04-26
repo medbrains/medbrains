@@ -347,15 +347,15 @@ function LabPageInner() {
 
       <Tabs defaultValue="orders">
         <Tabs.List mb="md">
-          <Tabs.Tab value="orders">Orders</Tabs.Tab>
-          <Tabs.Tab value="catalog">Test Catalog</Tabs.Tab>
-          <Tabs.Tab value="panels">Panels / Profiles</Tabs.Tab>
-          {canPhlebotomy && <Tabs.Tab value="phlebotomy">Phlebotomy</Tabs.Tab>}
-          {canSamples && <Tabs.Tab value="samples">Sample Mgmt</Tabs.Tab>}
-          {canQc && <Tabs.Tab value="qc">QC & Compliance</Tabs.Tab>}
-          {canSpecialized && <Tabs.Tab value="specialized">Specialized</Tabs.Tab>}
-          {canB2b && <Tabs.Tab value="b2b">B2B</Tabs.Tab>}
-          {canOutsourced && <Tabs.Tab value="outsourced">Outsourced</Tabs.Tab>}
+          <Tabs.Tab value="orders">{t("orders")}</Tabs.Tab>
+          <Tabs.Tab value="catalog">{t("testCatalog")}</Tabs.Tab>
+          <Tabs.Tab value="panels">{t("panelsProfiles")}</Tabs.Tab>
+          {canPhlebotomy && <Tabs.Tab value="phlebotomy">{t("phlebotomy")}</Tabs.Tab>}
+          {canSamples && <Tabs.Tab value="samples">{t("sampleMgmt")}</Tabs.Tab>}
+          {canQc && <Tabs.Tab value="qc">{t("qc&Compliance")}</Tabs.Tab>}
+          {canSpecialized && <Tabs.Tab value="specialized">{t("specialized")}</Tabs.Tab>}
+          {canB2b && <Tabs.Tab value="b2b">{t("b2b")}</Tabs.Tab>}
+          {canOutsourced && <Tabs.Tab value="outsourced">{t("outsourced")}</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="orders">

@@ -137,6 +137,7 @@ import {
   DoctorSearchSelect,
 } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",
@@ -157,6 +158,7 @@ export function OpdPage() {
 }
 
 function OpdPageInner() {
+  const { t } = useTranslation("opd");
   const emit = useClinicalEmit();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
@@ -333,8 +335,8 @@ function OpdPageInner() {
   return (
     <div>
       <PageHeader
-        title="OPD"
-        subtitle="Outpatient department queue"
+        title={t("title.opd")}
+        subtitle={t("subtitle.outpatientDepartmentQueue")}
         icon={<IconStethoscope size={20} stroke={1.5} />}
         color="primary"
         actions={
@@ -348,9 +350,9 @@ function OpdPageInner() {
 
       <Tabs defaultValue="queue">
         <Tabs.List mb="md">
-          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>Queue</Tabs.Tab>
-          <Tabs.Tab value="referral-tracking" leftSection={<IconTransferIn size={16} />}>Referral Tracking</Tabs.Tab>
-          <Tabs.Tab value="followup-compliance" leftSection={<IconCalendarStats size={16} />}>Follow-up Compliance</Tabs.Tab>
+          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>{t("queue")}</Tabs.Tab>
+          <Tabs.Tab value="referral-tracking" leftSection={<IconTransferIn size={16} />}>{t("referralTracking")}</Tabs.Tab>
+          <Tabs.Tab value="followup-compliance" leftSection={<IconCalendarStats size={16} />}>{t("followUpCompliance")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="queue">
