@@ -28,8 +28,6 @@ import {
   IconCalendarOff,
   IconCheck,
   IconClock,
-  IconList,
-  IconCalendarEvent,
   IconPencil,
   IconPlus,
   IconSearch,
@@ -262,7 +260,7 @@ function ExceptionFormModal({
   doctorId: string;
 }) {
   const queryClient = useQueryClient();
-  const [exceptionDate, setExceptionDate] = useState<string | null>(null);
+  const [exceptionDate, setExceptionDate] = useState<Date | null>(null);
   const [isAvailable, setIsAvailable] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);
@@ -272,7 +270,7 @@ function ExceptionFormModal({
     mutationFn: () =>
       api.createScheduleException({
         doctor_id: doctorId,
-        exception_date: exceptionDate!,
+        exception_date: exceptionDate!.toISOString().split("T")[0] ?? "",
         is_available: isAvailable,
         start_time: isAvailable ? (startTime ?? undefined) : undefined,
         end_time: isAvailable ? (endTime ?? undefined) : undefined,
@@ -318,7 +316,7 @@ function ExceptionFormModal({
           label="Date"
           placeholder="Pick date"
           value={exceptionDate}
-          onChange={setExceptionDate}
+          onChange={(d: Date | string | null) => setExceptionDate(d instanceof Date ? d : d ? new Date(d) : null)}
           minDate={new Date()}
           required
         />

@@ -898,12 +898,19 @@ describe("/audit endpoints", () => {
     expect(url).toBe("/api/audit/entity-types");
   });
 
-  it("exportAuditLog → GET /audit/export", async () => {
-    mockOk({});
-    await api.exportAuditLog();
+  it("exportAuditLogUrl → builds /audit/export URL", () => {
+    const url = api.exportAuditLogUrl({ module: "pharmacy", format: "csv" });
+    expect(url).toContain("/audit/export");
+    expect(url).toContain("module=pharmacy");
+    expect(url).toContain("format=csv");
+  });
+
+  it("verifyAuditIntegrity → GET /audit/verify-integrity", async () => {
+    mockOk({ valid: true, total_checked: 100, broken_at: null });
+    await api.verifyAuditIntegrity();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/audit/export");
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/audit/verify-integrity");
   });
 
   it("getUserActivity → GET /audit/user/{param_1}/activity", async () => {

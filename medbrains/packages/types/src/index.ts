@@ -3552,7 +3552,7 @@ export interface AvailableSlot {
 
 export interface CreateScheduleRequest {
   doctor_id: string;
-  department_id: string;
+  department_id?: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -15683,6 +15683,14 @@ export interface LogAccessRequest {
   entity_id?: string;
   patient_id?: string;
   module?: string;
+}
+
+export interface IntegrityResult {
+  valid: boolean;
+  total_checked: number;
+  broken_at: string | null;
+  expected_hash: string | null;
+  actual_prev_hash: string | null;
 }
 
 // ── Analytics & Dashboards ─────────────────────────────────

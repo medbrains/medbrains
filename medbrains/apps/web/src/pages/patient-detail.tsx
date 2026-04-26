@@ -26,12 +26,14 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
+  IconBed,
   IconCalendar,
   IconClock,
   IconFile,
   IconFlask,
   IconGitMerge,
   IconLink,
+  IconPencil,
   IconPill,
   IconPlus,
   IconPrinter,
@@ -42,13 +44,14 @@ import {
   IconReportMedical,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { PageHeader } from "../components/PageHeader";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PrescriptionViews } from "../components/Clinical";
 import type {
   Patient,
@@ -58,6 +61,9 @@ import type {
   PatientInvoiceRow,
   PatientAppointmentRow,
   PatientAllergy,
+  AllergyType,
+  AllergySeverity,
+  CreatePatientAllergyRequest,
   FamilyLinkRow,
   CreateFamilyLinkRequest,
   PatientDocument,
@@ -271,6 +277,226 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </Group>
+  );
+}
+
+// ── Allergies Tab ─────────────────────────────────────────
+
+const SEVERITY_COLORS: Record<string, string> = {
+  mild: "success",
+  moderate: "warning",
+  severe: "orange",
+  life_threatening: "danger",
+};
+
+const ALLERGY_TYPE_OPTIONS = [
+  { value: "drug", label: "Drug" },
+  { value: "food", label: "Food" },
+  { value: "environmental", label: "Environmental" },
+  { value: "latex", label: "Latex" },
+  { value: "contrast_dye", label: "Contrast Dye" },
+  { value: "biological", label: "Biological" },
+  { value: "other", label: "Other" },
+];
+
+const SEVERITY_OPTIONS = [
+  { value: "mild", label: "Mild" },
+  { value: "moderate", label: "Moderate" },
+  { value: "severe", label: "Severe" },
+  { value: "life_threatening", label: "Life Threatening" },
+];
+
+function AllergiesTab({ patient }: { patient: Patient }) {
+  const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
+  const queryClient = useQueryClient();
+  const [opened, { open, close }] = useDisclosure(false);
+  const [allergyType, setAllergyType] = useState<string | null>("drug");
+  const [allergenName, setAllergenName] = useState("");
+  const [severity, setSeverity] = useState<string | null>(null);
+  const [reaction, setReaction] = useState("");
+
+  const { data: allergies = [], isLoading } = useQuery({
+    queryKey: ["patient-allergies", patient.id],
+    queryFn: () => api.listPatientAllergies(patient.id),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreatePatientAllergyRequest) =>
+      api.createPatientAllergy(patient.id, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
+      notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
+      handleClose();
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: "Failed", message: err.message, color: "danger" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (allergyId: string) =>
+      api.deletePatientAllergy(patient.id, allergyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
+      notifications.show({ title: "Removed", message: "Allergy removed", color: "success" });
+    },
+    onError: (err: Error) => {
+      notifications.show({ title: "Failed", message: err.message, color: "danger" });
+    },
+  });
+
+  const handleClose = () => {
+    close();
+    setAllergyType("drug");
+    setAllergenName("");
+    setSeverity(null);
+    setReaction("");
+  };
+
+  const handleSubmit = () => {
+    if (!allergyType || !allergenName.trim()) return;
+    createMutation.mutate({
+      allergy_type: allergyType as AllergyType,
+      allergen_name: allergenName.trim(),
+      severity: (severity as AllergySeverity) || undefined,
+      reaction: reaction.trim() || undefined,
+    });
+  };
+
+  if (isLoading) return <Loader size="sm" />;
+
+  return (
+    <Stack gap="md">
+      {patient.no_known_allergies && (
+        <Alert color="success" variant="light">
+          NKDA -- No Known Drug Allergies
+        </Alert>
+      )}
+
+      {canUpdate && (
+        <Group justify="flex-end">
+          <Button leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
+            Add Allergy
+          </Button>
+        </Group>
+      )}
+
+      {allergies.length === 0 ? (
+        <Text c="dimmed" ta="center" py="xl">
+          No allergies recorded.
+        </Text>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Allergen</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Severity</Table.Th>
+              <Table.Th>Reaction</Table.Th>
+              {canUpdate && <Table.Th w={40} />}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {allergies.map((a: PatientAllergy) => (
+              <Table.Tr key={a.id}>
+                <Table.Td>
+                  <Text size="sm" fw={500}>{a.allergen_name}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {a.allergy_type.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {a.severity ? (
+                    <Badge
+                      color={SEVERITY_COLORS[a.severity] ?? "gray"}
+                      variant="light"
+                      size="sm"
+                    >
+                      {a.severity.replace(/_/g, " ")}
+                    </Badge>
+                  ) : (
+                    <Text size="sm" c="dimmed">-</Text>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{a.reaction ?? "-"}</Text>
+                </Table.Td>
+                {canUpdate && (
+                  <Table.Td>
+                    <ActionIcon
+                      variant="light"
+                      color="danger"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(a.id)}
+                      loading={deleteMutation.isPending}
+                      aria-label="Delete allergy"
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Table.Td>
+                )}
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+
+      <Modal opened={opened} onClose={handleClose} title="Add Allergy" size="md">
+        <Stack gap="sm">
+          <Select
+            label="Allergy Type"
+            data={ALLERGY_TYPE_OPTIONS}
+            value={allergyType}
+            onChange={(val) => {
+              setAllergyType(val);
+              setAllergenName("");
+            }}
+            required
+          />
+          {allergyType === "drug" ? (
+            <DrugSearchSelect
+              value={allergenName}
+              onChange={(_id, drug) => setAllergenName(drug?.name ?? "")}
+              label="Drug"
+              required
+            />
+          ) : (
+            <TextInput
+              label="Allergen Name"
+              placeholder="e.g., Peanuts, Latex, Dust"
+              value={allergenName}
+              onChange={(e) => setAllergenName(e.currentTarget.value)}
+              required
+            />
+          )}
+          <Select
+            label="Severity"
+            data={SEVERITY_OPTIONS}
+            value={severity}
+            onChange={setSeverity}
+            clearable
+          />
+          <TextInput
+            label="Reaction"
+            placeholder="e.g., Rash, Anaphylaxis, Itching"
+            value={reaction}
+            onChange={(e) => setReaction(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              loading={createMutation.isPending}
+              disabled={!allergyType || !allergenName.trim()}
+            >
+              Add Allergy
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
   );
 }
 
@@ -1702,6 +1928,10 @@ function printTreatmentSummary(summary: TreatmentSummaryResponse) {
 export function PatientDetailPage() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
+  const canCreateVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const canAdmit = useHasPermission(P.IPD.ADMISSIONS_CREATE);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -1724,11 +1954,45 @@ export function PatientDetailPage() {
         title={`${patient.first_name} ${patient.last_name}`}
         subtitle={`UHID: ${patient.uhid} | ${patient.gender} | ${age(patient.date_of_birth)} | ${patient.phone}`}
         actions={
-          <Tooltip label="Print patient card">
-            <ActionIcon variant="light" onClick={() => handlePrintPatientCard(patient)} aria-label="Print">
-              <IconPrinter size={18} />
-            </ActionIcon>
-          </Tooltip>
+          <Group gap="xs">
+            {canUpdate && (
+              <Tooltip label="Edit Patient">
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconPencil size={14} />}
+                  onClick={() => navigate(`/patients/${patient.id}/edit`)}
+                >
+                  Edit
+                </Button>
+              </Tooltip>
+            )}
+            {canCreateVisit && (
+              <Button
+                variant="light"
+                size="sm"
+                leftSection={<IconStethoscope size={14} />}
+                onClick={() => navigate(`/opd?action=new&patient_id=${patient.id}`)}
+              >
+                New OPD Visit
+              </Button>
+            )}
+            {canAdmit && (
+              <Button
+                variant="light"
+                size="sm"
+                leftSection={<IconBed size={14} />}
+                onClick={() => navigate(`/ipd?action=admit&patient_id=${patient.id}`)}
+              >
+                Admit to IPD
+              </Button>
+            )}
+            <Tooltip label="Print patient card">
+              <ActionIcon variant="light" onClick={() => handlePrintPatientCard(patient)} aria-label="Print">
+                <IconPrinter size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         }
       />
 
@@ -1761,6 +2025,9 @@ export function PatientDetailPage() {
           <Tabs.Tab value="overview" leftSection={<IconUser size={14} />}>
             Overview
           </Tabs.Tab>
+          <Tabs.Tab value="allergies" leftSection={<IconAlertTriangle size={14} />}>
+            Allergies
+          </Tabs.Tab>
           <Tabs.Tab value="visits" leftSection={<IconStethoscope size={14} />}>
             Visits
           </Tabs.Tab>
@@ -1792,6 +2059,9 @@ export function PatientDetailPage() {
 
         <Tabs.Panel value="overview">
           <OverviewTab patient={patient} />
+        </Tabs.Panel>
+        <Tabs.Panel value="allergies">
+          <AllergiesTab patient={patient} />
         </Tabs.Panel>
         <Tabs.Panel value="visits">
           <VisitsTab patientId={patient.id} />

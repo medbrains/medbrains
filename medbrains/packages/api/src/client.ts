@@ -1348,6 +1348,7 @@ import type {
   AccessLogEntry,
   AccessLogQuery,
   AuditStats,
+  IntegrityResult,
   LogAccessRequest,
   // Print Data
   PrescriptionPrintData,
@@ -9439,7 +9440,7 @@ export const api = {
   listAuditEntityTypes: () =>
     request<string[]>("/audit/entity-types"),
 
-  exportAuditLog: (params?: AuditLogQuery) => {
+  exportAuditLogUrl: (params?: AuditLogQuery & { format?: string }) => {
     const sp = new URLSearchParams();
     if (params?.module) sp.set("module", params.module);
     if (params?.entity_type) sp.set("entity_type", params.entity_type);
@@ -9448,9 +9449,13 @@ export const api = {
     if (params?.action) sp.set("action", params.action);
     if (params?.from) sp.set("from", params.from);
     if (params?.to) sp.set("to", params.to);
+    if (params?.format) sp.set("format", params.format);
     const qs = sp.toString();
-    return request<string>(`/audit/export${qs ? `?${qs}` : ""}`);
+    return `${getApiBase()}/audit/export${qs ? `?${qs}` : ""}`;
   },
+
+  verifyAuditIntegrity: () =>
+    request<IntegrityResult>("/audit/verify-integrity"),
 
   getUserActivity: (userId: string) =>
     request<AuditLogSummary[]>(`/audit/user/${userId}/activity`),

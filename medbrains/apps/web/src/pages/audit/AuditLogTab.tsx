@@ -5,6 +5,7 @@ import {
   Code,
   Drawer,
   Group,
+  Loader,
   Select,
   Stack,
   Text,
@@ -12,8 +13,9 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { IconDownload, IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
+import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
@@ -92,6 +94,34 @@ export function AuditLogTab() {
     enabled: !!selectedId,
   });
 
+  // Integrity check mutation
+  const integrityMutation = useMutation({
+    mutationFn: () => api.verifyAuditIntegrity(),
+    onSuccess: (result) => {
+      if (result.valid) {
+        notifications.show({
+          title: "Integrity Verified",
+          message: `Hash chain is valid across ${result.total_checked} entries.`,
+          color: "green",
+        });
+      } else {
+        notifications.show({
+          title: "Integrity Broken",
+          message: `Chain broken at entry ${result.broken_at ?? "unknown"}. Expected hash: ${result.expected_hash ?? "none"}, found: ${result.actual_prev_hash ?? "none"}.`,
+          color: "red",
+          autoClose: false,
+        });
+      }
+    },
+    onError: () => {
+      notifications.show({
+        title: "Error",
+        message: "Failed to verify audit integrity.",
+        color: "red",
+      });
+    },
+  });
+
   // Handlers
   const handleRowClick = (entry: AuditLogSummary) => {
     setSelectedId(entry.id);
@@ -99,7 +129,9 @@ export function AuditLogTab() {
   };
 
   const handleExport = () => {
-    api.exportAuditLog(buildQuery());
+    const q = buildQuery();
+    const url = api.exportAuditLogUrl({ ...q, format: "csv" });
+    window.open(url, "_blank");
   };
 
   const handleClearFilters = () => {
@@ -232,9 +264,25 @@ export function AuditLogTab() {
             leftSection={<IconDownload size={14} />}
             onClick={handleExport}
           >
-            Export
+            Export CSV
           </Button>
         )}
+        <Button
+          variant="light"
+          size="sm"
+          color="teal"
+          leftSection={
+            integrityMutation.isPending ? (
+              <Loader size={14} />
+            ) : (
+              <IconShieldCheck size={14} />
+            )
+          }
+          onClick={() => integrityMutation.mutate()}
+          disabled={integrityMutation.isPending}
+        >
+          Verify Integrity
+        </Button>
       </Group>
 
       {/* Table */}

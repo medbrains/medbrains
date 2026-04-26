@@ -5822,6 +5822,10 @@ pub fn build_router(state: AppState) -> Router {
             get(audit::export_audit_log),
         )
         .route(
+            "/api/audit/verify-integrity",
+            get(audit::verify_integrity),
+        )
+        .route(
             "/api/audit/user/{id}/activity",
             get(audit::user_activity),
         )

@@ -110,6 +110,38 @@ pub async fn set_audit_context(
     Ok(())
 }
 
+/// Set extended audit context including user agent and session ID.
+///
+/// Superset of `set_audit_context` — additionally sets:
+/// - `app.user_agent` for browser/client identification in audit entries
+/// - `app.session_id` for correlating actions within a single session
+pub async fn set_extended_audit_context(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+    user_id: &uuid::Uuid,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+    session_id: Option<&str>,
+) -> Result<(), DbError> {
+    set_audit_context(tx, tenant_id, user_id, ip_address).await?;
+
+    if let Some(ua) = user_agent {
+        sqlx::query("SELECT set_config('app.user_agent', $1::text, true)")
+            .bind(ua)
+            .execute(&mut **tx)
+            .await?;
+    }
+
+    if let Some(sid) = session_id {
+        sqlx::query("SELECT set_config('app.session_id', $1::text, true)")
+            .bind(sid)
+            .execute(&mut **tx)
+            .await?;
+    }
+
+    Ok(())
+}
+
 /// Simple health check — runs `SELECT 1`.
 pub async fn health_check(pool: &PgPool) -> Result<bool, DbError> {
     let row: (i32,) = sqlx::query_as("SELECT 1").fetch_one(pool).await?;
