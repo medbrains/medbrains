@@ -31,3 +31,4 @@ export { DepartmentSelect } from "./DepartmentSelect";
 export { BedSelect } from "./BedSelect";
 export { WardSelect } from "./WardSelect";
 export { EncounterSelect } from "./EncounterSelect";
+export { PaymentModal } from "./PaymentModal";

@@ -61,6 +61,7 @@ pub mod print_data_mrd;
 pub mod print_data_quality;
 pub mod print_data_regulatory;
 pub mod print_data_surgical;
+pub mod payment_gateway;
 pub mod pharmacy;
 pub mod procurement;
 pub mod quality;
@@ -154,7 +155,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/public/cms/unsubscribe/{token}", get(cms::public_unsubscribe))
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
-        .route("/ws/queue", get(ws::queue_ws_handler_all));
+        .route("/ws/queue", get(ws::queue_ws_handler_all))
+        // Payment Gateway Webhook (no auth — called by Razorpay)
+        .route("/api/webhooks/razorpay", post(payment_gateway::razorpay_webhook));
 
     // Protected routes (auth required)
     let protected = Router::new()
@@ -1394,6 +1397,27 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/billing/er-invoice",
             post(billing::er_fast_invoice),
+        )
+        // ── Payment Gateway ─────────────────────────────
+        .route(
+            "/api/payments/create-order",
+            post(payment_gateway::create_order),
+        )
+        .route(
+            "/api/payments/verify",
+            post(payment_gateway::verify_payment),
+        )
+        .route(
+            "/api/payments/{id}/status",
+            get(payment_gateway::get_payment_status),
+        )
+        .route(
+            "/api/payments/upi-qr",
+            post(payment_gateway::generate_upi_qr),
+        )
+        .route(
+            "/api/payments/refund",
+            post(payment_gateway::initiate_refund),
         )
         // ── Lab ──────────────────────────────────────────
         // Phase 3 static routes (MUST be before /orders/{id})

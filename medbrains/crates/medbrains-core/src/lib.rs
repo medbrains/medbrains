@@ -66,6 +66,7 @@ pub mod occ_health;
 pub mod onboarding;
 pub mod order_set;
 pub mod patient;
+pub mod payment;
 pub mod permissions;
 pub mod print_data;
 pub mod pharmacy;

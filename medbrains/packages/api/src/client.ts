@@ -491,6 +491,16 @@ import type {
   PharmacyPosSale,
   PharmacyPricingTier,
   PosDaySummary,
+  // Payment Gateway
+  CreatePaymentOrderRequest,
+  CreatePaymentOrderResponse,
+  VerifyPaymentRequest,
+  PaymentGatewayTransaction,
+  PaymentStatusResponse,
+  GenerateUpiQrRequest,
+  UpiQrResponse,
+  InitiateRefundRequest,
+  RefundGatewayResponse,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -11029,6 +11039,30 @@ export const api = {
     }),
   aiSaveCourse: (data: AiGeneratedCourse) =>
     request<LmsCourse>("/lms/courses/ai-save", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Payment Gateway ──────────────────────────────────────
+  createPaymentOrder: (data: CreatePaymentOrderRequest) =>
+    request<CreatePaymentOrderResponse>("/payments/create-order", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyPayment: (data: VerifyPaymentRequest) =>
+    request<PaymentGatewayTransaction>("/payments/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getPaymentStatus: (id: string) =>
+    request<PaymentStatusResponse>(`/payments/${id}/status`),
+  generateUpiQr: (data: GenerateUpiQrRequest) =>
+    request<UpiQrResponse>("/payments/upi-qr", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  initiateRefund: (data: InitiateRefundRequest) =>
+    request<RefundGatewayResponse>("/payments/refund", {
       method: "POST",
       body: JSON.stringify(data),
     }),

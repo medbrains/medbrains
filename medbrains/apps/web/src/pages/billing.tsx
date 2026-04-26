@@ -124,6 +124,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import { PaymentModal } from "../components/PaymentModal";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -485,6 +486,7 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
   const queryClient = useQueryClient();
   const [showAddItem, setShowAddItem] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showGateway, setShowGateway] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [showCopay, setShowCopay] = useState(false);
   const [itemForm, setItemForm] = useState<Partial<AddInvoiceItemRequest>>({ source: "manual", quantity: 1 });
@@ -712,9 +714,14 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
 
       {canPay && (inv.status === "issued" || inv.status === "partially_paid") && (
         <>
-          <Button size="xs" leftSection={<IconCash size={14} />} onClick={() => setShowPayment(!showPayment)}>
-            Record Payment
-          </Button>
+          <Group gap="xs">
+            <Button size="xs" leftSection={<IconCash size={14} />} onClick={() => setShowPayment(!showPayment)}>
+              Record Payment
+            </Button>
+            <Button size="xs" variant="light" leftSection={<IconCreditCard size={14} />} onClick={() => setShowGateway(true)}>
+              Pay via Gateway
+            </Button>
+          </Group>
           {showPayment && (
             <Stack gap="xs">
               <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setPayForm({ ...payForm, amount: Number(v) })} />
@@ -738,6 +745,16 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
               </Button>
             </Stack>
           )}
+          <PaymentModal
+            opened={showGateway}
+            onClose={() => setShowGateway(false)}
+            amount={Number(inv.total_amount) - Number(inv.paid_amount)}
+            invoiceId={invoiceId}
+            onSuccess={() => {
+              void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+              setShowGateway(false);
+            }}
+          />
         </>
       )}
 

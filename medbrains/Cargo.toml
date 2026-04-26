@@ -55,6 +55,7 @@ rust_decimal = { version = "1", features = ["serde-with-str"] }
 # Crypto
 rand = "0.9"
 sha2 = "0.10"
+hmac = "0.12"
 hex = "0.4"
 base64 = "0.22"
 

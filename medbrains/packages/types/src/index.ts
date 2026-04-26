@@ -23708,3 +23708,88 @@ export interface PosDaySummary {
   cash_total: number; card_total: number; upi_total: number;
   gst_collected: number;
 }
+
+// ══════════════════════════════════════════════════════════
+//  Payment Gateway
+// ══════════════════════════════════════════════════════════
+
+export interface PaymentGatewayTransaction {
+  id: string;
+  tenant_id: string;
+  invoice_id: string | null;
+  pharmacy_pos_sale_id: string | null;
+  gateway: string;
+  gateway_order_id: string;
+  gateway_payment_id: string | null;
+  gateway_signature: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  payment_method: string | null;
+  upi_vpa: string | null;
+  card_last4: string | null;
+  card_network: string | null;
+  bank_name: string | null;
+  wallet: string | null;
+  error_code: string | null;
+  error_description: string | null;
+  refund_id: string | null;
+  refund_amount: number | null;
+  notes: Record<string, unknown>;
+  webhook_payload: Record<string, unknown> | null;
+  verified_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePaymentOrderRequest {
+  invoice_id?: string;
+  pos_sale_id?: string;
+  amount: number;
+  currency?: string;
+  receipt?: string;
+}
+
+export interface CreatePaymentOrderResponse {
+  transaction_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  key_id: string;
+}
+
+export interface VerifyPaymentRequest {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export interface PaymentStatusResponse {
+  transaction: PaymentGatewayTransaction;
+}
+
+export interface GenerateUpiQrRequest {
+  amount: number;
+  invoice_id?: string;
+  pos_sale_id?: string;
+  description?: string;
+}
+
+export interface UpiQrResponse {
+  upi_uri: string;
+  vpa: string;
+  amount: number;
+  transaction_ref: string;
+}
+
+export interface InitiateRefundRequest {
+  transaction_id: string;
+  amount?: number;
+  reason?: string;
+}
+
+export interface RefundGatewayResponse {
+  transaction: PaymentGatewayTransaction;
+  refund_id: string;
+}
