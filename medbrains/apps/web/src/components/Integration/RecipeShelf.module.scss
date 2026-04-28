@@ -1,0 +1,301 @@
+/* Recipe Shelf — Design B */
+
+/* Hero header */
+.header {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--mb-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.eyebrow {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mb-text-muted);
+  margin-bottom: 8px;
+}
+
+.heroTitle {
+  font: 400 30px/1.05 var(--font-display);
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--mb-text-primary);
+
+  em {
+    font-style: italic;
+    color: var(--fc-brand);
+    font-weight: 500;
+  }
+}
+
+.heroSub {
+  font-size: 13px;
+  color: var(--mb-text-secondary);
+  margin-top: 6px;
+  max-width: 560px;
+  line-height: 1.5;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--mb-border);
+}
+
+.stat {
+  padding: 16px 22px;
+  border-right: 1px solid var(--mb-border);
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.statLabel {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mb-text-muted);
+}
+
+.statValue {
+  font: 400 28px/1 var(--font-display);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mb-text-primary);
+  margin-top: 8px;
+  letter-spacing: -0.01em;
+
+  em {
+    font-style: italic;
+    color: var(--fc-brand);
+    font-weight: 500;
+  }
+
+  .muted {
+    font: 400 14px/1 var(--font-sans);
+    color: var(--mb-text-muted);
+    letter-spacing: 0;
+  }
+}
+
+.statValueCopper {
+  composes: statValue;
+  color: var(--fc-copper-deep);
+}
+
+.statDelta {
+  font: 500 11px/1 var(--font-mono);
+  color: var(--mb-success-accent);
+  margin-top: 6px;
+}
+
+.statDeltaCopper {
+  composes: statDelta;
+  color: var(--fc-copper-deep);
+}
+
+/* Section */
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.section {
+  padding: 20px 24px 6px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.sectionNum {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: var(--mb-text-muted);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: 600 14px/1 var(--font-sans);
+  color: var(--mb-text-primary);
+}
+
+.sectionCount {
+  font: 500 11px/1 var(--font-mono);
+  color: var(--mb-text-muted);
+  margin-left: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-bottom: 18px;
+}
+
+/* Recipe card */
+.recipe {
+  background: white;
+  border: 1px solid var(--mb-border);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  position: relative;
+
+  &:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.04);
+    border-color: var(--mb-border);
+  }
+}
+
+.recipeActive {
+  composes: recipe;
+  border-color: var(--fc-brand);
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 14px;
+    bottom: 14px;
+    width: 3px;
+    background: var(--fc-brand);
+    border-radius: 2px;
+  }
+}
+
+.recipeTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.recipeTitle {
+  font: 600 14px/1.3 var(--font-sans);
+  color: var(--mb-text-primary);
+}
+
+.recipeDesc {
+  font: 400 12.5px/1.5 var(--font-sans);
+  color: var(--mb-text-secondary);
+}
+
+/* Flow visualization */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font: 500 11px/1.3 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--mb-text-secondary);
+}
+
+.flowSeg {
+  background: var(--mb-bg-content);
+  border: 1px solid var(--mb-border);
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: var(--mb-text-primary);
+  white-space: nowrap;
+}
+
+.flowTrigger {
+  composes: flowSeg;
+  background: var(--mb-table-hover);
+  border-color: var(--mb-table-hover);
+  color: var(--fc-brand);
+  font-weight: 600;
+}
+
+.flowCondition {
+  composes: flowSeg;
+  background: var(--mb-bg-content);
+  border-color: var(--mb-warning-accent);
+  color: var(--mb-warning-accent);
+}
+
+.flowArrow {
+  color: var(--mb-text-faint);
+}
+
+/* Recipe footer */
+.recipeFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px dashed var(--mb-border-subtle);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--mb-text-muted);
+}
+
+/* Toggle */
+.toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--mb-text-faint);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  border: none;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.15s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.toggleOn {
+  composes: toggle;
+  background: var(--fc-brand);
+
+  &::after {
+    transform: translateX(14px);
+  }
+}
+
+/* New badge (copper) */
+.newBadge {
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  background: var(--fc-copper);
+  color: white;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font: 600 10px/1.2 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}

@@ -377,7 +377,18 @@ pub async fn update_order_status(
     tx.commit().await?;
 
     if is_completed {
-        let _ = crate::events::emit_event(
+        // Enrich payload with patient name for orchestration
+        let patient_name = sqlx::query_scalar::<_, String>(
+            "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+        )
+        .bind(order.patient_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "Unknown".to_owned());
+
+        let _ = crate::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -385,7 +396,11 @@ pub async fn update_order_status(
             serde_json::json!({
                 "order_id": order.id,
                 "patient_id": order.patient_id,
+                "patient_name": patient_name,
                 "encounter_id": order.encounter_id,
+                "modality_id": order.modality_id,
+                "body_part": order.body_part,
+                "priority": format!("{:?}", order.priority),
             }),
         )
         .await;

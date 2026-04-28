@@ -36,6 +36,7 @@ import {
   IconPill,
   IconPlus,
   IconPrescription,
+  IconReceipt,
   IconShieldCheck,
   IconShoppingCart,
   IconX,
@@ -78,8 +79,10 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
+import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
+import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useTranslation } from "react-i18next";
@@ -210,6 +213,8 @@ function PharmacyPageInner() {
           {canManageStock && <Tabs.Tab value="batches">{t("batch&Expiry")}</Tabs.Tab>}
           {canViewStores && <Tabs.Tab value="stores">{t("stores&Transfers")}</Tabs.Tab>}
           {canViewAnalytics && <Tabs.Tab value="analytics">{t("analytics&Reports")}</Tabs.Tab>}
+          <Tabs.Tab value="credit-notes" leftSection={<IconReceipt size={14} />}>Credit Notes</Tabs.Tab>
+          <Tabs.Tab value="store-requests" leftSection={<IconPackage size={14} />}>Store Requests</Tabs.Tab>
         </Tabs.List>
 
         {canViewRxQueue && (
@@ -251,6 +256,12 @@ function PharmacyPageInner() {
             <AnalyticsTab />
           </Tabs.Panel>
         )}
+        <Tabs.Panel value="credit-notes">
+          <CreditNotesTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="store-requests">
+          <StoreIndentsTab />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );

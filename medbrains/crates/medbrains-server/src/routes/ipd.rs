@@ -660,15 +660,71 @@ pub async fn create_admission(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with names for orchestration
+    let patient_info = sqlx::query_as::<_, (String, String)>(
+        "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
+    )
+    .bind(admission.patient_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (patient_name, uhid) = patient_info
+        .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
+
+    let doctor_name = sqlx::query_scalar::<_, String>(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(admission.admitting_doctor)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let department_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM departments WHERE id = $1",
+    )
+    .bind(body.department_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let (ward_name, bed_number) = if let Some(bid) = admission.bed_id {
+        let info = sqlx::query_as::<_, (Option<String>, Option<String>)>(
+            "SELECT w.name, l.name \
+             FROM locations l \
+             LEFT JOIN wards w ON w.id = l.ward_id \
+             WHERE l.id = $1",
+        )
+        .bind(bid)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or((None, None));
+        info
+    } else {
+        (None, None)
+    };
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "admission.created",
+        "ipd.admission.created",
         serde_json::json!({
             "admission_id": admission.id,
             "patient_id": admission.patient_id,
-            "bed_id": admission.bed_id,
+            "patient_name": patient_name,
+            "uhid": uhid,
+            "doctor_name": doctor_name,
+            "department_name": department_name,
+            "ward_name": ward_name,
+            "bed_number": bed_number,
         }),
     )
     .await;
@@ -920,15 +976,50 @@ pub async fn discharge_patient(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with patient details for orchestration
+    let patient_info = sqlx::query_as::<_, (String, String)>(
+        "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
+    )
+    .bind(admission.patient_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (patient_name, uhid) = patient_info
+        .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
+
+    let los_hours_total = admission
+        .discharged_at
+        .map(|d| (d - admission.admitted_at).num_hours())
+        .unwrap_or(0);
+    #[allow(clippy::cast_precision_loss)]
+    let length_of_stay = ((los_hours_total as f64) / 24.0).ceil() as i64;
+
+    let total_bill = sqlx::query_scalar::<_, Decimal>(
+        "SELECT COALESCE(SUM(total_amount), 0) FROM invoices \
+         WHERE encounter_id = $1 AND tenant_id = $2",
+    )
+    .bind(admission.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "discharge.completed",
+        "ipd.discharge.initiated",
         serde_json::json!({
             "admission_id": admission.id,
             "patient_id": admission.patient_id,
             "encounter_id": admission.encounter_id,
+            "patient_name": patient_name,
+            "uhid": uhid,
+            "discharge_type": format!("{:?}", admission.discharge_type),
+            "total_bill": total_bill,
+            "length_of_stay": length_of_stay,
         }),
     )
     .await;

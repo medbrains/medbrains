@@ -6,9 +6,11 @@ import {
   Drawer,
   Group,
   Modal,
+  MultiSelect,
   NumberInput,
   Select,
   Stack,
+  Switch,
   Table,
   Tabs,
   Text,
@@ -272,6 +274,17 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
   );
 }
 
+const SUPPLY_CATEGORIES = [
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "surgical", label: "Surgical" },
+  { value: "general", label: "General Stores" },
+  { value: "lab", label: "Laboratory" },
+  { value: "radiology", label: "Radiology" },
+  { value: "dietary", label: "Dietary / F&B" },
+  { value: "it", label: "IT Equipment" },
+  { value: "housekeeping", label: "Housekeeping" },
+];
+
 function VendorForm({ onSuccess }: { onSuccess: () => void }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -282,6 +295,10 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
   const [city, setCity] = useState("");
   const [gstNumber, setGstNumber] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("net_30");
+  const [supplyCategories, setSupplyCategories] = useState<string[]>([]);
+  const [drugLicenseNumber, setDrugLicenseNumber] = useState("");
+  const [isPharmacyVendor, setIsPharmacyVendor] = useState(false);
+  const [productLines, setProductLines] = useState("");
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -295,6 +312,10 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         city: city || undefined,
         gst_number: gstNumber || undefined,
         payment_terms: paymentTerms,
+        supply_categories: supplyCategories.length > 0 ? supplyCategories : undefined,
+        drug_license_number: drugLicenseNumber || undefined,
+        is_pharmacy_vendor: isPharmacyVendor || undefined,
+        product_lines: productLines || undefined,
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Vendor registered", color: "success" });
@@ -336,6 +357,35 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         ]}
         value={paymentTerms}
         onChange={(v) => setPaymentTerms(v ?? "net_30")}
+      />
+      <MultiSelect
+        label="Supply Categories"
+        placeholder="Select categories this vendor supplies"
+        data={SUPPLY_CATEGORIES}
+        value={supplyCategories}
+        onChange={setSupplyCategories}
+        searchable
+        clearable
+      />
+      {supplyCategories.includes("pharmacy") && (
+        <TextInput
+          label="Drug License Number"
+          placeholder="DL-XX-XXXXXXX"
+          value={drugLicenseNumber}
+          onChange={(e) => setDrugLicenseNumber(e.currentTarget.value)}
+        />
+      )}
+      <Switch
+        label="Pharmacy Vendor"
+        description="Mark if this vendor supplies pharmaceutical products"
+        checked={isPharmacyVendor}
+        onChange={(e) => setIsPharmacyVendor(e.currentTarget.checked)}
+      />
+      <TextInput
+        label="Product Lines"
+        placeholder="e.g. Antibiotics, Surgical Sutures, Lab Reagents"
+        value={productLines}
+        onChange={(e) => setProductLines(e.currentTarget.value)}
       />
       <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!code || !name}>
         Register Vendor

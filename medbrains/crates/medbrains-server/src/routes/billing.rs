@@ -582,16 +582,39 @@ pub async fn create_invoice(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with patient details for orchestration
+    let patient_info = sqlx::query_as::<_, (String, String, Option<String>)>(
+        "SELECT first_name || ' ' || last_name, uhid, \
+         (SELECT name FROM departments WHERE id = e.department_id) \
+         FROM patients p \
+         LEFT JOIN encounters e ON e.id = $2 \
+         WHERE p.id = $1",
+    )
+    .bind(invoice.patient_id)
+    .bind(invoice.encounter_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (patient_name, uhid, department_name) = patient_info
+        .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned(), None));
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "invoice.created",
+        "billing.invoice.created",
         serde_json::json!({
             "invoice_id": invoice.id,
             "patient_id": invoice.patient_id,
             "invoice_number": invoice.invoice_number,
+            "patient_name": patient_name,
+            "uhid": uhid,
             "total_amount": invoice.total_amount,
+            "net_amount": invoice.total_amount - invoice.discount_amount,
+            "department_name": department_name,
+            "is_insured": invoice.corporate_id.is_some(),
         }),
     )
     .await;
@@ -867,16 +890,31 @@ pub async fn record_payment(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with patient name for orchestration
+    let patient_name = sqlx::query_scalar::<_, String>(
+        "SELECT p.first_name || ' ' || p.last_name \
+         FROM invoices i JOIN patients p ON p.id = i.patient_id \
+         WHERE i.id = $1",
+    )
+    .bind(invoice_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "payment.recorded",
+        "billing.payment.received",
         serde_json::json!({
             "payment_id": payment.id,
             "invoice_id": invoice_id,
-            "amount": body.amount,
-            "method": body.mode,
+            "patient_name": patient_name,
+            "amount": payment.amount,
+            "payment_mode": format!("{:?}", payment.mode),
+            "receipt_number": payment.reference_number,
         }),
     )
     .await;

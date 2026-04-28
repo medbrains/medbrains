@@ -392,16 +392,58 @@ pub async fn create_encounter(
 
     tx.commit().await?;
 
+    // Enrich payload with names for orchestration
+    let patient_name = sqlx::query_scalar::<_, String>(
+        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+    )
+    .bind(encounter.patient_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let doctor_name = if let Some(did) = encounter.doctor_id {
+        sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+            .bind(did)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned())
+    } else {
+        "N/A".to_owned()
+    };
+
+    let department_name = if let Some(did) = encounter.department_id {
+        sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
+            .bind(did)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned())
+    } else {
+        "N/A".to_owned()
+    };
+
     // Emit integration event
-    let _ = crate::events::emit_event(
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "encounter.created",
+        "opd.encounter.created",
         serde_json::json!({
             "encounter_id": encounter.id,
             "patient_id": encounter.patient_id,
+            "patient_name": patient_name,
+            "doctor_id": encounter.doctor_id,
+            "doctor_name": doctor_name,
             "department_id": encounter.department_id,
+            "department_name": department_name,
+            "visit_type": encounter.visit_type,
+            "encounter_date": encounter.encounter_date.to_string(),
+            "token_number": queue.token_number,
         }),
     )
     .await;
@@ -702,15 +744,42 @@ pub async fn complete_queue_entry(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with names for orchestration
+    let department_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM departments WHERE id = $1",
+    )
+    .bind(q.department_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let doctor_name = if let Some(did) = q.doctor_id {
+        sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+            .bind(did)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned())
+    } else {
+        "N/A".to_owned()
+    };
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "opd.visit.completed",
+        "opd.consultation.completed",
         serde_json::json!({
             "queue_id": q.id,
             "encounter_id": q.encounter_id,
             "department_id": q.department_id,
+            "department_name": department_name,
+            "doctor_id": q.doctor_id,
+            "doctor_name": doctor_name,
+            "token_number": q.token_number,
         }),
     )
     .await;
@@ -1229,16 +1298,45 @@ pub async fn create_prescription(
 
     tx.commit().await?;
 
+    // Enrich payload with names for orchestration
+    let rx_patient_name = if let Some(pid) = patient_id {
+        sqlx::query_scalar::<_, String>(
+            "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+        )
+        .bind(pid)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "Unknown".to_owned())
+    } else {
+        "Unknown".to_owned()
+    };
+
+    let rx_doctor_name = sqlx::query_scalar::<_, String>(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(rx.doctor_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
     // Emit integration event (non-blocking — failures logged, not propagated)
-    let _ = crate::events::emit_event(
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "prescription.created",
+        "opd.prescription.created",
         serde_json::json!({
             "prescription_id": rx.id,
             "encounter_id": encounter_id,
             "doctor_id": rx.doctor_id,
+            "doctor_name": rx_doctor_name,
+            "patient_id": patient_id,
+            "patient_name": rx_patient_name,
+            "items_count": items.len(),
         }),
     )
     .await;
@@ -1389,7 +1487,7 @@ pub async fn list_patient_prescriptions(
         // Get encounter date and doctor name
         let row: Option<(NaiveDate, Option<String>)> = sqlx::query_as(
             "SELECT e.encounter_date, \
-             CASE WHEN u.id IS NOT NULL THEN u.first_name || ' ' || u.last_name ELSE NULL END \
+             CASE WHEN u.id IS NOT NULL THEN u.full_name ELSE NULL END \
              FROM encounters e \
              LEFT JOIN users u ON e.doctor_id = u.id \
              WHERE e.id = $1",
@@ -2718,7 +2816,7 @@ pub async fn get_wait_estimate(
 
     // Average consultation duration from completed consultations in last 7 days
     let avg: (Option<f64>,) = sqlx::query_as(
-        "SELECT AVG(EXTRACT(EPOCH FROM (q.completed_at - q.called_at)) / 60.0) \
+        "SELECT AVG(EXTRACT(EPOCH FROM (q.completed_at - q.called_at)) / 60.0)::float8 \
          FROM opd_queues q \
          WHERE q.tenant_id = $1 AND q.status = 'completed' \
            AND q.called_at IS NOT NULL AND q.completed_at IS NOT NULL \
@@ -2901,16 +2999,51 @@ pub async fn admit_from_opd(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    // Enrich payload with names for orchestration
+    let admit_patient_name = sqlx::query_scalar::<_, String>(
+        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+    )
+    .bind(opd_encounter.patient_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let admit_doctor_name = sqlx::query_scalar::<_, String>(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(doctor_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let admit_dept_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM departments WHERE id = $1",
+    )
+    .bind(body.department_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "admission.created_from_opd",
+        "ipd.admission.created",
         serde_json::json!({
             "admission_id": admission.id,
             "opd_encounter_id": encounter_id,
             "ipd_encounter_id": ipd_encounter.id,
             "patient_id": opd_encounter.patient_id,
+            "patient_name": admit_patient_name,
+            "doctor_name": admit_doctor_name,
+            "department_name": admit_dept_name,
+            "source": "opd",
         }),
     )
     .await;

@@ -43,6 +43,9 @@ ipnet = "2"
 reqwest = { workspace = true }
 rig-core = { workspace = true }
 schemars = { workspace = true }
+mlua = { workspace = true }
+wasmtime = { workspace = true }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls"], default-features = false }

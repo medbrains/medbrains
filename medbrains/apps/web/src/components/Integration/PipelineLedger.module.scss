@@ -1,0 +1,209 @@
+/* Pipeline Ledger — Design A */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--mb-border);
+  background: var(--mb-bg-content);
+}
+
+.searchWrap {
+  flex: 1;
+  max-width: 340px;
+}
+
+.footerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--mb-border);
+  background: var(--mb-bg-content);
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--mb-text-muted);
+}
+
+/* Table overrides */
+.ledgerTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ledgerTable thead th {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mb-text-muted);
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--mb-bg-content);
+  border-bottom: 1px solid var(--mb-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.ledgerTable thead th.right {
+  text-align: right;
+}
+
+.ledgerTable tbody tr {
+  border-bottom: 1px solid var(--mb-border-subtle);
+  transition: background 0.12s;
+}
+
+.ledgerTable tbody tr:hover {
+  background: var(--mb-bg-content);
+}
+
+.ledgerTable tbody td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--mb-text-primary);
+  vertical-align: middle;
+}
+
+.ledgerTable tbody td.right {
+  text-align: right;
+}
+
+/* Name cell with status rail */
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  padding-left: 8px;
+}
+
+.rail {
+  position: absolute;
+  left: -6px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+}
+
+.pname {
+  font-weight: 600;
+  color: var(--mb-text-primary);
+  font-size: 13.5px;
+}
+
+.pcode {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--mb-text-muted);
+  margin-top: 3px;
+}
+
+.copperFlag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--fc-copper-tint);
+  color: var(--fc-copper-deep);
+  border: 1px solid var(--fc-copper);
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font: 500 11px/1.2 var(--font-sans);
+  margin-left: 8px;
+}
+
+/* Trigger pill */
+.trigPill {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--mb-text-secondary);
+  padding: 4px 8px;
+  border: 1px solid var(--mb-border);
+  border-radius: 4px;
+  background: white;
+  white-space: nowrap;
+}
+
+/* Status cell */
+.statusCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Runs */
+.runsNum {
+  font: 400 18px/1 var(--font-display);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mb-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.runsSub {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mb-text-muted);
+  margin-top: 4px;
+}
+
+/* Last run */
+.lastRel {
+  font-size: 12.5px;
+  color: var(--mb-text-primary);
+  white-space: nowrap;
+}
+
+.lastTime {
+  font: 500 11px/1.4 var(--font-mono);
+  color: var(--mb-text-secondary);
+  white-space: nowrap;
+}
+
+/* Action icons */
+.actionsCell {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.actionBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mb-text-muted);
+  transition: background 0.12s, color 0.12s;
+
+  &:hover {
+    background: var(--mb-table-hover);
+    color: var(--fc-brand);
+  }
+
+  &.danger:hover {
+    background: #fde6ea;
+    color: var(--mb-danger-accent);
+  }
+}
+
+.tableScroll {
+  flex: 1;
+  overflow: auto;
+}

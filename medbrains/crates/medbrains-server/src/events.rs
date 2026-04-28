@@ -104,7 +104,7 @@ async fn execute_pipeline_safe(
     .await?;
 
     // Walk nodes and execute
-    let result = walk_pipeline(&mut tx, tenant_id, user_id, pipeline, payload).await;
+    let result = walk_pipeline(pool, &mut tx, tenant_id, user_id, pipeline, payload).await;
 
     match result {
         Ok(node_results) => {
@@ -142,6 +142,7 @@ async fn execute_pipeline_safe(
 
 #[allow(clippy::too_many_lines)]
 async fn walk_pipeline(
+    pool: &PgPool,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     user_id: Uuid,
@@ -209,7 +210,7 @@ async fn walk_pipeline(
                 continue;
             };
 
-            let node_type = target_node
+            let react_type = target_node
                 .get("type")
                 .and_then(Value::as_str)
                 .unwrap_or("");
@@ -217,9 +218,15 @@ async fn walk_pipeline(
                 .get("data")
                 .cloned()
                 .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+            // Use templateCode (e.g. "action.create_indent") for dispatch,
+            // fall back to React Flow type (e.g. "action")
+            let node_type = node_data
+                .get("templateCode")
+                .and_then(Value::as_str)
+                .unwrap_or(react_type);
 
             let result =
-                execute_node(tx, tenant_id, user_id, node_type, &node_data, &current_data).await;
+                execute_node(pool, tx, tenant_id, user_id, node_type, &node_data, &current_data).await;
 
             match result {
                 Ok(output) => {
@@ -277,6 +284,7 @@ async fn walk_pipeline(
 
 /// Execute a single node based on its type.
 async fn execute_node(
+    pool: &PgPool,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     user_id: Uuid,
@@ -290,28 +298,143 @@ async fn execute_node(
         .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
 
     match node_type {
-        "condition.if_else" | "condition_if_else" => Ok(execute_condition(&config, input)),
+        "condition.if_else" | "condition_if_else" | "condition.filter" => {
+            Ok(execute_condition(&config, input))
+        }
         "action.create_indent" | "action_create_indent" => {
             execute_create_indent(tx, tenant_id, user_id, &config, input).await
         }
         "action.create_order" | "action_create_order" => {
             execute_create_order(tx, tenant_id, user_id, &config, input).await
         }
-        "action.send_notification" | "action_send_notification" => Ok(serde_json::json!({
-            "status": "notification_queued",
-            "channel": config.get("channel").and_then(Value::as_str).unwrap_or("in_app"),
-        })),
+        "action.send_notification" | "action_send_notification"
+        | "action.in_app_notify" | "action.sms_send" | "action.email_send" => {
+            Ok(serde_json::json!({
+                "status": "notification_queued",
+                "channel": config.get("channel").and_then(Value::as_str).unwrap_or("in_app"),
+            }))
+        }
         "action.update_record" | "action_update_record" => Ok(execute_update_record(&config)),
         "action.webhook_call" | "action_webhook_call" => {
-            // Webhook calls are deferred — record intent but don't block
             Ok(serde_json::json!({
                 "status": "webhook_queued",
                 "url": config.get("url"),
             }))
         }
+        // ── Direct module actions — write to existing module tables ──
+        "action.pharmacy_notify" => {
+            execute_pharmacy_notify(tx, tenant_id, user_id, &config, input).await
+        }
+        "action.lab_order" => {
+            execute_lab_order(tx, tenant_id, user_id, &config, input).await
+        }
+        "action.bed_cleaning" => {
+            execute_bed_cleaning(tx, tenant_id, user_id, &config, input).await
+        }
+        "action.generate_invoice" => {
+            execute_generate_invoice(tx, tenant_id, user_id, &config, input).await
+        }
+        "action.in_app_notify" => {
+            execute_in_app_notify(tx, tenant_id, &config, input).await
+        }
+        // ── Connector dispatch — external system calls ──
+        "action.connector_call" | "action.whatsapp_send" | "action.sms_send"
+        | "action.email_send" | "action.tpa_submit" => {
+            execute_connector_call(pool, &config, input).await
+        }
         "transform.map_data" | "transform_map_data" => Ok(execute_transform(&config, input)),
         _ => Ok(input.clone()),
     }
+}
+
+/// Execute an action via the connector framework.
+///
+/// 1. Apply field_mapping to transform event payload → connector input
+/// 2. Call the connector's dispatch function
+/// 3. Return the connector response
+async fn execute_connector_call(
+    pool: &PgPool,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let connector_id: Uuid = config
+        .get("connector_id")
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| AppError::BadRequest("connector_id required for connector action".into()))?;
+
+    let action = config
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("default");
+
+    // Apply field mapping: transform event payload into connector input
+    let mapped_input = apply_field_mapping(config, input);
+
+    crate::orchestration::connectors::execute_connector_action(
+        pool,
+        connector_id,
+        action,
+        &mapped_input,
+    )
+    .await
+}
+
+/// Apply field mappings from config to transform input data.
+///
+/// Config contains `field_mapping`: array of `{ source, destination, static_value? }`
+/// - `source`: dot-path into input (e.g., "patient.first_name")
+/// - `destination`: key in output (e.g., "name")
+/// - `static_value`: if present, use this instead of source lookup
+fn apply_field_mapping(config: &Value, input: &Value) -> Value {
+    let mappings = config
+        .get("field_mapping")
+        .and_then(Value::as_array);
+
+    let Some(mappings) = mappings else {
+        // No mapping defined — pass input through
+        return input.clone();
+    };
+
+    let mut output = serde_json::Map::new();
+
+    for mapping in mappings {
+        let dest = mapping.get("destination").and_then(Value::as_str).unwrap_or("");
+        if dest.is_empty() {
+            continue;
+        }
+
+        // Static value takes priority
+        if let Some(static_val) = mapping.get("static_value") {
+            if !static_val.is_null() {
+                output.insert(dest.to_owned(), static_val.clone());
+                continue;
+            }
+        }
+
+        // Resolve source path from input
+        let source = mapping.get("source").and_then(Value::as_str).unwrap_or("");
+        if source.is_empty() {
+            continue;
+        }
+
+        let value = resolve_dot_path(input, source);
+        output.insert(dest.to_owned(), value);
+    }
+
+    Value::Object(output)
+}
+
+/// Resolve a dot-separated path like "patient.first_name" from a JSON value.
+fn resolve_dot_path(obj: &Value, path: &str) -> Value {
+    let mut current = obj;
+    for segment in path.split('.') {
+        match current.get(segment) {
+            Some(v) => current = v,
+            None => return Value::Null,
+        }
+    }
+    current.clone()
 }
 
 fn execute_condition(config: &Value, input: &Value) -> Value {
@@ -436,6 +559,239 @@ async fn execute_create_order(
         "patient_id": patient_id,
         "status": "ordered",
     }))
+}
+
+/// Send prescription to pharmacy Rx queue — appears in Pharmacy → Rx Queue screen.
+async fn execute_pharmacy_notify(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let patient_id: Uuid = resolve_uuid(input, "patient_id")
+        .or_else(|| resolve_uuid(config, "patient_id"))
+        .ok_or_else(|| AppError::BadRequest("patient_id required".into()))?;
+    let encounter_id: Option<Uuid> = resolve_uuid(input, "encounter_id");
+    let doctor_id: Option<Uuid> = resolve_uuid(input, "doctor_id");
+    let prescription_id: Option<Uuid> = resolve_uuid(input, "prescription_id");
+    let priority = config.get("priority").and_then(Value::as_str).unwrap_or("normal");
+
+    let rx_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO pharmacy_prescriptions \
+           (id, tenant_id, prescription_id, patient_id, encounter_id, doctor_id, \
+            source, status, priority) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'pipeline', 'pending_review', $7)",
+    )
+    .bind(rx_id)
+    .bind(tenant_id)
+    .bind(prescription_id)
+    .bind(patient_id)
+    .bind(encounter_id)
+    .bind(doctor_id)
+    .bind(priority)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(serde_json::json!({
+        "rx_queue_id": rx_id,
+        "patient_id": patient_id,
+        "status": "pending_review",
+        "screen": "pharmacy/rx-queue",
+    }))
+}
+
+/// Create lab order — appears in Lab → Orders screen.
+async fn execute_lab_order(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let patient_id: Uuid = resolve_uuid(input, "patient_id")
+        .or_else(|| resolve_uuid(config, "patient_id"))
+        .ok_or_else(|| AppError::BadRequest("patient_id required".into()))?;
+    let test_id: Uuid = resolve_uuid(config, "test_id")
+        .or_else(|| resolve_uuid(input, "test_id"))
+        .ok_or_else(|| AppError::BadRequest("test_id required".into()))?;
+    let encounter_id: Option<Uuid> = resolve_uuid(input, "encounter_id");
+    let priority = config.get("priority").and_then(Value::as_str).unwrap_or("routine");
+
+    let order_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO lab_orders \
+           (id, tenant_id, encounter_id, patient_id, test_id, ordered_by, \
+            status, priority, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'ordered', $7::lab_priority, \
+                 'Auto-created by pipeline')",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .bind(patient_id)
+    .bind(test_id)
+    .bind(user_id)
+    .bind(priority)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(serde_json::json!({
+        "order_id": order_id,
+        "patient_id": patient_id,
+        "status": "ordered",
+        "screen": "lab/orders",
+    }))
+}
+
+/// Create housekeeping task — appears in Housekeeping → Tasks screen.
+async fn execute_bed_cleaning(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let bed_id = input.get("bed_number").and_then(Value::as_str)
+        .or_else(|| config.get("bed_id").and_then(Value::as_str))
+        .unwrap_or("unknown");
+    let ward = input.get("ward_name").and_then(Value::as_str).unwrap_or("unknown");
+    let priority = config.get("priority").and_then(Value::as_str).unwrap_or("normal");
+
+    let task_id = Uuid::new_v4();
+    // Check if housekeeping_tasks table exists, otherwise use a generic approach
+    let result = sqlx::query(
+        "INSERT INTO housekeeping_tasks \
+           (id, tenant_id, task_type, location_description, priority, status, \
+            requested_by, notes) \
+         VALUES ($1, $2, 'bed_cleaning', $3, $4, 'pending', $5, $6)",
+    )
+    .bind(task_id)
+    .bind(tenant_id)
+    .bind(format!("{ward} — Bed {bed_id}"))
+    .bind(priority)
+    .bind(user_id)
+    .bind(format!("Auto-created by pipeline — bed cleaning after discharge"))
+    .execute(&mut **tx)
+    .await;
+
+    match result {
+        Ok(_) => Ok(serde_json::json!({
+            "task_id": task_id,
+            "bed": bed_id,
+            "status": "pending",
+            "screen": "housekeeping/tasks",
+        })),
+        Err(e) => {
+            tracing::warn!("bed_cleaning insert failed (table may not exist): {e}");
+            Ok(serde_json::json!({
+                "status": "skipped",
+                "reason": "housekeeping_tasks table not available",
+                "bed": bed_id,
+            }))
+        }
+    }
+}
+
+/// Create invoice — appears in Billing → Invoices screen.
+async fn execute_generate_invoice(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    _user_id: Uuid,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let patient_id: Uuid = resolve_uuid(input, "patient_id")
+        .or_else(|| resolve_uuid(config, "patient_id"))
+        .ok_or_else(|| AppError::BadRequest("patient_id required".into()))?;
+    let encounter_id: Option<Uuid> = resolve_uuid(input, "encounter_id");
+    let total = input.get("total_amount").and_then(Value::as_f64)
+        .or_else(|| config.get("amount").and_then(Value::as_f64))
+        .unwrap_or(0.0);
+
+    let invoice_id = Uuid::new_v4();
+    let invoice_number = format!("INV-PL-{}", &invoice_id.to_string()[..8]);
+
+    sqlx::query(
+        "INSERT INTO invoices \
+           (id, tenant_id, invoice_number, patient_id, encounter_id, \
+            status, subtotal, tax_amount, discount_amount, total_amount, \
+            paid_amount, notes, issued_at) \
+         VALUES ($1, $2, $3, $4, $5, 'draft', $6, 0, 0, $6, 0, \
+                 'Auto-created by pipeline', now())",
+    )
+    .bind(invoice_id)
+    .bind(tenant_id)
+    .bind(&invoice_number)
+    .bind(patient_id)
+    .bind(encounter_id)
+    .bind(rust_decimal::Decimal::from_f64_retain(total).unwrap_or_default())
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(serde_json::json!({
+        "invoice_id": invoice_id,
+        "invoice_number": invoice_number,
+        "total_amount": total,
+        "status": "draft",
+        "screen": "billing/invoices",
+    }))
+}
+
+/// Create in-app notification — appears in user's notification bell.
+async fn execute_in_app_notify(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    config: &Value,
+    input: &Value,
+) -> Result<Value, AppError> {
+    let user_id: Option<Uuid> = resolve_uuid(config, "user_id")
+        .or_else(|| resolve_uuid(input, "doctor_id"))
+        .or_else(|| resolve_uuid(input, "registered_by"));
+    let title = config.get("title").and_then(Value::as_str)
+        .or_else(|| input.get("title").and_then(Value::as_str))
+        .unwrap_or("Pipeline notification");
+    let message = config.get("message").and_then(Value::as_str)
+        .or_else(|| input.get("message").and_then(Value::as_str))
+        .unwrap_or("");
+    let severity = config.get("severity").and_then(Value::as_str).unwrap_or("info");
+
+    // Try notifications table — some setups may not have it
+    let notif_id = Uuid::new_v4();
+    let result = sqlx::query(
+        "INSERT INTO notifications (id, tenant_id, user_id, title, message, severity, is_read) \
+         VALUES ($1, $2, $3, $4, $5, $6, false)",
+    )
+    .bind(notif_id)
+    .bind(tenant_id)
+    .bind(user_id)
+    .bind(title)
+    .bind(message)
+    .bind(severity)
+    .execute(&mut **tx)
+    .await;
+
+    match result {
+        Ok(_) => Ok(serde_json::json!({
+            "notification_id": notif_id,
+            "title": title,
+            "severity": severity,
+            "status": "sent",
+        })),
+        Err(_) => Ok(serde_json::json!({
+            "status": "logged",
+            "title": title,
+            "message": message,
+        })),
+    }
+}
+
+/// Helper: resolve a UUID from a JSON value by key.
+fn resolve_uuid(obj: &Value, key: &str) -> Option<Uuid> {
+    obj.get(key)
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse().ok())
 }
 
 fn execute_update_record(config: &Value) -> Value {

@@ -9766,6 +9766,9 @@ export interface CreateVendorRequest {
   credit_days?: number;
   categories?: unknown[];
   notes?: string;
+  supply_categories?: string[];
+  is_pharmacy_vendor?: boolean;
+  product_lines?: string;
 }
 
 export interface UpdateVendorRequest {
@@ -23722,8 +23725,6 @@ export interface AiGeneratedQuestion {
 // ── Pharmacy Phase 3 ──────────────────────────────────────
 
 export type PharmacyRxStatus = "pending_review" | "approved" | "rejected" | "on_hold" | "dispensing" | "dispensed" | "partially_dispensed" | "cancelled";
-export type PharmacyPaymentMode = "cash" | "card" | "upi" | "insurance" | "credit" | "mixed";
-
 export interface PharmacyPrescriptionRx {
   id: string; tenant_id: string; prescription_id: string; patient_id: string;
   encounter_id: string; doctor_id: string; source: string;
@@ -23852,4 +23853,426 @@ export interface InitiateRefundRequest {
 export interface RefundGatewayResponse {
   transaction: PaymentGatewayTransaction;
   refund_id: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Orchestration Engine
+// ══════════════════════════════════════════════════════════════
+
+export interface EventRegistryRow {
+  id: string;
+  module: string;
+  entity: string;
+  action: string;
+  event_code: string;
+  description: string | null;
+  payload_schema: Record<string, unknown>;
+  is_system: boolean;
+  phase: string;
+  is_blocking: boolean;
+  category: string;
+  created_at: string;
+}
+
+export interface EventListResponse {
+  events: EventRegistryRow[];
+  total: number;
+}
+
+export interface ConnectorRow {
+  id: string;
+  tenant_id: string | null;
+  connector_type: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown>;
+  status: string;
+  health_check_url: string | null;
+  last_health_check: string | null;
+  is_healthy: boolean | null;
+  retry_config: Record<string, unknown>;
+  rate_limit: Record<string, unknown>;
+  stats: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateConnectorRequest {
+  connector_type: string;
+  name: string;
+  description?: string;
+  config?: Record<string, unknown>;
+  health_check_url?: string;
+  retry_config?: Record<string, unknown>;
+  rate_limit?: Record<string, unknown>;
+}
+
+export interface UpdateConnectorRequest {
+  name?: string;
+  description?: string;
+  config?: Record<string, unknown>;
+  status?: string;
+  health_check_url?: string;
+  retry_config?: Record<string, unknown>;
+  rate_limit?: Record<string, unknown>;
+}
+
+export interface ConnectorHealthCheckResponse {
+  connector_id: string;
+  is_healthy: boolean;
+}
+
+export interface JobQueueRow {
+  id: string;
+  tenant_id: string;
+  job_type: string;
+  pipeline_id: string | null;
+  execution_id: string | null;
+  connector_id: string | null;
+  payload: Record<string, unknown>;
+  status: string;
+  priority: number;
+  max_retries: number;
+  retry_count: number;
+  next_retry_at: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  correlation_id: string | null;
+  created_at: string;
+}
+
+export interface JobListResponse {
+  jobs: JobQueueRow[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface JobStats {
+  pending: number;
+  running: number;
+  completed: number;
+  failed: number;
+  dead_letter: number;
+  total: number;
+}
+
+// ── Custom Code (Pipeline Code Execution) ──────────────────
+
+export type CodeLanguage = "expression" | "json_logic" | "lua" | "rust" | "wasm";
+
+export interface CustomCodeSnippet {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  language: CodeLanguage;
+  code: string;
+  input_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
+  is_active: boolean;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CodeTestRequest {
+  language: CodeLanguage;
+  code: string;
+  input: Record<string, unknown>;
+  timeout_ms?: number;
+}
+
+export interface CodeTestResult {
+  success: boolean;
+  output: unknown;
+  duration_ms: number;
+  error: string | null;
+}
+
+export interface CompileRustRequest {
+  code: string;
+}
+
+export interface CompileRustResult {
+  success: boolean;
+  wasm_base64: string | null;
+  size_bytes: number;
+  error: string | null;
+}
+
+export interface AiGenerateCodeRequest {
+  prompt: string;
+  language: CodeLanguage;
+  input_schema: Record<string, unknown>;
+  context?: string;
+}
+
+export interface AiGeneratedCode {
+  code: string;
+  output_schema: Record<string, unknown>;
+  explanation: string;
+}
+
+export interface ExecutionStep {
+  id: string;
+  execution_id: string;
+  node_id: string;
+  node_label: string | null;
+  step_type: "enter" | "execute" | "retry" | "complete" | "fail" | "skip";
+  input_data: Record<string, unknown> | null;
+  output_data: Record<string, unknown> | null;
+  error: string | null;
+  duration_ms: number | null;
+  retry_attempt: number;
+  created_at: string;
+}
+
+// ── Pharmacy Credit Notes & Store Indents ──────────────────
+
+export type PharmacyCreditNoteType = "customer_return" | "supplier_return" | "expiry_write_off" | "damage";
+export type PharmacyCreditNoteStatus = "draft" | "approved" | "settled" | "cancelled";
+export type PharmacyStoreIndentStatus = "pending" | "approved" | "issued" | "received" | "rejected" | "cancelled";
+
+export interface PharmacyCreditNote {
+  id: string;
+  tenant_id: string;
+  credit_note_number: string;
+  note_type: PharmacyCreditNoteType;
+  reference_type: string | null;
+  reference_id: string | null;
+  patient_id: string | null;
+  vendor_id: string | null;
+  items: Array<{
+    drug_id: string;
+    drug_name: string;
+    batch_number: string;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    reason: string;
+  }>;
+  total_amount: number;
+  gst_amount: number;
+  net_amount: number;
+  status: PharmacyCreditNoteStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  settled_at: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePharmacyCreditNoteRequest {
+  note_type: PharmacyCreditNoteType;
+  reference_type?: string;
+  reference_id?: string;
+  patient_id?: string;
+  vendor_id?: string;
+  items: Array<{
+    drug_id: string;
+    drug_name: string;
+    batch_number: string;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    reason: string;
+  }>;
+  total_amount: number;
+  gst_amount?: number;
+  notes?: string;
+}
+
+export interface PharmacyStoreIndent {
+  id: string;
+  tenant_id: string;
+  indent_number: string;
+  from_store_id: string | null;
+  to_store_id: string | null;
+  status: PharmacyStoreIndentStatus;
+  items: Array<{
+    item_id?: string;
+    name: string;
+    quantity: number;
+    unit: string;
+  }>;
+  total_items: number;
+  notes: string | null;
+  requested_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  issued_by: string | null;
+  issued_at: string | null;
+  received_by: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateStoreIndentRequest {
+  from_store_id?: string;
+  to_store_id?: string;
+  items: Array<{ item_id?: string; name: string; quantity: number; unit: string }>;
+  notes?: string;
+}
+
+// ── Pharmacy Drug Recalls ──────────────────────────────────
+
+export interface PharmacyDrugRecall {
+  id: string;
+  tenant_id: string;
+  recall_number: string;
+  drug_id: string | null;
+  drug_name: string | null;
+  batch_numbers: string[];
+  reason: string;
+  severity: "class_i" | "class_ii" | "class_iii" | null;
+  manufacturer_ref: string | null;
+  fda_ref: string | null;
+  status: "initiated" | "in_progress" | "completed" | "cancelled";
+  affected_patients_count: number;
+  recalled_quantity: number;
+  action_taken: string | null;
+  initiated_by: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Pharmacy Destruction Register ──────────────────────────
+
+export interface PharmacyDestructionLog {
+  id: string;
+  tenant_id: string;
+  certificate_number: string;
+  destruction_date: string;
+  method: "incineration" | "chemical" | "landfill" | "return_to_manufacturer" | "other";
+  items: Array<{ drug_name: string; batch_number: string; quantity: number; value: number; expiry_date?: string }>;
+  total_quantity: number;
+  total_value: number;
+  reason: "expired" | "damaged" | "recalled" | "contaminated" | "other";
+  witnessed_by: string | null;
+  witness_name: string;
+  authorized_by: string | null;
+  authorization_date: string | null;
+  certificate_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// ── Generic Substitution ───────────────────────────────────
+
+export interface PharmacySubstitute {
+  id: string;
+  brand_drug_id: string;
+  generic_drug_id: string;
+  brand_name?: string;
+  brand_price?: number;
+  generic_name?: string;
+  generic_price?: number;
+  generic_stock?: number;
+  is_therapeutic_equivalent: boolean;
+  is_bioequivalent: boolean;
+  price_difference: number | null;
+  notes: string | null;
+}
+
+// ── Payment Transactions ───────────────────────────────────
+
+export type PharmacyPaymentMode = "cash" | "card" | "upi" | "gpay" | "phonepe" | "paytm" | "netbanking" | "insurance" | "credit" | "wallet" | "mixed";
+
+export interface PharmacyPaymentTransaction {
+  id: string;
+  tenant_id: string;
+  pos_sale_id: string | null;
+  order_id: string | null;
+  invoice_id: string | null;
+  payment_mode: PharmacyPaymentMode;
+  amount: number;
+  reference_number: string | null;
+  device_terminal_id: string | null;
+  upi_transaction_id: string | null;
+  card_last_four: string | null;
+  card_network: string | null;
+  card_approval_code: string | null;
+  bank_name: string | null;
+  reconciliation_status: "pending" | "matched" | "mismatch" | "manual_verified";
+  reconciled_at: string | null;
+  reconciled_by: string | null;
+  shift_id: string | null;
+  counter_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface DayReconciliation {
+  cash_total: number;
+  card_total: number;
+  upi_total: number;
+  insurance_total: number;
+  credit_total: number;
+  transactions_count: number;
+  matched_total: number;
+  pending_total: number;
+}
+
+// ── Day Settlement ─────────────────────────────────────────
+
+export interface PharmacyDaySettlement {
+  id: string;
+  tenant_id: string;
+  settlement_date: string;
+  counter_id: string | null;
+  cash_system: number;
+  cash_counted: number;
+  cash_difference: number;
+  card_system: number;
+  card_settled: number;
+  upi_system: number;
+  upi_matched: number;
+  upi_unmatched: number;
+  insurance_system: number;
+  credit_system: number;
+  total_sales: number;
+  total_returns: number;
+  net_collection: number;
+  transactions_count: number;
+  returns_count: number;
+  status: "open" | "closed" | "verified";
+  closed_by: string | null;
+  closed_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// ── Emergency Drug Kits ────────────────────────────────────
+
+export interface PharmacyEmergencyKit {
+  id: string;
+  tenant_id: string;
+  kit_code: string;
+  kit_type: "crash_cart" | "emergency_tray" | "anaphylaxis_kit" | "ot_emergency" | "icu_tray";
+  location_id: string | null;
+  location_description: string | null;
+  department_id: string | null;
+  items: Array<{ drug_id?: string; drug_name: string; required_qty: number; current_qty: number; expiry_date?: string }>;
+  last_checked_at: string | null;
+  last_checked_by: string | null;
+  next_check_due: string | null;
+  check_interval_days: number;
+  status: "active" | "needs_restock" | "expired_items" | "inactive";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }

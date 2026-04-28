@@ -384,18 +384,34 @@ pub async fn trigger_pipeline(
     .execute(&mut *tx)
     .await?;
 
-    // For now, mark as completed (actual execution happens asynchronously in Phase 2)
-    let execution = sqlx::query_as::<_, IntegrationExecution>(
-        "UPDATE integration_executions \
-         SET status = 'completed', completed_at = now() \
-         WHERE id = $1 \
-         RETURNING *",
-    )
-    .bind(exec_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
     tx.commit().await?;
+
+    // Execute pipeline by calling emit_event with a synthetic event
+    // that matches this pipeline's trigger config
+    let event_type = pipeline
+        .trigger_config
+        .get("event_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("manual");
+
+    let _ = crate::events::emit_event(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        event_type,
+        input,
+    )
+    .await;
+
+    // Fetch the latest execution for this pipeline (emit_event created one)
+    let execution = sqlx::query_as::<_, IntegrationExecution>(
+        "SELECT * FROM integration_executions \
+         WHERE pipeline_id = $1 \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
 
     Ok(Json(execution))
 }
