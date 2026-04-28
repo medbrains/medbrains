@@ -163,68 +163,69 @@ pub async fn create_order(
         .clone()
         .unwrap_or_else(|| format!("rcpt_{}", Uuid::new_v4()));
 
-    // Call Razorpay Orders API
-    let client = reqwest::Client::new();
-    let rz_body = serde_json::json!({
-        "amount": amount_paise,
-        "currency": currency,
-        "receipt": receipt,
-    });
+    // Sprint A.4 — async outbox flow. Insert the txn record with
+    // status='pending_gateway', then queue an outbox event so the worker
+    // hits Razorpay outside the request thread. Client receives a
+    // `pending` response in <100ms; frontend polls /status until
+    // `created` (gateway accepted) or `captured` (payment complete).
+    //
+    // idempotency_key = the txn UUID (also used as Razorpay `receipt`,
+    // so a worker retry never creates a second order at the gateway).
 
-    let response = client
-        .post("https://api.razorpay.com/v1/orders")
-        .basic_auth(&config.key_id, Some(&config.key_secret))
-        .json(&rz_body)
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(format!("razorpay request failed: {e}")))?;
-
-    if !response.status().is_success() {
-        let err_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "unknown".to_owned());
-        return Err(AppError::Internal(format!(
-            "razorpay order creation failed: {err_text}"
-        )));
-    }
-
-    let rz_order: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(format!("razorpay response parse: {e}")))?;
-
-    let gateway_order_id = rz_order["id"]
-        .as_str()
-        .ok_or_else(|| AppError::Internal("missing order id in razorpay response".to_owned()))?
-        .to_owned();
-
-    // Save transaction record
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
-          amount, currency, status, created_by) \
-         VALUES ($1, $2, $3, 'razorpay', $4, $5, $6, 'created', $7) \
-         RETURNING *",
+          amount, currency, status, created_by, idempotency_key) \
+         VALUES ($1, $2, $3, 'razorpay', '', $4, $5, 'pending_gateway', $6, $7) \
+         RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
     )
     .bind(claims.tenant_id)
     .bind(body.invoice_id)
     .bind(body.pos_sale_id)
-    .bind(&gateway_order_id)
     .bind(body.amount)
     .bind(currency)
     .bind(claims.sub)
+    .bind(Uuid::new_v4().to_string()) // placeholder, overwritten below
     .fetch_one(&mut *tx)
     .await?;
+
+    // Use the row's UUID as the idempotency key (and Razorpay receipt).
+    sqlx::query( // allow-raw-sql: backfill idempotency_key with txn.id
+        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
+    )
+    .bind(txn.id)
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_outbox::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "payment_gateway_transaction",
+            aggregate_id: Some(txn.id),
+            event_type: "payment.create_order",
+            payload: serde_json::json!({
+                "txn_id": txn.id,
+                "amount_paise": amount_paise,
+                "currency": currency,
+                "receipt": receipt,
+                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+            }),
+            idempotency_key: Some(txn.id.to_string()),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
 
     tx.commit().await?;
 
     Ok(Json(CreateOrderResponse {
         transaction_id: txn.id,
-        order_id: gateway_order_id,
+        order_id: String::new(), // populated by worker on success; client polls /status
         amount: body.amount,
         currency: currency.to_owned(),
-        key_id: config.key_id,
+        key_id: config.key_id, // safe to return — Razorpay key_id is public-side
+        status: "pending_gateway".to_owned(),
     }))
 }
 
@@ -317,6 +318,18 @@ pub async fn razorpay_webhook(
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Signature header".to_owned()))?;
 
+    // Sprint A.7 — idempotency by `x-razorpay-event-id` header (NOT body
+    // field; Razorpay sends the canonical event id in the header).
+    // Multiple deliveries of the same event share this id; we dedup at
+    // INSERT time via the `(provider, event_id)` PK on processed_webhooks.
+    let event_id = headers
+        .get("X-Razorpay-Event-Id")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            AppError::BadRequest("missing X-Razorpay-Event-Id header".to_owned())
+        })?
+        .to_owned();
+
     let payload: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
 
@@ -329,6 +342,7 @@ pub async fn razorpay_webhook(
         return Ok(Json(serde_json::json!({ "status": "ignored" })));
     };
 
+    // allow-raw-sql: webhook entry, tenant context not yet resolved
     let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
     )
@@ -345,6 +359,27 @@ pub async fn razorpay_webhook(
     medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
 
     verify_webhook_signature(&mut tx, &txn_row, &body, signature).await?;
+
+    // Idempotency guard. INSERT ... ON CONFLICT DO NOTHING RETURNING.
+    // If we get zero rows back, this event_id was already processed →
+    // 200-OK no-op so Razorpay stops retrying.
+    let inserted: Option<(String,)> = sqlx::query_as( // allow-raw-sql: webhook idempotency PK insert
+        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
+         VALUES ('razorpay', $1, $2, $3) \
+         ON CONFLICT (provider, event_id) DO NOTHING \
+         RETURNING event_id",
+    )
+    .bind(&event_id)
+    .bind(txn_row.tenant_id)
+    .bind(&payload)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if inserted.is_none() {
+        tx.commit().await?;
+        tracing::info!(event_id, "razorpay webhook duplicate — skipping");
+        return Ok(Json(serde_json::json!({ "status": "duplicate", "event_id": event_id })));
+    }
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
