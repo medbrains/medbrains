@@ -54,6 +54,8 @@ import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PrescriptionViews } from "../components/Clinical";
 import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
+import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
+import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import type {
   Patient,
   PrescriptionHistoryItem,
@@ -1933,12 +1935,24 @@ export function PatientDetailPage() {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const canCreateVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const canAdmit = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const [basketOpen, setBasketOpen] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
     queryFn: () => api.getPatient(id!),
     enabled: !!id,
   });
+
+  // Latest active encounter — basket needs an encounter to scope orders to.
+  const { data: visits = [] } = useQuery({
+    queryKey: ["patient-visits", id],
+    queryFn: () => api.listPatientVisits(id!),
+    enabled: !!id,
+  });
+  const activeEncounter = visits.find(
+    (v) => v.status === "open" || v.status === "in_progress",
+  );
 
   if (isLoading || !patient) {
     return (
@@ -1977,6 +1991,21 @@ export function PatientDetailPage() {
               >
                 New OPD Visit
               </Button>
+            )}
+            {canOrder && activeEncounter && (
+              <OrderBasketChip onClick={() => setBasketOpen(true)} />
+            )}
+            {canOrder && !activeEncounter && (
+              <Tooltip label="No active visit — start an OPD visit or admission first">
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  leftSection={<IconStethoscope size={14} />}
+                  disabled
+                >
+                  Order
+                </Button>
+              </Tooltip>
             )}
             {canAdmit && (
               <Button
@@ -2098,6 +2127,15 @@ export function PatientDetailPage() {
           <MergeTab patient={patient} />
         </Tabs.Panel>
       </Tabs>
+
+      {activeEncounter && (
+        <OrderBasketWorkspace
+          opened={basketOpen}
+          onClose={() => setBasketOpen(false)}
+          encounterId={activeEncounter.id}
+          patientId={patient.id}
+        />
+      )}
     </div>
   );
 }
