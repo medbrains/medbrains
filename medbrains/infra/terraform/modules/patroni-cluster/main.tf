@@ -45,6 +45,9 @@ variable "synchronous_replication" {
 
 locals {
   cluster_id = "medbrains-${var.environment}-${var.region}-pg"
+  # AWS LB / target group names cap at 32 chars. cluster_id is too long once
+  # we append `-writer-tg` / `-haproxy`, so use a shorter prefix that drops region.
+  lb_prefix  = "medbrains-${var.environment}-pg"
 }
 
 # Custom AMI — built by Packer in infra/packer/postgres-bottlerocket/.
@@ -59,20 +62,16 @@ data "aws_ami" "postgres" {
   }
 }
 
-data "aws_ami" "etcd" {
-  most_recent = true
-  owners      = ["self"]
-  filter {
-    name   = "tag:medbrains-image"
-    values = ["etcd-${var.etcd_version}"]
-  }
-}
+  # etcd binary is baked into the same Packer AMI (see postgres.pkr.hcl
+  # Step 1 — `etcd` and `etcdctl` installed to /usr/local/bin). We reuse
+  # data.aws_ami.postgres for etcd nodes; the systemd unit selects the
+  # right service via cloud-init tag dispatch.
 
 # ── Security groups ────────────────────────────────────────────────
 
 resource "aws_security_group" "pg" {
   name        = "${local.cluster_id}-pg-sg"
-  description = "Patroni PG nodes — 5432 from HAProxy + 5432 peer-to-peer for replication"
+  description = "Patroni PG nodes - 5432 from HAProxy + 5432 peer-to-peer for replication"
   vpc_id      = var.vpc_id
 
   # PG protocol from HAProxy NLB targets (peer NLB SG)
@@ -109,7 +108,7 @@ resource "aws_security_group" "pg" {
 
 resource "aws_security_group" "etcd" {
   name        = "${local.cluster_id}-etcd-sg"
-  description = "etcd quorum — 2379 from PG nodes + 2380 peer-to-peer"
+  description = "etcd quorum - 2379 from PG nodes + 2380 peer-to-peer"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -179,11 +178,28 @@ data "aws_iam_policy_document" "pg_wal" {
     actions   = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"]
     resources = [var.kms_key_arn]
   }
+  # Bootstrap reads instance tags to render patroni.yml + pgBackRest config
+  statement {
+    actions   = ["ec2:DescribeTags", "ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+  # Bootstrap fetches PG/replicator passwords
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["arn:aws:secretsmanager:*:*:secret:medbrains/*"]
+  }
 }
 
 resource "aws_iam_role_policy" "pg_wal" {
   role   = aws_iam_role.pg.id
   policy = data.aws_iam_policy_document.pg_wal.json
+}
+
+# SSM agent for ops access (patronictl, psql via SendCommand). Needed for
+# Terratest assertions and runbook procedures.
+resource "aws_iam_role_policy_attachment" "pg_ssm" {
+  role       = aws_iam_role.pg.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "pg" {
@@ -200,6 +216,10 @@ resource "aws_instance" "pg" {
   subnet_id              = var.private_subnet_ids[count.index]
   vpc_security_group_ids = [aws_security_group.pg.id]
   iam_instance_profile   = aws_iam_instance_profile.pg.name
+
+  # Force role policy attach BEFORE instance launches; otherwise SSM agent
+  # boots with creds-less profile and never retries until reboot.
+  depends_on = [aws_iam_role_policy_attachment.pg_ssm, aws_iam_role_policy.pg_wal]
 
   # Cloud-init reads these tags + writes the patroni.yml + pgBackRest config
   tags = {
@@ -240,10 +260,12 @@ resource "aws_instance" "pg" {
 
 resource "aws_instance" "etcd" {
   count                  = 3
-  ami                    = data.aws_ami.etcd.id
+  ami                    = data.aws_ami.postgres.id  # same AMI; etcd binary baked in
   instance_type          = var.etcd_instance_type
   subnet_id              = var.private_subnet_ids[count.index]
   vpc_security_group_ids = [aws_security_group.etcd.id]
+  iam_instance_profile   = aws_iam_instance_profile.pg.name  # SSM agent access
+  depends_on             = [aws_iam_role_policy_attachment.pg_ssm]
   tags = {
     Name                 = "${local.cluster_id}-etcd-${count.index + 1}"
     medbrains-etcd-role  = "member"
@@ -254,14 +276,14 @@ resource "aws_instance" "etcd" {
 # ── HAProxy NLB — points at the current Patroni leader ──────────────
 
 resource "aws_lb" "haproxy" {
-  name               = "${local.cluster_id}-haproxy"
+  name               = "${local.lb_prefix}-haproxy"
   internal           = true
   load_balancer_type = "network"
   subnets            = var.private_subnet_ids
 }
 
 resource "aws_lb_target_group" "writer" {
-  name        = "${local.cluster_id}-writer-tg"
+  name        = "${local.lb_prefix}-writer-tg"
   port        = 5432
   protocol    = "TCP"
   target_type = "instance"
@@ -301,7 +323,7 @@ resource "aws_lb_listener" "writer" {
 # Reader endpoint — load-balances across replicas (Patroni /replica returns
 # 200 only on replicas)
 resource "aws_lb_target_group" "reader" {
-  name        = "${local.cluster_id}-reader-tg"
+  name        = "${local.lb_prefix}-reader-tg"
   port        = 5432
   protocol    = "TCP"
   target_type = "instance"

@@ -43,7 +43,7 @@ variable "pgbackrest_version" {
 
 variable "instance_type" {
   type    = string
-  default = "t4g.medium"
+  default = "t4g.small"  # basic — Packer build only, AMI runs anywhere
 }
 
 # Source: AL2023 ARM64 from Amazon

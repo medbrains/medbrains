@@ -8,7 +8,7 @@
 # Usage:
 #   cd infra/test/patroni
 #   terraform init
-#   terraform apply        # ~$2-5/hour while running
+#   terraform apply        # ~$0.06/hour (3× t4g.micro PG + 3× t4g.nano etcd + NLB)
 #   # ... smoke test ...
 #   terraform destroy      # cleans EVERYTHING
 #
@@ -126,8 +126,8 @@ module "patroni" {
   private_subnet_ids  = slice(data.aws_subnets.default.ids, 0, 3)
   kms_key_arn         = aws_kms_key.wal.arn
   wal_archive_bucket  = aws_s3_bucket.wal.arn
-  instance_type       = "r7g.large"
-  etcd_instance_type  = "t4g.small"
+  instance_type       = "t4g.micro"  # smallest viable for PG+Patroni (~$0.0084/hr × 3); nano OOMs
+  etcd_instance_type  = "t4g.nano"   # smallest possible (~$0.0042/hr × 3)
   pg_version          = "16"
   patroni_version     = "3.3"
   etcd_version        = "3.5"

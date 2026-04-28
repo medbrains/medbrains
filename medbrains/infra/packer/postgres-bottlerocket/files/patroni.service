@@ -21,7 +21,8 @@ NoNewPrivileges=yes
 ProtectSystem=full
 ProtectHome=yes
 PrivateTmp=yes
-PrivateDevices=no  # need /dev/watchdog access
+# PrivateDevices=no — need /dev/watchdog access (Patroni STONITH)
+PrivateDevices=no
 
 [Install]
 WantedBy=multi-user.target
