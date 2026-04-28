@@ -1,0 +1,37 @@
+# KEDA ScaledObject — outbox worker scales by queue depth
+# Sprint A's outbox processes events with FOR UPDATE SKIP LOCKED, so
+# multiple workers are SAFE to run in parallel. Default 1 replica;
+# scale up under burst.
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: medbrains-outbox-worker
+  namespace: medbrains-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: medbrains-outbox-worker
+  pollingInterval: 30
+  cooldownPeriod: 600   # don't churn — outbox bursts are stable for minutes
+  minReplicaCount: 1   # always 1 — outbox is the cashier-flow critical path
+  maxReplicaCount: 5
+  triggers:
+    # Scale up when pending+retrying events accumulate
+    - type: postgresql
+      metadata:
+        connectionFromEnv: DATABASE_URL
+        query: |
+          SELECT count(*) FROM outbox_events
+            WHERE status IN ('pending','retrying')
+              AND next_retry_at <= now()
+        targetQueryValue: "100"   # 1 worker per ~100 due-now events
+    # Burst trigger — DLQ growth in the last hour
+    - type: postgresql
+      metadata:
+        connectionFromEnv: DATABASE_URL
+        query: |
+          SELECT count(*) FROM outbox_dlq
+            WHERE moved_at > now() - INTERVAL '1 hour'
+        targetQueryValue: "10"    # if DLQ growing, scale up to drain faster

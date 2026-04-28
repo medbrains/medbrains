@@ -97,17 +97,30 @@ source "amazon-ebs" "postgres" {
 build {
   sources = ["source.amazon-ebs.postgres"]
 
-  # Step 1: install Postgres, Patroni, pgBackRest
+  # Step 1: install Postgres + Patroni + pgBackRest from PostgreSQL.org's repo
+  # (AL2023 default repos don't carry pgbackrest; PGDG repo does and tracks
+  # both upstream cleanly).
   provisioner "shell" {
     inline = [
       "set -euxo pipefail",
       "sudo dnf update -y",
-      "sudo dnf install -y python3 python3-pip postgresql${var.pg_version} postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest etcd",
+      # PGDG repo for ARM64 — postgresql.org publishes pgdg-redhat-repo for AL2023 (rhel9-compatible)
+      "sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-aarch64/pgdg-redhat-repo-latest.noarch.rpm || true",
+      # AL2023 ships its own postgresql; disable the AL2023 module so PGDG wins
+      "sudo dnf -qy module disable postgresql || true",
+      "sudo dnf install -y --allowerasing postgresql${var.pg_version} postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest python3 python3-pip jq tar gzip",
+      # Patroni from pip — pgdg ships it but pip is more current
       "sudo python3 -m pip install --upgrade pip",
-      "sudo python3 -m pip install patroni[etcd3]==${var.patroni_version} psycopg[binary,pool]",
-      "sudo systemctl disable postgresql etcd", # Patroni manages PG; etcd starts on etcd nodes only
-      "sudo mkdir -p /var/lib/medbrains/{patroni,pg_data,pg_wal}",
+      "sudo python3 -m pip install 'patroni[etcd3]==${var.patroni_version}' 'psycopg[binary,pool]'",
+      # etcd — download binary from GitHub release (AL2023 doesn't package it)
+      "ETCD_VER=v3.5.17",
+      "curl -sL https://github.com/etcd-io/etcd/releases/download/$${ETCD_VER}/etcd-$${ETCD_VER}-linux-arm64.tar.gz -o /tmp/etcd.tgz",
+      "sudo tar -xzf /tmp/etcd.tgz -C /usr/local/bin --strip-components=1 etcd-$${ETCD_VER}-linux-arm64/etcd etcd-$${ETCD_VER}-linux-arm64/etcdctl",
+      "sudo mkdir -p /var/lib/medbrains/patroni /var/lib/medbrains/pg_data /var/lib/medbrains/pg_wal",
+      "id postgres || sudo useradd -r -s /sbin/nologin postgres",
       "sudo chown -R postgres:postgres /var/lib/medbrains",
+      # Disable any default service starts — Patroni manages PG, etcd nodes start etcd on first boot
+      "sudo systemctl disable postgresql-${var.pg_version} || true",
     ]
   }
 
