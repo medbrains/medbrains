@@ -18,6 +18,27 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
+/// Convenience: convert `Vec<SignatureForPrint>` (server-side shape with
+/// strongly-typed timestamps and Uuid refs) into the
+/// serialization-friendly `Vec<PrintSignatureData>` used by the print
+/// data structs. Saves identical 9-line `.map(|s| ...)` blocks across
+/// every print route.
+#[must_use]
+pub fn to_print_signatures(
+    sigs: Vec<SignatureForPrint>,
+) -> Vec<medbrains_core::print_data::PrintSignatureData> {
+    sigs.into_iter()
+        .map(|s| medbrains_core::print_data::PrintSignatureData {
+            signed_at: s.signed_at.to_rfc3339(),
+            signer_name: s.signer_name,
+            display_image_url: s.display_image_url,
+            display_block: s.display_block,
+            verify_ref: s.verify_ref,
+            legal_class: s.legal_class,
+        })
+        .collect()
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct SignatureForPrint {
     pub signed_at: DateTime<Utc>,

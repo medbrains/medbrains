@@ -24596,6 +24596,19 @@ export interface PendingSignoffEntry {
   legal_class: string;
 }
 
+/**
+ * Visual signature block data for printed PDFs.
+ * Mirrors `medbrains_core::print_data::PrintSignatureData`.
+ */
+export interface PrintSignatureData {
+  signed_at: string;
+  signer_name: string | null;
+  display_image_url: string | null;
+  display_block: string | null;
+  verify_ref: string;
+  legal_class: string;
+}
+
 // ─────────────────────────────────────────────────────────
 //  Doctor Activities Sub-Sprint B (packages + coverage)
 // ─────────────────────────────────────────────────────────

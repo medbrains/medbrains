@@ -478,6 +478,14 @@ pub async fn get_treatment_chart_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let chart_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "other",
+        admission_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
@@ -497,6 +505,7 @@ pub async fn get_treatment_chart_print_data(
         iv_fluids,
         stat_orders,
         treating_doctor: row.treating_doctor,
+        signatures: super::signed_documents::to_print_signatures(chart_sigs),
     }))
 }
 
@@ -622,6 +631,14 @@ pub async fn get_transfer_summary_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let transfer_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "discharge_summary",
+        transfer_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
@@ -650,6 +667,7 @@ pub async fn get_transfer_summary_print_data(
         receiving_doctor: row.receiving_doctor,
         transferring_nurse: row.transferring_nurse,
         receiving_nurse: row.receiving_nurse,
+        signatures: super::signed_documents::to_print_signatures(transfer_sigs),
     }))
 }
 

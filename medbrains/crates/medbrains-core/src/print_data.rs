@@ -688,6 +688,8 @@ pub struct InsurancePreauthPrintData {
     pub treating_doctor: Option<String>,
     pub contact_number: String,
     pub hospital_name: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -710,6 +712,8 @@ pub struct CashlessClaimPrintData {
     pub claim_status: String,
     pub treating_doctor: Option<String>,
     pub hospital_name: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1008,6 +1012,8 @@ pub struct TreatmentChartPrintData {
     pub iv_fluids: Vec<TreatmentChartIvFluid>,
     pub stat_orders: Vec<StatOrder>,
     pub treating_doctor: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -1065,6 +1071,8 @@ pub struct TransferSummaryPrintData {
     pub receiving_doctor: Option<String>,
     pub transferring_nurse: Option<String>,
     pub receiving_nurse: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1730,6 +1738,8 @@ pub struct AmaFormPrintData {
     pub interpreter_used: bool,
     pub interpreter_name: Option<String>,
     pub interpreter_language: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1807,6 +1817,8 @@ pub struct WoundCertificatePrintData {
     pub examining_doctor: String,
     pub doctor_designation: String,
     pub doctor_registration_number: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -1856,6 +1868,8 @@ pub struct AgeEstimationPrintData {
     pub examining_doctor: String,
     pub doctor_designation: String,
     pub doctor_registration_number: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1907,6 +1921,8 @@ pub struct DeathDeclarationPrintData {
     pub doctor_designation: String,
     pub doctor_registration_number: String,
     pub death_certificate_number: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1942,6 +1958,8 @@ pub struct MlcDocumentationPrintData {
     pub prepared_by: String,
     pub verified_by: String,
     pub prepared_at: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -2672,6 +2690,8 @@ pub struct InsuranceClaimPrintData {
     pub hospital_address: Option<String>,
     pub hospital_empanelment_number: Option<String>,
     pub hospital_logo_url: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 /// TDS Certificate print data
