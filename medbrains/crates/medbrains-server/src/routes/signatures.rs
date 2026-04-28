@@ -260,7 +260,7 @@ pub async fn sign_record(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Resolve credential — explicit id or doctor's default
-    let cred_row: Option<(Uuid, Vec<u8>, Option<String>, String)> = if let Some(cid) = body.credential_id
+    let cred_row: Option<(Uuid, Option<Vec<u8>>, Option<String>, Option<String>)> = if let Some(cid) = body.credential_id
     {
         sqlx::query_as(
             "SELECT id, encrypted_private_key, display_image_url, display_font \
@@ -288,13 +288,19 @@ pub async fn sign_record(
         .await?
     };
 
-    let (cred_id, priv_key, display_image, display_font) = cred_row.ok_or_else(|| {
+    let (cred_id, priv_key_opt, display_image, display_font) = cred_row.ok_or_else(|| {
         AppError::BadRequest(
             "no active default signature credential for this user — admin must issue one".to_owned(),
         )
     })?;
 
-    let priv_key = priv_key
+    let priv_key_bytes = priv_key_opt.ok_or_else(|| {
+        AppError::BadRequest(
+            "credential has no stored private key — issue a new credential".to_owned(),
+        )
+    })?;
+
+    let priv_key = priv_key_bytes
         .as_slice()
         .try_into()
         .map_err(|_| AppError::Internal("invalid stored private key".to_owned()))

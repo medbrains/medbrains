@@ -11,6 +11,7 @@ use reqwest::{Client, StatusCode};
 use tokio::net::TcpListener;
 
 use medbrains_server::{
+    middleware::system_state::SystemStateCache,
     routes, seed,
     state::{AppState, CookieConfig},
 };
@@ -112,6 +113,21 @@ pub async fn spawn_app() -> TestApp {
     let encoding_key = EncodingKey::from_ed_der(&pkcs8_der);
     let decoding_key = DecodingKey::from_ed_der(verifying_key.as_bytes());
 
+    // Topology router — tests use shared pool for both writer + reader.
+    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> =
+        Arc::new(medbrains_db_topology::PostgresTopologyResolver::new(
+            db.clone(),
+        ));
+    let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> = Arc::new(
+        medbrains_db_topology::TopologyRouter::new(
+            db.clone(),
+            db.clone(),
+            topology_resolver,
+        ),
+    );
+
+    let outbox_registry = Arc::new(medbrains_outbox::Registry::new());
+
     let state = AppState {
         db: db.clone(),
         yottadb: None,
@@ -124,6 +140,9 @@ pub async fn spawn_app() -> TestApp {
         },
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         trusted_proxies: Arc::new(vec![]),
+        system_state_cache: SystemStateCache::new(),
+        outbox: outbox_registry,
+        topology: topology_router,
     };
 
     let app = routes::build_router(state);
