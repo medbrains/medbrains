@@ -205,8 +205,9 @@ BEGIN
         ALTER TABLE prescriptions
             ADD COLUMN IF NOT EXISTS is_signed BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS signed_record_id UUID;
+        -- prescriptions.doctor_id is the signer (per 002_phase1_modules.sql).
         CREATE INDEX IF NOT EXISTS prescriptions_unsigned_idx
-            ON prescriptions (tenant_id, ordered_by) WHERE NOT is_signed;
+            ON prescriptions (tenant_id, doctor_id) WHERE NOT is_signed;
     END IF;
 
     IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'lab_results') THEN

@@ -24414,3 +24414,184 @@ export interface SaveBasketDraftRequest {
   items: BasketItem[];
   notes?: string | null;
 }
+
+// ─────────────────────────────────────────────────────────
+//  Doctor Activities (SPRINT-doctor-activities.md sub-A)
+// ─────────────────────────────────────────────────────────
+
+export interface DoctorProfile {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  prefix: string | null;
+  display_name: string;
+  qualification_string: string | null;
+  mci_number: string | null;
+  state_council_number: string | null;
+  state_council_name: string | null;
+  registration_valid_until: string | null;
+  specialty_ids: string[];
+  subspecialty: string | null;
+  years_experience: number | null;
+  is_full_time: boolean;
+  is_visiting: boolean;
+  parent_employee_id: string | null;
+  can_prescribe_schedule_x: boolean;
+  can_perform_surgery: boolean;
+  can_sign_mlc: boolean;
+  can_sign_death_certificate: boolean;
+  can_sign_fitness_certificate: boolean;
+  bio_short: string | null;
+  bio_long: string | null;
+  photo_url: string | null;
+  languages_spoken: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDoctorRequest {
+  user_id: string;
+  display_name: string;
+  prefix?: string | null;
+  qualification_string?: string | null;
+  mci_number?: string | null;
+  state_council_number?: string | null;
+  state_council_name?: string | null;
+  registration_valid_until?: string | null;
+  specialty_ids?: string[];
+  subspecialty?: string | null;
+  years_experience?: number | null;
+  is_full_time?: boolean;
+  is_visiting?: boolean;
+  can_prescribe_schedule_x?: boolean;
+  can_perform_surgery?: boolean;
+  can_sign_mlc?: boolean;
+  can_sign_death_certificate?: boolean;
+  can_sign_fitness_certificate?: boolean;
+  bio_short?: string | null;
+  photo_url?: string | null;
+  languages_spoken?: string[];
+}
+
+export type UpdateDoctorRequest = Partial<CreateDoctorRequest> & {
+  bio_long?: string | null;
+  is_active?: boolean | null;
+};
+
+export interface UpdateMyDoctorProfileRequest {
+  bio_short?: string | null;
+  bio_long?: string | null;
+  photo_url?: string | null;
+  languages_spoken?: string[];
+}
+
+export interface SignatureCredential {
+  id: string;
+  tenant_id: string;
+  doctor_user_id: string;
+  credential_type: "stored_key" | "aadhaar_esign" | "dsc_usb" | "external_pkcs11";
+  algorithm: string;
+  public_key: number[]; // bytea → number[]
+  display_image_url: string | null;
+  display_font: string | null;
+  valid_from: string;
+  valid_until: string | null;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface IssueCredentialRequest {
+  doctor_user_id: string;
+  display_image_url?: string | null;
+  display_font?: string | null;
+  valid_until?: string | null;
+  make_default?: boolean;
+}
+
+export interface RevokeCredentialRequest {
+  reason: string;
+}
+
+export interface SignedRecord {
+  id: string;
+  tenant_id: string;
+  record_type: string;
+  record_id: string;
+  signer_user_id: string;
+  signer_role: "primary" | "co_signer" | "attestor" | "witness";
+  signer_credential_id: string | null;
+  signed_at: string;
+  payload_hash: number[];
+  signature_bytes: number[];
+  display_image_snapshot: string | null;
+  display_block: string | null;
+  legal_class: "administrative" | "clinical" | "medico_legal" | "statutory_export";
+  created_at: string;
+}
+
+export interface SignRequest {
+  record_type: string;
+  record_id: string;
+  payload: Record<string, unknown>;
+  signer_role?: string;
+  legal_class?: string;
+  credential_id?: string;
+  notes?: string;
+}
+
+export interface SignResponse {
+  signed_record: SignedRecord;
+  payload_hash_hex: string;
+  signature_hex: string;
+}
+
+export interface VerifyRequest {
+  signed_record_id: string;
+  payload: Record<string, unknown>;
+}
+
+export interface VerifyResponse {
+  verified: boolean;
+  recomputed_hash_hex: string;
+  stored_hash_hex: string;
+  signer_user_id: string;
+  signed_at: string;
+  credential_revoked: boolean;
+}
+
+export interface MyDayResponse {
+  doctor_user_id: string;
+  today: {
+    appointments_total: number;
+    appointments_remaining: number;
+    ot_cases: number;
+    ipd_patients_under_care: number;
+    critical_alerts: number;
+  };
+  pending_signoffs: {
+    clinical: number;
+    medico_legal: number;
+    overdue: number;
+    total: number;
+  };
+  on_call: {
+    is_on_call_now: boolean;
+    next_on_call_at: string | null;
+  };
+  coverage: Array<{
+    absent_doctor_id: string;
+    start_at: string;
+    end_at: string;
+    reason: string | null;
+  }>;
+}
+
+export interface PendingSignoffEntry {
+  record_type: string;
+  record_id: string;
+  created_at: string;
+  legal_class: string;
+}

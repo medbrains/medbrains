@@ -729,6 +729,25 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "clinical.order_basket.sign", label: "Sign Order Basket", description: "Sign cross-module orders atomically (drug + lab + radiology + diet)", module: "clinical" },
   { code: "clinical.order_basket.draft", label: "Save Basket Drafts", description: "Save and resume basket drafts across devices", module: "clinical" },
   { code: "clinical.order_basket.view_audit", label: "View Basket Audit Log", description: "View order_basket_signatures audit trail", module: "clinical" },
+
+  // Doctor Activities
+  { code: "doctor.profile.view_own", label: "View Own Doctor Profile", description: "View own doctor profile + credentials", module: "doctor" },
+  { code: "doctor.profile.update_own", label: "Update Own Doctor Profile", description: "Edit own bio, photo, languages", module: "doctor" },
+  { code: "doctor.signature.sign", label: "Sign Records", description: "Apply Ed25519 digital signature to clinical records", module: "doctor" },
+  { code: "doctor.signature.co_sign", label: "Co-Sign Records", description: "Senior doctor countersigns junior's record", module: "doctor" },
+  { code: "doctor.signature.verify", label: "Verify Signatures", description: "Cryptographically verify signed records", module: "doctor" },
+  { code: "doctor.dashboard.view_own", label: "View My Day Dashboard", description: "View own composite doctor dashboard", module: "doctor" },
+  { code: "doctor.signoffs.view_own", label: "View Own Pending Sign-offs", description: "View pending sign-off queue for own records", module: "doctor" },
+  { code: "admin.doctors.list", label: "List Doctors", description: "Admin list of doctor profiles", module: "admin" },
+  { code: "admin.doctors.view", label: "View Doctor", description: "Admin view of single doctor profile", module: "admin" },
+  { code: "admin.doctors.create", label: "Create Doctor", description: "Admin create doctor profile", module: "admin" },
+  { code: "admin.doctors.update", label: "Update Doctor", description: "Admin update doctor profile (incl. capability flags)", module: "admin" },
+  { code: "admin.doctors.delete", label: "Delete Doctor", description: "Admin deactivate/delete doctor profile", module: "admin" },
+  { code: "admin.signature_credentials.list", label: "List Signature Credentials", description: "Admin list signature credentials", module: "admin" },
+  { code: "admin.signature_credentials.issue", label: "Issue Signature Credential", description: "Admin issue Ed25519 keypair for a doctor", module: "admin" },
+  { code: "admin.signature_credentials.revoke", label: "Revoke Signature Credential", description: "Admin revoke a credential (compromised, doctor left)", module: "admin" },
+  { code: "admin.coverage.list", label: "List Coverage Assignments", description: "Admin list locum coverage", module: "admin" },
+  { code: "admin.coverage.manage", label: "Manage Coverage", description: "Admin assign locum coverage", module: "admin" },
 ];
 
 // ── Set of all valid codes (for validation) ──────────────
@@ -1536,6 +1555,23 @@ export const P = {
     SIGN: "clinical.order_basket.sign" as const,
     DRAFT: "clinical.order_basket.draft" as const,
     VIEW_AUDIT: "clinical.order_basket.view_audit" as const,
+  },
+  DOCTOR: {
+    PROFILE: {
+      VIEW_OWN: "doctor.profile.view_own" as const,
+      UPDATE_OWN: "doctor.profile.update_own" as const,
+    },
+    SIGNATURE: {
+      SIGN: "doctor.signature.sign" as const,
+      CO_SIGN: "doctor.signature.co_sign" as const,
+      VERIFY: "doctor.signature.verify" as const,
+    },
+    DASHBOARD: {
+      VIEW_OWN: "doctor.dashboard.view_own" as const,
+    },
+    SIGNOFFS: {
+      VIEW_OWN: "doctor.signoffs.view_own" as const,
+    },
   },
 } as const;
 

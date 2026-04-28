@@ -504,6 +504,21 @@ import type {
   SignBasketResponse,
   OrderBasketDraft,
   SaveBasketDraftRequest,
+  // Doctor Activities
+  DoctorProfile,
+  CreateDoctorRequest,
+  UpdateDoctorRequest,
+  UpdateMyDoctorProfileRequest,
+  SignatureCredential,
+  IssueCredentialRequest,
+  RevokeCredentialRequest,
+  SignedRecord,
+  SignRequest,
+  SignResponse,
+  VerifyRequest,
+  VerifyResponse,
+  MyDayResponse,
+  PendingSignoffEntry,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -10927,5 +10942,77 @@ export const api = {
   deleteBasketDraft: (encounterId: string) =>
     request<{ deleted: boolean }>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
       method: "DELETE",
+    }),
+
+  // ── Doctor Activities ─────────────────────────────────────
+  adminListDoctors: (params?: {
+    specialty_id?: string;
+    is_active?: boolean;
+    is_visiting?: boolean;
+    search?: string;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.specialty_id) qs.set("specialty_id", params.specialty_id);
+    if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
+    if (params?.is_visiting !== undefined) qs.set("is_visiting", String(params.is_visiting));
+    if (params?.search) qs.set("search", params.search);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<DoctorProfile[]>(`/admin/doctors${q ? `?${q}` : ""}`);
+  },
+  adminGetDoctor: (id: string) =>
+    request<DoctorProfile>(`/admin/doctors/${encodeURIComponent(id)}`),
+  adminCreateDoctor: (data: CreateDoctorRequest) =>
+    request<DoctorProfile>("/admin/doctors", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminUpdateDoctor: (id: string, data: UpdateDoctorRequest) =>
+    request<DoctorProfile>(`/admin/doctors/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getMyDoctorProfile: () => request<DoctorProfile>("/doctors/me/profile"),
+  updateMyDoctorProfile: (data: UpdateMyDoctorProfileRequest) =>
+    request<DoctorProfile>("/doctors/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getMyDay: () => request<MyDayResponse>("/doctors/me/dashboard"),
+  getMyPendingSignoffs: () =>
+    request<PendingSignoffEntry[]>("/doctors/me/pending-signoffs"),
+
+  adminListSignatureCredentials: (params?: { doctor_user_id?: string; include_revoked?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.doctor_user_id) qs.set("doctor_user_id", params.doctor_user_id);
+    if (params?.include_revoked) qs.set("include_revoked", "true");
+    const q = qs.toString();
+    return request<SignatureCredential[]>(`/admin/signature-credentials${q ? `?${q}` : ""}`);
+  },
+  adminIssueSignatureCredential: (data: IssueCredentialRequest) =>
+    request<{ credential: SignatureCredential }>("/admin/signature-credentials", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminRevokeSignatureCredential: (id: string, data: RevokeCredentialRequest) =>
+    request<{ revoked: boolean }>(`/admin/signature-credentials/${encodeURIComponent(id)}/revoke`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  signRecord: (data: SignRequest) =>
+    request<SignResponse>("/signatures/sign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listSignaturesForRecord: (record_type: string, record_id: string) => {
+    const qs = new URLSearchParams({ record_type, record_id });
+    return request<SignedRecord[]>(`/signatures/list?${qs.toString()}`);
+  },
+  verifySignature: (data: VerifyRequest) =>
+    request<VerifyResponse>("/signatures/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };

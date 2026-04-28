@@ -72,6 +72,10 @@ const MaternityPage = lazy(() => import("./pages/specialty/maternity").then((m) 
 const OtherSpecialtiesPage = lazy(() => import("./pages/specialty/other").then((m) => ({ default: m.OtherSpecialtiesPage })));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
+const AdminDoctorsPage = lazy(() => import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })));
+const MyDayPage = lazy(() => import("./pages/doctor/my-day").then((m) => ({ default: m.MyDayPage })));
+const SignoffsPage = lazy(() => import("./pages/doctor/signoffs").then((m) => ({ default: m.SignoffsPage })));
+const DoctorProfilePage = lazy(() => import("./pages/doctor/profile").then((m) => ({ default: m.DoctorProfilePage })));
 const SettingsPage = lazy(() => import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })));
 const IntegrationHubPage = lazy(() => import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })));
 const IntegrationBuilderPage = lazy(() => import("./pages/admin/integration-builder").then((m) => ({ default: m.IntegrationBuilderPage })));
@@ -160,10 +164,17 @@ export function App() {
             <Route path="bedside-portal" element={<BedsidePortalPage />} />
             <Route path="care-view" element={<CareViewPage />} />
             <Route path="ot" element={<OtPage />} />
+            <Route path="doctor">
+              <Route index element={<Navigate to="my-day" replace />} />
+              <Route path="my-day" element={<MyDayPage />} />
+              <Route path="signoffs" element={<SignoffsPage />} />
+              <Route path="profile" element={<DoctorProfilePage />} />
+            </Route>
             <Route path="admin">
               <Route index element={<Navigate to="users" replace />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="roles" element={<RolesPage />} />
+              <Route path="doctors" element={<AdminDoctorsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="device-integrations"
