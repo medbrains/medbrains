@@ -116,6 +116,28 @@ pub struct WristbandPrintData {
 
 // ── Discharge Summary ────────────────────────────────────
 
+/// Visual signature block to be stamped onto a printed document.
+/// One per signer (primary + co-signers).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrintSignatureData {
+    /// ISO 8601 timestamp of when the signer signed.
+    pub signed_at: String,
+    /// Display name of signer ("Dr. Sharma") if resolvable.
+    pub signer_name: Option<String>,
+    /// URL of scanned signature image — print template stamps this
+    /// at the signature box. Null = no image stored, fall back to
+    /// rendered cursive `signer_name`.
+    pub display_image_url: Option<String>,
+    /// Pre-rendered text block printed below image:
+    /// "Digitally signed by Dr. X on YYYY-MM-DD HH:MM • Verify: …"
+    pub display_block: Option<String>,
+    /// signed_records.id as hex — used by verifier endpoint.
+    pub verify_ref: String,
+    /// Drives watermark style: "administrative" | "clinical" |
+    /// "medico_legal" | "statutory_export"
+    pub legal_class: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DischargeSummaryPrintData {
     pub patient_name: String,
@@ -131,6 +153,10 @@ pub struct DischargeSummaryPrintData {
     pub discharge_type: Option<String>,
     pub discharge_summary: Option<String>,
     pub diagnosis: Option<String>,
+    /// Digital signatures stamped onto the PDF. Empty array = unsigned
+    /// (template should render "DRAFT — UNSIGNED" watermark).
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 // ── Receipt (payment) ────────────────────────────────────
@@ -2274,6 +2300,11 @@ pub struct OpdPrescriptionPrintData {
     pub hospital_logo_url: Option<String>,
     pub hospital_address: Option<String>,
     pub hospital_phone: Option<String>,
+    /// Digital signatures stamped onto the PDF. Populated from
+    /// signed_records via signed_documents::fetch_signature_for_print.
+    /// Empty = unsigned, template renders "DRAFT — UNSIGNED" watermark.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -74,6 +74,7 @@ const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ defaul
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
 const AdminDoctorsPage = lazy(() => import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })));
 const AdminDoctorPackagesPage = lazy(() => import("./pages/admin/doctor-packages").then((m) => ({ default: m.AdminDoctorPackagesPage })));
+const AdminCoveragePage = lazy(() => import("./pages/admin/coverage").then((m) => ({ default: m.AdminCoveragePage })));
 const MyDayPage = lazy(() => import("./pages/doctor/my-day").then((m) => ({ default: m.MyDayPage })));
 const SignoffsPage = lazy(() => import("./pages/doctor/signoffs").then((m) => ({ default: m.SignoffsPage })));
 const DoctorProfilePage = lazy(() => import("./pages/doctor/profile").then((m) => ({ default: m.DoctorProfilePage })));
@@ -177,6 +178,7 @@ export function App() {
               <Route path="roles" element={<RolesPage />} />
               <Route path="doctors" element={<AdminDoctorsPage />} />
               <Route path="doctor-packages" element={<AdminDoctorPackagesPage />} />
+              <Route path="coverage" element={<AdminCoveragePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="device-integrations"

@@ -56,6 +56,7 @@ pub mod order_basket;
 pub mod order_sets;
 pub mod ot;
 pub mod signatures;
+pub mod signed_documents;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;

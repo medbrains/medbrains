@@ -162,6 +162,15 @@ pub async fn get_discharge_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Fetch signatures (primary + co-signers) for the discharge summary.
+    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "discharge_summary",
+        admission_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let fmt_ts =
@@ -181,6 +190,17 @@ pub async fn get_discharge_print_data(
         discharge_type: row.discharge_type,
         discharge_summary: row.discharge_summary,
         diagnosis: row.diagnosis,
+        signatures: sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 
@@ -1025,6 +1045,16 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "prescription",
+        encounter_id,
+    )
+    .await?;
+    let preview_signature_url: Option<String> =
+        sigs.iter().find_map(|s| s.display_image_url.clone());
+
     tx.commit().await?;
 
     let age_display = row
@@ -1082,11 +1112,22 @@ pub async fn get_opd_prescription_print_data(
             weight_kg: row.weight_kg,
             bmi,
         }),
-        doctor_signature_url: None,
+        doctor_signature_url: preview_signature_url,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
         hospital_address: tenant.2,
         hospital_phone: tenant.3,
+        signatures: sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 

@@ -53,6 +53,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PrescriptionViews } from "../components/Clinical";
+import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
 import type {
   Patient,
   PrescriptionHistoryItem,
@@ -2052,6 +2053,9 @@ export function PatientDetailPage() {
           <Tabs.Tab value="chronic" leftSection={<IconReportMedical size={14} />}>
             Chronic Care
           </Tabs.Tab>
+          <Tabs.Tab value="packages" leftSection={<IconReportMedical size={14} />}>
+            Packages
+          </Tabs.Tab>
           <Tabs.Tab value="merge" leftSection={<IconGitMerge size={14} />}>
             Merge
           </Tabs.Tab>
@@ -2086,6 +2090,9 @@ export function PatientDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="chronic">
           <ChronicCareTab patientId={patient.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="packages">
+          <ActivePackagesSection patientId={patient.id} />
         </Tabs.Panel>
         <Tabs.Panel value="merge">
           <MergeTab patient={patient} />

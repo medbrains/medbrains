@@ -10,7 +10,9 @@ mod module_config;
 mod payment_methods;
 mod pharmacy_catalog;
 mod role_dashboards;
-mod screens;
+// Screen builder removed (see migration 123). seed/screens.rs retained as
+// dead code for git history but not compiled.
+// mod screens;
 mod services;
 mod store_catalog;
 mod tax_categories;
@@ -851,8 +853,9 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;
 
-    // Screen definitions are global (no tenant_id), so seed separately
-    screens::seed_screens(pool).await?;
+    // Screen definitions removed — screen builder eradicated
+    // (see migration 123_drop_builders.sql + RFC nuke-builders).
+    let _ = pool;
 
     Ok(())
 }
