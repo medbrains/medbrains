@@ -498,28 +498,10 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.settings.general.manage",
           },
           {
-            i18nKey: "formBuilder",
-            path: "/admin/form-builder",
-            icon: "IconForms",
-            requiredPermission: "admin.form_builder.list",
-          },
-          {
-            i18nKey: "dashboardBuilder",
-            path: "/admin/dashboard-builder",
-            icon: "IconLayoutDashboard",
-            requiredPermission: "admin.dashboard_builder.list",
-          },
-          {
             i18nKey: "integrationHub",
             path: "/admin/integration-hub",
             icon: "IconPlug",
             requiredPermission: "integration.list",
-          },
-          {
-            i18nKey: "screenBuilder",
-            path: "/admin/screen-builder",
-            icon: "IconLayoutDashboard",
-            requiredPermission: "admin.screen_builder.list",
           },
           {
             i18nKey: "doctorSchedules",

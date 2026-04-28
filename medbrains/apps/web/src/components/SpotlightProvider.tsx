@@ -46,10 +46,7 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   "/admin/users": "Manage system users",
   "/admin/roles": "Manage roles",
   "/admin/settings": "System configuration",
-  "/admin/form-builder": "Build custom forms",
-  "/admin/dashboard-builder": "Build custom dashboards",
   "/admin/integration-hub": "Pipelines, sidecars, and execution history",
-  "/admin/screen-builder": "Build screens and attach sidecars",
 };
 
 /** Build navigation entries from nav config. */

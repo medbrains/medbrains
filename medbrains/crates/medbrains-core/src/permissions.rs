@@ -1339,37 +1339,12 @@ pub mod admin {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
         }
 
-        pub mod forms {
-            pub const MANAGE: &str = "admin.settings.forms.manage";
-        }
-
         pub mod clinical_masters {
             pub const LIST: &str = "admin.settings.clinical_masters.list";
             pub const CREATE: &str = "admin.settings.clinical_masters.create";
             pub const UPDATE: &str = "admin.settings.clinical_masters.update";
             pub const DELETE: &str = "admin.settings.clinical_masters.delete";
         }
-    }
-
-    pub mod form_builder {
-        pub const LIST: &str = "admin.form_builder.list";
-        pub const CREATE: &str = "admin.form_builder.create";
-        pub const UPDATE: &str = "admin.form_builder.update";
-        pub const DELETE: &str = "admin.form_builder.delete";
-    }
-
-    pub mod dashboard_builder {
-        pub const LIST: &str = "admin.dashboard_builder.list";
-        pub const CREATE: &str = "admin.dashboard_builder.create";
-        pub const UPDATE: &str = "admin.dashboard_builder.update";
-        pub const DELETE: &str = "admin.dashboard_builder.delete";
-    }
-
-    pub mod screen_builder {
-        pub const LIST: &str = "admin.screen_builder.list";
-        pub const CREATE: &str = "admin.screen_builder.create";
-        pub const UPDATE: &str = "admin.screen_builder.update";
-        pub const DELETE: &str = "admin.screen_builder.delete";
     }
 
     // IT Security permissions

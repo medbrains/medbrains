@@ -187,19 +187,8 @@ function PermissionEditor({
   const [widgetAccess, setWidgetAccess] = useState<Record<string, WidgetAccessLevel>>({});
   const [widgetFilter, setWidgetFilter] = useState("");
 
-  // Fetch field list
-  const { data: allFields = [] } = useQuery({
-    queryKey: ["admin-fields"],
-    queryFn: () => api.adminListFields(),
-    enabled: opened,
-  });
-
-  // Fetch widget templates for widget access
-  const { data: widgetTemplates = [] } = useQuery({
-    queryKey: ["admin-widget-templates"],
-    queryFn: () => api.adminListWidgetTemplates(),
-    enabled: opened,
-  });
+  const allFields: FieldMasterFull[] = [];
+  const widgetTemplates: WidgetTemplate[] = [];
 
   // Sync state when role changes
   const [loadedRoleId, setLoadedRoleId] = useState<string | null>(null);

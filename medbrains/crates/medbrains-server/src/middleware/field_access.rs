@@ -12,27 +12,17 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::middleware::authorization::BYPASS_ROLES;
 
-/// Resolve field access levels and return a map of restricted fields
-/// (fields that are NOT editable). Returns an empty map for bypass roles.
+/// Field-level access was tied to the form builder. With static React forms,
+/// there are no per-field access overrides — every authorized user can edit
+/// every field on their static form. Stubbed to always return an empty map.
 pub async fn resolve_restricted_fields(
-    db: &PgPool,
-    tenant_id: Uuid,
-    user_id: Uuid,
-    role: &str,
+    _db: &PgPool,
+    _tenant_id: Uuid,
+    _user_id: Uuid,
+    _role: &str,
 ) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
-    if BYPASS_ROLES.contains(&role) {
-        return Ok(HashMap::new());
-    }
-
-    let full_map = crate::routes::forms::resolve_field_access(db, tenant_id, user_id, role).await?;
-
-    // Only keep fields that are NOT editable
-    Ok(full_map
-        .into_iter()
-        .filter(|(_, level)| *level != FieldAccessLevel::Edit)
-        .collect())
+    Ok(HashMap::new())
 }
 
 /// Validate that a JSON body does not contain restricted fields.

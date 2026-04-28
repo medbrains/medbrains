@@ -94,8 +94,7 @@ pub async fn login(
         resolve_department_ids(&state.db, row.tenant_id, row.id, &row.role).await?;
 
     // Resolve field access levels
-    let field_access_map =
-        super::forms::resolve_field_access(&state.db, row.tenant_id, row.id, &row.role).await?;
+    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {
@@ -430,9 +429,7 @@ pub async fn refresh_token(
         resolve_department_ids(&state.db, row.tenant_id, row.user_id, &row.role).await?;
 
     // Resolve field access levels
-    let field_access_map =
-        super::forms::resolve_field_access(&state.db, row.tenant_id, row.user_id, &row.role)
-            .await?;
+    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {
@@ -568,8 +565,7 @@ pub async fn me(
     let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
 
     // Resolve field access levels
-    let field_access_map =
-        super::forms::resolve_field_access(&state.db, row.tenant_id, row.id, &row.role).await?;
+    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
     let field_access: HashMap<String, String> = field_access_map
         .into_iter()
         .map(|(k, v)| {

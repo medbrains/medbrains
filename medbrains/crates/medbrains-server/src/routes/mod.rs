@@ -1,6 +1,6 @@
 pub mod admin;
-pub mod admin_forms;
 pub mod ambulance;
+pub mod custom_code;
 pub mod analytics;
 pub mod appointments;
 pub mod audit;
@@ -25,7 +25,6 @@ pub mod diet;
 pub mod documents;
 pub mod emergency;
 pub mod facilities;
-pub mod forms;
 pub mod front_office;
 pub mod geo;
 pub mod health;
@@ -51,6 +50,9 @@ pub mod ot;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;
+pub mod pharmacy_finance;
+pub mod pharmacy_payments;
+pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
 pub mod print_data_admin;
@@ -71,7 +73,6 @@ pub mod regulatory;
 pub mod retrospective;
 pub mod scheduling;
 pub mod schema_registry;
-pub mod screens;
 pub mod security;
 pub mod setup;
 pub mod specialty_interventional;
@@ -90,6 +91,8 @@ use axum::{
 
 use crate::{
     middleware::{
+        access_log::access_log_layer,
+        audit::audit_layer,
         auth::auth_middleware,
         client_ip::client_ip_middleware,
         csrf::csrf_middleware,
@@ -387,26 +390,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/setup/config/import",
             post(setup::import_config),
         )
-        // Forms — definition (resolved per-tenant)
-        .route("/api/forms", get(forms::list_forms))
-        .route(
-            "/api/forms/{form_code}/definition",
-            get(forms::get_form_definition),
-        )
-        .route(
-            "/api/module-forms/{module_code}",
-            get(forms::get_module_forms),
-        )
-        // Forms — tenant field overrides
-        .route(
-            "/api/tenant/field-overrides",
-            get(forms::list_tenant_overrides),
-        )
-        .route(
-            "/api/tenant/field-overrides/{field_code}",
-            put(forms::upsert_tenant_override)
-                .delete(forms::delete_tenant_override),
-        )
         // Patients
         .route(
             "/api/patients",
@@ -548,115 +531,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/masters/relations",
             get(patients::list_relations),
         )
-        // Admin — form management
-        .route(
-            "/api/admin/forms",
-            get(admin_forms::list_all_forms).post(admin_forms::create_form),
-        )
-        .route(
-            "/api/admin/forms/{id}",
-            get(admin_forms::get_form_detail).put(admin_forms::update_form),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/sections",
-            post(admin_forms::create_section),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/sections/{id}",
-            put(admin_forms::update_section)
-                .delete(admin_forms::delete_section),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/sections/reorder",
-            put(admin_forms::reorder_sections),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/fields",
-            post(admin_forms::add_field_to_form),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/fields/{ff_id}",
-            put(admin_forms::update_form_field)
-                .delete(admin_forms::remove_field_from_form),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/fields/reorder",
-            put(admin_forms::reorder_fields),
-        )
-        // Admin — form versioning
-        .route(
-            "/api/admin/forms/{form_id}/publish",
-            post(admin_forms::publish_form),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/new-version",
-            post(admin_forms::create_new_version),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/versions",
-            get(admin_forms::list_form_versions),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/versions/{version}",
-            get(admin_forms::get_form_version),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/restore/{version}",
-            post(admin_forms::restore_form_version),
-        )
-        .route(
-            "/api/admin/forms/{form_id}/diff",
-            get(admin_forms::diff_form_versions),
-        )
-        // Admin — field management
-        .route(
-            "/api/admin/fields",
-            get(admin_forms::list_all_fields).post(admin_forms::create_field),
-        )
-        .route(
-            "/api/admin/fields/{id}",
-            get(admin_forms::get_field_detail).put(admin_forms::update_field),
-        )
-        // Admin — field audit log
-        .route(
-            "/api/admin/fields/{id}/audit",
-            get(admin_forms::get_field_audit_log),
-        )
-        // Admin — regulatory clauses
-        .route(
-            "/api/admin/regulatory-clauses",
-            get(admin_forms::list_regulatory_clauses),
-        )
-        // Admin — regulatory bodies
-        .route(
-            "/api/admin/regulatory-bodies",
-            get(admin_forms::list_regulatory_bodies)
-                .post(admin_forms::create_regulatory_body),
-        )
-        .route(
-            "/api/admin/regulatory-bodies/{id}",
-            put(admin_forms::update_regulatory_body),
-        )
-        // Admin — regulatory links
-        .route(
-            "/api/admin/regulatory-links",
-            post(admin_forms::create_regulatory_link),
-        )
-        .route(
-            "/api/admin/regulatory-links/{id}",
-            put(admin_forms::update_regulatory_link)
-                .delete(admin_forms::delete_regulatory_link),
-        )
-        // Admin — module-form links
-        .route(
-            "/api/admin/module-links",
-            get(admin_forms::list_module_links)
-                .post(admin_forms::create_module_link),
-        )
-        .route(
-            "/api/admin/module-links/{module_code}/{form_id}/{context}",
-            delete(admin_forms::delete_module_link),
-        )
         // Dashboards — user-facing
         .route("/api/dashboards", get(dashboard::list_dashboards))
         .route("/api/dashboards/my", get(dashboard::get_my_dashboard))
@@ -695,51 +569,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/dashboard/widget-data/{widget_id}",
             get(dashboard::get_widget_data),
-        )
-        // Admin — dashboards
-        .route(
-            "/api/admin/dashboards",
-            post(dashboard::admin_create_dashboard),
-        )
-        .route(
-            "/api/admin/dashboards/{id}",
-            put(dashboard::admin_update_dashboard)
-                .delete(dashboard::admin_delete_dashboard),
-        )
-        .route(
-            "/api/admin/dashboards/{id}/widgets",
-            post(dashboard::admin_add_widget),
-        )
-        .route(
-            "/api/admin/dashboards/{dashboard_id}/widgets/{wid}",
-            put(dashboard::admin_update_widget)
-                .delete(dashboard::admin_delete_widget),
-        )
-        .route(
-            "/api/admin/dashboards/{id}/layout",
-            put(dashboard::admin_update_layout),
-        )
-        .route(
-            "/api/admin/dashboards/{id}/duplicate",
-            post(dashboard::admin_duplicate_dashboard),
-        )
-        // Admin — widget templates
-        .route(
-            "/api/admin/widget-templates",
-            get(dashboard::admin_list_widget_templates)
-                .post(dashboard::admin_create_widget_template),
-        )
-        // Admin — per-user widget access overrides
-        .route(
-            "/api/admin/users/{id}/widget-access",
-            get(dashboard::admin_get_user_widget_access)
-                .put(dashboard::admin_set_user_widget_access),
-        )
-        // Admin — per-role widget defaults
-        .route(
-            "/api/admin/roles/{id}/widget-access",
-            get(dashboard::admin_get_role_widget_access)
-                .put(dashboard::admin_set_role_widget_access),
         )
         // ── OPD Appointments ────────────────────────────
         .route(
@@ -1872,6 +1701,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/pharmacy/safety/allergy-check", post(pharmacy::check_patient_allergies))
         .route("/api/pharmacy/batches/fefo-select", post(pharmacy::select_fefo_batch))
         .route("/api/pharmacy/pos/sales", get(pharmacy::list_pos_sales).post(pharmacy::create_pos_sale))
+        .route("/api/pharmacy/pos/sales/{id}/cancel", put(pharmacy::cancel_pos_sale))
+        .route("/api/pharmacy/pos/sales/{id}/return-items", put(pharmacy::return_pos_items))
         .route("/api/pharmacy/pos/day-summary", get(pharmacy::pos_day_summary))
         .route("/api/pharmacy/pricing/resolve", post(pharmacy::resolve_drug_price))
         .route("/api/pharmacy/pricing/tiers", put(pharmacy::upsert_pricing_tier))
@@ -1880,6 +1711,121 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/pharmacy/analytics/daily-sales", get(pharmacy::daily_sales_summary))
         .route("/api/pharmacy/analytics/fill-rate", get(pharmacy::prescription_fill_rate))
         .route("/api/pharmacy/analytics/margins", get(pharmacy::margin_analysis))
+        // ── Pharmacy Finance (credit notes + store indents) ──
+        .route(
+            "/api/pharmacy/credit-notes",
+            get(pharmacy_finance::list_credit_notes).post(pharmacy_finance::create_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}",
+            get(pharmacy_finance::get_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/approve",
+            put(pharmacy_finance::approve_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/settle",
+            put(pharmacy_finance::settle_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/cancel",
+            put(pharmacy_finance::cancel_credit_note),
+        )
+        .route(
+            "/api/pharmacy/store-indents",
+            get(pharmacy_finance::list_store_indents).post(pharmacy_finance::create_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/approve",
+            put(pharmacy_finance::approve_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/issue",
+            put(pharmacy_finance::issue_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/receive",
+            put(pharmacy_finance::receive_store_indent),
+        )
+        .route(
+            "/api/pharmacy/patient-orders/{patient_id}",
+            get(pharmacy_finance::list_patient_orders_for_return),
+        )
+        .route(
+            "/api/pharmacy/pos/lookup",
+            get(pharmacy_finance::lookup_pos_sale),
+        )
+        // ── Pharmacy Safety ──────────────────────────────
+        .route(
+            "/api/pharmacy/recalls",
+            get(pharmacy_safety::list_recalls).post(pharmacy_safety::create_recall),
+        )
+        .route(
+            "/api/pharmacy/recalls/{id}/complete",
+            put(pharmacy_safety::complete_recall),
+        )
+        .route(
+            "/api/pharmacy/recalls/{id}/affected-patients",
+            get(pharmacy_safety::get_recall_affected_patients),
+        )
+        .route(
+            "/api/pharmacy/destruction",
+            get(pharmacy_safety::list_destructions).post(pharmacy_safety::create_destruction),
+        )
+        .route(
+            "/api/pharmacy/destruction/{id}/certificate",
+            get(pharmacy_safety::get_destruction_certificate),
+        )
+        .route(
+            "/api/pharmacy/substitutes/{drug_id}",
+            get(pharmacy_safety::list_substitutes),
+        )
+        .route(
+            "/api/pharmacy/substitutes",
+            post(pharmacy_safety::create_substitute),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits",
+            get(pharmacy_safety::list_kits).post(pharmacy_safety::create_kit),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits/{id}/check",
+            put(pharmacy_safety::check_kit),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits/{id}/restock",
+            put(pharmacy_safety::restock_kit),
+        )
+        // ── Pharmacy Payments ────────────────────────────
+        .route(
+            "/api/pharmacy/payments",
+            get(pharmacy_payments::list_payments).post(pharmacy_payments::create_payment),
+        )
+        .route(
+            "/api/pharmacy/payments/{id}/reconcile",
+            put(pharmacy_payments::reconcile_payment),
+        )
+        .route(
+            "/api/pharmacy/payments/auto-reconcile",
+            post(pharmacy_payments::auto_reconcile_upi),
+        )
+        .route(
+            "/api/pharmacy/payments/day-reconciliation",
+            get(pharmacy_payments::day_reconciliation),
+        )
+        .route(
+            "/api/pharmacy/settlements",
+            get(pharmacy_payments::get_settlement),
+        )
+        .route(
+            "/api/pharmacy/settlements/{id}/close",
+            put(pharmacy_payments::close_settlement),
+        )
+        .route(
+            "/api/pharmacy/settlements/{id}/verify",
+            put(pharmacy_payments::verify_settlement),
+        )
         // ── Indent / Store ─────────────────────────────────
         .route(
             "/api/indent/requisitions",
@@ -2427,66 +2373,28 @@ pub fn build_router(state: AppState) -> Router {
             "/api/orchestration/jobs/stats",
             get(orchestration::job_stats),
         )
-        // ── Screens — Admin ────────────────────────────────
+        // ── Custom Code — Pipeline Code Execution ─────────
         .route(
-            "/api/admin/screens",
-            get(screens::list_screens).post(screens::create_screen),
+            "/api/integration/code-snippets",
+            get(custom_code::list_snippets)
+                .post(custom_code::create_snippet),
         )
         .route(
-            "/api/admin/screens/{id}",
-            get(screens::get_screen)
-                .put(screens::update_screen)
-                .delete(screens::delete_screen),
+            "/api/integration/code-snippets/{id}",
+            get(custom_code::get_snippet)
+                .put(custom_code::update_snippet),
         )
         .route(
-            "/api/admin/screens/{id}/publish",
-            post(screens::publish_screen),
+            "/api/integration/code-snippets/test",
+            post(custom_code::test_code),
         )
         .route(
-            "/api/admin/screens/{id}/new-version",
-            post(screens::create_new_version),
+            "/api/integration/code/compile-rust",
+            post(custom_code::compile_rust),
         )
         .route(
-            "/api/admin/screens/{id}/versions",
-            get(screens::list_versions),
-        )
-        .route(
-            "/api/admin/screens/{id}/versions/{ver}",
-            get(screens::get_version),
-        )
-        .route(
-            "/api/admin/screens/{id}/restore/{ver}",
-            post(screens::restore_version),
-        )
-        .route(
-            "/api/admin/screens/{id}/sidecars",
-            get(screens::list_sidecars).post(screens::create_sidecar),
-        )
-        .route(
-            "/api/admin/screens/{id}/sidecars/{sid}",
-            put(screens::update_sidecar).delete(screens::delete_sidecar),
-        )
-        .route(
-            "/api/admin/screen-overrides",
-            get(screens::list_overrides),
-        )
-        .route(
-            "/api/admin/screen-overrides/{screen_id}",
-            put(screens::upsert_override).delete(screens::delete_override),
-        )
-        // Screens — user-facing resolution
-        .route(
-            "/api/screens/{code}",
-            get(screens::resolve_screen),
-        )
-        .route(
-            "/api/screens/module/{module_code}",
-            get(screens::list_module_screens),
-        )
-        // Module sidecars — for hardcoded clinical pages
-        .route(
-            "/api/modules/{module_code}/sidecars",
-            get(screens::list_module_sidecars),
+            "/api/integration/code/ai-generate",
+            post(custom_code::ai_generate_code),
         )
         // ── IPD Phase 2: Wards, Bed Dashboard, Reports, Templates ─
         // Registered BEFORE /api/ipd/admissions/{id} to avoid path collision
@@ -5978,6 +5886,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/devices/agents", get(devices::list_bridge_agents))
         // Device data ingest (bridge agent calls)
         .route("/api/device-ingest/{module}", post(devices::ingest_device_data))
+        // RFC-INFRA-2026-002 Phase 2 — audit + read-side PHI access logging.
+        // Layers run outer→inner, so order here is: ip_restrict → csrf →
+        // auth → client_ip → audit_layer → access_log_layer → handler.
+        // audit needs auth + client_ip already populated, so it sits inside.
+        .layer(from_fn_with_state(state.clone(), audit_layer))
+        .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
         .layer(from_fn_with_state(state.clone(), auth_middleware))

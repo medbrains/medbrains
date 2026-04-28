@@ -28,21 +28,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  BloodGroup,
   CreatePatientRequest,
-  FinancialClass,
-  Gender,
-  MaritalStatus,
   Patient,
-  PatientCategory,
-  RegistrationSource,
-  RegistrationType,
   MpiMatchResult,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { DataTable, DynamicForm, PageHeader, StatusDot } from "../components";
+import { DataTable, PageHeader, StatusDot } from "../components";
+import { PatientRegistrationForm } from "../components/PatientRegistrationForm";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const PER_PAGE = 20;
@@ -107,120 +101,6 @@ function buildFullName(patient: Patient): string {
   return parts.join(" ");
 }
 
-/** Map form field_code flat data from DynamicForm into CreatePatientRequest */
-function mapFormDataToRequest(
-  data: Record<string, unknown>,
-): CreatePatientRequest {
-  const address: Record<string, unknown> = {};
-  const attributes: Record<string, unknown> = {};
-
-  const directFields = new Set([
-    "patient.first_name",
-    "patient.last_name",
-    "patient.date_of_birth",
-    "patient.biological_sex",
-    "patient.phone_primary",
-    "patient.email",
-    "patient.category",
-    "patient.prefix",
-    "patient.middle_name",
-    "patient.suffix",
-    "patient.father_name",
-    "patient.guardian_name",
-    "patient.guardian_relation",
-    "patient.marital_status",
-    "patient.religion",
-    "patient.blood_group",
-    "patient.occupation",
-    "patient.phone_secondary",
-    "patient.registration_type",
-    "patient.registration_source",
-    "patient.financial_class",
-    "patient.is_medico_legal",
-    "patient.mlc_number",
-    "patient.is_vip",
-  ]);
-
-  for (const [key, value] of Object.entries(data)) {
-    if (directFields.has(key) || !value) continue;
-    if (key.startsWith("patient_addresses.")) {
-      const field = key.replace("patient_addresses.", "");
-      address[field] = value;
-    } else {
-      const attrKey = key.startsWith("patient.") ? key.slice(8) : key;
-      attributes[attrKey] = value;
-    }
-  }
-
-  const rawGender = data["patient.biological_sex"] as string | undefined;
-  const gender = mapGender(rawGender);
-  const rawCategory = data["patient.category"] as string | undefined;
-  const category = mapCategory(rawCategory);
-
-  return {
-    first_name: (data["patient.first_name"] as string) ?? "",
-    last_name: (data["patient.last_name"] as string) ?? "",
-    date_of_birth: (data["patient.date_of_birth"] as string) || null,
-    gender,
-    phone: (data["patient.phone_primary"] as string) ?? "",
-    email: (data["patient.email"] as string) || null,
-    address: Object.keys(address).length > 0 ? address : null,
-    category,
-    prefix: (data["patient.prefix"] as string) || undefined,
-    middle_name: (data["patient.middle_name"] as string) || undefined,
-    suffix: (data["patient.suffix"] as string) || undefined,
-    father_name: (data["patient.father_name"] as string) || undefined,
-    guardian_name: (data["patient.guardian_name"] as string) || undefined,
-    guardian_relation: (data["patient.guardian_relation"] as string) || undefined,
-    marital_status: (data["patient.marital_status"] as MaritalStatus) || undefined,
-    religion: (data["patient.religion"] as string) || undefined,
-    blood_group: (data["patient.blood_group"] as BloodGroup) || undefined,
-    occupation: (data["patient.occupation"] as string) || undefined,
-    phone_secondary: (data["patient.phone_secondary"] as string) || undefined,
-    registration_type: (data["patient.registration_type"] as RegistrationType) || undefined,
-    registration_source: (data["patient.registration_source"] as RegistrationSource) || undefined,
-    financial_class: (data["patient.financial_class"] as FinancialClass) || undefined,
-    is_medico_legal: data["patient.is_medico_legal"] === true || data["patient.is_medico_legal"] === "true" || undefined,
-    mlc_number: (data["patient.mlc_number"] as string) || undefined,
-    is_vip: data["patient.is_vip"] === true || data["patient.is_vip"] === "true" || undefined,
-    attributes,
-  };
-}
-
-function mapGender(raw: string | undefined): Gender {
-  if (!raw) return "unknown";
-  const normalized = raw.toLowerCase();
-  if (normalized === "male" || normalized === "m") return "male";
-  if (normalized === "female" || normalized === "f") return "female";
-  if (normalized === "other" || normalized === "transgender") return "other";
-  return "unknown";
-}
-
-function mapCategory(raw: string | undefined): PatientCategory {
-  if (!raw) return "general";
-  const normalized = raw.toLowerCase().replace(/[\s-]/g, "_");
-  const validCategories: PatientCategory[] = [
-    "general",
-    "private",
-    "insurance",
-    "pmjay",
-    "cghs",
-    "staff",
-    "vip",
-    "mlc",
-    "esi",
-    "corporate",
-    "free",
-    "charity",
-    "research_subject",
-    "staff_dependent",
-  ];
-  if (validCategories.includes(normalized as PatientCategory)) {
-    return normalized as PatientCategory;
-  }
-  return "general";
-}
-
 // #endregion
 
 export function PatientsPage() {
@@ -276,8 +156,7 @@ export function PatientsPage() {
     },
   });
 
-  const handleRegisterSubmit = async (data: Record<string, unknown>) => {
-    const req = mapFormDataToRequest(data);
+  const handleRegisterSubmit = async (req: CreatePatientRequest) => {
     // Check for duplicates via MPI before creating
     try {
       const matches = await api.matchPatients({
@@ -472,8 +351,7 @@ export function PatientsPage() {
         size="100%"
         padding="md"
       >
-        <DynamicForm
-          formCode="patient_registration"
+        <PatientRegistrationForm
           quickMode={quickMode}
           onSubmit={handleRegisterSubmit}
           onCancel={() => setDrawerOpen(false)}

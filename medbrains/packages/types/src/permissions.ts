@@ -468,31 +468,11 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "admin.settings.billing_tax.manage", label: "Manage Billing & Tax", description: "Configure tax categories and payment methods", module: "admin" },
   { code: "admin.settings.branding.manage", label: "Manage Branding", description: "Configure hospital branding", module: "admin" },
   { code: "admin.settings.regulatory.manage", label: "Manage Regulatory", description: "Configure regulatory compliance settings", module: "admin" },
-  { code: "admin.settings.forms.manage", label: "Manage Forms", description: "Configure form definitions and fields", module: "admin" },
-
   // Admin — Clinical Masters
   { code: "admin.settings.clinical_masters.list", label: "List Clinical Masters", description: "View religions, occupations, relations, insurance providers", module: "admin" },
   { code: "admin.settings.clinical_masters.create", label: "Create Clinical Master", description: "Add new clinical master entries", module: "admin" },
   { code: "admin.settings.clinical_masters.update", label: "Update Clinical Master", description: "Modify clinical master entries", module: "admin" },
   { code: "admin.settings.clinical_masters.delete", label: "Delete Clinical Master", description: "Remove clinical master entries", module: "admin" },
-
-  // Admin — Form Builder
-  { code: "admin.form_builder.list", label: "List Form Designs", description: "View form builder designs", module: "admin" },
-  { code: "admin.form_builder.create", label: "Create Form Design", description: "Create new form designs", module: "admin" },
-  { code: "admin.form_builder.update", label: "Update Form Design", description: "Modify form designs", module: "admin" },
-  { code: "admin.form_builder.delete", label: "Delete Form Design", description: "Remove form designs", module: "admin" },
-
-  // Admin — Dashboard Builder
-  { code: "admin.dashboard_builder.list", label: "List Dashboards", description: "View dashboard builder designs", module: "admin" },
-  { code: "admin.dashboard_builder.create", label: "Create Dashboard", description: "Create new dashboard designs", module: "admin" },
-  { code: "admin.dashboard_builder.update", label: "Update Dashboard", description: "Modify dashboard designs", module: "admin" },
-  { code: "admin.dashboard_builder.delete", label: "Delete Dashboard", description: "Remove dashboard designs", module: "admin" },
-
-  // Admin — Screen Builder
-  { code: "admin.screen_builder.list", label: "List Screens", description: "View screen builder designs", module: "admin" },
-  { code: "admin.screen_builder.create", label: "Create Screen", description: "Create new screen designs", module: "admin" },
-  { code: "admin.screen_builder.update", label: "Update Screen", description: "Modify screen designs", module: "admin" },
-  { code: "admin.screen_builder.delete", label: "Delete Screen", description: "Remove screen designs", module: "admin" },
 
   // Admin — TV Displays
   { code: "admin.tv_displays.list", label: "View TV Displays", description: "View TV display configurations", module: "admin" },
@@ -1303,31 +1283,12 @@ export const P = {
       BILLING_TAX: { MANAGE: "admin.settings.billing_tax.manage" },
       BRANDING: { MANAGE: "admin.settings.branding.manage" },
       REGULATORY: { MANAGE: "admin.settings.regulatory.manage" },
-      FORMS: { MANAGE: "admin.settings.forms.manage" },
       CLINICAL_MASTERS: {
         LIST: "admin.settings.clinical_masters.list",
         CREATE: "admin.settings.clinical_masters.create",
         UPDATE: "admin.settings.clinical_masters.update",
         DELETE: "admin.settings.clinical_masters.delete",
       },
-    },
-    FORM_BUILDER: {
-      LIST: "admin.form_builder.list",
-      CREATE: "admin.form_builder.create",
-      UPDATE: "admin.form_builder.update",
-      DELETE: "admin.form_builder.delete",
-    },
-    DASHBOARD_BUILDER: {
-      LIST: "admin.dashboard_builder.list",
-      CREATE: "admin.dashboard_builder.create",
-      UPDATE: "admin.dashboard_builder.update",
-      DELETE: "admin.dashboard_builder.delete",
-    },
-    SCREEN_BUILDER: {
-      LIST: "admin.screen_builder.list",
-      CREATE: "admin.screen_builder.create",
-      UPDATE: "admin.screen_builder.update",
-      DELETE: "admin.screen_builder.delete",
     },
     TV_DISPLAYS: {
       LIST: "admin.tv_displays.list",

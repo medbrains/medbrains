@@ -645,21 +645,9 @@ function UserPermissionOverrideDrawer({
     setWidgetFilter("");
   }
 
-  // Fetch field list for field access overrides
-  const { data: allFields, isLoading: fieldsLoading } = useQuery({
-    queryKey: ["admin-fields"],
-    queryFn: () => api.adminListFields(),
-    staleTime: 60_000,
-    enabled: opened,
-  });
-
-  // Fetch widget templates for widget access overrides
-  const { data: widgetTemplates = [] } = useQuery({
-    queryKey: ["admin-widget-templates"],
-    queryFn: () => api.adminListWidgetTemplates(),
-    staleTime: 60_000,
-    enabled: opened,
-  });
+  const allFields: FieldMasterFull[] = [];
+  const fieldsLoading = false;
+  const widgetTemplates: WidgetTemplate[] = [];
 
   const tree = useMemo(() => buildPermissionTree(PERMISSIONS), []);
   const accordionValues = useMemo(() => tree.map((g) => g.key), [tree]);

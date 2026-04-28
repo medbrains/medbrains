@@ -699,11 +699,7 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
     queryFn: () => api.listPurchaseOrders({ indent_requisition_id: requisition.id, page: "1", per_page: "10" }),
     staleTime: 30_000,
   });
-  const sidecarsQuery = useQuery({
-    queryKey: ["module-sidecars", "indent", "indent-requisitions", "flow-tracker"],
-    queryFn: () => api.listModuleSidecars("indent", "indent-requisitions"),
-    staleTime: 5 * 60 * 1000,
-  });
+  const sidecarsQuery = { data: [] as ResolvedSidecar[] };
 
   const timelineItems = [
     { title: "Created", description: `Indent ${requisition.indent_number} created`, date: requisition.created_at, active: true },
