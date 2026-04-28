@@ -20,8 +20,8 @@ variable "db_subnet_ids" { type = list(string) }
 variable "kms_key_arn"   { type = string }
 variable "min_acu" {
   type        = number
-  default     = 0.5
-  description = "Aurora Serverless v2 minimum ACU"
+  default     = 0
+  description = "Aurora Serverless v2 minimum ACU. 0 = scale-to-zero (idle tenants cost $0/hr; 5-15s cold start on first request after idle). Set to 0.5 for latency-critical workloads that can't tolerate cold start. 0 ACU GA'd late 2024."
 }
 variable "max_acu" {
   type        = number

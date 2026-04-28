@@ -97,29 +97,28 @@ source "amazon-ebs" "postgres" {
 build {
   sources = ["source.amazon-ebs.postgres"]
 
-  # Step 1: install Postgres + Patroni + pgBackRest from PostgreSQL.org's repo
-  # (AL2023 default repos don't carry pgbackrest; PGDG repo does and tracks
-  # both upstream cleanly).
+  # Step 1: install Postgres + Patroni + pgBackRest.
+  # AL2023 doesn't package pgbackrest. PGDG meta-RPM has a hard
+  # /etc/redhat-release virtual provide AL2023 cannot satisfy. Workaround:
+  # drop the .repo file + GPG key manually, skipping the meta-RPM.
   provisioner "shell" {
     inline = [
       "set -euxo pipefail",
       "sudo dnf update -y",
-      # PGDG repo for ARM64 — postgresql.org publishes pgdg-redhat-repo for AL2023 (rhel9-compatible)
-      "sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-aarch64/pgdg-redhat-repo-latest.noarch.rpm || true",
-      # AL2023 ships its own postgresql; disable the AL2023 module so PGDG wins
+      "sudo curl -fsSL https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG -o /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG",
+      "sudo bash -c 'cat > /etc/yum.repos.d/pgdg.repo' <<'PGDGEOF'\n[pgdg${var.pg_version}]\nname=PostgreSQL ${var.pg_version} for RHEL/Rocky/Alma 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/${var.pg_version}/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\n[pgdg-common]\nname=PostgreSQL common RPMs for RHEL 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/common/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\nPGDGEOF",
       "sudo dnf -qy module disable postgresql || true",
-      "sudo dnf install -y --allowerasing postgresql${var.pg_version} postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest python3 python3-pip jq tar gzip",
-      # Patroni from pip — pgdg ships it but pip is more current
+      "sudo dnf install -y --allowerasing postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest python3 python3-pip jq tar gzip",
+      "echo 'export PATH=/usr/pgsql-${var.pg_version}/bin:$PATH' | sudo tee /etc/profile.d/pgdg.sh",
       "sudo python3 -m pip install --upgrade pip",
       "sudo python3 -m pip install 'patroni[etcd3]==${var.patroni_version}' 'psycopg[binary,pool]'",
-      # etcd — download binary from GitHub release (AL2023 doesn't package it)
+      # etcd binary (AL2023 doesn't package it)
       "ETCD_VER=v3.5.17",
-      "curl -sL https://github.com/etcd-io/etcd/releases/download/$${ETCD_VER}/etcd-$${ETCD_VER}-linux-arm64.tar.gz -o /tmp/etcd.tgz",
+      "curl -fsSL https://github.com/etcd-io/etcd/releases/download/$${ETCD_VER}/etcd-$${ETCD_VER}-linux-arm64.tar.gz -o /tmp/etcd.tgz",
       "sudo tar -xzf /tmp/etcd.tgz -C /usr/local/bin --strip-components=1 etcd-$${ETCD_VER}-linux-arm64/etcd etcd-$${ETCD_VER}-linux-arm64/etcdctl",
-      "sudo mkdir -p /var/lib/medbrains/patroni /var/lib/medbrains/pg_data /var/lib/medbrains/pg_wal",
+      "sudo mkdir -p /var/lib/medbrains/patroni /var/lib/medbrains/pg_data /var/lib/medbrains/pg_wal /etc/medbrains",
       "id postgres || sudo useradd -r -s /sbin/nologin postgres",
       "sudo chown -R postgres:postgres /var/lib/medbrains",
-      # Disable any default service starts — Patroni manages PG, etcd nodes start etcd on first boot
       "sudo systemctl disable postgresql-${var.pg_version} || true",
     ]
   }
