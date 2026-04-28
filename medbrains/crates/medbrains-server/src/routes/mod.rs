@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_db_topology;
 pub mod admin_system_state;
 pub mod ambulance;
 pub mod custom_code;
@@ -44,11 +45,14 @@ pub mod mrd;
 pub mod multi_hospital;
 pub mod occ_health;
 pub mod onboarding;
+pub mod doctor_dashboard;
+pub mod doctor_profile;
 pub mod opd;
 pub mod orchestration;
 pub mod order_basket;
 pub mod order_sets;
 pub mod ot;
+pub mod signatures;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;
@@ -4296,6 +4300,47 @@ pub fn build_router(state: AppState) -> Router {
                 .put(order_basket::save_draft)
                 .delete(order_basket::delete_draft),
         )
+        // ── Doctor Activities ───────────────────────────────
+        .route(
+            "/api/admin/doctors",
+            get(doctor_profile::list_doctors).post(doctor_profile::create_doctor),
+        )
+        .route(
+            "/api/admin/doctors/{id}",
+            get(doctor_profile::get_doctor).put(doctor_profile::update_doctor),
+        )
+        .route(
+            "/api/doctors/me/profile",
+            get(doctor_profile::get_my_profile).put(doctor_profile::update_my_profile),
+        )
+        .route(
+            "/api/doctors/me/dashboard",
+            get(doctor_dashboard::my_day),
+        )
+        .route(
+            "/api/doctors/me/pending-signoffs",
+            get(doctor_dashboard::list_my_pending_signoffs),
+        )
+        .route(
+            "/api/admin/signature-credentials",
+            get(signatures::list_credentials).post(signatures::issue_credential),
+        )
+        .route(
+            "/api/admin/signature-credentials/{id}/revoke",
+            post(signatures::revoke_credential),
+        )
+        .route(
+            "/api/signatures/sign",
+            post(signatures::sign_record),
+        )
+        .route(
+            "/api/signatures/list",
+            get(signatures::list_signatures),
+        )
+        .route(
+            "/api/signatures/verify",
+            post(signatures::verify_signature),
+        )
         // ── Order Sets ──────────────────────────────────────
         .route(
             "/api/order-sets/templates",
@@ -5805,6 +5850,12 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/system_state",
             get(admin_system_state::get_system_state)
                 .post(admin_system_state::update_system_state),
+        )
+        // Sprint B.4.3 — per-tenant DB topology selector (aurora ↔ patroni)
+        .route(
+            "/api/admin/db-topology",
+            get(admin_db_topology::get_db_topology)
+                .post(admin_db_topology::update_db_topology),
         )
         .route(
             "/api/audit/access-log/patient/{id}",

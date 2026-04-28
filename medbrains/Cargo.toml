@@ -11,6 +11,7 @@ members = [
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
     "crates/medbrains-outbox",
+    "crates/medbrains-db-topology",
 ]
 
 [workspace.package]

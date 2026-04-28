@@ -1290,6 +1290,12 @@ pub mod admin {
         }
     }
 
+    /// Sprint B: per-tenant Patroni vs Aurora topology selector.
+    pub mod db_topology {
+        pub const VIEW: &str = "admin.db_topology.view";
+        pub const MANAGE: &str = "admin.db_topology.manage";
+    }
+
     pub mod roles {
         pub const LIST: &str = "admin.roles.list";
         pub const VIEW: &str = "admin.roles.view";
