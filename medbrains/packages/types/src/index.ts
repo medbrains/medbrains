@@ -24276,3 +24276,141 @@ export interface PharmacyEmergencyKit {
   created_at: string;
   updated_at: string;
 }
+
+// ─────────────────────────────────────────────────────────
+//  Order Basket — atomic cross-module order signing
+//  See RFCs/sprints/SPRINT-order-basket.md
+// ─────────────────────────────────────────────────────────
+
+export interface BasketDrugItem {
+  kind: "drug";
+  drug_id: string;
+  drug_name: string;
+  dose: string;
+  frequency: string;
+  route: string;
+  duration_days?: number | null;
+  indication?: string | null;
+  is_prn?: boolean | null;
+  instructions?: string | null;
+  quantity: number;
+  unit_price: string;
+  schedule_x_serial?: string | null;
+}
+
+export interface BasketLabItem {
+  kind: "lab";
+  test_id: string;
+  priority?: string | null;
+  indication?: string | null;
+  notes?: string | null;
+}
+
+export interface BasketRadiologyItem {
+  kind: "radiology";
+  modality_id: string;
+  body_part?: string | null;
+  clinical_indication?: string | null;
+  priority?: string | null;
+  scheduled_at?: string | null;
+  contrast_required?: boolean | null;
+  pregnancy_checked?: boolean | null;
+  allergy_flagged?: boolean | null;
+  notes?: string | null;
+}
+
+export interface BasketProcedureItem {
+  kind: "procedure";
+  procedure_id: string;
+  indication?: string | null;
+  scheduled_at?: string | null;
+  notes?: string | null;
+}
+
+export interface BasketDietItem {
+  kind: "diet";
+  template_id?: string | null;
+  diet_type?: string | null;
+  special_instructions?: string | null;
+  is_npo?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface BasketReferralItem {
+  kind: "referral";
+  to_specialty_id?: string | null;
+  to_external_provider?: string | null;
+  reason: string;
+  priority?: string | null;
+}
+
+export type BasketItem =
+  | BasketDrugItem
+  | BasketLabItem
+  | BasketRadiologyItem
+  | BasketProcedureItem
+  | BasketDietItem
+  | BasketReferralItem;
+
+export type BasketWarningSeverity = "WARN" | "BLOCK";
+
+export interface BasketWarning {
+  code: string;
+  severity: BasketWarningSeverity;
+  message: string;
+  refs: number[];
+  detail?: Record<string, unknown> | null;
+}
+
+export interface BasketWarningAck {
+  code: string;
+  override_reason: string;
+}
+
+export interface CheckBasketRequest {
+  encounter_id: string;
+  patient_id: string;
+  items: BasketItem[];
+}
+
+export interface CheckBasketResponse {
+  warnings: BasketWarning[];
+}
+
+export interface SignBasketRequest {
+  encounter_id: string;
+  patient_id: string;
+  items: BasketItem[];
+  warnings_acknowledged?: BasketWarningAck[];
+  client_session_id?: string | null;
+  device_id?: string | null;
+}
+
+export interface CreatedOrderRef {
+  item_index: number;
+  order_type: string;
+  order_id: string;
+}
+
+export interface SignBasketResponse {
+  signature_id: string;
+  created: CreatedOrderRef[];
+  warnings: BasketWarning[];
+}
+
+export interface OrderBasketDraft {
+  id: string;
+  tenant_id: string;
+  encounter_id: string;
+  owner_user_id: string;
+  items: BasketItem[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveBasketDraftRequest {
+  items: BasketItem[];
+  notes?: string | null;
+}

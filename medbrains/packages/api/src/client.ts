@@ -497,6 +497,13 @@ import type {
   UpiQrResponse,
   InitiateRefundRequest,
   RefundGatewayResponse,
+  // Order Basket
+  CheckBasketRequest,
+  CheckBasketResponse,
+  SignBasketRequest,
+  SignBasketResponse,
+  OrderBasketDraft,
+  SaveBasketDraftRequest,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -10897,5 +10904,28 @@ export const api = {
     request<RefundGatewayResponse>("/payments/refund", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // ── Order Basket ──────────────────────────────────────────
+  checkBasket: (data: CheckBasketRequest) =>
+    request<CheckBasketResponse>("/orders/basket/check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  signBasket: (data: SignBasketRequest) =>
+    request<SignBasketResponse>("/orders/basket/sign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getBasketDraft: (encounterId: string) =>
+    request<OrderBasketDraft | null>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`),
+  saveBasketDraft: (encounterId: string, data: SaveBasketDraftRequest) =>
+    request<OrderBasketDraft>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteBasketDraft: (encounterId: string) =>
+    request<{ deleted: boolean }>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
+      method: "DELETE",
     }),
 };

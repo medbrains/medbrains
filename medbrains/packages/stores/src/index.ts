@@ -10,6 +10,7 @@ export {
 } from "./permission-hooks.js";
 export { useIntegrationBuilderStore } from "./integration-builder-store.js";
 export type { IntegrationBuilderStore, IntegrationBuilderActions, PipelineMeta } from "./integration-builder-store.js";
+export { useOrderBasketStore } from "./order-basket-store.js";
 export { useModuleRegistryStore } from "./module-registry-store.js";
 export { useLocaleStore } from "./locale-store.js";
 export {

@@ -724,6 +724,11 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "lms.certificates.create", label: "Issue Certificate", description: "Issue course certificates", module: "lms" },
   { code: "lms.compliance.view", label: "View Compliance", description: "View training compliance dashboard", module: "lms" },
   { code: "lms.my_learning.view", label: "My Learning", description: "View own enrolled courses and progress", module: "lms" },
+
+  // Order Basket
+  { code: "clinical.order_basket.sign", label: "Sign Order Basket", description: "Sign cross-module orders atomically (drug + lab + radiology + diet)", module: "clinical" },
+  { code: "clinical.order_basket.draft", label: "Save Basket Drafts", description: "Save and resume basket drafts across devices", module: "clinical" },
+  { code: "clinical.order_basket.view_audit", label: "View Basket Audit Log", description: "View order_basket_signatures audit trail", module: "clinical" },
 ];
 
 // ── Set of all valid codes (for validation) ──────────────
@@ -1526,6 +1531,11 @@ export const P = {
     CERTIFICATES_CREATE: "lms.certificates.create" as const,
     COMPLIANCE_VIEW: "lms.compliance.view" as const,
     MY_LEARNING_VIEW: "lms.my_learning.view" as const,
+  },
+  ORDER_BASKET: {
+    SIGN: "clinical.order_basket.sign" as const,
+    DRAFT: "clinical.order_basket.draft" as const,
+    VIEW_AUDIT: "clinical.order_basket.view_audit" as const,
   },
 } as const;
 

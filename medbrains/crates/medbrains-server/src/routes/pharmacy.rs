@@ -391,6 +391,21 @@ pub async fn create_order(
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let result = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<OrderDetailResponse, AppError> {
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one item is required".to_owned(),
@@ -398,9 +413,6 @@ pub async fn create_order(
     }
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
@@ -420,7 +432,7 @@ pub async fn create_order(
     .bind(body.discharge_summary_id)
     .bind(body.billing_package_id)
     .bind(body.store_location_id)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     let mut items = Vec::with_capacity(body.items.len());
@@ -440,13 +452,12 @@ pub async fn create_order(
         .bind(item.unit_price)
         .bind(total)
         .bind(item.quantity)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
         items.push(oi);
     }
 
-    tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, items }))
+    Ok(OrderDetailResponse { order, items })
 }
 
 // ══════════════════════════════════════════════════════════

@@ -213,13 +213,25 @@ pub async fn create_order(
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let order = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(order))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<RadiologyOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
     let contrast = body.contrast_required.unwrap_or(false);
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
     let allergy = body.allergy_flagged.unwrap_or(false);
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
@@ -244,11 +256,10 @@ pub async fn create_order(
     .bind(contrast)
     .bind(pregnancy)
     .bind(allergy)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(order))
+    Ok(order)
 }
 
 // ══════════════════════════════════════════════════════════

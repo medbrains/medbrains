@@ -309,7 +309,19 @@ pub async fn create_diet_order(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = create_diet_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
 
+/// Transaction-scoped sibling of `create_diet_order`. Used by order
+/// basket so multiple orders across modules commit atomically. Caller
+/// owns the tx + tenant context. Does NOT check permissions — caller must.
+pub async fn create_diet_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateDietOrderRequest,
+) -> Result<DietOrder, AppError> {
     let row = sqlx::query_as::<_, DietOrder>(
         "INSERT INTO diet_orders (tenant_id, patient_id, admission_id, template_id, diet_type, ordered_by, special_instructions, allergies_flagged, is_npo, npo_reason, start_date, end_date, calories_target, protein_g, carbs_g, fat_g, preferences)
          VALUES ($1, $2, $3, $4, COALESCE($5::diet_type, 'regular'), $6, $7, COALESCE($8, '[]'::jsonb), COALESCE($9, FALSE), $10, COALESCE($11::date, CURRENT_DATE), $12::date, $13, $14, $15, $16, COALESCE($17, '{}'::jsonb))
@@ -332,17 +344,17 @@ pub async fn create_diet_order(
     .bind(body.carbs_g)
     .bind(body.fat_g)
     .bind(&body.preferences)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    // Auto-bill diet order
-    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "diet")
+    // Auto-bill diet order (best-effort, swallowed on failure)
+    if super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "diet")
         .await
         .unwrap_or(false)
     {
         let encounter_id = row.admission_id.unwrap_or(row.id);
         let _ = super::billing::create_service_charge(
-            &mut tx,
+            tx,
             super::billing::ServiceChargeInput {
                 tenant_id: claims.tenant_id,
                 patient_id: row.patient_id,
@@ -357,8 +369,7 @@ pub async fn create_diet_order(
         .await;
     }
 
-    tx.commit().await?;
-    Ok(Json(row))
+    Ok(row)
 }
 
 pub async fn update_diet_order(

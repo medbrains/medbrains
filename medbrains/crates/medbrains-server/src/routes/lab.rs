@@ -399,10 +399,22 @@ pub async fn create_order(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
 
-    let priority = body.priority.as_deref().unwrap_or("routine");
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let order = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(order))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<LabOrder, AppError> {
+    let priority = body.priority.as_deref().unwrap_or("routine");
 
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \
@@ -419,11 +431,10 @@ pub async fn create_order(
     .bind(claims.sub)
     .bind(priority)
     .bind(&body.notes)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(order))
+    Ok(order)
 }
 
 // ══════════════════════════════════════════════════════════
