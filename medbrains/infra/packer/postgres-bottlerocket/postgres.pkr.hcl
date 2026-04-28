@@ -105,13 +105,14 @@ build {
     inline = [
       "set -euxo pipefail",
       "sudo dnf update -y",
-      "sudo curl -fsSL https://download.postgresql.org/pub/repos/yum/keys/RPM-GPG-KEY-PGDG -o /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG",
+      "sudo curl -fsSL https://download.postgresql.org/pub/repos/yum/keys/PGDG-RPM-GPG-KEY-AARCH64-RHEL -o /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG",
       "sudo bash -c 'cat > /etc/yum.repos.d/pgdg.repo' <<'PGDGEOF'\n[pgdg${var.pg_version}]\nname=PostgreSQL ${var.pg_version} for RHEL/Rocky/Alma 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/${var.pg_version}/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\n[pgdg-common]\nname=PostgreSQL common RPMs for RHEL 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/common/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\nPGDGEOF",
       "sudo dnf -qy module disable postgresql || true",
       "sudo dnf install -y --allowerasing postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest python3 python3-pip jq tar gzip",
       "echo 'export PATH=/usr/pgsql-${var.pg_version}/bin:$PATH' | sudo tee /etc/profile.d/pgdg.sh",
-      "sudo python3 -m pip install --upgrade pip",
-      "sudo python3 -m pip install 'patroni[etcd3]==${var.patroni_version}' 'psycopg[binary,pool]'",
+      # AL2023's RPM-managed pip can't be replaced via pip install --upgrade.
+      # The shipped pip is recent enough — install Patroni directly.
+      "sudo python3 -m pip install --no-cache-dir 'patroni[etcd3]==${var.patroni_version}' 'psycopg[binary,pool]'",
       # etcd binary (AL2023 doesn't package it)
       "ETCD_VER=v3.5.17",
       "curl -fsSL https://github.com/etcd-io/etcd/releases/download/$${ETCD_VER}/etcd-$${ETCD_VER}-linux-arm64.tar.gz -o /tmp/etcd.tgz",

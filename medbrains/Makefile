@@ -8,6 +8,7 @@
        smoke-test e2e-test generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
        docker-build \
+       packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
        clean logs db-shell seed
 
@@ -144,6 +145,17 @@ check-egress-allowlist: ## Cilium egress allowlist coherence check (soft until P
 
 docker-build: ## Build the medbrains-server Docker image
 	docker build -t medbrains-server:dev -f Dockerfile .
+
+# ── Packer (Sprint B) ────────────────────────────────────────
+
+packer-build: ## Build the postgres-patroni AMI (~$0.05, ~10min real EC2)
+	cd infra/packer/postgres-bottlerocket && packer build -var "region=ap-south-1" postgres.pkr.hcl
+
+packer-destroy: ## Deregister + delete medbrains-postgres-* AMIs we built
+	infra/packer/postgres-bottlerocket/destroy.sh
+
+packer-destroy-dry: ## Preview what packer-destroy would delete
+	infra/packer/postgres-bottlerocket/destroy.sh --dry-run
 
 # ── Terraform (RFC-INFRA-2026-002 Phase 4) ───────────────────
 
