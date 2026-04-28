@@ -137,10 +137,15 @@ build {
     source      = "files/pgbackrest.conf.tmpl"
     destination = "/tmp/pgbackrest.conf.tmpl"
   }
+  provisioner "file" {
+    source      = "files/medbrains-bootstrap.service"
+    destination = "/tmp/medbrains-bootstrap.service"
+  }
 
   provisioner "shell" {
     inline = [
       "sudo mv /tmp/patroni.service /etc/systemd/system/patroni.service",
+      "sudo mv /tmp/medbrains-bootstrap.service /etc/systemd/system/medbrains-bootstrap.service",
       "sudo mv /tmp/medbrains-bootstrap.sh /usr/local/sbin/medbrains-bootstrap.sh",
       "sudo mv /tmp/pgbackrest.conf.tmpl /etc/medbrains/pgbackrest.conf.tmpl",
       "sudo chmod 755 /usr/local/sbin/medbrains-bootstrap.sh",

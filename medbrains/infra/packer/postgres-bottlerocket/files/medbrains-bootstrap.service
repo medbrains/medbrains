@@ -1,0 +1,18 @@
+[Unit]
+Description=MedBrains first-boot bootstrap (renders patroni.yml + pgBackRest from EC2 tags)
+Documentation=https://github.com/DomnicAmalan/MedBrains/blob/master/medbrains/infra/packer/postgres-bottlerocket/files/medbrains-bootstrap.sh
+After=network-online.target cloud-init.service
+Wants=network-online.target
+ConditionPathExists=!/var/lib/medbrains/.bootstrap-complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/medbrains-bootstrap.sh
+ExecStartPost=/bin/touch /var/lib/medbrains/.bootstrap-complete
+RemainAfterExit=yes
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
