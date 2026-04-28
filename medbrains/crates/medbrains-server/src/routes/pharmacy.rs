@@ -2842,7 +2842,7 @@ pub async fn return_pos_items(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut total_refund = rust_decimal::Decimal::ZERO;
+    let mut total_refund = Decimal::ZERO;
 
     for ret_item in &body.items {
         // Get the sale item
@@ -2862,7 +2862,7 @@ pub async fn return_pos_items(
             continue;
         }
 
-        let refund_amount = item.selling_price * rust_decimal::Decimal::from(return_qty);
+        let refund_amount = item.selling_price * Decimal::from(return_qty);
         total_refund += refund_amount;
 
         // Mark item as partially/fully cancelled
@@ -2936,7 +2936,7 @@ pub async fn return_pos_items(
     .await?;
 
     // Create refund payment
-    if total_refund > rust_decimal::Decimal::ZERO {
+    if total_refund > Decimal::ZERO {
         sqlx::query(
             "INSERT INTO pharmacy_payment_transactions \
              (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \

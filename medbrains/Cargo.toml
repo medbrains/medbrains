@@ -10,6 +10,7 @@ members = [
     "crates/medbrains-bridge",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
+    "crates/medbrains-outbox",
 ]
 
 [workspace.package]
