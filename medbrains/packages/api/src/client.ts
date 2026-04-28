@@ -519,6 +519,18 @@ import type {
   VerifyResponse,
   MyDayResponse,
   PendingSignoffEntry,
+  // Doctor Packages + Patient Subs + Coverage
+  DoctorPackage,
+  PackageWithInclusions,
+  CreateDoctorPackageRequest,
+  CreateInclusionRequest,
+  UpdateDoctorPackageRequest,
+  DoctorPackageInclusion,
+  SubscriptionWithBalance,
+  SubscribeRequest,
+  ConsumeRequest,
+  CoverageAssignment,
+  CreateCoverageRequest,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -11014,5 +11026,80 @@ export const api = {
     request<VerifyResponse>("/signatures/verify", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // Doctor Packages (admin)
+  adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
+    if (params?.search) qs.set("search", params.search);
+    const q = qs.toString();
+    return request<DoctorPackage[]>(`/admin/doctor-packages${q ? `?${q}` : ""}`);
+  },
+  adminGetDoctorPackage: (id: string) =>
+    request<PackageWithInclusions>(`/admin/doctor-packages/${encodeURIComponent(id)}`),
+  adminCreateDoctorPackage: (data: CreateDoctorPackageRequest) =>
+    request<PackageWithInclusions>("/admin/doctor-packages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminUpdateDoctorPackage: (id: string, data: UpdateDoctorPackageRequest) =>
+    request<DoctorPackage>(`/admin/doctor-packages/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  adminAddInclusion: (packageId: string, data: CreateInclusionRequest) =>
+    request<DoctorPackageInclusion>(
+      `/admin/doctor-packages/${encodeURIComponent(packageId)}/inclusions`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  adminRemoveInclusion: (packageId: string, inclusionId: string) =>
+    request<{ deleted: boolean }>(
+      `/admin/doctor-packages/${encodeURIComponent(packageId)}/inclusions/${encodeURIComponent(inclusionId)}`,
+      { method: "DELETE" },
+    ),
+
+  // Patient Packages
+  subscribeToPackage: (data: SubscribeRequest) =>
+    request<{ id: string; status: string }>("/patient-packages/subscribe", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPatientPackages: (patientId: string) =>
+    request<SubscriptionWithBalance[]>(
+      `/patient-packages/patient/${encodeURIComponent(patientId)}`,
+    ),
+  consumePackage: (subscriptionId: string, data: ConsumeRequest) =>
+    request<{ consumption_id: string; remaining_after: number }>(
+      `/patient-packages/${encodeURIComponent(subscriptionId)}/consume`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  refundPackage: (subscriptionId: string) =>
+    request<{ refunded: boolean }>(
+      `/patient-packages/${encodeURIComponent(subscriptionId)}/refund`,
+      { method: "POST" },
+    ),
+
+  // Coverage (admin)
+  adminListCoverage: (params?: {
+    absent_doctor_id?: string;
+    covering_doctor_id?: string;
+    active_now?: boolean;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.absent_doctor_id) qs.set("absent_doctor_id", params.absent_doctor_id);
+    if (params?.covering_doctor_id) qs.set("covering_doctor_id", params.covering_doctor_id);
+    if (params?.active_now) qs.set("active_now", "true");
+    const q = qs.toString();
+    return request<CoverageAssignment[]>(`/admin/coverage${q ? `?${q}` : ""}`);
+  },
+  adminCreateCoverage: (data: CreateCoverageRequest) =>
+    request<CoverageAssignment>("/admin/coverage", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminDeleteCoverage: (id: string) =>
+    request<{ deleted: boolean }>(`/admin/coverage/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
 };

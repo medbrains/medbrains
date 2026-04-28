@@ -1397,6 +1397,11 @@ pub mod admin {
         pub const LIST: &str = "admin.coverage.list";
         pub const MANAGE: &str = "admin.coverage.manage";
     }
+
+    pub mod doctor_packages {
+        pub const LIST: &str = "admin.doctor_packages.list";
+        pub const MANAGE: &str = "admin.doctor_packages.manage";
+    }
 }
 
 /// Doctor self-service activities (SPRINT-doctor-activities.md).
@@ -1419,6 +1424,14 @@ pub mod doctor {
     pub mod signoffs {
         pub const VIEW_OWN: &str = "doctor.signoffs.view_own";
     }
+}
+
+/// Patient-side packages (subscribing + consuming).
+pub mod patient_packages {
+    pub const VIEW: &str = "patient_packages.view";
+    pub const SUBSCRIBE: &str = "patient_packages.subscribe";
+    pub const CONSUME: &str = "patient_packages.consume";
+    pub const REFUND: &str = "patient_packages.refund";
 }
 
 pub mod documents {

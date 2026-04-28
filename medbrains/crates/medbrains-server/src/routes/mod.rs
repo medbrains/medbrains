@@ -45,8 +45,11 @@ pub mod mrd;
 pub mod multi_hospital;
 pub mod occ_health;
 pub mod onboarding;
+pub mod coverage;
 pub mod doctor_dashboard;
+pub mod doctor_packages;
 pub mod doctor_profile;
+pub mod patient_packages;
 pub mod opd;
 pub mod orchestration;
 pub mod order_basket;
@@ -4340,6 +4343,49 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/signatures/verify",
             post(signatures::verify_signature),
+        )
+        // ── Doctor Packages (admin) ─────────────────────────
+        .route(
+            "/api/admin/doctor-packages",
+            get(doctor_packages::list_packages).post(doctor_packages::create_package),
+        )
+        .route(
+            "/api/admin/doctor-packages/{id}",
+            get(doctor_packages::get_package).put(doctor_packages::update_package),
+        )
+        .route(
+            "/api/admin/doctor-packages/{id}/inclusions",
+            post(doctor_packages::add_inclusion),
+        )
+        .route(
+            "/api/admin/doctor-packages/{pid}/inclusions/{iid}",
+            axum::routing::delete(doctor_packages::remove_inclusion),
+        )
+        // ── Patient Packages ────────────────────────────────
+        .route(
+            "/api/patient-packages/subscribe",
+            post(patient_packages::subscribe),
+        )
+        .route(
+            "/api/patient-packages/patient/{patient_id}",
+            get(patient_packages::list_for_patient),
+        )
+        .route(
+            "/api/patient-packages/{sub_id}/consume",
+            post(patient_packages::consume),
+        )
+        .route(
+            "/api/patient-packages/{sub_id}/refund",
+            post(patient_packages::refund),
+        )
+        // ── Doctor Coverage (admin) ─────────────────────────
+        .route(
+            "/api/admin/coverage",
+            get(coverage::list_coverage).post(coverage::create_coverage),
+        )
+        .route(
+            "/api/admin/coverage/{id}",
+            axum::routing::delete(coverage::delete_coverage),
         )
         // ── Order Sets ──────────────────────────────────────
         .route(

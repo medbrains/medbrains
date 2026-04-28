@@ -24595,3 +24595,135 @@ export interface PendingSignoffEntry {
   created_at: string;
   legal_class: string;
 }
+
+// ─────────────────────────────────────────────────────────
+//  Doctor Activities Sub-Sprint B (packages + coverage)
+// ─────────────────────────────────────────────────────────
+
+export interface DoctorPackage {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  total_price: string;
+  validity_days: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoctorPackageInclusion {
+  id: string;
+  tenant_id: string;
+  package_id: string;
+  inclusion_type: "consultation" | "lab" | "procedure" | "service";
+  consultation_specialty_id: string | null;
+  consultation_doctor_id: string | null;
+  service_id: string | null;
+  test_id: string | null;
+  procedure_id: string | null;
+  included_quantity: number;
+  notes: string | null;
+  sort_order: number;
+}
+
+export interface PackageWithInclusions extends DoctorPackage {
+  inclusions: DoctorPackageInclusion[];
+}
+
+export interface CreateDoctorPackageRequest {
+  code: string;
+  name: string;
+  description?: string | null;
+  total_price: string;
+  validity_days?: number;
+  inclusions?: CreateInclusionRequest[];
+}
+
+export interface CreateInclusionRequest {
+  inclusion_type: "consultation" | "lab" | "procedure" | "service";
+  consultation_specialty_id?: string | null;
+  consultation_doctor_id?: string | null;
+  service_id?: string | null;
+  test_id?: string | null;
+  procedure_id?: string | null;
+  included_quantity: number;
+  notes?: string | null;
+  sort_order?: number;
+}
+
+export interface UpdateDoctorPackageRequest {
+  name?: string;
+  description?: string | null;
+  total_price?: string;
+  validity_days?: number;
+  is_active?: boolean;
+}
+
+export interface PatientPackageSubscription {
+  id: string;
+  tenant_id: string;
+  package_id: string;
+  patient_id: string;
+  purchased_at: string;
+  purchased_via_invoice_id: string | null;
+  valid_until: string;
+  total_paid: string;
+  status: "active" | "exhausted" | "expired" | "refunded" | "suspended";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InclusionBalance {
+  inclusion_id: string;
+  inclusion_type: string;
+  included_quantity: number;
+  consumed_quantity: number;
+  remaining: number;
+}
+
+export interface SubscriptionWithBalance extends PatientPackageSubscription {
+  package_name: string | null;
+  balances: InclusionBalance[];
+}
+
+export interface SubscribeRequest {
+  package_id: string;
+  patient_id: string;
+  purchased_via_invoice_id?: string | null;
+  total_paid: string;
+  notes?: string | null;
+}
+
+export interface ConsumeRequest {
+  inclusion_type: string;
+  consumed_visit_id?: string | null;
+  consumed_service_id?: string | null;
+  consumed_test_id?: string | null;
+  consumed_procedure_id?: string | null;
+  consumed_quantity?: number;
+  notes?: string | null;
+}
+
+export interface CoverageAssignment {
+  id: string;
+  tenant_id: string;
+  absent_doctor_id: string;
+  covering_doctor_id: string;
+  start_at: string;
+  end_at: string;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CreateCoverageRequest {
+  absent_doctor_id: string;
+  covering_doctor_id: string;
+  start_at: string;
+  end_at: string;
+  reason?: string | null;
+}
