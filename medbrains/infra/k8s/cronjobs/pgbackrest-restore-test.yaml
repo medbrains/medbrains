@@ -1,0 +1,142 @@
+# Sprint B.3 — pgBackRest restore-test CronJob
+# Per RFCs/sprints/SPRINT-B-patroni-ha.md §5.
+#
+# Daily 03:30 UTC (09:00 IST) — well after the 02:00 IST basebackup
+# completes and before any business-hour write spike. Restores
+# yesterday's basebackup to a throwaway PG instance, replays WAL,
+# runs a smoke check, and emits the result as a Prometheus metric +
+# CloudWatch alert.
+#
+# Failure pages oncall via Alertmanager → PagerDuty so we never ship
+# more than 2 days with a corrupt archive.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pgbackrest-restore-test
+  namespace: medbrains-platform
+  labels:
+    app: pgbackrest-restore-test
+    sprint: B.3
+spec:
+  schedule: "30 3 * * *"          # 03:30 UTC daily
+  concurrencyPolicy: Forbid       # never run two at once
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  startingDeadlineSeconds: 1800   # if missed by >30min, skip — don't pile up
+  jobTemplate:
+    spec:
+      backoffLimit: 0             # no retry — failure means a real problem
+      activeDeadlineSeconds: 5400 # kill after 90min so a stuck restore doesn't block tomorrow's run
+      template:
+        metadata:
+          labels:
+            app: pgbackrest-restore-test
+        spec:
+          serviceAccountName: pgbackrest-restore-test-sa
+          restartPolicy: Never
+          # Big enough to actually run a Postgres restore — 8GB RAM keeps shared_buffers comfortable
+          containers:
+            - name: restore
+              image: ghcr.io/medbrains/pgbackrest-restore-test:latest
+              imagePullPolicy: Always
+              env:
+                - name: CLUSTER_ID
+                  valueFrom:
+                    configMapKeyRef:
+                      name: patroni-cluster-config
+                      key: cluster_id
+                - name: WAL_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: patroni-cluster-config
+                      key: wal_bucket
+                - name: AWS_REGION
+                  value: ap-south-1
+                - name: PROMETHEUS_PUSHGATEWAY
+                  value: http://pushgateway.observability.svc.cluster.local:9091
+                - name: SMOKE_QUERIES
+                  value: |
+                    SELECT count(*) FROM tenants;
+                    SELECT count(*) FROM users;
+                    SELECT count(*) FROM patients WHERE created_at > now() - INTERVAL '1 day';
+                    SELECT pg_last_wal_replay_lsn();
+              volumeMounts:
+                - name: scratch
+                  mountPath: /var/lib/postgresql/restore
+                - name: pgbackrest-config
+                  mountPath: /etc/pgbackrest.conf
+                  subPath: pgbackrest.conf
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 4Gi
+                  ephemeral-storage: 50Gi
+                limits:
+                  cpu: 2
+                  memory: 8Gi
+                  ephemeral-storage: 100Gi
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999       # postgres uid
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scratch
+              emptyDir:
+                sizeLimit: 100Gi    # restored DB lives here, ephemeral
+            - name: pgbackrest-config
+              configMap:
+                name: pgbackrest-config
+                items:
+                  - key: pgbackrest.conf
+                    path: pgbackrest.conf
+
+---
+# IRSA-bound service account — least privilege on WAL bucket
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pgbackrest-restore-test-sa
+  namespace: medbrains-platform
+  annotations:
+    # Wired by Terraform infra/terraform/modules/iam-irsa/main.tf in Phase 4
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/medbrains-pgbackrest-restore-test
+
+---
+# Alertmanager rule — pages oncall on consecutive failures
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pgbackrest-restore-test-alerts
+  namespace: medbrains-platform
+spec:
+  groups:
+    - name: pgbackrest-restore-test
+      interval: 30s
+      rules:
+        - alert: PgBackRestRestoreTestFailed
+          expr: |
+            time() - pgbackrest_restore_test_last_success_timestamp{cluster_id="$CLUSTER_ID"} > 86400
+          for: 1m
+          labels:
+            severity: page
+            sprint: B.3
+          annotations:
+            summary: "pgBackRest restore-test has not succeeded in 24h"
+            description: |
+              Last successful restore-test for cluster {{ $labels.cluster_id }} was
+              {{ $value | humanizeDuration }} ago. Either the cron is failing or the
+              archive is corrupt. WAL recovery from S3 may not work.
+              Runbook: runbooks/wal-recovery.md.
+        - alert: PgBackRestRestoreTestSlow
+          expr: pgbackrest_restore_test_duration_seconds > 4500
+          for: 1m
+          labels:
+            severity: warn
+          annotations:
+            summary: "pgBackRest restore took > 75min"
+            description: "Investigate WAL volume growth or compression settings."

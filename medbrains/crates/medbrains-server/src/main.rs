@@ -90,6 +90,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // event_types continue to route through user-defined pipelines.
     let outbox_registry = build_outbox_registry();
 
+    // Sprint B.4.4 — TopologyRouter. Aurora-default tenants reuse the
+    // shared db_pool for both writer + reader. Tenants opted into
+    // Patroni get lazily-built pools resolved per request via
+    // tenant_db_topology lookups.
+    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> =
+        Arc::new(medbrains_db_topology::PostgresTopologyResolver::new(
+            db_pool.clone(),
+        ));
+    let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> = Arc::new(
+        medbrains_db_topology::TopologyRouter::new(
+            db_pool.clone(),
+            db_pool.clone(),
+            topology_resolver,
+        ),
+    );
+
     // Build shared state
     let state = AppState {
         db: db_pool.clone(),
@@ -101,6 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         trusted_proxies: Arc::new(config.trusted_proxies.clone()),
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry.clone(),
+        topology: topology_router,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)

@@ -122,9 +122,11 @@ pub async fn update_db_topology(
         .await?;
     tx.commit().await?;
 
-    // Phase B.4.4: when TopologyRouter is wired into AppState, also call
-    // state.topology.invalidate(claims.tenant_id) here so the next request
-    // hits the new pool. For now it propagates within 5min via the cache TTL.
+    // Sprint B.4.4 — evict the cached pool entry so the next request
+    // for this tenant rebuilds against the new topology. Cross-replica
+    // propagation still uses the 5-min cache TTL — tighten via WS broadcast
+    // through state.queue_broadcaster in a follow-up if drift becomes an issue.
+    state.topology.invalidate(claims.tenant_id).await;
 
     Ok(Json(DbTopologyResponse {
         tenant_id: claims.tenant_id,
