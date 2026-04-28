@@ -36,6 +36,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load configuration
     let config = AppConfig::from_env()?;
+
+    // Sub-commands run via the same binary so we share code/config:
+    //   medbrains-server audit verify-chain [--tenant=<uuid>|--all]
+    // RFC-INFRA-2026-002 Phase 2 deliverable.
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 3 && args[1] == "audit" && args[2] == "verify-chain" {
+        return run_verify_chain(&config, &args[3..]).await;
+    }
     tracing::info!(bind = %config.bind_addr(), "starting MedBrains server");
 
     // Connect to PostgreSQL
@@ -174,6 +182,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     axum::serve(listener, app).await?;
 
+    Ok(())
+}
+
+/// `medbrains-server audit verify-chain` subcommand.
+/// Walks the audit_log hash chain for one or all tenants and writes a row
+/// to `audit_chain_verifications` with the result. Exits non-zero if any
+/// chain breaks — the K8s CronJob alerts on non-zero exit.
+async fn run_verify_chain(
+    config: &AppConfig,
+    args: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use medbrains_db::audit::AuditLogger;
+
+    let pool_config = medbrains_db::pool::PoolConfig {
+        max_connections: 4,
+        min_connections: 1,
+        acquire_timeout: Duration::from_secs(config.db_pool_acquire_timeout_secs),
+        idle_timeout: Duration::from_secs(config.db_pool_idle_timeout_secs),
+        max_lifetime: Duration::from_secs(config.db_pool_max_lifetime_secs),
+        statement_cache_capacity: config.db_statement_cache_capacity,
+        slow_statement_threshold: Duration::from_millis(config.db_slow_query_ms),
+    };
+    let pool =
+        medbrains_db::pool::create_pool_with_config(&config.database_url, &pool_config).await?;
+
+    // Resolve target tenants
+    let tenant_filter = args.iter().find_map(|a| a.strip_prefix("--tenant="));
+    let tenants: Vec<uuid::Uuid> = if let Some(t) = tenant_filter {
+        vec![uuid::Uuid::parse_str(t)?]
+    } else {
+        AuditLogger::tenants_with_audit_log(&pool).await?
+    };
+
+    let mut any_invalid = false;
+    for tenant in tenants {
+        let started = std::time::Instant::now();
+        let result = AuditLogger::verify_chain_for_tenant(&pool, tenant).await?;
+        let duration_ms: i32 = i32::try_from(started.elapsed().as_millis()).unwrap_or(i32::MAX);
+
+        // Persist the verification result
+        // allow-raw-sql: cron job container, pre-Phase-3 typed helper not yet in medbrains-db
+        sqlx::query(
+            "INSERT INTO audit_chain_verifications ( \
+                 tenant_id, completed_at, rows_checked, head_hash, broken_at, \
+                 valid, duration_ms, triggered_by \
+             ) VALUES ($1, now(), $2, $3, $4, $5, $6, 'cron')",
+        )
+        .bind(result.tenant_id)
+        .bind(result.rows_checked)
+        .bind(result.head_hash.as_deref())
+        .bind(result.broken_at)
+        .bind(result.valid)
+        .bind(duration_ms)
+        .execute(&pool)
+        .await?;
+
+        if result.valid {
+            tracing::info!(
+                tenant_id = %tenant,
+                rows_checked = result.rows_checked,
+                rows_legacy_skipped = result.rows_legacy_skipped,
+                duration_ms,
+                "audit chain verified OK"
+            );
+        } else {
+            any_invalid = true;
+            tracing::error!(
+                tenant_id = %tenant,
+                rows_checked = result.rows_checked,
+                rows_legacy_skipped = result.rows_legacy_skipped,
+                broken_at = ?result.broken_at,
+                "audit chain BROKEN — alert triggered"
+            );
+        }
+    }
+
+    if any_invalid {
+        std::process::exit(2);
+    }
     Ok(())
 }
 

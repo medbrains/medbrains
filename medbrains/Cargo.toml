@@ -9,6 +9,7 @@ members = [
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-bridge",
     "crates/medbrains-proxy",
+    "crates/medbrains-authz",
 ]
 
 [workspace.package]
@@ -72,6 +73,10 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # AI / LLM
 rig-core = { version = "0.35", features = ["derive"] }
 schemars = "1"
+
+# Code execution (pipeline custom code)
+mlua = { version = "0.10", features = ["lua54", "serialize", "send"] }
+wasmtime = "29"
 
 # ── Build profiles ──────────────────────────────────────────
 

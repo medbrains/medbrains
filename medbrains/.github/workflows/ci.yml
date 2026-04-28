@@ -314,6 +314,50 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # AUDIT / RLS / TENANT-LEAK / SHARING / TRACING STATIC CHECKS
+  # (RFC-INFRA-2026-002 Phase 0 — required status check on main)
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-checks:
+    name: Audit Checks (RLS / Tenant-Leak / Sharing / Audit / Tracing)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Strict from day 0:
+      - name: Run check-migration-headers (STRICT — enforced for migrations >=124)
+        run: python3 scripts/migration_header_lint.py
+
+      # STRICT — all tenant-bearing tables must have RLS coverage.
+      # Closed in migrations 124 (helpers) + 125 (8-table coverage).
+      - name: Run check-rls (STRICT)
+        run: python3 scripts/check_rls.py
+
+      # STRICT — ratchets against scripts/.tenant_leak_baseline.json.
+      # 643 routes/* call sites locked at baseline. New raw SQL in routes
+      # fails CI. Use `make check-tenant-leak-update-baseline` after a
+      # cleanup PR to ratchet the baseline down.
+      - name: Run check-tenant-leak (STRICT — ratchet)
+        run: python3 scripts/check_tenant_leak.py
+
+      # Soft until Phase 3 (sharing module lands):
+      - name: Run check-sharing
+        run: python3 scripts/check_sharing.py
+
+      # Soft until Phase 2 (AuditLayer middleware lands):
+      - name: Run check-audit
+        run: python3 scripts/check_audit_coverage.py
+
+      # Informational until tracing instrumentation reaches 90% (set in Phase 2):
+      - name: Run check-tracing-spans
+        run: python3 scripts/check_tracing_spans.py
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # FINAL STATUS CHECK (required for branch protection)
   # ═══════════════════════════════════════════════════════════════════════════
   ci-success:
@@ -328,6 +372,7 @@ jobs:
       - typescript-typecheck
       - typescript-test
       - typescript-build
+      - audit-checks
     if: always()
     steps:
       - name: Check all jobs passed
@@ -339,7 +384,8 @@ jobs:
              [[ "${{ needs.typescript-lint.result }}" != "success" ]] || \
              [[ "${{ needs.typescript-typecheck.result }}" != "success" ]] || \
              [[ "${{ needs.typescript-test.result }}" != "success" ]] || \
-             [[ "${{ needs.typescript-build.result }}" != "success" ]]; then
+             [[ "${{ needs.typescript-build.result }}" != "success" ]] || \
+             [[ "${{ needs.audit-checks.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi

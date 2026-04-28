@@ -1,0 +1,65 @@
+# Build / cache outputs
+target/
+**/target/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+**/*.tsbuildinfo
+.turbo/
+**/.turbo/
+.next/
+**/.next/
+
+# Frontend artefacts (web/mobile/tv) — server image doesn't need these
+apps/
+packages/
+e2e/
+**/e2e/
+playwright-report/
+test-results/
+allure-results/
+
+# IDE / editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+.githooks/
+
+# Local env / secrets — NEVER bake into image
+.env
+.env.*
+!.env.example
+
+# Docs / RFC artifacts
+RFCs/
+runbooks/
+*.md
+!README.md
+
+# CI / scripts not needed in the runtime image
+.github/
+scripts/
+
+# Docker artifacts (don't recurse)
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker/
+
+# Test fixtures / golden data
+tests/fixtures/
+**/fixtures/
+
+# Misc
+*.log
+*.tmp
+.cargo/registry/
