@@ -1371,6 +1371,48 @@ pub mod admin {
     pub const SYSTEM: &str = "admin.system.view";
     pub const BACKUP: &str = "admin.backup.manage";
     pub const INCENTIVE: &str = "admin.incentive.manage";
+
+    // Doctor administration (SPRINT-doctor-activities.md)
+    pub mod doctors {
+        pub const LIST: &str = "admin.doctors.list";
+        pub const VIEW: &str = "admin.doctors.view";
+        pub const CREATE: &str = "admin.doctors.create";
+        pub const UPDATE: &str = "admin.doctors.update";
+        pub const DELETE: &str = "admin.doctors.delete";
+    }
+
+    pub mod signature_credentials {
+        pub const LIST: &str = "admin.signature_credentials.list";
+        pub const ISSUE: &str = "admin.signature_credentials.issue";
+        pub const REVOKE: &str = "admin.signature_credentials.revoke";
+    }
+
+    pub mod coverage {
+        pub const LIST: &str = "admin.coverage.list";
+        pub const MANAGE: &str = "admin.coverage.manage";
+    }
+}
+
+/// Doctor self-service activities (SPRINT-doctor-activities.md).
+pub mod doctor {
+    pub mod profile {
+        pub const VIEW_OWN: &str = "doctor.profile.view_own";
+        pub const UPDATE_OWN: &str = "doctor.profile.update_own";
+    }
+
+    pub mod signature {
+        pub const SIGN: &str = "doctor.signature.sign";
+        pub const CO_SIGN: &str = "doctor.signature.co_sign";
+        pub const VERIFY: &str = "doctor.signature.verify";
+    }
+
+    pub mod dashboard {
+        pub const VIEW_OWN: &str = "doctor.dashboard.view_own";
+    }
+
+    pub mod signoffs {
+        pub const VIEW_OWN: &str = "doctor.signoffs.view_own";
+    }
 }
 
 pub mod documents {
