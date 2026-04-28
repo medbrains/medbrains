@@ -105,7 +105,7 @@ build {
     inline = [
       "set -euxo pipefail",
       "sudo dnf update -y",
-      "sudo curl -fsSL https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG -o /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG",
+      "sudo curl -fsSL https://download.postgresql.org/pub/repos/yum/keys/RPM-GPG-KEY-PGDG -o /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG",
       "sudo bash -c 'cat > /etc/yum.repos.d/pgdg.repo' <<'PGDGEOF'\n[pgdg${var.pg_version}]\nname=PostgreSQL ${var.pg_version} for RHEL/Rocky/Alma 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/${var.pg_version}/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\n[pgdg-common]\nname=PostgreSQL common RPMs for RHEL 9 - aarch64\nbaseurl=https://download.postgresql.org/pub/repos/yum/common/redhat/rhel-9-aarch64\nenabled=1\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG\nPGDGEOF",
       "sudo dnf -qy module disable postgresql || true",
       "sudo dnf install -y --allowerasing postgresql${var.pg_version}-server postgresql${var.pg_version}-contrib pgbackrest python3 python3-pip jq tar gzip",

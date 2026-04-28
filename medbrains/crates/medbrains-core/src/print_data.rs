@@ -2368,6 +2368,9 @@ pub struct LabReportFullPrintData {
     pub barcode_data: String,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Pathologist + co-signer signatures stamped onto the PDF.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2398,6 +2401,9 @@ pub struct CumulativeLabReportPrintData {
     pub pathologist_registration_number: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Pathologist signatures across the trend window.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2451,6 +2457,9 @@ pub struct RadiologyReportFullPrintData {
     pub pacs_study_uid: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Radiologist + co-reader signatures stamped onto the PDF.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2510,6 +2519,10 @@ pub struct DeathCertificatePrintData {
     pub hospital_name: String,
     pub hospital_address: Option<String>,
     pub hospital_logo_url: Option<String>,
+    /// Certifying doctor's digital signature stamped onto the certificate.
+    /// Death certificates are statutory_export legal class.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 // ══════════════════════════════════════════════════════════
