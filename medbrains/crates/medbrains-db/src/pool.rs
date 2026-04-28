@@ -90,7 +90,7 @@ pub async fn set_tenant_context(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: &uuid::Uuid,
 ) -> Result<(), DbError> {
-    apply_context(tx, Some(tenant_id), None, None, None, None, None).await
+    apply_context(tx, Some(tenant_id), None, None, None, None, None, None).await
 }
 
 /// Set both tenant and department context for RLS.
@@ -112,6 +112,38 @@ pub async fn set_full_context(
         None,
         None,
         None,
+        None,
+    )
+    .await
+}
+
+/// Sprint A.5: full per-request context including bypass-role flag.
+///
+/// Adds `app.bypass_dept_rls` to the standard context bundle so dept-RLS
+/// policies can short-circuit for super_admin / hospital_admin without
+/// requiring department_ids to be populated.
+///
+/// Caller responsibility: pass `bypass_dept_rls=true` when the user's
+/// role is in `middleware::authorization::BYPASS_ROLES`.
+pub async fn set_request_context_full(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+    department_ids: &[uuid::Uuid],
+    user_id: &uuid::Uuid,
+    bypass_dept_rls: bool,
+    ip_address: Option<&str>,
+) -> Result<(), DbError> {
+    let dept_str = format_department_context(department_ids);
+    let bypass_str = if bypass_dept_rls { "true" } else { "false" };
+    apply_context(
+        tx,
+        Some(tenant_id),
+        Some(dept_str.as_str()),
+        Some(user_id),
+        ip_address,
+        None,
+        None,
+        Some(bypass_str),
     )
     .await
 }
@@ -124,7 +156,7 @@ pub async fn set_user_context(
     user_id: &uuid::Uuid,
     ip_address: Option<&str>,
 ) -> Result<(), DbError> {
-    apply_context(tx, None, None, Some(user_id), ip_address, None, None).await
+    apply_context(tx, None, None, Some(user_id), ip_address, None, None, None).await
 }
 
 /// Set full audit context for a transaction: tenant, user, and IP.
@@ -147,6 +179,7 @@ pub async fn set_audit_context(
         None,
         Some(user_id),
         ip_address,
+        None,
         None,
         None,
     )
@@ -174,6 +207,7 @@ pub async fn set_extended_audit_context(
         ip_address,
         user_agent,
         session_id,
+        None,
     )
     .await
 }
@@ -193,6 +227,7 @@ fn format_department_context(department_ids: &[uuid::Uuid]) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn apply_context(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Option<&uuid::Uuid>,
@@ -201,6 +236,7 @@ async fn apply_context(
     ip_address: Option<&str>,
     user_agent: Option<&str>,
     session_id: Option<&str>,
+    bypass_dept_rls: Option<&str>,
 ) -> Result<(), DbError> {
     let _ = sqlx::query(
         "SELECT \
@@ -215,7 +251,9 @@ async fn apply_context(
             CASE WHEN $5::text IS NOT NULL \
                 THEN set_config('app.user_agent', $5::text, true) ELSE NULL END, \
             CASE WHEN $6::text IS NOT NULL \
-                THEN set_config('app.session_id', $6::text, true) ELSE NULL END",
+                THEN set_config('app.session_id', $6::text, true) ELSE NULL END, \
+            CASE WHEN $7::text IS NOT NULL \
+                THEN set_config('app.bypass_dept_rls', $7::text, true) ELSE NULL END",
     )
     .bind(tenant_id.map(ToString::to_string))
     .bind(department_ids)
@@ -223,6 +261,7 @@ async fn apply_context(
     .bind(ip_address)
     .bind(user_agent)
     .bind(session_id)
+    .bind(bypass_dept_rls)
     .fetch_optional(&mut **tx)
     .await?;
 

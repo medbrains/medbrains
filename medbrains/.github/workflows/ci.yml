@@ -357,6 +357,17 @@ jobs:
         run: python3 scripts/check_tracing_spans.py
         continue-on-error: true
 
+      # Sprint A enterprise overlay — strict from day 0, all run on every PR
+      - name: Run check-region-pinning (DPDP residency)
+        run: python3 scripts/check_region_pinning.py
+
+      - name: Run check-no-card-logging (PCI scope reduction)
+        run: python3 scripts/check_no_card_logging.py
+
+      # Soft until infra/cilium/egress-allowlist.yaml lands (Phase 4):
+      - name: Run check-egress-allowlist
+        run: python3 scripts/check_egress_allowlist.py
+
   # ═══════════════════════════════════════════════════════════════════════════
   # FINAL STATUS CHECK (required for branch protection)
   # ═══════════════════════════════════════════════════════════════════════════

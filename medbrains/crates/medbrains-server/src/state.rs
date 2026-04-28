@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use jsonwebtoken::{DecodingKey, EncodingKey};
+use medbrains_outbox::Registry as OutboxRegistry;
 use medbrains_yottadb::client::YottaDbClient;
 use sqlx::PgPool;
 
+use crate::middleware::system_state::SystemStateCache;
 use crate::routes::ws::QueueBroadcaster;
 
 /// Cookie configuration for `HttpOnly` cookie-based auth.
@@ -27,6 +29,10 @@ pub struct AppState {
     /// Trusted proxy CIDRs for X-Forwarded-For validation.
     /// Only trust forwarded headers if the direct connection is from one of these networks.
     pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
+    /// Sprint A.6: per-tenant system_state cache (normal/degraded/read_only).
+    pub system_state_cache: Arc<SystemStateCache>,
+    /// Sprint A.8: outbox handler registry for the worker.
+    pub outbox: Arc<OutboxRegistry>,
 }
 
 impl std::fmt::Debug for AppState {

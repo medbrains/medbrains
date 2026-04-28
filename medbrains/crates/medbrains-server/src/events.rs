@@ -15,9 +15,16 @@ use crate::error::AppError;
 
 /// Emit an internal event.
 ///
-/// Finds active pipelines whose `trigger_config` matches the `event_type`,
-/// then executes each inside a SAVEPOINT. On failure the savepoint rolls back
-/// and the execution is recorded as failed — the parent transaction continues.
+/// **Sprint A change** (RFCs/sprints/SPRINT-A-outbox.md §5):
+/// 1. Caller's transaction continues to write to `integration_pipelines` matches.
+/// 2. Pipeline execution moved into [`dispatch_to_pipelines`], which the outbox
+///    worker invokes asynchronously via `pipeline_fallback` for unregistered
+///    event_types. Synchronous in-line dispatch retained for backwards compat
+///    until A.4 lands the outbox-write at every call site.
+///
+/// Today this remains synchronous. The function signature stays unchanged so
+/// existing call sites in `routes/payment_gateway.rs:290`, `routes/integration.rs`
+/// etc. compile without modification.
 pub async fn emit_event(
     pool: &PgPool,
     tenant_id: Uuid,
@@ -25,7 +32,22 @@ pub async fn emit_event(
     event_type: &str,
     payload: Value,
 ) -> Result<(), AppError> {
-    // Find matching active pipelines
+    dispatch_to_pipelines(pool, tenant_id, user_id, event_type, &payload).await
+}
+
+/// Pipeline dispatcher — extracted from `emit_event` so the outbox worker
+/// can invoke it for unregistered event_types (`handlers/pipeline_fallback.rs`).
+///
+/// Same semantics as the original `emit_event` body: find active pipelines
+/// matching the event_type, execute each in its own SAVEPOINT, swallow per-
+/// pipeline errors. Returns `Ok` even if individual pipelines failed.
+pub async fn dispatch_to_pipelines(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    event_type: &str,
+    payload: &Value,
+) -> Result<(), AppError> {
     let trigger_match = serde_json::json!({ "event_type": event_type });
 
     let pipelines: Vec<PipelineMatch> = sqlx::query_as::<_, PipelineMatch>(
@@ -46,9 +68,8 @@ pub async fn emit_event(
     }
 
     for pipeline in &pipelines {
-        // Each pipeline execution gets its own transaction with tenant context
         let result =
-            execute_pipeline_safe(pool, tenant_id, user_id, pipeline, event_type, &payload).await;
+            execute_pipeline_safe(pool, tenant_id, user_id, pipeline, event_type, payload).await;
 
         if let Err(e) = result {
             tracing::warn!(

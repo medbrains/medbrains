@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_system_state;
 pub mod ambulance;
 pub mod custom_code;
 pub mod analytics;
@@ -45,6 +46,7 @@ pub mod occ_health;
 pub mod onboarding;
 pub mod opd;
 pub mod orchestration;
+pub mod order_basket;
 pub mod order_sets;
 pub mod ot;
 pub mod patients;
@@ -98,6 +100,7 @@ use crate::{
         csrf::csrf_middleware,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{RateLimiter, rate_limit_middleware},
+        system_state::system_state_layer,
     },
     state::AppState,
 };
@@ -4278,6 +4281,21 @@ pub fn build_router(state: AppState) -> Router {
             "/api/documents/print-jobs/{id}",
             put(documents::update_print_job),
         )
+        // ── Order Basket ────────────────────────────────────
+        .route(
+            "/api/orders/basket/check",
+            post(order_basket::check_basket),
+        )
+        .route(
+            "/api/orders/basket/sign",
+            post(order_basket::sign_basket),
+        )
+        .route(
+            "/api/orders/basket/drafts/{encounter_id}",
+            get(order_basket::get_draft)
+                .put(order_basket::save_draft)
+                .delete(order_basket::delete_draft),
+        )
         // ── Order Sets ──────────────────────────────────────
         .route(
             "/api/order-sets/templates",
@@ -5782,6 +5800,12 @@ pub fn build_router(state: AppState) -> Router {
             "/api/audit/access-log",
             get(audit::list_access_log).post(audit::log_access),
         )
+        // Sprint A.6 — system_state admin endpoints
+        .route(
+            "/api/admin/system_state",
+            get(admin_system_state::get_system_state)
+                .post(admin_system_state::update_system_state),
+        )
         .route(
             "/api/audit/access-log/patient/{id}",
             get(audit::patient_access_log),
@@ -5886,6 +5910,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/devices/agents", get(devices::list_bridge_agents))
         // Device data ingest (bridge agent calls)
         .route("/api/device-ingest/{module}", post(devices::ingest_device_data))
+        // Sprint A.6 — system_state middleware short-circuits non-GET when
+        // tenant is in read_only/degraded mode. Innermost so claims + path
+        // are populated and 503 response carries no audit weight.
+        .layer(from_fn_with_state(state.clone(), system_state_layer))
         // RFC-INFRA-2026-002 Phase 2 — audit + read-side PHI access logging.
         // Layers run outer→inner, so order here is: ip_restrict → csrf →
         // auth → client_ip → audit_layer → access_log_layer → handler.

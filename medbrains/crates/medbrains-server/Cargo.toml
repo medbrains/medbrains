@@ -10,6 +10,8 @@ license.workspace = true
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-yottadb = { path = "../medbrains-yottadb" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+async-trait = "0.1"
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }

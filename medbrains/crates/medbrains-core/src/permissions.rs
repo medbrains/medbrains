@@ -1274,6 +1274,22 @@ pub mod admin {
         pub const DELETE: &str = "admin.users.delete";
     }
 
+    /// Sprint A: per-tenant operating mode flip (normal/degraded/read_only).
+    pub mod system_state {
+        pub const VIEW: &str = "admin.system_state.view";
+        pub const MANAGE: &str = "admin.system_state.manage";
+    }
+
+    /// Sprint A: outbox queue + DLQ admin surface.
+    pub mod outbox {
+        pub const VIEW: &str = "admin.outbox.view";
+        pub const RETRY: &str = "admin.outbox.retry";
+
+        pub mod dlq {
+            pub const MANAGE: &str = "admin.outbox.dlq.manage";
+        }
+    }
+
     pub mod roles {
         pub const LIST: &str = "admin.roles.list";
         pub const VIEW: &str = "admin.roles.view";
@@ -1578,4 +1594,12 @@ pub mod lms {
     pub mod my_learning {
         pub const VIEW: &str = "lms.my_learning.view";
     }
+}
+
+/// Order Basket — atomic cross-module order signing
+/// (RFCs/sprints/SPRINT-order-basket.md).
+pub mod order_basket {
+    pub const SIGN: &str = "clinical.order_basket.sign";
+    pub const DRAFT: &str = "clinical.order_basket.draft";
+    pub const VIEW_AUDIT: &str = "clinical.order_basket.view_audit";
 }

@@ -4,6 +4,7 @@
        check-ui-api check-types check-all \
        check-rls check-sharing check-tenant-leak check-audit check-tracing \
        check-migration-headers \
+       check-region-pinning check-no-card-logging check-egress-allowlist \
        smoke-test e2e-test generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
        docker-build \
@@ -105,7 +106,7 @@ check-ui-api: ## Verify UI pages ↔ API method coverage
 check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
-check-all: check-api check-ui-api check-types check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers ## Run all static checks (incl. RLS + sharing + audit + tracing)
+check-all: check-api check-ui-api check-types check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 
@@ -129,6 +130,15 @@ check-tracing: ## Verify route handlers carry #[tracing::instrument(... fields(t
 
 check-migration-headers: ## Verify migrations >=124 carry RLS-Posture header block
 	python3 ../scripts/migration_header_lint.py
+
+check-region-pinning: ## DPDP residency check — region-pinned configs may not reference other regions
+	python3 ../scripts/check_region_pinning.py
+
+check-no-card-logging: ## PCI scope check — card identifiers banned from log statements
+	python3 ../scripts/check_no_card_logging.py
+
+check-egress-allowlist: ## Cilium egress allowlist coherence check (soft until Phase 4)
+	python3 ../scripts/check_egress_allowlist.py
 
 # ── Docker ───────────────────────────────────────────────────
 

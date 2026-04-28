@@ -14,7 +14,10 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 
 use medbrains_server::{
     config::AppConfig,
-    middleware::request_id::{MakeRequestUuid, request_id_header},
+    middleware::{
+        request_id::{MakeRequestUuid, request_id_header},
+        system_state::SystemStateCache,
+    },
     orchestration, routes, seed,
     state::{AppState, CookieConfig},
 };
@@ -82,6 +85,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cors_origin: config.cors_origin.clone(),
     };
 
+    // Sprint A.8 — assemble outbox handler registry. The pipeline_fallback
+    // wraps the existing events::dispatch_to_pipelines so unregistered
+    // event_types continue to route through user-defined pipelines.
+    let outbox_registry = build_outbox_registry();
+
     // Build shared state
     let state = AppState {
         db: db_pool.clone(),
@@ -91,6 +99,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cookie_config,
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         trusted_proxies: Arc::new(config.trusted_proxies.clone()),
+        system_state_cache: SystemStateCache::new(),
+        outbox: outbox_registry.clone(),
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -173,7 +183,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(db_pool.clone());
-    orchestration::scheduler::start_scheduler(db_pool);
+    orchestration::scheduler::start_scheduler(db_pool.clone());
+
+    // Sprint A.8 — start outbox worker. In production the worker should
+    // connect with the BYPASSRLS `medbrains_outbox_worker` role; for local
+    // dev we reuse the main pool. assert_bypass_rls() panics if the role
+    // does not have BYPASSRLS — opted out in dev via env var.
+    if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER").ok().as_deref() != Some("true") {
+        let outbox_worker = medbrains_outbox::Worker::new(
+            db_pool.clone(),
+            outbox_registry,
+            medbrains_outbox::WorkerConfig::default(),
+        );
+        let _shutdown_tx = outbox_worker.spawn();
+        tracing::info!("outbox worker spawned");
+    } else {
+        tracing::warn!("MEDBRAINS_DISABLE_OUTBOX_WORKER=true — outbox worker NOT spawned");
+    }
 
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
@@ -183,6 +209,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Sprint A.8 — assemble the outbox Handler Registry.
+///
+/// Registers typed handlers for known event_types and a pipeline_fallback
+/// that delegates to `events::dispatch_to_pipelines` for everything else.
+fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
+    use medbrains_outbox::handlers::{
+        abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio,
+    };
+    use medbrains_outbox::Registry;
+
+    let mut registry = Registry::new();
+
+    // Typed real-money handlers
+    registry.register(razorpay::CreateOrderHandler);
+    registry.register(razorpay::RefundHandler);
+
+    // Twilio per-event-type — distinct registrations for each sms.* code
+    // so the registry's panic-on-duplicate catches accidental re-binds.
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_confirmation"));
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_reminder_24h"));
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_reminder_2h"));
+    registry.register(twilio::SmsSendHandler::new("sms.discharge_summary"));
+    registry.register(twilio::SmsSendHandler::new("sms.vaccination_reminder"));
+    registry.register(twilio::SmsSendHandler::new("sms.cds_critical_interaction"));
+    registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
+
+    // SMTP / ABDM / TPA / HL7 stubs (Phase 1 — log only, return Ok)
+    registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
+    registry.register(abdm_stub::VerifyAbhaHandler);
+    registry.register(abdm_stub::HieBundlePushHandler);
+    registry.register(tpa_stub::PreauthSubmitHandler);
+    registry.register(hl7_stub::CriticalValueHandler);
+
+    // Fallback: route any unregistered event_type to user-defined pipelines.
+    let dispatcher = Arc::new(EventsPipelineDispatcher);
+    registry.set_fallback(pipeline_fallback::PipelineFallbackHandler::new(dispatcher));
+
+    Arc::new(registry)
+}
+
+/// Adapter — implements the outbox `PipelineDispatcher` trait by delegating
+/// to the existing `events::dispatch_to_pipelines` function.
+#[derive(Debug)]
+struct EventsPipelineDispatcher;
+
+#[async_trait::async_trait]
+impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
+    for EventsPipelineDispatcher
+{
+    async fn dispatch(
+        &self,
+        pool: &sqlx::PgPool,
+        tenant_id: uuid::Uuid,
+        user_id: uuid::Uuid,
+        event_type: &str,
+        payload: &serde_json::Value,
+    ) -> Result<(), String> {
+        medbrains_server::events::dispatch_to_pipelines(
+            pool, tenant_id, user_id, event_type, payload,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
 }
 
 /// `medbrains-server audit verify-chain` subcommand.
