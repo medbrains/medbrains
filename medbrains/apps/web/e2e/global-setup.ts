@@ -63,17 +63,21 @@ setup("authenticate as admin", async ({ page, request }) => {
       );
       const path = pathMatch ? pathMatch.split("=")[1] : "/";
 
-      return {
+      // Add the cookie under both hosts so request fixtures hitting either
+      // 127.0.0.1:3000 (E2E_BACKEND_URL default) or localhost:5173 (Vite)
+      // see them. The browser strictly distinguishes 127.0.0.1 ≠ localhost.
+      return ["127.0.0.1", "localhost"].map((domain) => ({
         name,
         value,
-        domain: "localhost",
+        domain,
         path: path ?? "/",
         httpOnly,
         secure: false,
         sameSite: "Lax" as const,
-      };
+      }));
     })
-    .filter(Boolean) as Array<{
+    .filter(Boolean)
+    .flat() as Array<{
     name: string;
     value: string;
     domain: string;
@@ -87,7 +91,7 @@ setup("authenticate as admin", async ({ page, request }) => {
     // eslint-disable-next-line no-console
     console.log(
       "Adding cookies:",
-      browserCookies.map((c) => c.name),
+      browserCookies.map((c) => `${c.name}@${c.domain}`),
     );
     await page.context().addCookies(browserCookies);
   }
