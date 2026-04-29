@@ -25,6 +25,8 @@ const AppointmentsPage = lazy(() => import("./pages/appointments").then((m) => (
 const PgLogbookPage = lazy(() => import("./pages/pg-logbook").then((m) => ({ default: m.PgLogbookPage })));
 const LabPage = lazy(() => import("./pages/lab").then((m) => ({ default: m.LabPage })));
 const PharmacyPage = lazy(() => import("./pages/pharmacy").then((m) => ({ default: m.PharmacyPage })));
+const PharmacyFinancePage = lazy(() => import("./pages/pharmacy-finance").then((m) => ({ default: m.PharmacyFinancePage })));
+const NurseActivitiesPage = lazy(() => import("./pages/nurse-activities").then((m) => ({ default: m.NurseActivitiesPage })));
 const RadiologyPage = lazy(() => import("./pages/radiology").then((m) => ({ default: m.RadiologyPage })));
 const BillingPage = lazy(() => import("./pages/billing").then((m) => ({ default: m.BillingPage })));
 const CssdPage = lazy(() => import("./pages/cssd").then((m) => ({ default: m.CssdPage })));
@@ -120,6 +122,8 @@ export function App() {
             <Route path="radiology" element={<RadiologyPage />} />
             <Route path="pharmacy" element={<PharmacyPage />} />
             <Route path="pharmacy/catalog" element={<DynamicScreenPage screenCode="pharmacy-catalog" />} />
+            <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
+            <Route path="nurse" element={<NurseActivitiesPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="billing/new" element={<DynamicScreenPage screenCode="billing-create" />} />
             <Route path="indent/*" element={<IndentPage />} />
