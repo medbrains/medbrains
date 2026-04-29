@@ -63,9 +63,30 @@ impl IntoResponse for AppError {
                 )
             }
             Self::Database(db_err) => {
-                tracing::error!(error = %self, "database error");
+                let (status, message) = match db_err {
+                    // Constraint violations map to client-side errors, not 500.
+                    medbrains_db::pool::DbError::Sqlx(sqlx::Error::Database(e)) => {
+                        match e.code().as_deref() {
+                            // Foreign key violation — referenced row doesn't exist.
+                            Some("23503") => (StatusCode::NOT_FOUND, "not found"),
+                            // Unique constraint violation — duplicate.
+                            Some("23505") => (StatusCode::CONFLICT, "conflict"),
+                            // Check constraint, not-null — bad input.
+                            Some("23514" | "23502") => {
+                                (StatusCode::BAD_REQUEST, "bad request")
+                            }
+                            _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
+                        }
+                    }
+                    _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
+                };
+                if status.is_server_error() {
+                    tracing::error!(error = %self, "database error");
+                } else {
+                    tracing::warn!(error = %self, status = %status, "client db error");
+                }
                 let detail = extract_db_detail(db_err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "database error", detail)
+                (status, message, detail)
             }
             Self::YottaDb(_) => {
                 tracing::error!(error = %self, "yottadb error");

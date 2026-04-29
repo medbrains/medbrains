@@ -17,20 +17,21 @@ test.describe("Lab CRUD", () => {
       encounterId,
     });
 
-    const order = await api<{ id: string; status: string }>(
+    // GET returns { order, results }
+    const detail = await api<{ order: { id: string; status: string } }>(
       ctx,
       "GET",
       `/api/lab/orders/${orderId}`,
     );
-    expect(order.id).toBe(orderId);
+    expect(detail.order.id).toBe(orderId);
 
     await cancelLabOrder(ctx, orderId, "spec test");
-    const after = await api<{ status: string }>(
+    const after = await api<{ order: { status: string } }>(
       ctx,
       "GET",
       `/api/lab/orders/${orderId}`,
     );
-    expect(["cancelled", "canceled"]).toContain(after.status);
+    expect(["cancelled", "canceled"]).toContain(after.order.status);
   });
 
   test("catalog list returns at least one test", async ({ request }) => {

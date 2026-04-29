@@ -34,12 +34,13 @@ test.describe("Billing invoice journey", () => {
       // Some seeds enforce charge-master FK; skip silently.
     }
 
-    const inv = await api<{ id: string; status: string }>(
+    // GET returns { invoice, items, payments }
+    const detail = await api<{ invoice: { id: string; status: string } }>(
       ctx,
       "GET",
       `/api/billing/invoices/${invoiceId}`,
     );
-    expect(inv.id).toBe(invoiceId);
+    expect(detail.invoice.id).toBe(invoiceId);
 
     // Payment best-effort.
     try {

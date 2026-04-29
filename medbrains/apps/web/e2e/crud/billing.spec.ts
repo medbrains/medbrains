@@ -16,12 +16,11 @@ test.describe("Billing CRUD", () => {
       encounterId,
     });
 
-    const inv = await api<{ id: string; patient_id: string }>(
-      ctx,
-      "GET",
-      `/api/billing/invoices/${invoiceId}`,
-    );
-    expect(inv.patient_id).toBe(patient.id);
+    // GET returns { invoice, items, payments }
+    const detail = await api<{
+      invoice: { id: string; patient_id: string };
+    }>(ctx, "GET", `/api/billing/invoices/${invoiceId}`);
+    expect(detail.invoice.patient_id).toBe(patient.id);
   });
 
   test("invoices list paginated", async ({ request }) => {

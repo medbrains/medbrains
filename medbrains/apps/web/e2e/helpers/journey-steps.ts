@@ -156,7 +156,11 @@ export async function createPharmacyOrder(
   },
 ): Promise<{ id: string; itemId: string }> {
   const drug = await getFirstDrug(ctx);
-  const order = await api<{ id: string }>(ctx, "POST", "/api/pharmacy/orders", {
+  // POST returns { order: { id }, items: [{ id }] }
+  const resp = await api<{
+    order: { id: string };
+    items: Array<{ id: string }>;
+  }>(ctx, "POST", "/api/pharmacy/orders", {
     patient_id: args.patientId,
     prescription_id: args.prescriptionId,
     encounter_id: args.encounterId,
@@ -170,12 +174,7 @@ export async function createPharmacyOrder(
     ],
     dispensing_type: "prescription",
   });
-  const detail = await api<{ items: Array<{ id: string }> }>(
-    ctx,
-    "GET",
-    `/api/pharmacy/orders/${order.id}`,
-  );
-  return { id: order.id, itemId: detail.items[0].id };
+  return { id: resp.order.id, itemId: resp.items[0].id };
 }
 
 export async function dispensePharmacyOrder(
@@ -228,13 +227,19 @@ export async function admitToIpd(
     const bed = await getAvailableBed(ctx);
     bedId = bed?.id;
   }
-  const resp = await api<{ id: string }>(ctx, "POST", "/api/ipd/admissions", {
-    patient_id: args.patientId,
-    department_id: departmentId,
-    bed_id: bedId,
-    admission_source: "opd",
-  });
-  return resp.id;
+  // POST returns { encounter, admission: { id } }
+  const resp = await api<{ admission: { id: string } }>(
+    ctx,
+    "POST",
+    "/api/ipd/admissions",
+    {
+      patient_id: args.patientId,
+      department_id: departmentId,
+      bed_id: bedId,
+      admission_source: "opd",
+    },
+  );
+  return resp.admission.id;
 }
 
 export async function createPharmacyReturn(
@@ -260,7 +265,10 @@ export async function processPharmacyReturn(
   returnId: string,
   action: "restock" | "discard" = "restock",
 ): Promise<void> {
+  // Backend expects { status } with values approved | returned_to_stock |
+  // destroyed | rejected. Map the friendlier action verbs.
+  const status = action === "restock" ? "returned_to_stock" : "destroyed";
   await api(ctx, "PUT", `/api/pharmacy/returns/${returnId}/process`, {
-    action,
+    status,
   });
 }

@@ -18,12 +18,11 @@ test.describe("IPD CRUD", () => {
       throw err;
     }
 
-    const adm = await api<{ id: string; patient_id: string; status: string }>(
-      ctx,
-      "GET",
-      `/api/ipd/admissions/${admissionId}`,
-    );
-    expect(adm.patient_id).toBe(patient.id);
+    // GET returns { admission, encounter, tasks }
+    const detail = await api<{
+      admission: { id: string; patient_id: string; status: string };
+    }>(ctx, "GET", `/api/ipd/admissions/${admissionId}`);
+    expect(detail.admission.patient_id).toBe(patient.id);
 
     try {
       await api(ctx, "POST", `/api/ipd/admissions/${admissionId}/discharge`, {

@@ -4281,7 +4281,7 @@ pub async fn list_available_beds(
          LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
          WHERE bs.tenant_id = $1 \
            AND bs.admission_id IS NULL \
-           AND bs.status = 'available' \
+           AND bs.status = 'vacant_clean'::bed_status \
            AND ($2::uuid IS NULL OR bs.ward_id = $2) \
            AND NOT EXISTS ( \
              SELECT 1 FROM bed_reservations br \
@@ -4935,11 +4935,12 @@ pub async fn expected_discharges(
     let rows = sqlx::query_as::<_, ExpectedDischargeRow>(
         "SELECT a.id AS admission_id, a.patient_id, \
          (p.first_name || ' ' || p.last_name) AS patient_name, p.uhid, \
-         a.bed_id, a.department_id, a.attending_doctor_id, \
+         a.bed_id, e.department_id, a.admitting_doctor AS attending_doctor_id, \
          a.admitted_at, a.expected_discharge_date, \
          (a.expected_discharge_date - CURRENT_DATE)::int AS days_until_discharge \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
          WHERE a.tenant_id = $1 \
            AND a.status = 'admitted'::admission_status \
            AND a.expected_discharge_date IS NOT NULL \

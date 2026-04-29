@@ -1576,19 +1576,19 @@ pub async fn get_surgeon_caseload(
 
     let rows = sqlx::query_as::<_, SurgeonCaseloadEntry>(
         "SELECT \
-           cr.primary_surgeon AS surgeon_id, \
+           cr.surgeon_id, \
            COALESCE(u.full_name, 'Unknown') AS surgeon_name, \
            COUNT(cr.id)::BIGINT AS total_cases, \
-           AVG(cr.actual_duration_minutes)::FLOAT8 AS avg_duration_minutes, \
-           COUNT(CASE WHEN ar.complications IS NOT NULL AND ar.complications <> '' THEN 1 END)::BIGINT \
+           AVG(EXTRACT(EPOCH FROM (cr.patient_out_time - cr.patient_in_time)) / 60.0)::FLOAT8 \
+             AS avg_duration_minutes, \
+           COUNT(CASE WHEN cr.complications IS NOT NULL AND cr.complications <> '' THEN 1 END)::BIGINT \
              AS complication_count, \
            COUNT(CASE WHEN b.status = 'cancelled' THEN 1 END)::BIGINT AS cancellation_count \
          FROM ot_case_records cr \
          JOIN ot_bookings b ON b.id = cr.booking_id AND b.tenant_id = cr.tenant_id \
-         LEFT JOIN users u ON u.id = cr.primary_surgeon \
-         LEFT JOIN ot_anesthesia_records ar ON ar.booking_id = cr.booking_id AND ar.tenant_id = cr.tenant_id \
+         LEFT JOIN users u ON u.id = cr.surgeon_id \
          WHERE cr.tenant_id = $1 AND b.scheduled_date BETWEEN $2 AND $3 \
-         GROUP BY cr.primary_surgeon, u.full_name \
+         GROUP BY cr.surgeon_id, u.full_name \
          ORDER BY total_cases DESC",
     )
     .bind(claims.tenant_id)

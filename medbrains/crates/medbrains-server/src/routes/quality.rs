@@ -2163,7 +2163,7 @@ pub async fn list_overdue_capas(
                 (CURRENT_DATE - due_date)::int AS days_overdue \
          FROM quality_capa \
          WHERE tenant_id = $1 \
-         AND status NOT IN ('closed', 'verified') \
+         AND status NOT IN ('completed', 'verified') \
          AND due_date < CURRENT_DATE \
          ORDER BY due_date ASC LIMIT 200",
     )

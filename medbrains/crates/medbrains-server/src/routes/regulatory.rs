@@ -1909,10 +1909,10 @@ pub async fn staff_credentials(
     let rows = sqlx::query_as::<_, StaffCredentialRow>(
         "SELECT ec.employee_id, \
                 e.first_name || ' ' || COALESCE(e.last_name, '') AS employee_name, \
-                ec.credential_type, \
-                ec.credential_number, \
-                ec.issuing_authority, \
-                ec.issue_date, \
+                ec.credential_type::text AS credential_type, \
+                ec.registration_no AS credential_number, \
+                ec.issuing_body AS issuing_authority, \
+                ec.issued_date AS issue_date, \
                 ec.expiry_date, \
                 (ec.expiry_date - CURRENT_DATE)::int AS days_to_expiry, \
                 (ec.expiry_date < CURRENT_DATE) AS is_expired \
@@ -1976,14 +1976,16 @@ pub async fn nabl_document_tracking(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, NablDocumentRow>(
-        "SELECT id, document_type, document_name, status, \
-                uploaded_at, expiry_date, \
-                CASE WHEN expiry_date IS NOT NULL \
-                  THEN (expiry_date - CURRENT_DATE)::int \
+        "SELECT id, document_type, title AS document_name, \
+                CASE WHEN is_current THEN 'current' ELSE 'archived' END AS status, \
+                created_at AS uploaded_at, \
+                review_date AS expiry_date, \
+                CASE WHEN review_date IS NOT NULL \
+                  THEN (review_date - CURRENT_DATE)::int \
                   ELSE NULL END AS days_to_expiry \
          FROM lab_nabl_documents \
          WHERE tenant_id = $1 \
-         ORDER BY expiry_date ASC NULLS LAST LIMIT 200",
+         ORDER BY review_date ASC NULLS LAST LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

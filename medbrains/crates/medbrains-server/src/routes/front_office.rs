@@ -756,9 +756,9 @@ pub async fn visitor_analytics(
     let dept_counts = sqlx::query_as::<_, VisitorAnalyticsRow>(
         "SELECT vr.ward_id AS department_id, \
          COUNT(*)::bigint AS total_visitors, \
-         AVG(EXTRACT(EPOCH FROM (vl.checked_out_at - vl.checked_in_at)) / 60.0) \
-           FILTER (WHERE vl.checked_out_at IS NOT NULL) AS avg_visit_duration_minutes, \
-         MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM vl.checked_in_at)::int) AS peak_hour \
+         AVG(EXTRACT(EPOCH FROM (vl.check_out_at - vl.check_in_at)) / 60.0) \
+           FILTER (WHERE vl.check_out_at IS NOT NULL) AS avg_visit_duration_minutes, \
+         MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM vl.check_in_at)::int) AS peak_hour \
          FROM visitor_registrations vr \
          LEFT JOIN visitor_passes vp ON vp.registration_id = vr.id \
          LEFT JOIN visitor_logs vl ON vl.pass_id = vp.id \

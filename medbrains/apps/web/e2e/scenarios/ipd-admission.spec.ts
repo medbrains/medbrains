@@ -16,12 +16,13 @@ test.describe("IPD admission journey", () => {
     const patient = await createPatientApi(ctx);
     const admissionId = await admitToIpd(ctx, { patientId: patient.id });
 
-    const adm = await api<{ id: string; patient_id: string }>(
+    // GET returns { admission, encounter, tasks }
+    const detail = await api<{ admission: { id: string; patient_id: string } }>(
       ctx,
       "GET",
       `/api/ipd/admissions/${admissionId}`,
     );
-    expect(adm.patient_id).toBe(patient.id);
+    expect(detail.admission.patient_id).toBe(patient.id);
 
     try {
       await api(ctx, "POST", `/api/ipd/admissions/${admissionId}/discharge`, {

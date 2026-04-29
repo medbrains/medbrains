@@ -22,7 +22,9 @@ test.describe("Lab order journey", () => {
       encounterId,
     });
 
-    // Collection (specimen) — endpoint exists per routes/mod.rs
+    // Collection (specimen) — endpoint exists per routes/mod.rs.
+    // Cancel only accepts {ordered, sample_collected}, so skip process()
+    // before testing the cancel path.
     try {
       await api(ctx, "PUT", `/api/lab/orders/${orderId}/collect`, {
         collected_at: new Date().toISOString(),
@@ -31,19 +33,14 @@ test.describe("Lab order journey", () => {
       // Some seeds skip collect step; non-fatal.
     }
 
-    try {
-      await api(ctx, "PUT", `/api/lab/orders/${orderId}/process`, {});
-    } catch {
-      // Non-fatal.
-    }
-
     await cancelLabOrder(ctx, orderId, "spec lifecycle test");
-    const after = await api<{ status: string }>(
+    // GET returns { order, results }
+    const after = await api<{ order: { status: string } }>(
       ctx,
       "GET",
       `/api/lab/orders/${orderId}`,
     );
-    expect(["cancelled", "canceled"]).toContain(after.status);
+    expect(["cancelled", "canceled"]).toContain(after.order.status);
   });
 
   test("catalog has at least one test", async ({ request }) => {

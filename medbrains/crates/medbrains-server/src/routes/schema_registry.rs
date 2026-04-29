@@ -134,8 +134,8 @@ pub async fn get_form_field_schema(
 
     let fields = sqlx::query_as::<_, FormFieldSchemaItem>(
         "SELECT fm.code AS path, \
-                fm.field_type AS type, \
-                fm.label, \
+                fm.data_type::text AS type, \
+                fm.name AS label, \
                 fm.description \
          FROM form_fields ff \
          JOIN field_masters fm ON fm.id = ff.field_master_id \

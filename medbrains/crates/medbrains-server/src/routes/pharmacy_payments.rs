@@ -319,7 +319,7 @@ pub async fn day_reconciliation(
          FROM pharmacy_payment_transactions \
          WHERE tenant_id = $1 \
            AND created_at::date = $2 \
-           AND ($3::uuid IS NULL OR counter_id = $3)",
+           AND ($3::uuid IS NULL OR counter_id = $3::text)",
     )
     .bind(claims.tenant_id)
     .bind(target_date)
