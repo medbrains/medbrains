@@ -1,0 +1,30 @@
+#cloud-config
+# K3s agent bootstrap. Joins the cluster started by the server VM
+# using the same token and the server's IPv4 address.
+
+packages:
+  - curl
+  - apparmor
+  - apparmor-utils
+  - iptables
+  - ca-certificates
+
+write_files:
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: '0644'
+    content: |
+      server: https://${server_ip}:6443
+      token: ${k3s_token}
+
+  - path: /etc/medbrains/cluster-meta
+    permissions: '0644'
+    content: |
+      cluster_id=${cluster_id}
+      role=agent
+      server_ip=${server_ip}
+
+runcmd:
+  # Wait for the server's API to be reachable before installing
+  - until curl -k -sf https://${server_ip}:6443/healthz >/dev/null; do echo "waiting for k3s server"; sleep 5; done
+  - curl -fsSL https://get.k3s.io | INSTALL_K3S_VERSION=${k3s_version} K3S_URL=https://${server_ip}:6443 K3S_TOKEN=${k3s_token} sh -
+  - systemctl enable --now k3s-agent

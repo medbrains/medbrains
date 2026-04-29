@@ -1,0 +1,89 @@
+#cloud-config
+# Bridge agent VM — runs tailscale (joined to our Headscale) +
+# medbrains-bridge daemon. Cloud-init runs once at first boot.
+
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+
+write_files:
+  - path: /etc/medbrains/bridge.toml
+    permissions: '0640'
+    content: |
+      tenant_id = "${tenant_id}"
+      headscale_node_tag = "${headscale_node_tag}"
+
+      [hl7]
+      listen_addr = "0.0.0.0:2575"
+      forward_to = "${k3s_server_ip}:2575"
+
+      [cloud]
+      event_bus_url = "${cloud_event_bus_url}"
+      heartbeat_interval_seconds = 30
+
+      [buffer]
+      path = "/var/lib/medbrains/bridge-buffer.db"
+      max_size_mb = 1024
+
+      [tunnel]
+      provider = "headscale"
+      login_server = "${headscale_login_server}"
+
+  - path: /etc/systemd/system/medbrains-bridge.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=MedBrains Bridge Agent (HL7 + outbox publisher)
+      After=network-online.target tailscaled.service
+      Wants=network-online.target tailscaled.service
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/medbrains-bridge --config /etc/medbrains/bridge.toml
+      Restart=always
+      RestartSec=5s
+      User=medbrains
+      Group=medbrains
+      LimitNOFILE=65535
+      WorkingDirectory=/var/lib/medbrains
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/sbin/medbrains-bridge-bootstrap.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # Idempotent first-boot setup for the bridge VM.
+      set -euxo pipefail
+
+      # Install Tailscale (BSD-3 OSS client) — official Debian repo
+      curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
+          -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+      curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
+          -o /etc/apt/sources.list.d/tailscale.list
+      apt-get update -y
+      apt-get install -y tailscale
+
+      # Bring tailscale up against OUR Headscale (not Tailscale SaaS)
+      systemctl enable --now tailscaled
+      tailscale up \
+          --login-server="${headscale_login_server}" \
+          --auth-key="${headscale_preauth_key}" \
+          --advertise-tags="${headscale_node_tag}" \
+          --hostname="medbrains-${tenant_id}-bridge"
+
+      # Install medbrains-bridge binary
+      mkdir -p /var/lib/medbrains
+      curl -fsSL "${bridge_artifact_url}" -o /usr/local/bin/medbrains-bridge
+      chmod +x /usr/local/bin/medbrains-bridge
+
+      id medbrains >/dev/null 2>&1 || useradd -r -s /sbin/nologin -d /var/lib/medbrains medbrains
+      chown -R medbrains:medbrains /var/lib/medbrains /etc/medbrains/bridge.toml
+
+      systemctl daemon-reload
+      systemctl enable --now medbrains-bridge.service
+
+runcmd:
+  - /usr/local/sbin/medbrains-bridge-bootstrap.sh
