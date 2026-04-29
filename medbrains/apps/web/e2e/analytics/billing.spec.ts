@@ -1,19 +1,23 @@
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin, api } from "../helpers/api";
 
+const QS = "?from=2024-01-01&to=2030-12-31&date_from=2024-01-01&date_to=2030-12-31";
+const TODAY = new Date().toISOString().slice(0, 10);
+const PERIOD = TODAY.slice(0, 7);
+
 const ENDPOINTS = [
-  "/api/billing/reports/summary",
-  "/api/billing/reports/department-revenue",
-  "/api/billing/reports/collection-efficiency",
-  "/api/billing/reports/aging",
-  "/api/billing/reports/daily",
-  "/api/billing/reports/doctor-revenue",
-  "/api/billing/reports/insurance-panel",
-  "/api/billing/reports/reconciliation",
-  "/api/billing/reports/hsn-summary",
-  "/api/billing/reports/financial-mis",
-  "/api/billing/reports/profit-loss",
-  "/api/billing/credit-patients/aging",
+  `/api/billing/reports/summary${QS}`,
+  `/api/billing/reports/department-revenue${QS}`,
+  `/api/billing/reports/collection-efficiency${QS}`,
+  `/api/billing/reports/aging`,
+  `/api/billing/reports/daily?date=${TODAY}`,
+  `/api/billing/reports/doctor-revenue${QS}`,
+  `/api/billing/reports/insurance-panel${QS}`,
+  `/api/billing/reports/reconciliation?date=${TODAY}`,
+  `/api/billing/reports/hsn-summary?period=${PERIOD}`,
+  `/api/billing/reports/financial-mis${QS}`,
+  `/api/billing/reports/profit-loss${QS}`,
+  `/api/billing/credit-patients/aging`,
 ];
 
 test.describe("Billing analytics", () => {
@@ -22,7 +26,6 @@ test.describe("Billing analytics", () => {
       const ctx = await loginAsAdmin(request);
       const data = await api<unknown>(ctx, "GET", path);
       expect(data).toBeTruthy();
-      // No NaN smuggled through if numeric.
       const json = JSON.stringify(data);
       expect(json).not.toContain("NaN");
       expect(json).not.toContain('"Infinity"');

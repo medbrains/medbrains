@@ -96,7 +96,7 @@ export async function createEncounter(
     {
       patient_id: patientId,
       department_id: departmentId,
-      visit_type: opts.visitType ?? "opd",
+      visit_type: opts.visitType ?? "walk_in",
     },
   );
   return resp.encounter.id;

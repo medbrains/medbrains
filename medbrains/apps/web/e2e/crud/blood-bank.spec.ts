@@ -2,14 +2,16 @@ import { test, expect } from "@playwright/test";
 import { loginAsAdmin, api } from "../helpers/api";
 
 test.describe("Blood Bank CRUD", () => {
-  test("stock + donations + crossmatch lists", async ({ request }) => {
+  test("donors + components + crossmatch + transfusions lists", async ({ request }) => {
     const ctx = await loginAsAdmin(request);
-    const stock = await api<unknown>(ctx, "GET", "/api/blood-bank/stock");
-    expect(stock).toBeTruthy();
-    const donations = await api<unknown>(ctx, "GET", "/api/blood-bank/donations");
-    expect(donations).toBeTruthy();
-    const issues = await api<unknown>(ctx, "GET", "/api/blood-bank/issues");
-    expect(issues).toBeTruthy();
+    const donors = await api<unknown>(ctx, "GET", "/api/blood-bank/donors");
+    expect(donors).toBeTruthy();
+    const components = await api<unknown>(ctx, "GET", "/api/blood-bank/components");
+    expect(components).toBeTruthy();
+    const crossmatch = await api<unknown>(ctx, "GET", "/api/blood-bank/crossmatch");
+    expect(crossmatch).toBeTruthy();
+    const transfusions = await api<unknown>(ctx, "GET", "/api/blood-bank/transfusions");
+    expect(transfusions).toBeTruthy();
   });
 
   test("404 on unknown donor", async ({ request }) => {

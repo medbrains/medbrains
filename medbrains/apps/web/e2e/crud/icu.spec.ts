@@ -2,12 +2,17 @@ import { test, expect } from "@playwright/test";
 import { loginAsAdmin, api } from "../helpers/api";
 
 test.describe("ICU CRUD", () => {
-  test("admissions list + analytics smoke", async ({ request }) => {
+  test("analytics smoke (los + device-infections)", async ({ request }) => {
     const ctx = await loginAsAdmin(request);
-    const list = await api<unknown>(ctx, "GET", "/api/icu/admissions");
-    expect(list).toBeTruthy();
-
+    // ICU on this branch only exposes nested admissions/{id}/* paths,
+    // no top-level admissions list. Analytics is the canonical surface.
     const los = await api<unknown>(ctx, "GET", "/api/icu/analytics/los");
     expect(los).toBeTruthy();
+    const di = await api<unknown>(
+      ctx,
+      "GET",
+      "/api/icu/analytics/device-infections",
+    );
+    expect(di).toBeTruthy();
   });
 });
