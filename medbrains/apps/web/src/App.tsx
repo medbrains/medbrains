@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 import { TopProgressBar } from "./components/TopProgressBar";
 import { SpotlightProvider } from "./components/SpotlightProvider";
 import { PageSkeleton } from "./components/PageSkeleton";
@@ -98,8 +99,10 @@ export function App() {
           <Route
             element={
               <ProtectedRoute>
-                <SpotlightProvider />
-                <AppLayout />
+                <TenantConfigProvider>
+                  <SpotlightProvider />
+                  <AppLayout />
+                </TenantConfigProvider>
               </ProtectedRoute>
             }
           >

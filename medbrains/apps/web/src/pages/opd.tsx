@@ -137,6 +137,7 @@ import {
   DoctorSearchSelect,
 } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useVitalsSource } from "../hooks/useVitalsSource";
 import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
@@ -863,22 +864,22 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
 
 function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
   const emit = useClinicalEmit();
-  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
 
-  const { data: vitals = [] } = useQuery({
-    queryKey: ["vitals", encounterId],
-    queryFn: () => api.listVitals(encounterId),
-  });
+  // Mode (REST vs CRDT) is read from <TenantConfigProvider>. Flips
+  // automatically when a tenant turns on tenant_settings.clinical.
+  // offline_mode + provides an edge_url. No code change here.
+  const {
+    records: vitals,
+    append,
+    unsyncedOps,
+  } = useVitalsSource({ encounterId });
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateVitalRequest) => api.createVital(encounterId, data),
-    onSuccess: (_result, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ["vitals", encounterId] });
-      emit("vitals.recorded", { encounter_id: encounterId, ...variables });
-      setShowForm(false);
-    },
-  });
+  const handleSubmit = (data: CreateVitalRequest) => {
+    append(data);
+    emit("vitals.recorded", { encounter_id: encounterId, ...data });
+    setShowForm(false);
+  };
 
   return (
     <Stack>
@@ -891,8 +892,8 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
       )}
       {showForm && (
         <VitalsRecorder
-          onSubmit={(data) => createMutation.mutate(data)}
-          isSubmitting={createMutation.isPending}
+          onSubmit={handleSubmit}
+          isSubmitting={unsyncedOps > 0}
           onCancel={() => setShowForm(false)}
         />
       )}
