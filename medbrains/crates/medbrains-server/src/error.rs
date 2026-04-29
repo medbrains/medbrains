@@ -52,6 +52,16 @@ impl IntoResponse for AppError {
         }
 
         let (status, message, detail) = match &self {
+            // RowNotFound from `fetch_one` is the most common DB-error case — it
+            // means the queried record doesn't exist, which is a 404, not 500.
+            Self::Database(medbrains_db::pool::DbError::Sqlx(sqlx::Error::RowNotFound)) => {
+                tracing::debug!("database row not found");
+                (
+                    StatusCode::NOT_FOUND,
+                    "not found",
+                    "Record not found".to_owned(),
+                )
+            }
             Self::Database(db_err) => {
                 tracing::error!(error = %self, "database error");
                 let detail = extract_db_detail(db_err);
