@@ -229,6 +229,25 @@ e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 e2e-all: e2e-smoke e2e-crud e2e-analytics e2e-journeys ## Run smoke + CRUD + analytics + journeys (skip forms by default)
 	@echo "Run 'make e2e-forms' separately to drive the UI layer."
 
+# ── Load test ─────────────────────────────────────────────────
+
+loadtest-generate: ## Regenerate goose AllEndpoints scenario from routes/mod.rs
+	node apps/web/scripts/generate-goose-endpoints.mjs
+
+loadtest-build: loadtest-generate ## Build the goose loadtest binary
+	cargo build -p medbrains-loadtest --release
+
+loadtest: loadtest-build ## Run curated scenarios + AllEndpoints (4 users, 60s)
+	cargo run --release -p medbrains-loadtest -- \
+		--host http://localhost:3000 --users 4 --hatch-rate 1 --run-time 60s \
+		--no-reset-metrics --report-file target/loadtest-report.html
+
+loadtest-all: loadtest-build ## Run only the AllEndpoints breadth scenario
+	cargo run --release -p medbrains-loadtest -- \
+		--host http://localhost:3000 --users 4 --hatch-rate 1 --run-time 60s \
+		--no-reset-metrics --scenarios AllEndpoints \
+		--report-file target/loadtest-all-report.html
+
 # ── Misc ─────────────────────────────────────────────────────
 
 clean: ## Clean build artifacts

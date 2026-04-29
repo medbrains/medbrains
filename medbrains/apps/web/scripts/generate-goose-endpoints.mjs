@@ -1,0 +1,189 @@
+#!/usr/bin/env node
+/**
+ * Generate one Goose transaction per backend endpoint into
+ * `crates/medbrains-loadtest/src/generated.rs`. The companion
+ * `AllEndpoints` scenario registered there hits every method × path the
+ * server exposes, using placeholder UUIDs for `{id}` segments and
+ * empty-body `{}` payloads for POST/PUT/PATCH.
+ *
+ * Run from repo root:
+ *   node apps/web/scripts/generate-goose-endpoints.mjs
+ *
+ * Then rebuild the loadtest:
+ *   cargo build -p medbrains-loadtest --release
+ */
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, "../../..");
+const ROUTES_FILE = resolve(
+  REPO_ROOT,
+  "crates/medbrains-server/src/routes/mod.rs",
+);
+const OUTPUT_FILE = resolve(
+  REPO_ROOT,
+  "crates/medbrains-loadtest/src/generated.rs",
+);
+
+const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
+const PLACEHOLDER_INT = "0";
+const PLACEHOLDER_STR = "_";
+
+/** Parse `.route("path", get(h).post(h)...)` blocks. */
+function parseRoutes(source) {
+  const routes = [];
+  const stripped = source.replace(/\/\/[^\n]*/g, "");
+  const re = /\.route\s*\(\s*"([^"]+)"\s*,\s*([\s\S]*?)\)\s*[\.;]/g;
+  let m;
+  while ((m = re.exec(stripped)) !== null) {
+    const path = m[1];
+    const handlerBlock = m[2];
+    const methods = new Set();
+    for (const verb of ["get", "post", "put", "patch", "delete"]) {
+      const verbRe = new RegExp(`\\b${verb}\\s*\\(`, "g");
+      if (verbRe.test(handlerBlock)) methods.add(verb.toUpperCase());
+    }
+    for (const method of methods) {
+      routes.push({ method, path });
+    }
+  }
+  return routes;
+}
+
+/** Replace `{name}` segments with safe placeholder values. */
+function fillPath(p) {
+  return p.replace(/\{([^}]+)\}/g, (_, name) => {
+    if (/^_$/.test(name)) return PLACEHOLDER_UUID;
+    if (/(_id|^id)$/i.test(name)) return PLACEHOLDER_UUID;
+    if (/(period|year|month|day|version|n)$/i.test(name)) return PLACEHOLDER_INT;
+    return PLACEHOLDER_STR;
+  });
+}
+
+/** Stable 6-char hex hash for unique function naming. */
+function stableHash(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(16).padStart(8, "0").slice(0, 6);
+}
+
+/** Path → Rust-safe ident segment. */
+function slug(s) {
+  return s
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+/** Skip auth lifecycle endpoints — login is run via on_start, logout
+ *  invalidates the shared admin token under concurrency. */
+function shouldSkip(method, path) {
+  if (path.startsWith("/api/auth/login")) return true;
+  if (path.startsWith("/api/auth/refresh")) return true;
+  if (path.startsWith("/api/auth/logout")) return true;
+  if (path.startsWith("/api/auth/change-password")) return true;
+  // SSE / WebSocket — keep out of synchronous goose flow.
+  if (path.includes("/stream")) return true;
+  if (path.includes("/ws")) return true;
+  return false;
+}
+
+function generate(routes) {
+  const seen = new Set();
+  const fns = [];
+  const regs = [];
+
+  for (const { method, path } of routes) {
+    if (shouldSkip(method, path)) continue;
+    const key = `${method} ${path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const filled = fillPath(path);
+    // Hash suffix keeps function names unique even when the slugified
+    // path collides (e.g. /security/incidents/{id} vs /security/incidents/{_}).
+    const hash = stableHash(`${method} ${path}`);
+    const ident = `t_${method.toLowerCase()}_${slug(path).slice(0, 70)}_${hash}`;
+    const fnName = ident.length > 110 ? ident.slice(0, 110) : ident;
+
+    let body;
+    switch (method) {
+      case "GET":
+        body = `    let _ = crate::json_get(user, "${filled}").await?;`;
+        break;
+      case "DELETE":
+        body =
+          `    let _ = crate::json_request(user, goose::prelude::GooseMethod::Delete, "${filled}", None).await?;`;
+        break;
+      case "POST":
+        body = `    crate::json_post(user, "${filled}", &serde_json::json!({})).await`;
+        break;
+      case "PUT":
+        body = `    crate::json_put(user, "${filled}", &serde_json::json!({})).await`;
+        break;
+      case "PATCH":
+        body =
+          `    let _ = crate::json_request(user, goose::prelude::GooseMethod::Patch, "${filled}", Some(&serde_json::json!({}))).await?;`;
+        break;
+      default:
+        continue;
+    }
+
+    const trailing = method === "POST" || method === "PUT" ? "" : "\n    Ok(())";
+    fns.push(
+      `async fn ${fnName}(user: &mut GooseUser) -> TransactionResult {\n${body}${trailing}\n}`,
+    );
+    regs.push(`        .register_transaction(transaction!(${fnName}))`);
+  }
+
+  return { fns, regs, count: fns.length };
+}
+
+function emit(out) {
+  const header = `// AUTO-GENERATED by scripts/generate-goose-endpoints.mjs.
+// Do not edit by hand — re-run the generator to refresh.
+//
+// Hits every backend endpoint with a placeholder body. Gets registered
+// as the \`AllEndpoints\` scenario in main.rs at low weight; its purpose
+// is breadth coverage, not realistic saga flow.
+
+#![allow(clippy::too_many_lines)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
+
+// goose's \`transaction!\` and \`scenario!\` macros expand to refer to
+// \`Transaction\`, \`Scenario\`, \`GooseUser\`, \`TransactionResult\` types
+// directly, so we need them in scope by their bare names.
+use goose::prelude::*;
+
+// Helpers from main.rs — also bare-name imports for macro use.
+use crate::{init_session, login};
+
+`;
+
+  const fnsBlock = out.fns.join("\n\n");
+  const builder = `pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
+    Ok(scenario!("AllEndpoints")
+        .set_wait_time(std::time::Duration::from_millis(50), std::time::Duration::from_millis(150))?
+        .register_transaction(transaction!(init_session).set_on_start())
+        .register_transaction(transaction!(login).set_on_start())
+${out.regs.join("\n")}
+    )
+}
+`;
+
+  return `${header}${fnsBlock}\n\n${builder}`;
+}
+
+function main() {
+  const src = readFileSync(ROUTES_FILE, "utf8");
+  const routes = parseRoutes(src);
+  const out = generate(routes);
+  writeFileSync(OUTPUT_FILE, emit(out));
+  console.log(`Wrote ${OUTPUT_FILE}: ${out.count} endpoints`);
+}
+
+main();
