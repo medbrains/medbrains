@@ -42,6 +42,7 @@ pub mod lab;
 pub mod lms;
 pub mod mrd;
 pub mod multi_hospital;
+pub mod nurse_mar;
 pub mod occ_health;
 pub mod onboarding;
 pub mod opd;
@@ -51,6 +52,8 @@ pub mod ot;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;
+pub mod pharmacy_cash_drawer;
+pub mod pharmacy_repeats;
 pub mod print_data;
 pub mod print_data_academic;
 pub mod print_data_admin;
@@ -1880,6 +1883,39 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/pharmacy/analytics/daily-sales", get(pharmacy::daily_sales_summary))
         .route("/api/pharmacy/analytics/fill-rate", get(pharmacy::prescription_fill_rate))
         .route("/api/pharmacy/analytics/margins", get(pharmacy::margin_analysis))
+        // ── Pharmacy Improvements: Repeats ─────────────────
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility",
+            get(pharmacy_repeats::check_eligibility),
+        )
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeats",
+            get(pharmacy_repeats::list_repeats_for_rx)
+                .post(pharmacy_repeats::dispense_repeat),
+        )
+        // ── Pharmacy Finance: Cash Drawer ──────────────────
+        .route(
+            "/api/pharmacy/cash-drawers",
+            get(pharmacy_cash_drawer::list_drawers)
+                .post(pharmacy_cash_drawer::open_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/me/active",
+            get(pharmacy_cash_drawer::get_my_active_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/{id}/close",
+            put(pharmacy_cash_drawer::close_drawer),
+        )
+        // ── Nurse Activities: MAR ──────────────────────────
+        .route("/api/nurse/mar/due-now", get(nurse_mar::list_due_now))
+        .route("/api/nurse/mar/{id}/administer", put(nurse_mar::administer))
+        .route("/api/nurse/mar/{id}/hold", put(nurse_mar::hold))
+        .route("/api/nurse/mar/{id}/refuse", put(nurse_mar::refuse))
+        .route(
+            "/api/nurse/mar/patient/{patient_id}",
+            get(nurse_mar::list_for_patient),
+        )
         // ── Indent / Store ─────────────────────────────────
         .route(
             "/api/indent/requisitions",
