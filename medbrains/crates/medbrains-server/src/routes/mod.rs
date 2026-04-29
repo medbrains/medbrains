@@ -2515,10 +2515,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/schema/events/{event_type}",
             get(schema_registry::get_event_schema),
         )
-        .route(
-            "/api/schema/form-fields/{form_code}",
-            get(schema_registry::get_form_field_schema),
-        )
         // ── Integration Hub ──────────────────────────────
         .route(
             "/api/integration/pipelines",

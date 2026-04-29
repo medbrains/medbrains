@@ -223,28 +223,6 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
     queryFn: () => api.listEventSchemas(),
   });
 
-  // Find linked_form from any upstream trigger node
-  const linkedFormCode = useMemo(() => {
-    for (const n of nodes as ReactFlowNode[]) {
-      if (
-        (n.type ?? "").startsWith("trigger") &&
-        (n.data.templateCode as string) === "trigger.internal_event"
-      ) {
-        const cfg = (n.data.config ?? {}) as Record<string, unknown>;
-        if (typeof cfg.linked_form === "string" && cfg.linked_form) {
-          return cfg.linked_form;
-        }
-      }
-    }
-    return null;
-  }, [nodes]);
-
-  const { data: formFields } = useQuery({
-    queryKey: ["schema", "form-fields", linkedFormCode],
-    queryFn: () => api.getFormFieldSchema(linkedFormCode as string),
-    enabled: linkedFormCode !== null,
-  });
-
   // Fetch module entity schemas for target suggestions
   const { data: moduleEntities } = useQuery({
     queryKey: ["schema", "modules", "all-entities"],
@@ -323,20 +301,8 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
       });
     });
 
-    // 4. Add form fields from linked form (if any)
-    if (formFields && linkedFormCode) {
-      formFields.forEach((f) => {
-        fields.push({
-          nodeId: `form:${linkedFormCode}`,
-          nodeLabel: `Form: ${linkedFormCode}`,
-          path: f.path,
-          source: "Form",
-        });
-      });
-    }
-
     return fields;
-  }, [nodes, edges, nodeId, templates, eventSchemas, formFields, linkedFormCode]);
+  }, [nodes, edges, nodeId, templates, eventSchemas]);
 
   // ── Compute target field suggestions ──────────────────
 

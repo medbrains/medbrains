@@ -113,39 +113,3 @@ pub async fn get_event_schema(
     Ok(Json(schema))
 }
 
-// ── GET /api/schema/form-fields/{form_code} ─────────────
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct FormFieldSchemaItem {
-    pub path: String,
-    #[sqlx(rename = "type")]
-    #[serde(rename = "type")]
-    pub field_type: String,
-    pub label: String,
-    pub description: Option<String>,
-}
-
-pub async fn get_form_field_schema(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(form_code): Path<String>,
-) -> Result<Json<Vec<FormFieldSchemaItem>>, AppError> {
-    require_permission(&claims, permissions::integration::LIST)?;
-
-    let fields = sqlx::query_as::<_, FormFieldSchemaItem>(
-        "SELECT fm.code AS path, \
-                fm.data_type::text AS type, \
-                fm.name AS label, \
-                fm.description \
-         FROM form_fields ff \
-         JOIN field_masters fm ON fm.id = ff.field_master_id \
-         JOIN form_masters fom ON fom.id = ff.form_id \
-         WHERE fom.code = $1 \
-         ORDER BY ff.section_id, ff.sort_order",
-    )
-    .bind(&form_code)
-    .fetch_all(&state.db)
-    .await?;
-
-    Ok(Json(fields))
-}

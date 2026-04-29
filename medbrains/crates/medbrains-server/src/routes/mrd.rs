@@ -831,10 +831,12 @@ pub async fn stats_admission_discharge(
     let rows = sqlx::query_as::<_, AdmDischRow>(
         "SELECT \
            dep.name AS department_name, \
-           COUNT(*) AS total_admitted, \
-           COUNT(*) FILTER (WHERE a.status = 'discharged') AS total_discharged, \
-           COUNT(*) FILTER (WHERE a.discharge_type = 'deceased') AS total_deaths, \
-           AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400) \
+           COUNT(*)::bigint AS total_admitted, \
+           COUNT(*) FILTER (WHERE a.status = 'discharged'::admission_status)::bigint \
+             AS total_discharged, \
+           COUNT(*) FILTER (WHERE a.discharge_type = 'deceased'::discharge_type)::bigint \
+             AS total_deaths, \
+           AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400)::float8 \
              AS avg_los_days \
          FROM admissions a \
          JOIN encounters enc ON enc.id = a.encounter_id \

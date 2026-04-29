@@ -1761,8 +1761,8 @@ async fn t_get_api_schema_events_754690(user: &mut GooseUser) -> TransactionResu
     Ok(())
 }
 
-async fn t_get_api_schema_form_fields_form_code_54bb0b(user: &mut GooseUser) -> TransactionResult {
-    let _ = crate::json_get(user, "/api/schema/form-fields/_").await?;
+async fn t_get_api_integration_pipelines_439a2d(user: &mut GooseUser) -> TransactionResult {
+    let _ = crate::json_get(user, "/api/integration/pipelines").await?;
     Ok(())
 }
 
@@ -4775,7 +4775,7 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_infection_control_reports_monthly_81dd2d))
         .register_transaction(transaction!(t_get_api_schema_modules_95d87a))
         .register_transaction(transaction!(t_get_api_schema_events_754690))
-        .register_transaction(transaction!(t_get_api_schema_form_fields_form_code_54bb0b))
+        .register_transaction(transaction!(t_get_api_integration_pipelines_439a2d))
         .register_transaction(transaction!(t_get_api_integration_pipelines_id_873313))
         .register_transaction(transaction!(t_put_api_integration_pipelines_id_status_575eca))
         .register_transaction(transaction!(t_get_api_integration_pipelines_id_executions_b732d0))

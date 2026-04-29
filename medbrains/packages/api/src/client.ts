@@ -148,7 +148,6 @@ import type {
   ModuleEntitySchema,
   ModuleSummary,
   PipelineListResponse,
-  SchemaField,
   TriggerPipelineRequest,
   UpdatePipelineRequest,
   UpdatePipelineStatusRequest,
@@ -5592,12 +5591,6 @@ export const api = {
     request<EventSchema>(
       `/schema/events/${encodeURIComponent(eventType)}`,
     ),
-  getFormFieldSchema: (formCode: string) =>
-    request<SchemaField[]>(
-      `/schema/form-fields/${encodeURIComponent(formCode)}`,
-    ),
-
-
   // ── Clinical Decision Support ─────────────────────────────
 
   checkDrugSafety: (data: CheckDrugInteractionsRequest) =>
