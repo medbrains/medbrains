@@ -202,6 +202,29 @@ generate-smoke: ## Regenerate smoke test files from API contract
 generate-e2e: ## Regenerate E2E skeleton files
 	python3 ../scripts/generate_e2e_skeletons.py
 
+# ── Layered E2E Suite (per the comprehensive E2E plan) ────
+
+e2e-smoke-generate: ## Regenerate Layer 1 API smoke specs from routes/mod.rs
+	node apps/web/scripts/generate-api-smoke.mjs
+
+e2e-smoke: ## Layer 1 — API smoke (every parameterless GET endpoint)
+	cd apps/web && pnpm exec playwright test --project=smoke
+
+e2e-crud: ## Layer 2 — Module CRUD specs (REST-driven)
+	cd apps/web && pnpm exec playwright test --project=crud
+
+e2e-forms: ## Layer 3 — Form-field validation (UI; needs dev server)
+	cd apps/web && pnpm exec playwright test --project=forms
+
+e2e-analytics: ## Layer 4 — Analytics endpoints (REST)
+	cd apps/web && pnpm exec playwright test --project=analytics
+
+e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
+	cd apps/web && pnpm exec playwright test --project=journeys
+
+e2e-all: e2e-smoke e2e-crud e2e-analytics e2e-journeys ## Run smoke + CRUD + analytics + journeys (skip forms by default)
+	@echo "Run 'make e2e-forms' separately to drive the UI layer."
+
 # ── Misc ─────────────────────────────────────────────────────
 
 clean: ## Clean build artifacts
@@ -246,3 +269,49 @@ test-coverage: ## Show QA coverage report from YAML registry
 
 test-report: ## Show QA test coverage report
 	python3 qa/coverage-report.py
+
+# ── Hybrid (cloud + on-prem) deployment ────────────────────
+# Per-tenant lifecycle. TENANT=hospital-A is the directory under
+# infra/terraform/envs/tenants/. _template/ is copied to a new
+# directory and customized for each real hospital.
+
+TENANTS_DIR := infra/terraform/envs/tenants
+
+hybrid-init: ## Initialize a new tenant from the template (TENANT=hospital-A)
+	@if [ -z "$(TENANT)" ]; then echo "TENANT= required (e.g. make hybrid-init TENANT=hospital-A)"; exit 2; fi
+	@if [ -d $(TENANTS_DIR)/$(TENANT) ]; then echo "Tenant $(TENANT) already exists at $(TENANTS_DIR)/$(TENANT)"; exit 1; fi
+	@cp -r $(TENANTS_DIR)/_template $(TENANTS_DIR)/$(TENANT)
+	@echo "Created $(TENANTS_DIR)/$(TENANT). Edit terraform.tfvars before running hybrid-up."
+
+hybrid-up: ## Provision cloud + on-prem stacks for a tenant (TENANT=hospital-A)
+	@if [ -z "$(TENANT)" ]; then echo "TENANT= required"; exit 2; fi
+	@if [ ! -d $(TENANTS_DIR)/$(TENANT) ]; then echo "Tenant dir $(TENANTS_DIR)/$(TENANT) missing — run hybrid-init first"; exit 1; fi
+	cd $(TENANTS_DIR)/$(TENANT) && terraform init
+	cd $(TENANTS_DIR)/$(TENANT) && terraform apply -auto-approve
+
+hybrid-plan: ## Plan changes for a tenant without applying (TENANT=hospital-A)
+	@if [ -z "$(TENANT)" ]; then echo "TENANT= required"; exit 2; fi
+	cd $(TENANTS_DIR)/$(TENANT) && terraform plan
+
+hybrid-smoke: ## Run hybrid smoke tests (Headscale + Patroni + outbox path)
+	@if [ -z "$(TENANT)" ]; then echo "TENANT= required"; exit 2; fi
+	@bash scripts/hybrid-smoke.sh $(TENANT)
+
+hybrid-down: ## Destroy a tenant's stacks (DESTRUCTIVE — irreversible without backups)
+	@if [ -z "$(TENANT)" ]; then echo "TENANT= required"; exit 2; fi
+	@echo "About to destroy tenant $(TENANT). Press Ctrl+C to abort, Enter to continue."
+	@read _
+	cd $(TENANTS_DIR)/$(TENANT) && terraform destroy -auto-approve
+
+hybrid-tf-validate: ## Validate every hybrid TF module without applying
+	@for d in infra/terraform/modules/headscale \
+	          infra/terraform/modules/bridge-ingress \
+	          infra/terraform/modules-onprem/k3s-cluster \
+	          infra/terraform/modules-onprem/bridge-agent \
+	          infra/terraform/modules-onprem/patroni-onprem \
+	          infra/terraform/modules-onprem-baremetal/k3s-baremetal \
+	          infra/terraform/modules-onprem-baremetal/patroni-baremetal; do \
+	    echo "→ $$d"; \
+	    (cd "$$d" && terraform init -backend=false -no-color > /dev/null && terraform validate -no-color) || exit $$?; \
+	done
+	@echo "✓ all hybrid modules valid"

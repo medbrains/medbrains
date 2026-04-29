@@ -1,0 +1,45 @@
+# Per-tenant variables — fill in for each hospital, save as
+# terraform.tfvars (which is gitignored).
+
+tenant_id     = "hospital-a"             # lowercase, hyphenated, used in resource names
+hospital_name = "Hospital A — Mumbai"
+aws_region    = "ap-south-1"
+
+# ── Cloud-side wiring (output of the cloud baseline composition) ─────
+
+cloud_kms_key_arn       = "arn:aws:kms:ap-south-1:123456789012:key/PLACEHOLDER"
+cloud_audit_bucket_arn  = "arn:aws:s3:::medbrains-prod-audit-archive"
+headscale_url           = "https://headscale.medbrains.cloud"
+headscale_admin_api_key = "PLACEHOLDER"  # rotate quarterly via runbooks/headscale-ops.md
+
+# ── On-prem substrate ────────────────────────────────────────────────
+
+# Pick "proxmox" OR "baremetal":
+onprem_substrate = "proxmox"
+
+# Proxmox details (only when onprem_substrate=proxmox)
+proxmox_endpoint         = "https://proxmox.hospital-a.local:8006/api2/json"
+proxmox_node             = "pve-1"
+proxmox_api_token_id     = "medbrains@pve!terraform"
+proxmox_api_token_secret = "PLACEHOLDER"
+proxmox_vm_template_id   = "9001"  # Debian 12 cloud-init template id
+
+# Bare-metal details (only when onprem_substrate=baremetal)
+# baremetal_pg_hosts   = ["10.20.0.10", "10.20.0.11", "10.20.0.12"]
+# baremetal_etcd_hosts = ["10.20.0.20", "10.20.0.21", "10.20.0.22"]
+# baremetal_k3s_server = "10.20.0.30"
+# baremetal_k3s_agents = ["10.20.0.31", "10.20.0.32"]
+# baremetal_bridge_host = "10.20.0.40"
+
+# ── SSH ──────────────────────────────────────────────────────────────
+
+ssh_public_key       = "ssh-ed25519 AAAAC3... medbrains@hospital-a"
+ssh_private_key_path = "~/.ssh/medbrains-hospital-a"
+
+# ── Cluster sizing + transport ──────────────────────────────────────
+
+cluster_topology = "ha"                 # "ha" (3 nodes) or "single" (1 node)
+tunnel_provider  = "headscale"          # "headscale" / "wss" / "none" (air-gapped)
+
+# medbrains-bridge binary location
+bridge_artifact_url = "https://medbrains-prod-artifacts.s3.ap-south-1.amazonaws.com/bridge/v0.1.0/medbrains-bridge-arm64"

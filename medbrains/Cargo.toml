@@ -12,6 +12,8 @@ members = [
     "crates/medbrains-authz",
     "crates/medbrains-outbox",
     "crates/medbrains-db-topology",
+    "crates/medbrains-edge",
+    "apps/edge",
 ]
 
 [workspace.package]
@@ -84,6 +86,12 @@ schemars = "1"
 # Code execution (pipeline custom code)
 mlua = { version = "0.10", features = ["lua54", "serialize", "send"] }
 wasmtime = "29"
+
+# CRDT (Loro) — offline-first replication. Sprint C foundation.
+loro = "1.4"
+
+# LAN service discovery for the edge sync hub
+mdns-sd = "0.13"
 
 # ── Build profiles ──────────────────────────────────────────
 

@@ -41,6 +41,7 @@
     "@mantine/schedule": "^9.0.0",
     "@mantine/spotlight": "^9.0.1",
     "@medbrains/api": "workspace:*",
+    "@medbrains/crdt": "workspace:*",
     "@medbrains/expressions": "workspace:*",
     "@medbrains/schemas": "workspace:*",
     "@medbrains/stores": "workspace:*",

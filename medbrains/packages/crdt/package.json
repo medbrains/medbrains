@@ -1,0 +1,27 @@
+{
+  "name": "@medbrains/crdt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Web-side Loro CRDT store + IndexedDB persistence + React hook for offline-first MedBrains pages",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.0.0",
+    "@tabler/icons-react": "^3.40.0",
+    "idb": "^8.0.3",
+    "loro-crdt": "^1.4.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

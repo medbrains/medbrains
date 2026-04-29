@@ -1,0 +1,6 @@
+# E2E generated files (smoke/api/ is regenerated from routes/mod.rs)
+e2e/smoke/api/
+e2e/.auth/
+playwright-report/
+test-results/
+allure-results/
