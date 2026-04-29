@@ -1,0 +1,189 @@
+#cloud-config
+# First-boot for Headscale on AL2023 ARM64.
+# - Mounts /dev/xvdf XFS for sqlite state
+# - Installs headscale binary (arm64) from GitHub releases
+# - Installs litestream (arm64) for sqlite → S3 replication
+# - Renders /etc/headscale/config.yaml from EC2 metadata
+# - systemd: medbrains-headscale.service (restart=always)
+# - systemd: medbrains-headscale-litestream.service (sqlite replicator)
+
+write_files:
+  - path: /etc/headscale/config.yaml
+    permissions: '0644'
+    content: |
+      server_url: https://${headscale_dns}
+      listen_addr: 0.0.0.0:${api_port}
+      metrics_listen_addr: 0.0.0.0:${metrics_port}
+      grpc_listen_addr: 0.0.0.0:50443
+      grpc_allow_insecure: false
+
+      private_key_path: /var/lib/headscale/private.key
+      noise:
+        private_key_path: /var/lib/headscale/noise_private.key
+
+      database:
+        type: sqlite3
+        sqlite:
+          path: /var/lib/headscale/db.sqlite
+
+      ip_prefixes:
+        - fd7a:115c:a1e0::/48
+        - 100.64.0.0/10
+
+      derp:
+        server:
+          enabled: true
+          region_id: 999
+          region_code: medbrains-derp
+          region_name: MedBrains Self-Hosted DERP
+          stun_listen_addr: "0.0.0.0:${derp_port}"
+        urls: []
+        paths: []
+        auto_update_enabled: false
+        update_frequency: 24h
+
+      disable_check_updates: true
+      ephemeral_node_inactivity_timeout: 30m
+      node_update_check_interval: 10s
+
+      log:
+        format: text
+        level: info
+
+      # ACL JSON managed via headscale CLI from cloud admin; reload triggers
+      # ACL apply without restart.
+      policy:
+        mode: file
+        path: /etc/headscale/acl.hujson
+
+      dns_config:
+        override_local_dns: true
+        nameservers:
+          - 1.1.1.1
+        domains: []
+        magic_dns: true
+        base_domain: medbrains.internal
+
+  - path: /etc/headscale/acl.hujson
+    permissions: '0644'
+    content: |
+      // Default-deny ACL. Per-tenant tags added by cloud admin via headscale API.
+      // Each hospital gets `tag:hospital-<tenant_id>`. Cloud bridge uses
+      // `tag:cloud-bridge`. ACLs grant cloud-bridge → hospital and vice versa,
+      // never hospital ↔ hospital.
+      {
+        "tagOwners": {
+          "tag:cloud-bridge": ["medbrains-admin@medbrains.cloud"],
+        },
+        "acls": [
+          // Cloud bridge can reach any tagged hospital cluster.
+          { "action": "accept", "src": ["tag:cloud-bridge"], "dst": ["tag:hospital-*:*"] },
+          // Each hospital can reach the cloud bridge ports it needs.
+          { "action": "accept", "src": ["tag:hospital-*"], "dst": ["tag:cloud-bridge:443,8080"] },
+        ],
+      }
+
+  - path: /etc/litestream.yml
+    permissions: '0644'
+    content: |
+      access-key-id: ""
+      secret-access-key: ""
+      dbs:
+        - path: /var/lib/headscale/db.sqlite
+          replicas:
+            - type: s3
+              bucket: ${s3_bucket_path}
+              path: headscale-sqlite
+              region: ap-south-1
+              sync-interval: 60s
+              retention: 168h
+              snapshot-interval: 1h
+
+  - path: /etc/systemd/system/medbrains-headscale.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Headscale - self-hosted Tailscale-protocol control plane
+      After=network-online.target var-lib-headscale.mount
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/headscale serve
+      Restart=always
+      RestartSec=5s
+      User=headscale
+      Group=headscale
+      LimitNOFILE=65535
+      AmbientCapabilities=CAP_NET_BIND_SERVICE
+      WorkingDirectory=/var/lib/headscale
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/medbrains-headscale-litestream.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Litestream - replicates Headscale sqlite to S3
+      After=medbrains-headscale.service
+      Requires=medbrains-headscale.service
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/litestream replicate -config /etc/litestream.yml
+      Restart=always
+      RestartSec=5s
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/sbin/medbrains-headscale-bootstrap.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # Idempotent first-boot setup. Re-runs after instance replacement
+      # restore sqlite from Litestream S3.
+      set -euxo pipefail
+      readonly HS_VER="${headscale_version}"
+
+      # Mount /dev/xvdf XFS for headscale state
+      mkdir -p /var/lib/headscale
+      if ! mountpoint -q /var/lib/headscale; then
+          if ! blkid /dev/xvdf >/dev/null 2>&1; then
+              mkfs.xfs /dev/xvdf
+          fi
+          echo '/dev/xvdf /var/lib/headscale xfs defaults,noatime 0 2' >> /etc/fstab
+          mount -a
+      fi
+
+      # Install headscale binary
+      if [[ ! -x /usr/local/bin/headscale ]]; then
+          curl -fsSL "https://github.com/juanfont/headscale/releases/download/v$${HS_VER}/headscale_$${HS_VER}_linux_arm64" \
+              -o /usr/local/bin/headscale
+          chmod +x /usr/local/bin/headscale
+      fi
+
+      # Install litestream
+      if [[ ! -x /usr/local/bin/litestream ]]; then
+          curl -fsSL "https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-arm64.tar.gz" \
+              -o /tmp/litestream.tar.gz
+          tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream
+          chmod +x /usr/local/bin/litestream
+      fi
+
+      # User
+      id headscale >/dev/null 2>&1 || useradd -r -s /sbin/nologin -d /var/lib/headscale headscale
+      chown -R headscale:headscale /var/lib/headscale /etc/headscale
+
+      # Restore sqlite from Litestream S3 if local db doesn't exist
+      if [[ ! -f /var/lib/headscale/db.sqlite ]]; then
+          /usr/local/bin/litestream restore -config /etc/litestream.yml /var/lib/headscale/db.sqlite || true
+      fi
+
+      systemctl daemon-reload
+      systemctl enable --now medbrains-headscale.service
+      systemctl enable --now medbrains-headscale-litestream.service
+
+runcmd:
+  - /usr/local/sbin/medbrains-headscale-bootstrap.sh
