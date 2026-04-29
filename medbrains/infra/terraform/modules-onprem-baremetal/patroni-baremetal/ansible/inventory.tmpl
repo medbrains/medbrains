@@ -1,0 +1,9 @@
+[etcd]
+%{ for i, host in etcd_hosts ~}
+${host} ansible_user=${ssh_user} ansible_become=yes etcd_node_id=etcd-${i + 1} etcd_node_index=${i + 1}
+%{ endfor ~}
+
+[patroni]
+%{ for i, host in pg_hosts ~}
+${host} ansible_user=${ssh_user} ansible_become=yes pg_node_id=pg-${i + 1}
+%{ endfor ~}
