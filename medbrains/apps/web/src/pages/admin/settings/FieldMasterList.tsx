@@ -20,7 +20,6 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconCheck,
-  IconClock,
   IconDatabase,
   IconEye,
   IconPencil,
@@ -38,7 +37,6 @@ import type {
   UpdateFieldRequest,
 } from "@medbrains/types";
 import { DataTable } from "../../../components";
-import { FieldAuditLog } from "../../../components/FormBuilder/FieldAuditLog";
 
 const dataTypeColors: Record<string, string> = {
   text: "primary",
@@ -500,9 +498,6 @@ export function FieldMasterList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingField, setEditingField] =
     useState<FieldDetailResponse | null>(null);
-  const [auditFieldId, setAuditFieldId] = useState<string | null>(null);
-  const [auditFieldName, setAuditFieldName] = useState("");
-  const [auditOpen, setAuditOpen] = useState(false);
 
   const { data: fields, isLoading } = useQuery({
     queryKey: ["admin-fields", debouncedSearch],
@@ -592,18 +587,6 @@ export function FieldMasterList() {
           >
             <IconEye size={16} />
           </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="slate"
-            onClick={() => {
-              setAuditFieldId(row.id);
-              setAuditFieldName(row.name);
-              setAuditOpen(true);
-            }}
-            aria-label="Time"
-          >
-            <IconClock size={16} />
-          </ActionIcon>
         </Group>
       ),
     },
@@ -655,12 +638,6 @@ export function FieldMasterList() {
         editingField={editingField}
       />
 
-      <FieldAuditLog
-        fieldId={auditFieldId}
-        fieldName={auditFieldName}
-        opened={auditOpen}
-        onClose={() => setAuditOpen(false)}
-      />
     </>
   );
 }

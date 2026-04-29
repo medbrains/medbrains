@@ -18,13 +18,11 @@ import {
   Textarea,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconEye,
   IconForms,
   IconGitBranch,
-  IconHistory,
   IconLock,
   IconPencil,
   IconPencilCode,
@@ -42,7 +40,6 @@ import type {
   UpdateFormRequest,
 } from "@medbrains/types";
 import { DataTable } from "../../../components";
-import { VersionHistoryDrawer } from "../../../components/FormBuilder/VersionHistoryDrawer";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -436,9 +433,6 @@ export function FormMasterList() {
   const [publishSummary, setPublishSummary] = useState("");
   // New version modal state
   const [newVersionForm, setNewVersionForm] = useState<FormMaster | null>(null);
-  // History drawer state
-  const [historyForm, setHistoryForm] = useState<FormMaster | null>(null);
-  const [historyOpened, historyHandlers] = useDisclosure(false);
 
   const { data: forms, isLoading } = useQuery({
     queryKey: ["admin-forms"],
@@ -500,11 +494,6 @@ export function FormMasterList() {
   const openEdit = (detail: FormDetailResponse) => {
     setEditingForm(detail);
     setModalOpen(true);
-  };
-
-  const openHistory = (form: FormMaster) => {
-    setHistoryForm(form);
-    historyHandlers.open();
   };
 
   const columns = [
@@ -576,16 +565,6 @@ export function FormMasterList() {
               </ActionIcon>
             </Tooltip>
           )}
-          <Tooltip label="History">
-            <ActionIcon
-              variant="subtle"
-              color="slate"
-              onClick={() => openHistory(row)}
-              aria-label="History"
-            >
-              <IconHistory size={16} />
-            </ActionIcon>
-          </Tooltip>
           <Tooltip label="View details">
             <ActionIcon
               variant="subtle"
@@ -726,15 +705,6 @@ export function FormMasterList() {
         </Stack>
       </Modal>
 
-      {/* History Drawer */}
-      {historyForm && (
-        <VersionHistoryDrawer
-          formId={historyForm.id}
-          currentVersion={historyForm.version}
-          opened={historyOpened}
-          onClose={historyHandlers.close}
-        />
-      )}
     </>
   );
 }

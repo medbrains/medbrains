@@ -75,11 +75,8 @@ const OtherSpecialtiesPage = lazy(() => import("./pages/specialty/other").then((
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
 const SettingsPage = lazy(() => import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })));
-const FormBuilderPage = lazy(() => import("./pages/admin/form-builder").then((m) => ({ default: m.FormBuilderPage })));
-const DashboardBuilderPage = lazy(() => import("./pages/admin/dashboard-builder").then((m) => ({ default: m.DashboardBuilderPage })));
 const IntegrationHubPage = lazy(() => import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })));
 const IntegrationBuilderPage = lazy(() => import("./pages/admin/integration-builder").then((m) => ({ default: m.IntegrationBuilderPage })));
-const ScreenBuilderPage = lazy(() => import("./pages/admin/screen-builder").then((m) => ({ default: m.ScreenBuilderPage })));
 const TvDisplaysPage = lazy(() => import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })));
 const DoctorSchedulesPage = lazy(() => import("./pages/admin/doctor-schedules").then((m) => ({ default: m.DoctorSchedulesPage })));
 const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })));
@@ -185,14 +182,9 @@ export function App() {
               />
               <Route path="modules" element={<DynamicScreenPage screenCode="admin-modules" />} />
               <Route path="locations" element={<DynamicScreenPage screenCode="admin-locations" />} />
-              <Route path="form-builder" element={<FormBuilderPage />} />
-              <Route path="form-builder/:formId" element={<FormBuilderPage />} />
-              <Route path="dashboard-builder" element={<DashboardBuilderPage />} />
-              <Route path="dashboard-builder/:id" element={<DashboardBuilderPage />} />
               <Route path="integration-hub" element={<IntegrationHubPage />} />
               <Route path="integration-builder" element={<IntegrationBuilderPage />} />
               <Route path="integration-builder/:id" element={<IntegrationBuilderPage />} />
-              <Route path="screen-builder" element={<ScreenBuilderPage />} />
               <Route path="tv-displays" element={<TvDisplaysPage />} />
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />
