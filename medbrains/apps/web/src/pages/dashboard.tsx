@@ -4,25 +4,18 @@ import {
   Button,
   Card,
   Divider,
-  Drawer,
   Grid,
   Group,
-  Loader,
   SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
-import type {
-  DashboardWithWidgets,
-  RecentActivity,
-  WidgetTemplate,
-} from "@medbrains/types";
+import type { RecentActivity } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -36,7 +29,6 @@ import {
   IconDashboard,
   IconFlask,
   IconHeartbeat,
-  IconPlus,
   IconReceipt,
   IconServer,
   IconSettings,
@@ -45,7 +37,6 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { PageHeader, StatCard } from "../components";
-import { WidgetRenderer } from "../components/Dashboard/WidgetRenderer";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
@@ -53,184 +44,10 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
 
-  // Try to load the user's configured dashboard
-  const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ["my-dashboard"],
-    queryFn: () => api.getMyDashboard(),
-    retry: 1,
-  });
-
-  // Show configured dashboard if available
-  if (isLoading) {
-    return (
-      <div>
-        <PageHeader title={t("title")} subtitle={t("loading")} icon={<IconDashboard size={20} stroke={1.5} />} color="primary" />
-        <Group justify="center" py="xl">
-          <Loader />
-        </Group>
-      </div>
-    );
-  }
-
-  // If we have a configured dashboard with widgets, render it dynamically
-  if (dashboardData && dashboardData.widgets.length > 0) {
-    return (
-      <ConfiguredDashboard
-        data={dashboardData}
-        canManage={canManage}
-        navigate={navigate}
-        t={t}
-      />
-    );
-  }
-
-  // Fallback: render the default hardcoded dashboard
   return <DefaultDashboard navigate={navigate} canManage={canManage} t={t} />;
 }
 
-// ── Configured Dashboard (Dynamic) ──────────────────────
-
-function ConfiguredDashboard({
-  data,
-  canManage,
-  navigate,
-  t,
-}: {
-  data: DashboardWithWidgets;
-  canManage: boolean;
-  navigate: ReturnType<typeof useNavigate>;
-  t: (key: string) => string;
-}) {
-  const { dashboard, widgets } = data;
-  const columns = (dashboard.layout_config as { columns?: number })?.columns ?? 12;
-  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
-  const queryClient = useQueryClient();
-
-  const { data: templates } = useQuery({
-    queryKey: ["widget-templates"],
-    queryFn: () => api.listWidgetTemplates(),
-    enabled: drawerOpen,
-  });
-
-  const handleAddWidget = async (tmpl: WidgetTemplate) => {
-    const maxY = widgets.reduce((m, w) => Math.max(m, w.position_y + w.height), 0);
-    await api.myAddWidget({
-      widget_type: tmpl.widget_type,
-      title: tmpl.name,
-      subtitle: tmpl.description ?? undefined,
-      icon: tmpl.icon ?? undefined,
-      color: tmpl.color ?? undefined,
-      config: (tmpl.default_config as Record<string, unknown>) ?? {},
-      data_source: (tmpl.default_source as Record<string, unknown>) ?? {},
-      width: tmpl.default_width ?? 4,
-      height: tmpl.default_height ?? 2,
-      position_x: 0,
-      position_y: maxY,
-    });
-    await queryClient.invalidateQueries({ queryKey: ["my-dashboard"] });
-    closeDrawer();
-  };
-
-  return (
-    <div>
-      <PageHeader
-        title={dashboard.name || "Dashboard"}
-        subtitle={dashboard.description || "Overview of today's activity"}
-        icon={<IconDashboard size={20} stroke={1.5} />}
-        color="primary"
-        actions={
-          <Group gap="xs">
-            <Button
-              variant="light"
-              size="xs"
-              leftSection={<IconPlus size={14} />}
-              onClick={openDrawer}
-            >
-              {t("addWidget")}
-            </Button>
-            {canManage && (
-              <Button
-                variant="subtle"
-                size="xs"
-                leftSection={<IconSettings size={14} />}
-                onClick={() =>
-                  navigate(`/admin/dashboard-builder/${dashboard.id}`)
-                }
-              >
-                Customize
-              </Button>
-            )}
-          </Group>
-        }
-      />
-
-      <Box
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columns}, 1fr)`,
-          gap: 16,
-        }}
-      >
-        {widgets.map((widget) => (
-          <Box
-            key={widget.id}
-            style={{
-              gridColumn: `${widget.position_x + 1} / span ${widget.width}`,
-              gridRow: `${widget.position_y + 1} / span ${widget.height}`,
-            }}
-          >
-            <WidgetRenderer widget={widget} />
-          </Box>
-        ))}
-      </Box>
-
-      <Drawer
-        opened={drawerOpen}
-        onClose={closeDrawer}
-        title={t("addWidget")}
-        position="right"
-        size="sm"
-      >
-        <Stack gap="xs">
-          {templates?.map((tmpl) => (
-            <Card
-              key={tmpl.id}
-              withBorder
-              padding="sm"
-              style={{ cursor: "pointer" }}
-              onClick={() => handleAddWidget(tmpl)}
-            >
-              <Group gap="sm">
-                <ThemeIcon
-                  variant="light"
-                  color={tmpl.color ?? "blue"}
-                  size="md"
-                >
-                  <IconDashboard size={16} />
-                </ThemeIcon>
-                <div>
-                  <Text size="sm" fw={500}>
-                    {tmpl.name}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {tmpl.description}
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-          ))}
-          {templates?.length === 0 && (
-            <Text size="sm" c="dimmed" ta="center" py="xl">
-              {t("noWidgets")}
-            </Text>
-          )}
-        </Stack>
-      </Drawer>
-    </div>
-  );
-}
-
-// ── Default Dashboard (Fallback) ────────────────────────
+// ── Default Dashboard ───────────────────────────────────
 
 const quickActions = [
   {

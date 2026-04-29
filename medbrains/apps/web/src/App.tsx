@@ -20,6 +20,7 @@ const OnboardingPage = lazy(() => import("./pages/onboarding").then((m) => ({ de
 const DashboardPage = lazy(() => import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })));
 const PatientsPage = lazy(() => import("./pages/patients").then((m) => ({ default: m.PatientsPage })));
 const PatientDetailPage = lazy(() => import("./pages/patient-detail").then((m) => ({ default: m.PatientDetailPage })));
+const PatientEditPage = lazy(() => import("./pages/patient-edit").then((m) => ({ default: m.PatientEditPage })));
 const OpdPage = lazy(() => import("./pages/opd").then((m) => ({ default: m.OpdPage })));
 const AppointmentsPage = lazy(() => import("./pages/appointments").then((m) => ({ default: m.AppointmentsPage })));
 const PgLogbookPage = lazy(() => import("./pages/pg-logbook").then((m) => ({ default: m.PgLogbookPage })));
@@ -108,8 +109,8 @@ export function App() {
           >
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="patients" element={<PatientsPage />} />
-            <Route path="patients/new" element={<DynamicScreenPage screenCode="patient-create" />} />
             <Route path="patients/:id" element={<PatientDetailPage />} />
+            <Route path="patients/:id/edit" element={<PatientEditPage />} />
             <Route path="opd" element={<OpdPage />} />
             <Route path="opd/appointments" element={<AppointmentsPage />} />
             <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
