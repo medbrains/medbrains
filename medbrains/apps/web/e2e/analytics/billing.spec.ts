@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 const QS = "?from=2024-01-01&to=2030-12-31&date_from=2024-01-01&date_to=2030-12-31";
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -23,7 +23,7 @@ const ENDPOINTS = [
 test.describe("Billing analytics", () => {
   for (const path of ENDPOINTS) {
     test(`GET ${path}`, async ({ request }) => {
-      const ctx = await loginAsAdmin(request);
+      const ctx = await getAuthContextFromCookies(request);
       const data = await api<unknown>(ctx, "GET", path);
       expect(data).toBeTruthy();
       const json = JSON.stringify(data);

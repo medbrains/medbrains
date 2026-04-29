@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 test.describe("ICU CRUD", () => {
   test("analytics smoke (los + device-infections)", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     // ICU on this branch only exposes nested admissions/{id}/* paths,
     // no top-level admissions list. Analytics is the canonical surface.
     const los = await api<unknown>(ctx, "GET", "/api/icu/analytics/los");

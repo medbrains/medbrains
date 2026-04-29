@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -9,7 +9,7 @@ import {
 
 test.describe("OPD CRUD", () => {
   test("encounter → consultation → prescription lifecycle", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     expect(encounterId).toMatch(/^[0-9a-f-]{36}$/i);
@@ -34,13 +34,13 @@ test.describe("OPD CRUD", () => {
   });
 
   test("queue list returns array", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const queue = await api<unknown[]>(ctx, "GET", "/api/opd/queue");
     expect(Array.isArray(queue)).toBe(true);
   });
 
   test("404 on unknown encounter id", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const fake = "00000000-0000-0000-0000-000000000000";
     await expect(
       api(ctx, "GET", `/api/opd/encounters/${fake}`),

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 const ENDPOINTS = [
   "/api/lab/analytics/tat",
@@ -13,7 +13,7 @@ const ENDPOINTS = [
 test.describe("Lab + Radiology + ICU analytics", () => {
   for (const path of ENDPOINTS) {
     test(`GET ${path}`, async ({ request }) => {
-      const ctx = await loginAsAdmin(request);
+      const ctx = await getAuthContextFromCookies(request);
       const data = await api<unknown>(ctx, "GET", path);
       expect(data).toBeTruthy();
       expect(JSON.stringify(data)).not.toContain("NaN");

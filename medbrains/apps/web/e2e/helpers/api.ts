@@ -34,6 +34,23 @@ export async function loginAsAdmin(
   };
 }
 
+/**
+ * Reuse the auth state already loaded into the request context via
+ * `storageState: "e2e/.auth/user.json"`. Reads the existing `csrf_token`
+ * cookie instead of paying the argon2 login round-trip.
+ *
+ * Falls back to a full `loginAsAdmin` if no csrf cookie is present (e.g.,
+ * the spec runs in a project that doesn't load storageState).
+ */
+export async function getAuthContextFromCookies(
+  request: APIRequestContext,
+): Promise<AuthContext> {
+  const state = await request.storageState();
+  const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
+  if (!csrf) return loginAsAdmin(request);
+  return { csrfToken: csrf, request, userId: "", tenantId: "" };
+}
+
 function statusOk(status: number, expected?: number | number[]): boolean {
   if (expected === undefined) return status >= 200 && status < 300;
   if (Array.isArray(expected)) return expected.includes(status);

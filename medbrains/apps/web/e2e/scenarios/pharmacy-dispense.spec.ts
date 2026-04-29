@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -17,7 +17,7 @@ test.describe("Pharmacy dispense journey", () => {
       description: "Pharmacy::Order + dispense + partial return",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     const rxId = await createPrescription(ctx, encounterId);

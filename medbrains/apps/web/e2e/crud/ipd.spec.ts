@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import { createPatientApi, admitToIpd } from "../helpers/journey-steps";
 
 test.describe("IPD CRUD", () => {
   test("admit → fetch → discharge", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     let admissionId: string;
     try {
@@ -36,7 +36,7 @@ test.describe("IPD CRUD", () => {
   });
 
   test("admissions list + bed dashboard", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const list = await api<unknown>(ctx, "GET", "/api/ipd/admissions");
     expect(list).toBeTruthy();
     const dashboard = await api<unknown>(ctx, "GET", "/api/ipd/bed-dashboard");
@@ -44,7 +44,7 @@ test.describe("IPD CRUD", () => {
   });
 
   test("404 on unknown admission", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const fake = "00000000-0000-0000-0000-000000000000";
     await expect(
       api(ctx, "GET", `/api/ipd/admissions/${fake}`),

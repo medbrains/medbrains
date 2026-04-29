@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   admitToIpd,
@@ -12,7 +12,7 @@ test.describe("IPD admission journey", () => {
       description: "IPD::Admit + bed allocation + discharge",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const admissionId = await admitToIpd(ctx, { patientId: patient.id });
 
@@ -34,7 +34,7 @@ test.describe("IPD admission journey", () => {
   });
 
   test("bed dashboard + available beds + admissions list", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const dashboard = await api<unknown>(ctx, "GET", "/api/ipd/bed-dashboard");
     expect(dashboard).toBeTruthy();
     const beds = await api<unknown[]>(ctx, "GET", "/api/ipd/beds/available");

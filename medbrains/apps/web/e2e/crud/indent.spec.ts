@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 test.describe("Indent CRUD", () => {
   test("requisitions + catalog + analytics smoke", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
 
     const reqs = await api<unknown>(ctx, "GET", "/api/indent/requisitions");
     expect(reqs).toBeTruthy();

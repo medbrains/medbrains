@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 test.describe("Pharmacy Finance CRUD", () => {
   test("cash drawers + petty cash + supplier payments lists", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
 
     const drawers = await api<unknown[]>(ctx, "GET", "/api/pharmacy/cash-drawers");
     expect(Array.isArray(drawers)).toBe(true);

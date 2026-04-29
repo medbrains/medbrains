@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   registerPatientUI,
   createEncounter,
@@ -44,7 +44,7 @@ test.describe("Full clinical journey", () => {
       description: "Clinical::Full journey OPD to IPD with returns",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     await navigateTo(page, "/patients");
     const patient = await registerPatientUI(ctx, page);
 

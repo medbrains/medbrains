@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 const ENDPOINTS = [
   "/api/indent/analytics/abc",
@@ -21,7 +21,7 @@ test.describe("Indent analytics", () => {
       if (KNOWN_FAILURES.has(path)) {
         test.skip(true, "known backend SQL bug");
       }
-      const ctx = await loginAsAdmin(request);
+      const ctx = await getAuthContextFromCookies(request);
       const data = await api<unknown>(ctx, "GET", path);
       expect(data).toBeTruthy();
       expect(JSON.stringify(data)).not.toContain("NaN");

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -14,7 +14,7 @@ test.describe("Lab order journey", () => {
       description: "Lab::Full lab order lifecycle",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     const orderId = await createLabOrder(ctx, {
@@ -47,7 +47,7 @@ test.describe("Lab order journey", () => {
   });
 
   test("catalog has at least one test", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const catalog = await api<unknown[]>(ctx, "GET", "/api/lab/catalog");
     expect(Array.isArray(catalog)).toBe(true);
     expect(catalog.length).toBeGreaterThan(0);
