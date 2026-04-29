@@ -162,6 +162,15 @@ pub async fn get_discharge_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Fetch signatures (primary + co-signers) for the discharge summary.
+    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "discharge_summary",
+        admission_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let fmt_ts =
@@ -181,6 +190,17 @@ pub async fn get_discharge_print_data(
         discharge_type: row.discharge_type,
         discharge_summary: row.discharge_summary,
         diagnosis: row.diagnosis,
+        signatures: sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 
@@ -458,6 +478,14 @@ pub async fn get_treatment_chart_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let chart_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "other",
+        admission_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
@@ -477,6 +505,7 @@ pub async fn get_treatment_chart_print_data(
         iv_fluids,
         stat_orders,
         treating_doctor: row.treating_doctor,
+        signatures: super::signed_documents::to_print_signatures(chart_sigs),
     }))
 }
 
@@ -602,6 +631,14 @@ pub async fn get_transfer_summary_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let transfer_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "discharge_summary",
+        transfer_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
@@ -630,6 +667,7 @@ pub async fn get_transfer_summary_print_data(
         receiving_doctor: row.receiving_doctor,
         transferring_nurse: row.transferring_nurse,
         receiving_nurse: row.receiving_nurse,
+        signatures: super::signed_documents::to_print_signatures(transfer_sigs),
     }))
 }
 
@@ -1025,6 +1063,16 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "prescription",
+        encounter_id,
+    )
+    .await?;
+    let preview_signature_url: Option<String> =
+        sigs.iter().find_map(|s| s.display_image_url.clone());
+
     tx.commit().await?;
 
     let age_display = row
@@ -1082,11 +1130,22 @@ pub async fn get_opd_prescription_print_data(
             weight_kg: row.weight_kg,
             bmi,
         }),
-        doctor_signature_url: None,
+        doctor_signature_url: preview_signature_url,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
         hospital_address: tenant.2,
         hospital_phone: tenant.3,
+        signatures: sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 
@@ -1209,6 +1268,14 @@ pub async fn get_lab_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let lab_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "lab_report",
+        order_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_display = row
@@ -1264,6 +1331,17 @@ pub async fn get_lab_report_full_print_data(
         barcode_data,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
+        signatures: lab_sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 
@@ -1393,6 +1471,7 @@ pub async fn get_cumulative_lab_report_print_data(
         pathologist_registration_number: None,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
+        signatures: Vec::new(), // cumulative trend report — not signed per-record
     }))
 }
 
@@ -1515,6 +1594,14 @@ pub async fn get_radiology_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let rad_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "radiology_report",
+        order_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_display = row
@@ -1564,6 +1651,17 @@ pub async fn get_radiology_report_full_print_data(
         pacs_study_uid: row.pacs_study_uid,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
+        signatures: rad_sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 
@@ -1695,6 +1793,14 @@ pub async fn get_death_certificate_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let death_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "death_certificate",
+        patient_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     let age_display = row
@@ -1750,6 +1856,17 @@ pub async fn get_death_certificate_print_data(
         hospital_name: tenant.0,
         hospital_address: tenant.2,
         hospital_logo_url: tenant.1,
+        signatures: death_sigs
+            .into_iter()
+            .map(|s| medbrains_core::print_data::PrintSignatureData {
+                signed_at: s.signed_at.to_rfc3339(),
+                signer_name: s.signer_name,
+                display_image_url: s.display_image_url,
+                display_block: s.display_block,
+                verify_ref: s.verify_ref,
+                legal_class: s.legal_class,
+            })
+            .collect(),
     }))
 }
 

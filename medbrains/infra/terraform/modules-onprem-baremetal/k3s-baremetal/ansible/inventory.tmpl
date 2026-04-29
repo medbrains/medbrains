@@ -1,0 +1,7 @@
+[server]
+${server_host} ansible_user=${ssh_user} ansible_become=yes
+
+[agents]
+%{ for host in agent_hosts ~}
+${host} ansible_user=${ssh_user} ansible_become=yes
+%{ endfor ~}

@@ -72,19 +72,21 @@ const MaternityPage = lazy(() => import("./pages/specialty/maternity").then((m) 
 const OtherSpecialtiesPage = lazy(() => import("./pages/specialty/other").then((m) => ({ default: m.OtherSpecialtiesPage })));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
+const AdminDoctorsPage = lazy(() => import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })));
+const AdminDoctorPackagesPage = lazy(() => import("./pages/admin/doctor-packages").then((m) => ({ default: m.AdminDoctorPackagesPage })));
+const AdminCoveragePage = lazy(() => import("./pages/admin/coverage").then((m) => ({ default: m.AdminCoveragePage })));
+const MyDayPage = lazy(() => import("./pages/doctor/my-day").then((m) => ({ default: m.MyDayPage })));
+const SignoffsPage = lazy(() => import("./pages/doctor/signoffs").then((m) => ({ default: m.SignoffsPage })));
+const DoctorProfilePage = lazy(() => import("./pages/doctor/profile").then((m) => ({ default: m.DoctorProfilePage })));
 const SettingsPage = lazy(() => import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })));
-const FormBuilderPage = lazy(() => import("./pages/admin/form-builder").then((m) => ({ default: m.FormBuilderPage })));
-const DashboardBuilderPage = lazy(() => import("./pages/admin/dashboard-builder").then((m) => ({ default: m.DashboardBuilderPage })));
 const IntegrationHubPage = lazy(() => import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })));
 const IntegrationBuilderPage = lazy(() => import("./pages/admin/integration-builder").then((m) => ({ default: m.IntegrationBuilderPage })));
-const ScreenBuilderPage = lazy(() => import("./pages/admin/screen-builder").then((m) => ({ default: m.ScreenBuilderPage })));
 const TvDisplaysPage = lazy(() => import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })));
 const DoctorSchedulesPage = lazy(() => import("./pages/admin/doctor-schedules").then((m) => ({ default: m.DoctorSchedulesPage })));
 const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
 const DocumentsPage = lazy(() => import("./pages/documents").then((m) => ({ default: m.DocumentsPage })));
 const DevicesPage = lazy(() => import("./pages/admin/devices").then((m) => ({ default: m.DevicesPage })));
-const DynamicScreenPage = lazy(() => import("./components/ScreenRenderer/DynamicScreenPage").then((m) => ({ default: m.DynamicScreenPage })));
 
 export function App() {
   return (
@@ -109,19 +111,14 @@ export function App() {
           >
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="patients" element={<PatientsPage />} />
-            <Route path="patients/new" element={<DynamicScreenPage screenCode="patient-create" />} />
             <Route path="patients/:id" element={<PatientDetailPage />} />
             <Route path="opd" element={<OpdPage />} />
             <Route path="opd/appointments" element={<AppointmentsPage />} />
             <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
-            <Route path="opd/encounters/:id" element={<DynamicScreenPage screenCode="opd-consultation" />} />
             <Route path="lab" element={<LabPage />} />
-            <Route path="lab/board" element={<DynamicScreenPage screenCode="lab-worklist" />} />
             <Route path="radiology" element={<RadiologyPage />} />
             <Route path="pharmacy" element={<PharmacyPage />} />
-            <Route path="pharmacy/catalog" element={<DynamicScreenPage screenCode="pharmacy-catalog" />} />
             <Route path="billing" element={<BillingPage />} />
-            <Route path="billing/new" element={<DynamicScreenPage screenCode="billing-create" />} />
             <Route path="indent/*" element={<IndentPage />} />
             <Route path="procurement" element={<ProcurementPage />} />
             <Route path="quality" element={<QualityPage />} />
@@ -166,37 +163,35 @@ export function App() {
             <Route path="blood-bank" element={<BloodBankPage />} />
             <Route path="icu" element={<IcuPage />} />
             <Route path="ipd" element={<IpdPage />} />
-            <Route path="ipd/beds" element={<DynamicScreenPage screenCode="ipd-bed-board" />} />
             <Route path="bedside-portal" element={<BedsidePortalPage />} />
             <Route path="care-view" element={<CareViewPage />} />
             <Route path="ot" element={<OtPage />} />
+            <Route path="doctor">
+              <Route index element={<Navigate to="my-day" replace />} />
+              <Route path="my-day" element={<MyDayPage />} />
+              <Route path="signoffs" element={<SignoffsPage />} />
+              <Route path="profile" element={<DoctorProfilePage />} />
+            </Route>
             <Route path="admin">
               <Route index element={<Navigate to="users" replace />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="roles" element={<RolesPage />} />
+              <Route path="doctors" element={<AdminDoctorsPage />} />
+              <Route path="doctor-packages" element={<AdminDoctorPackagesPage />} />
+              <Route path="coverage" element={<AdminCoveragePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="device-integrations"
                 element={<Navigate to="/admin/settings#device-integrations" replace />}
               />
-              <Route path="modules" element={<DynamicScreenPage screenCode="admin-modules" />} />
-              <Route path="locations" element={<DynamicScreenPage screenCode="admin-locations" />} />
-              <Route path="form-builder" element={<FormBuilderPage />} />
-              <Route path="form-builder/:formId" element={<FormBuilderPage />} />
-              <Route path="dashboard-builder" element={<DashboardBuilderPage />} />
-              <Route path="dashboard-builder/:id" element={<DashboardBuilderPage />} />
               <Route path="integration-hub" element={<IntegrationHubPage />} />
               <Route path="integration-builder" element={<IntegrationBuilderPage />} />
               <Route path="integration-builder/:id" element={<IntegrationBuilderPage />} />
-              <Route path="screen-builder" element={<ScreenBuilderPage />} />
               <Route path="tv-displays" element={<TvDisplaysPage />} />
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="devices" element={<DevicesPage />} />
             </Route>
-
-            {/* Dynamic screen routing — screens defined in Screen Builder */}
-            <Route path="m/:moduleCode/:screenCode" element={<DynamicScreenPage />} />
           </Route>
         </Routes>
       </Suspense>

@@ -1,269 +1,143 @@
-import { ActionIcon, Badge, Button, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
+import { Button, SegmentedControl, Tabs } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import type { PipelineStatus, PipelineSummary } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
-  IconHistory,
-  IconLayoutDashboard,
-  IconPencil,
-  IconPlayerPlay,
+  IconActivity,
+  IconClock,
+  IconList,
   IconPlug,
-  IconToggleLeft,
-  IconToggleRight,
-  IconTrash,
+  IconRadar,
+  IconRoute,
+  IconStack3,
 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { DataTable } from "../../components/DataTable";
-import { ExecutionPanel } from "../../components/Integration";
+import {
+  ConnectorsTab,
+  ControlRoom,
+  EventsTab,
+  ExecutionPanel,
+  JobsTab,
+  PipelineLedger,
+  RecipeShelf,
+  SchedulesTab,
+} from "../../components/Integration";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 
-const STATUS_COLORS: Record<PipelineStatus, string> = {
-  draft: "slate",
-  active: "success",
-  paused: "warning",
-  archived: "dimmed",
-};
+type HubView = "ledger" | "recipes" | "control" | "config";
 
-const FILTER_OPTIONS = [
-  { label: "All", value: "all" },
-  { label: "Active", value: "active" },
-  { label: "Draft", value: "draft" },
-  { label: "Archived", value: "archived" },
+const VIEW_OPTIONS = [
+  { label: "Ledger", value: "ledger" },
+  { label: "Recipes", value: "recipes" },
+  { label: "Control Room", value: "control" },
+  { label: "Config", value: "config" },
 ];
 
 export function IntegrationHubPage() {
   useRequirePermission(P.INTEGRATION.LIST);
 
   const canCreate = useHasPermission(P.INTEGRATION.CREATE);
-  const canUpdate = useHasPermission(P.INTEGRATION.UPDATE);
-  const canDelete = useHasPermission(P.INTEGRATION.DELETE);
-  const canExecute = useHasPermission(P.INTEGRATION.EXECUTE);
-  const canOpenScreenBuilder = useHasPermission(P.ADMIN.SCREEN_BUILDER.LIST);
-
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [view, setView] = useState<HubView>("ledger");
   const [execPipelineId, setExecPipelineId] = useState<string | null>(null);
   const [execOpened, { open: openExec, close: closeExec }] = useDisclosure(false);
 
-  const params: Record<string, string> = {
-    page: String(page),
-    per_page: "20",
-  };
-  if (statusFilter !== "all") {
-    params.status = statusFilter;
+  function handleOpenExecution(pipelineId: string) {
+    setExecPipelineId(pipelineId);
+    openExec();
   }
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["integration", "pipelines", params],
-    queryFn: () => api.listPipelines(params),
-  });
-
-  const toggleStatus = useMutation({
-    mutationFn: (pipeline: PipelineSummary) => {
-      const newStatus: PipelineStatus = pipeline.status === "active" ? "paused" : "active";
-      return api.updatePipelineStatus(pipeline.id, { status: newStatus });
-    },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
-  });
-
-  const deletePipeline = useMutation({
-    mutationFn: (id: string) => api.deletePipeline(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
-  });
-
-  const triggerPipeline = useMutation({
-    mutationFn: (id: string) => api.triggerPipeline(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
-  });
-
-  const columns = [
-    {
-      key: "name",
-      label: "Pipeline",
-      render: (row: PipelineSummary) => (
-        <Text size="sm" fw={500}>
-          {row.name}
-        </Text>
-      ),
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (row: PipelineSummary) => (
-        <Badge color={STATUS_COLORS[row.status]} variant="light" size="sm">
-          {row.status}
-        </Badge>
-      ),
-    },
-    {
-      key: "trigger",
-      label: "Trigger",
-      render: (row: PipelineSummary) => (
-        <Badge variant="outline" size="sm">
-          {row.trigger_type.replace(/_/g, " ")}
-        </Badge>
-      ),
-    },
-    {
-      key: "executions",
-      label: "Runs",
-      render: (row: PipelineSummary) => <Text size="sm">{row.execution_count}</Text>,
-    },
-    {
-      key: "last_run",
-      label: "Last Run",
-      render: (row: PipelineSummary) => (
-        <Text size="xs" c="dimmed">
-          {row.last_run_at ? new Date(row.last_run_at).toLocaleString() : "Never"}
-        </Text>
-      ),
-    },
-    {
-      key: "actions",
-      label: "",
-      render: (row: PipelineSummary) => (
-        <Group gap={4} wrap="nowrap" justify="flex-end">
-          {canExecute && row.status === "active" && (
-            <Tooltip label="Trigger">
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                color="primary"
-                onClick={() => triggerPipeline.mutate(row.id)}
-                aria-label="Play"
-              >
-                <IconPlayerPlay size={14} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          <Tooltip label="Executions">
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => {
-                setExecPipelineId(row.id);
-                openExec();
-              }}
-              aria-label="History"
-            >
-              <IconHistory size={14} />
-            </ActionIcon>
-          </Tooltip>
-          {canUpdate && (
-            <>
-              <Tooltip label="Edit">
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  onClick={() => navigate(`/admin/integration-builder/${row.id}`)}
-                  aria-label="Edit"
-                >
-                  <IconPencil size={14} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label={row.status === "active" ? "Pause" : "Activate"}>
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  color={row.status === "active" ? "warning" : "success"}
-                  onClick={() => toggleStatus.mutate(row)}
-                >
-                  {row.status === "active" ? (
-                    <IconToggleRight size={14} />
-                  ) : (
-                    <IconToggleLeft size={14} />
-                  )}
-                </ActionIcon>
-              </Tooltip>
-            </>
-          )}
-          {canDelete && (
-            <Tooltip label="Delete">
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                color="danger"
-                onClick={() => deletePipeline.mutate(row.id)}
-                  aria-label="Delete"
-              >
-                <IconTrash size={14} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      ),
-    },
-  ];
-
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 80px)" }}>
       <PageHeader
         title="Automation Hub"
-        subtitle="Build cross-module pipelines and link them through screen or module sidecars"
+        subtitle="Orchestrate workflows across every module"
         actions={
-          canOpenScreenBuilder || canCreate ? (
-            <>
-              {canOpenScreenBuilder && (
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconLayoutDashboard size={14} />}
-                  onClick={() => navigate("/admin/screen-builder")}
-                >
-                  Open Screen Builder
-                </Button>
-              )}
-              {canCreate && (
-                <Button
-                  size="xs"
-                  leftSection={<IconPlug size={14} />}
-                  onClick={() => navigate("/admin/integration-builder")}
-                >
-                  New Pipeline
-                </Button>
-              )}
-            </>
-          ) : undefined
+          <>
+            {canCreate && (
+              <Button
+                size="xs"
+                leftSection={<IconPlug size={14} />}
+                onClick={() => navigate("/admin/integration-builder")}
+              >
+                New Pipeline
+              </Button>
+            )}
+          </>
         }
       />
 
-      <DataTable<PipelineSummary>
-        columns={columns}
-        data={data?.pipelines ?? []}
-        loading={isLoading}
-        total={data?.total}
-        page={page}
-        totalPages={Math.ceil((data?.total ?? 0) / 20)}
-        perPage={20}
-        onPageChange={setPage}
-        rowKey={(r) => r.id}
-        emptyIcon={<IconPlug size={48} stroke={1} />}
-        emptyTitle="No pipelines yet"
-        emptyDescription="Create a pipeline here, then attach it to screen or module sidecars to link workflows across modules."
-        emptyAction={
-          canCreate
-            ? {
-                label: "New Pipeline",
-                onClick: () => navigate("/admin/integration-builder"),
-              }
-            : undefined
-        }
-        toolbar={
-          <SegmentedControl
-            size="xs"
-            data={FILTER_OPTIONS}
-            value={statusFilter}
-            onChange={setStatusFilter}
-          />
-        }
-      />
+      {/* View switcher */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "0 4px 12px",
+        }}
+      >
+        <SegmentedControl
+          size="xs"
+          data={VIEW_OPTIONS.map((o) => ({
+            label: (
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {o.value === "ledger" && <IconList size={13} />}
+                {o.value === "recipes" && <IconRoute size={13} />}
+                {o.value === "control" && <IconActivity size={13} />}
+                {o.value === "config" && <IconStack3 size={13} />}
+                {o.label}
+              </span>
+            ),
+            value: o.value,
+          }))}
+          value={view}
+          onChange={(v) => setView(v as HubView)}
+        />
+      </div>
+
+      {/* View panels */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        {view === "ledger" && <PipelineLedger onOpenExecution={handleOpenExecution} />}
+
+        {view === "recipes" && <RecipeShelf />}
+
+        {view === "control" && <ControlRoom />}
+
+        {view === "config" && (
+          <Tabs defaultValue="events">
+            <Tabs.List mb="md">
+              <Tabs.Tab value="events" leftSection={<IconRadar size={14} />}>
+                Events
+              </Tabs.Tab>
+              <Tabs.Tab value="connectors" leftSection={<IconPlug size={14} />}>
+                Connectors
+              </Tabs.Tab>
+              <Tabs.Tab value="jobs" leftSection={<IconStack3 size={14} />}>
+                Jobs
+              </Tabs.Tab>
+              <Tabs.Tab value="schedules" leftSection={<IconClock size={14} />}>
+                Schedules
+              </Tabs.Tab>
+            </Tabs.List>
+
+            <Tabs.Panel value="events">
+              <EventsTab />
+            </Tabs.Panel>
+            <Tabs.Panel value="connectors">
+              <ConnectorsTab />
+            </Tabs.Panel>
+            <Tabs.Panel value="jobs">
+              <JobsTab />
+            </Tabs.Panel>
+            <Tabs.Panel value="schedules">
+              <SchedulesTab />
+            </Tabs.Panel>
+          </Tabs>
+        )}
+      </div>
 
       <ExecutionPanel pipelineId={execPipelineId} opened={execOpened} onClose={closeExec} />
     </div>

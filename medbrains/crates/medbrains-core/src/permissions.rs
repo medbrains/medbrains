@@ -1274,6 +1274,28 @@ pub mod admin {
         pub const DELETE: &str = "admin.users.delete";
     }
 
+    /// Sprint A: per-tenant operating mode flip (normal/degraded/read_only).
+    pub mod system_state {
+        pub const VIEW: &str = "admin.system_state.view";
+        pub const MANAGE: &str = "admin.system_state.manage";
+    }
+
+    /// Sprint A: outbox queue + DLQ admin surface.
+    pub mod outbox {
+        pub const VIEW: &str = "admin.outbox.view";
+        pub const RETRY: &str = "admin.outbox.retry";
+
+        pub mod dlq {
+            pub const MANAGE: &str = "admin.outbox.dlq.manage";
+        }
+    }
+
+    /// Sprint B: per-tenant Patroni vs Aurora topology selector.
+    pub mod db_topology {
+        pub const VIEW: &str = "admin.db_topology.view";
+        pub const MANAGE: &str = "admin.db_topology.manage";
+    }
+
     pub mod roles {
         pub const LIST: &str = "admin.roles.list";
         pub const VIEW: &str = "admin.roles.view";
@@ -1339,37 +1361,12 @@ pub mod admin {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
         }
 
-        pub mod forms {
-            pub const MANAGE: &str = "admin.settings.forms.manage";
-        }
-
         pub mod clinical_masters {
             pub const LIST: &str = "admin.settings.clinical_masters.list";
             pub const CREATE: &str = "admin.settings.clinical_masters.create";
             pub const UPDATE: &str = "admin.settings.clinical_masters.update";
             pub const DELETE: &str = "admin.settings.clinical_masters.delete";
         }
-    }
-
-    pub mod form_builder {
-        pub const LIST: &str = "admin.form_builder.list";
-        pub const CREATE: &str = "admin.form_builder.create";
-        pub const UPDATE: &str = "admin.form_builder.update";
-        pub const DELETE: &str = "admin.form_builder.delete";
-    }
-
-    pub mod dashboard_builder {
-        pub const LIST: &str = "admin.dashboard_builder.list";
-        pub const CREATE: &str = "admin.dashboard_builder.create";
-        pub const UPDATE: &str = "admin.dashboard_builder.update";
-        pub const DELETE: &str = "admin.dashboard_builder.delete";
-    }
-
-    pub mod screen_builder {
-        pub const LIST: &str = "admin.screen_builder.list";
-        pub const CREATE: &str = "admin.screen_builder.create";
-        pub const UPDATE: &str = "admin.screen_builder.update";
-        pub const DELETE: &str = "admin.screen_builder.delete";
     }
 
     // IT Security permissions
@@ -1380,6 +1377,61 @@ pub mod admin {
     pub const SYSTEM: &str = "admin.system.view";
     pub const BACKUP: &str = "admin.backup.manage";
     pub const INCENTIVE: &str = "admin.incentive.manage";
+
+    // Doctor administration (SPRINT-doctor-activities.md)
+    pub mod doctors {
+        pub const LIST: &str = "admin.doctors.list";
+        pub const VIEW: &str = "admin.doctors.view";
+        pub const CREATE: &str = "admin.doctors.create";
+        pub const UPDATE: &str = "admin.doctors.update";
+        pub const DELETE: &str = "admin.doctors.delete";
+    }
+
+    pub mod signature_credentials {
+        pub const LIST: &str = "admin.signature_credentials.list";
+        pub const ISSUE: &str = "admin.signature_credentials.issue";
+        pub const REVOKE: &str = "admin.signature_credentials.revoke";
+    }
+
+    pub mod coverage {
+        pub const LIST: &str = "admin.coverage.list";
+        pub const MANAGE: &str = "admin.coverage.manage";
+    }
+
+    pub mod doctor_packages {
+        pub const LIST: &str = "admin.doctor_packages.list";
+        pub const MANAGE: &str = "admin.doctor_packages.manage";
+    }
+}
+
+/// Doctor self-service activities (SPRINT-doctor-activities.md).
+pub mod doctor {
+    pub mod profile {
+        pub const VIEW_OWN: &str = "doctor.profile.view_own";
+        pub const UPDATE_OWN: &str = "doctor.profile.update_own";
+    }
+
+    pub mod signature {
+        pub const SIGN: &str = "doctor.signature.sign";
+        pub const CO_SIGN: &str = "doctor.signature.co_sign";
+        pub const VERIFY: &str = "doctor.signature.verify";
+    }
+
+    pub mod dashboard {
+        pub const VIEW_OWN: &str = "doctor.dashboard.view_own";
+    }
+
+    pub mod signoffs {
+        pub const VIEW_OWN: &str = "doctor.signoffs.view_own";
+    }
+}
+
+/// Patient-side packages (subscribing + consuming).
+pub mod patient_packages {
+    pub const VIEW: &str = "patient_packages.view";
+    pub const SUBSCRIBE: &str = "patient_packages.subscribe";
+    pub const CONSUME: &str = "patient_packages.consume";
+    pub const REFUND: &str = "patient_packages.refund";
 }
 
 pub mod documents {
@@ -1602,5 +1654,114 @@ pub mod lms {
 
     pub mod my_learning {
         pub const VIEW: &str = "lms.my_learning.view";
+    }
+}
+
+/// Order Basket — atomic cross-module order signing
+/// (RFCs/sprints/SPRINT-order-basket.md).
+pub mod order_basket {
+    pub const SIGN: &str = "clinical.order_basket.sign";
+    pub const DRAFT: &str = "clinical.order_basket.draft";
+    pub const VIEW_AUDIT: &str = "clinical.order_basket.view_audit";
+}
+
+pub mod nurse {
+    pub mod profile {
+        pub const VIEW: &str = "nurse.profile.view";
+        pub const MANAGE: &str = "nurse.profile.manage";
+    }
+    pub mod shift {
+        pub const VIEW: &str = "nurse.shift.view";
+        pub const MANAGE: &str = "nurse.shift.manage";
+    }
+    pub mod mar {
+        pub const VIEW: &str = "nurse.mar.view";
+        pub const ADMINISTER: &str = "nurse.mar.administer";
+        pub const HOLD: &str = "nurse.mar.hold";
+        pub const REFUSE: &str = "nurse.mar.refuse";
+    }
+    pub mod vitals {
+        pub const VIEW: &str = "nurse.vitals.view";
+        pub const RECORD: &str = "nurse.vitals.record";
+    }
+    pub mod intake_output {
+        pub const VIEW: &str = "nurse.intake_output.view";
+        pub const RECORD: &str = "nurse.intake_output.record";
+    }
+    pub mod restraint {
+        pub const VIEW: &str = "nurse.restraint.view";
+        pub const RECORD: &str = "nurse.restraint.record";
+    }
+    pub mod pain {
+        pub const VIEW: &str = "nurse.pain.view";
+        pub const RECORD: &str = "nurse.pain.record";
+    }
+    pub mod wound {
+        pub const VIEW: &str = "nurse.wound.view";
+        pub const RECORD: &str = "nurse.wound.record";
+    }
+    pub mod fall_risk {
+        pub const VIEW: &str = "nurse.fall_risk.view";
+        pub const RECORD: &str = "nurse.fall_risk.record";
+    }
+    pub mod handoff {
+        pub const VIEW: &str = "nurse.handoff.view";
+        pub const RECORD: &str = "nurse.handoff.record";
+    }
+    pub mod code_blue {
+        pub const VIEW: &str = "nurse.code_blue.view";
+        pub const RECORD: &str = "nurse.code_blue.record";
+    }
+    pub mod equipment {
+        pub const VIEW: &str = "nurse.equipment.view";
+        pub const RECORD: &str = "nurse.equipment.record";
+    }
+    pub mod dashboard {
+        pub const VIEW: &str = "nurse.dashboard.view";
+    }
+}
+
+pub mod pharmacy_improvements {
+    pub mod repeats {
+        pub const VIEW: &str = "pharmacy_improvements.repeats.view";
+        pub const DISPENSE: &str = "pharmacy_improvements.repeats.dispense";
+    }
+    pub mod substitution {
+        pub const VIEW: &str = "pharmacy_improvements.substitution.view";
+        pub const RECORD: &str = "pharmacy_improvements.substitution.record";
+    }
+    pub mod counseling {
+        pub const VIEW: &str = "pharmacy_improvements.counseling.view";
+        pub const RECORD: &str = "pharmacy_improvements.counseling.record";
+    }
+    pub mod coverage {
+        pub const VIEW: &str = "pharmacy_improvements.coverage.view";
+        pub const CHECK: &str = "pharmacy_improvements.coverage.check";
+    }
+}
+
+pub mod pharmacy_finance {
+    pub mod cash_drawer {
+        pub const VIEW: &str = "pharmacy_finance.cash_drawer.view";
+        pub const OPEN: &str = "pharmacy_finance.cash_drawer.open";
+        pub const CLOSE: &str = "pharmacy_finance.cash_drawer.close";
+    }
+    pub mod petty_cash {
+        pub const VIEW: &str = "pharmacy_finance.petty_cash.view";
+        pub const RECORD: &str = "pharmacy_finance.petty_cash.record";
+    }
+    pub mod free_dispensing {
+        pub const VIEW: &str = "pharmacy_finance.free_dispensing.view";
+        pub const APPROVE: &str = "pharmacy_finance.free_dispensing.approve";
+    }
+    pub mod supplier_payments {
+        pub const VIEW: &str = "pharmacy_finance.supplier_payments.view";
+        pub const MANAGE: &str = "pharmacy_finance.supplier_payments.manage";
+    }
+    pub mod cashier_audit {
+        pub const VIEW: &str = "pharmacy_finance.cashier_audit.view";
+    }
+    pub mod finance_reports {
+        pub const VIEW: &str = "pharmacy_finance.finance_reports.view";
     }
 }

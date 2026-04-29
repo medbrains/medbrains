@@ -36,13 +36,11 @@ import { ClinicalProtocolsSettings } from "../pages/admin/settings/ClinicalProto
 import { ComplianceSettingsTab } from "../pages/admin/settings/ComplianceSettings";
 import { ConsultationTemplatesSettings } from "../pages/admin/settings/ConsultationTemplatesSettings";
 import { CriticalValueRulesSettings } from "../pages/admin/settings/CriticalValueRulesSettings";
-import { DashboardList } from "../pages/admin/settings/DashboardList";
 import { DepartmentHoursSettings } from "../pages/admin/settings/DepartmentHoursSettings";
 import { DepartmentsSettings } from "../pages/admin/settings/DepartmentsSettings";
 import { DeviceIntegrationsSettings } from "../pages/admin/settings/DeviceIntegrationsSettings";
 import { DrugInteractionsSettings } from "../pages/admin/settings/DrugInteractionsSettings";
 import { FacilitiesSettings } from "../pages/admin/settings/FacilitiesSettings";
-import { FormsManagement } from "../pages/admin/settings/FormsManagement";
 import { GeneralSettings } from "../pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "../pages/admin/settings/GeoSettings";
 import { LocationsSettings } from "../pages/admin/settings/LocationsSettings";
@@ -50,7 +48,6 @@ import { LocationTreeSettings } from "../pages/admin/settings/LocationTreeSettin
 import { MasterDataStatusSettings } from "../pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "../pages/admin/settings/ModulesSettings";
 import { PrintTemplateSettings } from "../pages/admin/settings/PrintTemplateSettings";
-import { RegulatoryManagement } from "../pages/admin/settings/RegulatoryManagement";
 import { SequencesSettings } from "../pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "../pages/admin/settings/ServicesSettings";
 import { SetupWizardSettings } from "../pages/admin/settings/SetupWizardSettings";
@@ -197,13 +194,6 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: PrintTemplateSettings,
   },
   {
-    value: "regulatory",
-    i18nKey: "settings.regulatory",
-    icon: "IconShield",
-    requiredPermission: "admin.settings.regulatory.manage",
-    component: RegulatoryManagement,
-  },
-  {
     value: "compliance",
     i18nKey: "settings.compliance",
     icon: "IconPill",
@@ -232,13 +222,6 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: ClinicalProtocolsSettings,
   },
   {
-    value: "forms",
-    i18nKey: "settings.forms",
-    icon: "IconForms",
-    requiredPermission: "admin.settings.forms.manage",
-    component: FormsManagement,
-  },
-  {
     value: "consultation-templates",
     i18nKey: "settings.consultationTemplates",
     icon: "IconStethoscope",
@@ -251,13 +234,6 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconStethoscope",
     requiredPermission: "admin.settings.general.manage",
     component: ClinicalConfigSettings,
-  },
-  {
-    value: "dashboards",
-    i18nKey: "settings.dashboards",
-    icon: "IconDashboard",
-    requiredPermission: "admin.dashboard_builder.list",
-    component: DashboardList,
   },
   {
     value: "setup-wizard",

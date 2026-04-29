@@ -1,0 +1,35 @@
+# Karpenter EC2NodeClass — defines the underlying AWS launch parameters.
+# Referenced by all NodePools above.
+
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiSelectorTerms:
+    - alias: bottlerocket@latest    # Bottlerocket is read-only-rootfs, atomic upgrades, minimal CVE surface
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: medbrains    # Terraform tags private subnets with this
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: medbrains
+  role: KarpenterNodeRole-medbrains    # IRSA role created by infra/terraform/modules/eks/irsa.tf
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeType: gp3
+        volumeSize: 30Gi
+        encrypted: true
+        kmsKeyID: alias/medbrains-prod-app    # uses app CMK from kms module
+        deleteOnTermination: true
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required    # IMDSv2 only — CIS benchmark requirement
+  detailedMonitoring: false    # save $0.30/instance/mo; CloudWatch standard is enough
+  tags:
+    Project: medbrains
+    ManagedBy: karpenter
+    medbrains/managed: "true"

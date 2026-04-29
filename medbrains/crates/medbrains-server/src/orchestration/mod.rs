@@ -7,6 +7,7 @@
 //! - [`jobs`] — Background job queue worker (tokio task)
 //! - [`scheduler`] — Cron-based scheduled job runner (tokio task)
 
+pub mod code_executor;
 pub mod connectors;
 pub mod jobs;
 pub mod lifecycle;

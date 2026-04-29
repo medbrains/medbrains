@@ -9766,6 +9766,9 @@ export interface CreateVendorRequest {
   credit_days?: number;
   categories?: unknown[];
   notes?: string;
+  supply_categories?: string[];
+  is_pharmacy_vendor?: boolean;
+  product_lines?: string;
 }
 
 export interface UpdateVendorRequest {
@@ -23722,8 +23725,6 @@ export interface AiGeneratedQuestion {
 // ── Pharmacy Phase 3 ──────────────────────────────────────
 
 export type PharmacyRxStatus = "pending_review" | "approved" | "rejected" | "on_hold" | "dispensing" | "dispensed" | "partially_dispensed" | "cancelled";
-export type PharmacyPaymentMode = "cash" | "card" | "upi" | "insurance" | "credit" | "mixed";
-
 export interface PharmacyPrescriptionRx {
   id: string; tenant_id: string; prescription_id: string; patient_id: string;
   encounter_id: string; doctor_id: string; source: string;
@@ -23852,4 +23853,890 @@ export interface InitiateRefundRequest {
 export interface RefundGatewayResponse {
   transaction: PaymentGatewayTransaction;
   refund_id: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Orchestration Engine
+// ══════════════════════════════════════════════════════════════
+
+export interface EventRegistryRow {
+  id: string;
+  module: string;
+  entity: string;
+  action: string;
+  event_code: string;
+  description: string | null;
+  payload_schema: Record<string, unknown>;
+  is_system: boolean;
+  phase: string;
+  is_blocking: boolean;
+  category: string;
+  created_at: string;
+}
+
+export interface EventListResponse {
+  events: EventRegistryRow[];
+  total: number;
+}
+
+export interface ConnectorRow {
+  id: string;
+  tenant_id: string | null;
+  connector_type: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown>;
+  status: string;
+  health_check_url: string | null;
+  last_health_check: string | null;
+  is_healthy: boolean | null;
+  retry_config: Record<string, unknown>;
+  rate_limit: Record<string, unknown>;
+  stats: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateConnectorRequest {
+  connector_type: string;
+  name: string;
+  description?: string;
+  config?: Record<string, unknown>;
+  health_check_url?: string;
+  retry_config?: Record<string, unknown>;
+  rate_limit?: Record<string, unknown>;
+}
+
+export interface UpdateConnectorRequest {
+  name?: string;
+  description?: string;
+  config?: Record<string, unknown>;
+  status?: string;
+  health_check_url?: string;
+  retry_config?: Record<string, unknown>;
+  rate_limit?: Record<string, unknown>;
+}
+
+export interface ConnectorHealthCheckResponse {
+  connector_id: string;
+  is_healthy: boolean;
+}
+
+export interface JobQueueRow {
+  id: string;
+  tenant_id: string;
+  job_type: string;
+  pipeline_id: string | null;
+  execution_id: string | null;
+  connector_id: string | null;
+  payload: Record<string, unknown>;
+  status: string;
+  priority: number;
+  max_retries: number;
+  retry_count: number;
+  next_retry_at: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  correlation_id: string | null;
+  created_at: string;
+}
+
+export interface JobListResponse {
+  jobs: JobQueueRow[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface JobStats {
+  pending: number;
+  running: number;
+  completed: number;
+  failed: number;
+  dead_letter: number;
+  total: number;
+}
+
+// ── Custom Code (Pipeline Code Execution) ──────────────────
+
+export type CodeLanguage = "expression" | "json_logic" | "lua" | "rust" | "wasm";
+
+export interface CustomCodeSnippet {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  language: CodeLanguage;
+  code: string;
+  input_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
+  is_active: boolean;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CodeTestRequest {
+  language: CodeLanguage;
+  code: string;
+  input: Record<string, unknown>;
+  timeout_ms?: number;
+}
+
+export interface CodeTestResult {
+  success: boolean;
+  output: unknown;
+  duration_ms: number;
+  error: string | null;
+}
+
+export interface CompileRustRequest {
+  code: string;
+}
+
+export interface CompileRustResult {
+  success: boolean;
+  wasm_base64: string | null;
+  size_bytes: number;
+  error: string | null;
+}
+
+export interface AiGenerateCodeRequest {
+  prompt: string;
+  language: CodeLanguage;
+  input_schema: Record<string, unknown>;
+  context?: string;
+}
+
+export interface AiGeneratedCode {
+  code: string;
+  output_schema: Record<string, unknown>;
+  explanation: string;
+}
+
+export interface ExecutionStep {
+  id: string;
+  execution_id: string;
+  node_id: string;
+  node_label: string | null;
+  step_type: "enter" | "execute" | "retry" | "complete" | "fail" | "skip";
+  input_data: Record<string, unknown> | null;
+  output_data: Record<string, unknown> | null;
+  error: string | null;
+  duration_ms: number | null;
+  retry_attempt: number;
+  created_at: string;
+}
+
+// ── Pharmacy Credit Notes & Store Indents ──────────────────
+
+export type PharmacyCreditNoteType = "customer_return" | "supplier_return" | "expiry_write_off" | "damage";
+export type PharmacyCreditNoteStatus = "draft" | "approved" | "settled" | "cancelled";
+export type PharmacyStoreIndentStatus = "pending" | "approved" | "issued" | "received" | "rejected" | "cancelled";
+
+export interface PharmacyCreditNote {
+  id: string;
+  tenant_id: string;
+  credit_note_number: string;
+  note_type: PharmacyCreditNoteType;
+  reference_type: string | null;
+  reference_id: string | null;
+  patient_id: string | null;
+  vendor_id: string | null;
+  items: Array<{
+    drug_id: string;
+    drug_name: string;
+    batch_number: string;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    reason: string;
+  }>;
+  total_amount: number;
+  gst_amount: number;
+  net_amount: number;
+  status: PharmacyCreditNoteStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  settled_at: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePharmacyCreditNoteRequest {
+  note_type: PharmacyCreditNoteType;
+  reference_type?: string;
+  reference_id?: string;
+  patient_id?: string;
+  vendor_id?: string;
+  items: Array<{
+    drug_id: string;
+    drug_name: string;
+    batch_number: string;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    reason: string;
+  }>;
+  total_amount: number;
+  gst_amount?: number;
+  notes?: string;
+}
+
+export interface PharmacyStoreIndent {
+  id: string;
+  tenant_id: string;
+  indent_number: string;
+  from_store_id: string | null;
+  to_store_id: string | null;
+  status: PharmacyStoreIndentStatus;
+  items: Array<{
+    item_id?: string;
+    name: string;
+    quantity: number;
+    unit: string;
+  }>;
+  total_items: number;
+  notes: string | null;
+  requested_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  issued_by: string | null;
+  issued_at: string | null;
+  received_by: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateStoreIndentRequest {
+  from_store_id?: string;
+  to_store_id?: string;
+  items: Array<{ item_id?: string; name: string; quantity: number; unit: string }>;
+  notes?: string;
+}
+
+// ── Pharmacy Drug Recalls ──────────────────────────────────
+
+export interface PharmacyDrugRecall {
+  id: string;
+  tenant_id: string;
+  recall_number: string;
+  drug_id: string | null;
+  drug_name: string | null;
+  batch_numbers: string[];
+  reason: string;
+  severity: "class_i" | "class_ii" | "class_iii" | null;
+  manufacturer_ref: string | null;
+  fda_ref: string | null;
+  status: "initiated" | "in_progress" | "completed" | "cancelled";
+  affected_patients_count: number;
+  recalled_quantity: number;
+  action_taken: string | null;
+  initiated_by: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Pharmacy Destruction Register ──────────────────────────
+
+export interface PharmacyDestructionLog {
+  id: string;
+  tenant_id: string;
+  certificate_number: string;
+  destruction_date: string;
+  method: "incineration" | "chemical" | "landfill" | "return_to_manufacturer" | "other";
+  items: Array<{ drug_name: string; batch_number: string; quantity: number; value: number; expiry_date?: string }>;
+  total_quantity: number;
+  total_value: number;
+  reason: "expired" | "damaged" | "recalled" | "contaminated" | "other";
+  witnessed_by: string | null;
+  witness_name: string;
+  authorized_by: string | null;
+  authorization_date: string | null;
+  certificate_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// ── Generic Substitution ───────────────────────────────────
+
+export interface PharmacySubstitute {
+  id: string;
+  brand_drug_id: string;
+  generic_drug_id: string;
+  brand_name?: string;
+  brand_price?: number;
+  generic_name?: string;
+  generic_price?: number;
+  generic_stock?: number;
+  is_therapeutic_equivalent: boolean;
+  is_bioequivalent: boolean;
+  price_difference: number | null;
+  notes: string | null;
+}
+
+// ── Payment Transactions ───────────────────────────────────
+
+export type PharmacyPaymentMode = "cash" | "card" | "upi" | "gpay" | "phonepe" | "paytm" | "netbanking" | "insurance" | "credit" | "wallet" | "mixed";
+
+export interface PharmacyPaymentTransaction {
+  id: string;
+  tenant_id: string;
+  pos_sale_id: string | null;
+  order_id: string | null;
+  invoice_id: string | null;
+  payment_mode: PharmacyPaymentMode;
+  amount: number;
+  reference_number: string | null;
+  device_terminal_id: string | null;
+  upi_transaction_id: string | null;
+  card_last_four: string | null;
+  card_network: string | null;
+  card_approval_code: string | null;
+  bank_name: string | null;
+  reconciliation_status: "pending" | "matched" | "mismatch" | "manual_verified";
+  reconciled_at: string | null;
+  reconciled_by: string | null;
+  shift_id: string | null;
+  counter_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface DayReconciliation {
+  cash_total: number;
+  card_total: number;
+  upi_total: number;
+  insurance_total: number;
+  credit_total: number;
+  transactions_count: number;
+  matched_total: number;
+  pending_total: number;
+}
+
+// ── Day Settlement ─────────────────────────────────────────
+
+export interface PharmacyDaySettlement {
+  id: string;
+  tenant_id: string;
+  settlement_date: string;
+  counter_id: string | null;
+  cash_system: number;
+  cash_counted: number;
+  cash_difference: number;
+  card_system: number;
+  card_settled: number;
+  upi_system: number;
+  upi_matched: number;
+  upi_unmatched: number;
+  insurance_system: number;
+  credit_system: number;
+  total_sales: number;
+  total_returns: number;
+  net_collection: number;
+  transactions_count: number;
+  returns_count: number;
+  status: "open" | "closed" | "verified";
+  closed_by: string | null;
+  closed_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// ── Emergency Drug Kits ────────────────────────────────────
+
+export interface PharmacyEmergencyKit {
+  id: string;
+  tenant_id: string;
+  kit_code: string;
+  kit_type: "crash_cart" | "emergency_tray" | "anaphylaxis_kit" | "ot_emergency" | "icu_tray";
+  location_id: string | null;
+  location_description: string | null;
+  department_id: string | null;
+  items: Array<{ drug_id?: string; drug_name: string; required_qty: number; current_qty: number; expiry_date?: string }>;
+  last_checked_at: string | null;
+  last_checked_by: string | null;
+  next_check_due: string | null;
+  check_interval_days: number;
+  status: "active" | "needs_restock" | "expired_items" | "inactive";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─────────────────────────────────────────────────────────
+//  Order Basket — atomic cross-module order signing
+//  See RFCs/sprints/SPRINT-order-basket.md
+// ─────────────────────────────────────────────────────────
+
+export interface BasketDrugItem {
+  kind: "drug";
+  drug_id: string;
+  drug_name: string;
+  dose: string;
+  frequency: string;
+  route: string;
+  duration_days?: number | null;
+  indication?: string | null;
+  is_prn?: boolean | null;
+  instructions?: string | null;
+  quantity: number;
+  unit_price: string;
+  schedule_x_serial?: string | null;
+}
+
+export interface BasketLabItem {
+  kind: "lab";
+  test_id: string;
+  priority?: string | null;
+  indication?: string | null;
+  notes?: string | null;
+}
+
+export interface BasketRadiologyItem {
+  kind: "radiology";
+  modality_id: string;
+  body_part?: string | null;
+  clinical_indication?: string | null;
+  priority?: string | null;
+  scheduled_at?: string | null;
+  contrast_required?: boolean | null;
+  pregnancy_checked?: boolean | null;
+  allergy_flagged?: boolean | null;
+  notes?: string | null;
+}
+
+export interface BasketProcedureItem {
+  kind: "procedure";
+  procedure_id: string;
+  indication?: string | null;
+  scheduled_at?: string | null;
+  notes?: string | null;
+}
+
+export interface BasketDietItem {
+  kind: "diet";
+  template_id?: string | null;
+  diet_type?: string | null;
+  special_instructions?: string | null;
+  is_npo?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface BasketReferralItem {
+  kind: "referral";
+  to_specialty_id?: string | null;
+  to_external_provider?: string | null;
+  reason: string;
+  priority?: string | null;
+}
+
+export type BasketItem =
+  | BasketDrugItem
+  | BasketLabItem
+  | BasketRadiologyItem
+  | BasketProcedureItem
+  | BasketDietItem
+  | BasketReferralItem;
+
+export type BasketWarningSeverity = "WARN" | "BLOCK";
+
+export interface BasketWarning {
+  code: string;
+  severity: BasketWarningSeverity;
+  message: string;
+  refs: number[];
+  detail?: Record<string, unknown> | null;
+}
+
+export interface BasketWarningAck {
+  code: string;
+  override_reason: string;
+}
+
+export interface CheckBasketRequest {
+  encounter_id: string;
+  patient_id: string;
+  items: BasketItem[];
+}
+
+export interface CheckBasketResponse {
+  warnings: BasketWarning[];
+}
+
+export interface SignBasketRequest {
+  encounter_id: string;
+  patient_id: string;
+  items: BasketItem[];
+  warnings_acknowledged?: BasketWarningAck[];
+  client_session_id?: string | null;
+  device_id?: string | null;
+}
+
+export interface CreatedOrderRef {
+  item_index: number;
+  order_type: string;
+  order_id: string;
+}
+
+export interface SignBasketResponse {
+  signature_id: string;
+  created: CreatedOrderRef[];
+  warnings: BasketWarning[];
+}
+
+export interface OrderBasketDraft {
+  id: string;
+  tenant_id: string;
+  encounter_id: string;
+  owner_user_id: string;
+  items: BasketItem[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveBasketDraftRequest {
+  items: BasketItem[];
+  notes?: string | null;
+}
+
+// ─────────────────────────────────────────────────────────
+//  Doctor Activities (SPRINT-doctor-activities.md sub-A)
+// ─────────────────────────────────────────────────────────
+
+export interface DoctorProfile {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  prefix: string | null;
+  display_name: string;
+  qualification_string: string | null;
+  mci_number: string | null;
+  state_council_number: string | null;
+  state_council_name: string | null;
+  registration_valid_until: string | null;
+  specialty_ids: string[];
+  subspecialty: string | null;
+  years_experience: number | null;
+  is_full_time: boolean;
+  is_visiting: boolean;
+  parent_employee_id: string | null;
+  can_prescribe_schedule_x: boolean;
+  can_perform_surgery: boolean;
+  can_sign_mlc: boolean;
+  can_sign_death_certificate: boolean;
+  can_sign_fitness_certificate: boolean;
+  bio_short: string | null;
+  bio_long: string | null;
+  photo_url: string | null;
+  languages_spoken: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDoctorRequest {
+  user_id: string;
+  display_name: string;
+  prefix?: string | null;
+  qualification_string?: string | null;
+  mci_number?: string | null;
+  state_council_number?: string | null;
+  state_council_name?: string | null;
+  registration_valid_until?: string | null;
+  specialty_ids?: string[];
+  subspecialty?: string | null;
+  years_experience?: number | null;
+  is_full_time?: boolean;
+  is_visiting?: boolean;
+  can_prescribe_schedule_x?: boolean;
+  can_perform_surgery?: boolean;
+  can_sign_mlc?: boolean;
+  can_sign_death_certificate?: boolean;
+  can_sign_fitness_certificate?: boolean;
+  bio_short?: string | null;
+  photo_url?: string | null;
+  languages_spoken?: string[];
+}
+
+export type UpdateDoctorRequest = Partial<CreateDoctorRequest> & {
+  bio_long?: string | null;
+  is_active?: boolean | null;
+};
+
+export interface UpdateMyDoctorProfileRequest {
+  bio_short?: string | null;
+  bio_long?: string | null;
+  photo_url?: string | null;
+  languages_spoken?: string[];
+}
+
+export interface SignatureCredential {
+  id: string;
+  tenant_id: string;
+  doctor_user_id: string;
+  credential_type: "stored_key" | "aadhaar_esign" | "dsc_usb" | "external_pkcs11";
+  algorithm: string;
+  public_key: number[]; // bytea → number[]
+  display_image_url: string | null;
+  display_font: string | null;
+  valid_from: string;
+  valid_until: string | null;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface IssueCredentialRequest {
+  doctor_user_id: string;
+  display_image_url?: string | null;
+  display_font?: string | null;
+  valid_until?: string | null;
+  make_default?: boolean;
+}
+
+export interface RevokeCredentialRequest {
+  reason: string;
+}
+
+export interface SignedRecord {
+  id: string;
+  tenant_id: string;
+  record_type: string;
+  record_id: string;
+  signer_user_id: string;
+  signer_role: "primary" | "co_signer" | "attestor" | "witness";
+  signer_credential_id: string | null;
+  signed_at: string;
+  payload_hash: number[];
+  signature_bytes: number[];
+  display_image_snapshot: string | null;
+  display_block: string | null;
+  legal_class: "administrative" | "clinical" | "medico_legal" | "statutory_export";
+  created_at: string;
+}
+
+export interface SignRequest {
+  record_type: string;
+  record_id: string;
+  payload: Record<string, unknown>;
+  signer_role?: string;
+  legal_class?: string;
+  credential_id?: string;
+  notes?: string;
+}
+
+export interface SignResponse {
+  signed_record: SignedRecord;
+  payload_hash_hex: string;
+  signature_hex: string;
+}
+
+export interface VerifyRequest {
+  signed_record_id: string;
+  payload: Record<string, unknown>;
+}
+
+export interface VerifyResponse {
+  verified: boolean;
+  recomputed_hash_hex: string;
+  stored_hash_hex: string;
+  signer_user_id: string;
+  signed_at: string;
+  credential_revoked: boolean;
+}
+
+export interface MyDayResponse {
+  doctor_user_id: string;
+  today: {
+    appointments_total: number;
+    appointments_remaining: number;
+    ot_cases: number;
+    ipd_patients_under_care: number;
+    critical_alerts: number;
+  };
+  pending_signoffs: {
+    clinical: number;
+    medico_legal: number;
+    overdue: number;
+    total: number;
+  };
+  on_call: {
+    is_on_call_now: boolean;
+    next_on_call_at: string | null;
+  };
+  coverage: Array<{
+    absent_doctor_id: string;
+    start_at: string;
+    end_at: string;
+    reason: string | null;
+  }>;
+}
+
+export interface PendingSignoffEntry {
+  record_type: string;
+  record_id: string;
+  created_at: string;
+  legal_class: string;
+}
+
+/**
+ * Visual signature block data for printed PDFs.
+ * Mirrors `medbrains_core::print_data::PrintSignatureData`.
+ */
+export interface PrintSignatureData {
+  signed_at: string;
+  signer_name: string | null;
+  display_image_url: string | null;
+  display_block: string | null;
+  verify_ref: string;
+  legal_class: string;
+}
+
+// ─────────────────────────────────────────────────────────
+//  Doctor Activities Sub-Sprint B (packages + coverage)
+// ─────────────────────────────────────────────────────────
+
+export interface DoctorPackage {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  total_price: string;
+  validity_days: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoctorPackageInclusion {
+  id: string;
+  tenant_id: string;
+  package_id: string;
+  inclusion_type: "consultation" | "lab" | "procedure" | "service";
+  consultation_specialty_id: string | null;
+  consultation_doctor_id: string | null;
+  service_id: string | null;
+  test_id: string | null;
+  procedure_id: string | null;
+  included_quantity: number;
+  notes: string | null;
+  sort_order: number;
+}
+
+export interface PackageWithInclusions extends DoctorPackage {
+  inclusions: DoctorPackageInclusion[];
+}
+
+export interface CreateDoctorPackageRequest {
+  code: string;
+  name: string;
+  description?: string | null;
+  total_price: string;
+  validity_days?: number;
+  inclusions?: CreateInclusionRequest[];
+}
+
+export interface CreateInclusionRequest {
+  inclusion_type: "consultation" | "lab" | "procedure" | "service";
+  consultation_specialty_id?: string | null;
+  consultation_doctor_id?: string | null;
+  service_id?: string | null;
+  test_id?: string | null;
+  procedure_id?: string | null;
+  included_quantity: number;
+  notes?: string | null;
+  sort_order?: number;
+}
+
+export interface UpdateDoctorPackageRequest {
+  name?: string;
+  description?: string | null;
+  total_price?: string;
+  validity_days?: number;
+  is_active?: boolean;
+}
+
+export interface PatientPackageSubscription {
+  id: string;
+  tenant_id: string;
+  package_id: string;
+  patient_id: string;
+  purchased_at: string;
+  purchased_via_invoice_id: string | null;
+  valid_until: string;
+  total_paid: string;
+  status: "active" | "exhausted" | "expired" | "refunded" | "suspended";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InclusionBalance {
+  inclusion_id: string;
+  inclusion_type: string;
+  included_quantity: number;
+  consumed_quantity: number;
+  remaining: number;
+}
+
+export interface SubscriptionWithBalance extends PatientPackageSubscription {
+  package_name: string | null;
+  balances: InclusionBalance[];
+}
+
+export interface SubscribeRequest {
+  package_id: string;
+  patient_id: string;
+  purchased_via_invoice_id?: string | null;
+  total_paid: string;
+  notes?: string | null;
+}
+
+export interface ConsumeRequest {
+  inclusion_type: string;
+  consumed_visit_id?: string | null;
+  consumed_service_id?: string | null;
+  consumed_test_id?: string | null;
+  consumed_procedure_id?: string | null;
+  consumed_quantity?: number;
+  notes?: string | null;
+}
+
+export interface CoverageAssignment {
+  id: string;
+  tenant_id: string;
+  absent_doctor_id: string;
+  covering_doctor_id: string;
+  start_at: string;
+  end_at: string;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CreateCoverageRequest {
+  absent_doctor_id: string;
+  covering_doctor_id: string;
+  start_at: string;
+  end_at: string;
+  reason?: string | null;
 }

@@ -10,7 +10,9 @@ mod module_config;
 mod payment_methods;
 mod pharmacy_catalog;
 mod role_dashboards;
-mod screens;
+// Screen builder removed (see migration 123). seed/screens.rs retained as
+// dead code for git history but not compiled.
+// mod screens;
 mod services;
 mod store_catalog;
 mod tax_categories;
@@ -256,6 +258,32 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            // Nurse activities
+            permissions::nurse::dashboard::VIEW,
+            permissions::nurse::profile::VIEW,
+            permissions::nurse::shift::VIEW,
+            permissions::nurse::mar::VIEW,
+            permissions::nurse::mar::ADMINISTER,
+            permissions::nurse::mar::HOLD,
+            permissions::nurse::mar::REFUSE,
+            permissions::nurse::vitals::VIEW,
+            permissions::nurse::vitals::RECORD,
+            permissions::nurse::intake_output::VIEW,
+            permissions::nurse::intake_output::RECORD,
+            permissions::nurse::restraint::VIEW,
+            permissions::nurse::restraint::RECORD,
+            permissions::nurse::pain::VIEW,
+            permissions::nurse::pain::RECORD,
+            permissions::nurse::wound::VIEW,
+            permissions::nurse::wound::RECORD,
+            permissions::nurse::fall_risk::VIEW,
+            permissions::nurse::fall_risk::RECORD,
+            permissions::nurse::handoff::VIEW,
+            permissions::nurse::handoff::RECORD,
+            permissions::nurse::code_blue::VIEW,
+            permissions::nurse::code_blue::RECORD,
+            permissions::nurse::equipment::VIEW,
+            permissions::nurse::equipment::RECORD,
         ],
     },
     BuiltInRole {
@@ -385,6 +413,24 @@ const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            // Pharmacy improvements
+            permissions::pharmacy_improvements::repeats::VIEW,
+            permissions::pharmacy_improvements::repeats::DISPENSE,
+            permissions::pharmacy_improvements::substitution::VIEW,
+            permissions::pharmacy_improvements::substitution::RECORD,
+            permissions::pharmacy_improvements::counseling::VIEW,
+            permissions::pharmacy_improvements::counseling::RECORD,
+            permissions::pharmacy_improvements::coverage::VIEW,
+            permissions::pharmacy_improvements::coverage::CHECK,
+            // Pharmacy finance
+            permissions::pharmacy_finance::cash_drawer::VIEW,
+            permissions::pharmacy_finance::cash_drawer::OPEN,
+            permissions::pharmacy_finance::cash_drawer::CLOSE,
+            permissions::pharmacy_finance::petty_cash::VIEW,
+            permissions::pharmacy_finance::petty_cash::RECORD,
+            permissions::pharmacy_finance::free_dispensing::VIEW,
+            permissions::pharmacy_finance::supplier_payments::VIEW,
+            permissions::pharmacy_finance::finance_reports::VIEW,
         ],
     },
     BuiltInRole {
@@ -851,8 +897,9 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;
 
-    // Screen definitions are global (no tenant_id), so seed separately
-    screens::seed_screens(pool).await?;
+    // Screen definitions removed — screen builder eradicated
+    // (see migration 123_drop_builders.sql + RFC nuke-builders).
+    let _ = pool;
 
     Ok(())
 }

@@ -1,0 +1,15 @@
+# PodDisruptionBudget — medbrains-server
+# Ensures Karpenter consolidation, node drains, and rolling deploys
+# never take all replicas down simultaneously.
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: medbrains-server
+  namespace: medbrains-app
+spec:
+  minAvailable: 2   # never drop below 2 pods, regardless of HPA min
+  selector:
+    matchLabels:
+      app: medbrains-server
+  unhealthyPodEvictionPolicy: AlwaysAllow   # don't block draining of crashlooping pods

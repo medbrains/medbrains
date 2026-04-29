@@ -1128,6 +1128,80 @@ pub async fn create_grn(
                 .bind(claims.tenant_id)
                 .execute(&mut *tx)
                 .await?;
+
+                // Auto-sync to pharmacy if item has pharmacy link
+                let pharmacy_catalog_id: Option<Uuid> = sqlx::query_scalar(
+                    "SELECT id FROM pharmacy_catalog \
+                     WHERE store_catalog_id = $1 AND tenant_id = $2",
+                )
+                .bind(catalog_id)
+                .bind(claims.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten();
+
+                if let Some(pharm_id) = pharmacy_catalog_id {
+                    let pharmacy_batch_id = Uuid::new_v4();
+                    let batch_num = item.batch_number.as_deref().unwrap_or("N/A");
+                    sqlx::query(
+                        "INSERT INTO pharmacy_batches \
+                         (id, tenant_id, catalog_item_id, batch_number, expiry_date, \
+                          manufacture_date, quantity_received, quantity_on_hand, \
+                          vendor_id, grn_id, purchase_order_id, purchase_rate, \
+                          store_location_id) \
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12)",
+                    )
+                    .bind(pharmacy_batch_id)
+                    .bind(claims.tenant_id)
+                    .bind(pharm_id)
+                    .bind(batch_num)
+                    .bind(expiry)
+                    .bind(mfg)
+                    .bind(item.quantity_accepted)
+                    .bind(po.vendor_id)
+                    .bind(grn.id)
+                    .bind(body.po_id)
+                    .bind(item.unit_price)
+                    .bind(body.store_location_id)
+                    .execute(&mut *tx)
+                    .await?;
+
+                    // Update pharmacy_catalog stock
+                    sqlx::query(
+                        "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
+                         WHERE id = $2 AND tenant_id = $3",
+                    )
+                    .bind(item.quantity_accepted)
+                    .bind(pharm_id)
+                    .bind(claims.tenant_id)
+                    .execute(&mut *tx)
+                    .await?;
+
+                    // Mark GRN item as pharmacy-synced
+                    sqlx::query(
+                        "UPDATE grn_items SET pharmacy_synced = true, \
+                         pharmacy_batch_id = $1 \
+                         WHERE grn_id = $2 AND catalog_item_id = $3 AND tenant_id = $4",
+                    )
+                    .bind(pharmacy_batch_id)
+                    .bind(grn.id)
+                    .bind(catalog_id)
+                    .bind(claims.tenant_id)
+                    .execute(&mut *tx)
+                    .await?;
+
+                    // Link batch_stock to pharmacy_batch
+                    sqlx::query(
+                        "UPDATE batch_stock SET pharmacy_batch_id = $1 \
+                         WHERE grn_id = $2 AND catalog_item_id = $3 AND tenant_id = $4",
+                    )
+                    .bind(pharmacy_batch_id)
+                    .bind(grn.id)
+                    .bind(catalog_id)
+                    .bind(claims.tenant_id)
+                    .execute(&mut *tx)
+                    .await?;
+                }
             }
         }
     }

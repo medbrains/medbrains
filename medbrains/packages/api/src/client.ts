@@ -1,6 +1,5 @@
 import type {
   AddAmbulanceTripLogRequest,
-  AddFieldToFormRequest,
   BedsideDailyScheduleItem,
   BedsideDietOrderItem,
   BedsideEducationVideoRow,
@@ -47,18 +46,12 @@ import type {
   CreateCommFeedbackRequest,
   CreateCommMessageRequest,
   CreateCommTemplateRequest,
-  CreateFieldRequest,
-  CreateFormRequest,
-  CreateModuleLinkRequest,
   CreatePatientAddressRequest,
   CreatePatientAllergyRequest,
   CreatePatientConsentRequest,
   CreatePatientContactRequest,
   CreatePatientIdentifierRequest,
   CreatePatientRequest,
-  CreateRegulatoryBodyRequest,
-  CreateRegulatoryLinkRequest,
-  CreateSectionRequest,
   CustomRole,
   DepartmentRow,
   DeptRevenueRow,
@@ -66,15 +59,6 @@ import type {
   ErVolumeRow,
   Facility,
   FieldAccessLevel,
-  FieldAuditEntry,
-  FieldDetailResponse,
-  FieldMasterFull,
-  FieldRegulatoryLinkRow,
-  FormDetailResponse,
-  FormDiffResponse,
-  FormMaster,
-  FormVersionSnapshot,
-  FormVersionSummary,
   GeoCountry,
   GeoDistrict,
   GeoState,
@@ -109,8 +93,6 @@ import type {
   CreateInsuranceProviderRequest,
   UpdateInsuranceProviderRequest,
   ModuleConfig,
-  ModuleFormLink,
-  ModuleFormLinkRow,
   MpiMatchRequest,
   MpiMatchResult,
   OpdFootfallRow,
@@ -141,19 +123,12 @@ import type {
   CreateDocumentRequest,
   PaymentMethodRow,
   PincodeResult,
-  PublishFormRequest,
   RegulatoryBody,
-  RegulatoryBodyFull,
-  RegulatoryClauseWithContext,
-  ReorderItem,
-  RequirementLevel,
-  ResolvedFormDefinition,
   SequenceRow,
   ServiceRow,
   SetupUser,
   TaxCategoryRow,
   UpdateSecureDeviceSettingRequest,
-  TenantFieldOverride,
   SecureTenantSettingRow,
   TenantSettingsRow,
   TenantSummary,
@@ -162,13 +137,7 @@ import type {
   SeedModuleMastersRequest,
   SeedModuleMastersResponse,
   PrintTemplateRequest,
-  UpdateFieldRequest,
-  UpdateFormFieldRequest,
-  UpdateFormRequest,
   UpdatePatientRequest,
-  UpdateRegulatoryBodyRequest,
-  UpdateRegulatoryLinkRequest,
-  UpdateSectionRequest,
   // Integration Hub
   CreatePipelineRequest,
   EventSchema,
@@ -183,6 +152,22 @@ import type {
   TriggerPipelineRequest,
   UpdatePipelineRequest,
   UpdatePipelineStatusRequest,
+  // Orchestration Engine
+  ConnectorHealthCheckResponse,
+  ConnectorRow,
+  CreateConnectorRequest,
+  EventListResponse,
+  JobListResponse,
+  JobStats,
+  UpdateConnectorRequest,
+  // Custom Code
+  CustomCodeSnippet,
+  CodeTestRequest,
+  CodeTestResult,
+  CompileRustRequest,
+  CompileRustResult,
+  AiGenerateCodeRequest,
+  AiGeneratedCode,
   // Indent / Store
   IndentRequisitionListResponse,
   IndentRequisitionDetailResponse,
@@ -482,6 +467,17 @@ import type {
   PharmacyReturn,
   CreatePharmacyReturnRequest,
   ProcessPharmacyReturnRequest,
+  PharmacyCreditNote,
+  CreatePharmacyCreditNoteRequest,
+  PharmacyStoreIndent,
+  CreateStoreIndentRequest,
+  PharmacyDrugRecall,
+  PharmacyDestructionLog,
+  PharmacySubstitute,
+  PharmacyPaymentTransaction,
+  DayReconciliation,
+  PharmacyDaySettlement,
+  PharmacyEmergencyKit,
   PharmacyConsumptionRow,
   PharmacyAbcVedRow,
   DrugUtilizationRow,
@@ -501,6 +497,40 @@ import type {
   UpiQrResponse,
   InitiateRefundRequest,
   RefundGatewayResponse,
+  // Order Basket
+  CheckBasketRequest,
+  CheckBasketResponse,
+  SignBasketRequest,
+  SignBasketResponse,
+  OrderBasketDraft,
+  SaveBasketDraftRequest,
+  // Doctor Activities
+  DoctorProfile,
+  CreateDoctorRequest,
+  UpdateDoctorRequest,
+  UpdateMyDoctorProfileRequest,
+  SignatureCredential,
+  IssueCredentialRequest,
+  RevokeCredentialRequest,
+  SignedRecord,
+  SignRequest,
+  SignResponse,
+  VerifyRequest,
+  VerifyResponse,
+  MyDayResponse,
+  PendingSignoffEntry,
+  // Doctor Packages + Patient Subs + Coverage
+  DoctorPackage,
+  PackageWithInclusions,
+  CreateDoctorPackageRequest,
+  CreateInclusionRequest,
+  UpdateDoctorPackageRequest,
+  DoctorPackageInclusion,
+  SubscriptionWithBalance,
+  SubscribeRequest,
+  ConsumeRequest,
+  CoverageAssignment,
+  CreateCoverageRequest,
   // Blood Bank
   DonorListResponse,
   BloodDonor,
@@ -750,33 +780,13 @@ import type {
   BillingSummaryResponse,
   AdmissionPrintData,
   LinkMlcRequest,
-  CreateDashboardRequest,
-  CreateWidgetRequest,
-  Dashboard,
   DashboardStatsResponse,
   DashboardSummary,
-  DashboardWidget,
   DashboardWithWidgets,
   PersonalizeDashboardRequest,
-  UpdateDashboardRequest,
-  UpdateLayoutRequest,
-  UpdateWidgetRequest,
   WidgetAccessLevel,
   WidgetDataResponse,
   WidgetTemplate,
-  // Screens
-  CreateScreenRequest,
-  CreateSidecarRequest,
-  ResolvedScreen,
-  ResolvedSidecar,
-  ScreenMaster,
-  ScreenOverrideRequest,
-  ScreenSidecar,
-  ScreenSummary,
-  ScreenVersionSnapshot,
-  ScreenVersionSummary,
-  TenantScreenOverride,
-  UpdateScreenRequest,
   // CDS
   CheckDrugInteractionsRequest,
   DrugSafetyCheckResult,
@@ -1679,7 +1689,6 @@ import type {
   CreateRoutingRuleRequest,
   UpdateRoutingRuleRequest,
   ManufacturerSummary,
-  WidgetAccessMap,
   LmsCourse,
   LmsCourseModule,
   LmsQuiz,
@@ -2387,48 +2396,6 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Forms — definition
-  listForms: () => request<FormMaster[]>("/forms"),
-  getFormDefinition: (
-    formCode: string,
-    params?: { quick_mode?: boolean },
-  ) => {
-    const qs = new URLSearchParams();
-    if (params?.quick_mode) qs.set("quick_mode", "true");
-    const query = qs.toString();
-    return request<ResolvedFormDefinition>(
-      `/forms/${formCode}/definition${query ? `?${query}` : ""}`,
-    );
-  },
-  getModuleForms: (moduleCode: string) =>
-    request<
-      Array<
-        ModuleFormLink & { form_code: string; form_name: string }
-      >
-    >(`/module-forms/${moduleCode}`),
-
-  // Forms — tenant field overrides
-  listFieldOverrides: () =>
-    request<TenantFieldOverride[]>("/tenant/field-overrides"),
-  upsertFieldOverride: (
-    fieldCode: string,
-    data: {
-      form_id?: string;
-      label_override?: string;
-      requirement_override?: RequirementLevel;
-      is_hidden?: boolean;
-      validation_override?: Record<string, unknown>;
-    },
-  ) =>
-    request<{ status: string }>(`/tenant/field-overrides/${fieldCode}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  deleteFieldOverride: (fieldCode: string) =>
-    request<{ status: string }>(`/tenant/field-overrides/${fieldCode}`, {
-      method: "DELETE",
-    }),
-
   // Patients
   listPatients: (params?: {
     page?: number;
@@ -2698,188 +2665,6 @@ export const api = {
       body: JSON.stringify({ photo_url: photoUrl }),
     }),
 
-  // ── Admin: Form Management ─────────────────────────────
-
-  adminListForms: () => request<FormMaster[]>("/admin/forms"),
-  adminGetFormDetail: (id: string) =>
-    request<FormDetailResponse>(`/admin/forms/${id}`),
-  adminCreateForm: (data: CreateFormRequest) =>
-    request<FormMaster>("/admin/forms", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateForm: (id: string, data: UpdateFormRequest) =>
-    request<FormMaster>(`/admin/forms/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-
-  // Admin: Field Management
-  adminListFields: (search?: string) => {
-    const qs = new URLSearchParams();
-    if (search) qs.set("search", search);
-    const query = qs.toString();
-    return request<FieldMasterFull[]>(
-      `/admin/fields${query ? `?${query}` : ""}`,
-    );
-  },
-  adminGetFieldDetail: (id: string) =>
-    request<FieldDetailResponse>(`/admin/fields/${id}`),
-  adminCreateField: (data: CreateFieldRequest) =>
-    request<FieldMasterFull>("/admin/fields", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateField: (id: string, data: UpdateFieldRequest) =>
-    request<FieldMasterFull>(`/admin/fields/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-
-  // Admin: Sections
-  adminCreateSection: (formId: string, data: CreateSectionRequest) =>
-    request<{ id: string; code: string; name: string }>(
-      `/admin/forms/${formId}/sections`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
-  adminUpdateSection: (
-    formId: string,
-    sectionId: string,
-    data: UpdateSectionRequest,
-  ) =>
-    request<{ id: string; code: string; name: string }>(
-      `/admin/forms/${formId}/sections/${sectionId}`,
-      { method: "PUT", body: JSON.stringify(data) },
-    ),
-  adminDeleteSection: (formId: string, sectionId: string) =>
-    request<{ status: string }>(
-      `/admin/forms/${formId}/sections/${sectionId}`,
-      { method: "DELETE" },
-    ),
-  adminReorderSections: (formId: string, items: ReorderItem[]) =>
-    request<{ status: string }>(
-      `/admin/forms/${formId}/sections/reorder`,
-      { method: "PUT", body: JSON.stringify(items) },
-    ),
-
-  // Admin: Form Fields (field-to-section linking)
-  adminAddFieldToForm: (formId: string, data: AddFieldToFormRequest) =>
-    request<{ id: string }>(`/admin/forms/${formId}/fields`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateFormField: (
-    formId: string,
-    ffId: string,
-    data: UpdateFormFieldRequest,
-  ) =>
-    request<{ id: string }>(`/admin/forms/${formId}/fields/${ffId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminRemoveFieldFromForm: (formId: string, ffId: string) =>
-    request<{ status: string }>(`/admin/forms/${formId}/fields/${ffId}`, {
-      method: "DELETE",
-    }),
-  adminReorderFields: (formId: string, items: ReorderItem[]) =>
-    request<{ status: string }>(
-      `/admin/forms/${formId}/fields/reorder`,
-      { method: "PUT", body: JSON.stringify(items) },
-    ),
-
-  // Admin: Regulatory Clauses
-  adminListRegulatoryClauses: (params?: {
-    field_id?: string;
-    body_code?: string;
-    search?: string;
-  }) => {
-    const qs = new URLSearchParams();
-    if (params?.field_id) qs.set("field_id", params.field_id);
-    if (params?.body_code) qs.set("body_code", params.body_code);
-    if (params?.search) qs.set("search", params.search);
-    const query = qs.toString();
-    return request<RegulatoryClauseWithContext[]>(
-      `/admin/regulatory-clauses${query ? `?${query}` : ""}`,
-    );
-  },
-
-  // Admin: Regulatory Bodies
-  adminListRegulatoryBodies: () =>
-    request<RegulatoryBodyFull[]>("/admin/regulatory-bodies"),
-  adminCreateRegulatoryBody: (data: CreateRegulatoryBodyRequest) =>
-    request<RegulatoryBodyFull>("/admin/regulatory-bodies", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateRegulatoryBody: (id: string, data: UpdateRegulatoryBodyRequest) =>
-    request<RegulatoryBodyFull>(`/admin/regulatory-bodies/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-
-  // Admin: Regulatory Links
-  adminCreateRegulatoryLink: (data: CreateRegulatoryLinkRequest) =>
-    request<FieldRegulatoryLinkRow>("/admin/regulatory-links", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateRegulatoryLink: (id: string, data: UpdateRegulatoryLinkRequest) =>
-    request<FieldRegulatoryLinkRow>(`/admin/regulatory-links/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteRegulatoryLink: (id: string) =>
-    request<{ status: string }>(`/admin/regulatory-links/${id}`, {
-      method: "DELETE",
-    }),
-
-  // Admin: Module-Form Links
-  adminListModuleLinks: () =>
-    request<ModuleFormLinkRow[]>("/admin/module-links"),
-  adminCreateModuleLink: (data: CreateModuleLinkRequest) =>
-    request<{ status: string }>("/admin/module-links", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteModuleLink: (
-    moduleCode: string,
-    formId: string,
-    context: string,
-  ) =>
-    request<{ status: string }>(
-      `/admin/module-links/${moduleCode}/${formId}/${context}`,
-      { method: "DELETE" },
-    ),
-
-  // Admin: Form Versioning
-  adminPublishForm: (formId: string, data?: PublishFormRequest) =>
-    request<FormMaster>(`/admin/forms/${formId}/publish`, {
-      method: "POST",
-      body: JSON.stringify(data ?? {}),
-    }),
-  adminCreateNewVersion: (formId: string) =>
-    request<FormMaster>(`/admin/forms/${formId}/new-version`, {
-      method: "POST",
-    }),
-  adminListFormVersions: (formId: string) =>
-    request<FormVersionSummary[]>(`/admin/forms/${formId}/versions`),
-  adminGetFormVersion: (formId: string, version: number) =>
-    request<FormVersionSnapshot>(
-      `/admin/forms/${formId}/versions/${version}`,
-    ),
-  adminRestoreFormVersion: (formId: string, version: number) =>
-    request<FormMaster>(`/admin/forms/${formId}/restore/${version}`, {
-      method: "POST",
-    }),
-  adminDiffFormVersions: (formId: string, v1: number, v2: number) =>
-    request<FormDiffResponse>(
-      `/admin/forms/${formId}/diff?v1=${v1}&v2=${v2}`,
-    ),
-
-  // Admin: Field Audit Log
-  adminGetFieldAuditLog: (fieldId: string) =>
-    request<FieldAuditEntry[]>(`/admin/fields/${fieldId}/audit`),
-
   // ── Dashboards — User-Facing ──────────────────────────
   getDashboardStats: () =>
     request<DashboardStatsResponse>("/dashboard/summary"),
@@ -2903,117 +2688,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ widget_ids: widgetIds }),
     }),
-
-  // ── Dashboards — Admin ────────────────────────────────
-  adminCreateDashboard: (data: CreateDashboardRequest) =>
-    request<Dashboard>("/admin/dashboards", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateDashboard: (id: string, data: UpdateDashboardRequest) =>
-    request<Dashboard>(`/admin/dashboards/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteDashboard: (id: string) =>
-    request<{ status: string }>(`/admin/dashboards/${id}`, {
-      method: "DELETE",
-    }),
-  adminDuplicateDashboard: (id: string) =>
-    request<Dashboard>(`/admin/dashboards/${id}/duplicate`, {
-      method: "POST",
-    }),
-  adminAddWidget: (dashboardId: string, data: CreateWidgetRequest) =>
-    request<DashboardWidget>(`/admin/dashboards/${dashboardId}/widgets`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateWidget: (
-    dashboardId: string,
-    widgetId: string,
-    data: UpdateWidgetRequest,
-  ) =>
-    request<DashboardWidget>(
-      `/admin/dashboards/${dashboardId}/widgets/${widgetId}`,
-      { method: "PUT", body: JSON.stringify(data) },
-    ),
-  adminDeleteWidget: (dashboardId: string, widgetId: string) =>
-    request<{ status: string }>(
-      `/admin/dashboards/${dashboardId}/widgets/${widgetId}`,
-      { method: "DELETE" },
-    ),
-  adminUpdateLayout: (dashboardId: string, data: UpdateLayoutRequest) =>
-    request<{ status: string }>(`/admin/dashboards/${dashboardId}/layout`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminListWidgetTemplates: () =>
-    request<WidgetTemplate[]>("/admin/widget-templates"),
-  adminCreateWidgetTemplate: (data: {
-    name: string;
-    description?: string;
-    widget_type: string;
-    icon?: string;
-    color?: string;
-    default_config?: Record<string, unknown>;
-    default_source?: Record<string, unknown>;
-    default_width?: number;
-    default_height?: number;
-    category?: string;
-  }) =>
-    request<WidgetTemplate>("/admin/widget-templates", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
-  // ── Self-service widget management ──────────────────
-  myAddWidget: (data: {
-    widget_type: string;
-    title: string;
-    subtitle?: string;
-    icon?: string;
-    color?: string;
-    config: Record<string, unknown>;
-    data_source: Record<string, unknown>;
-    position_x?: number;
-    position_y?: number;
-    width?: number;
-    height?: number;
-    permission_code?: string;
-  }) =>
-    request<DashboardWidget>("/dashboards/my/widgets", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  myRemoveWidget: (widgetId: string) =>
-    request<{ deleted: boolean }>(`/dashboards/my/widgets/${widgetId}`, {
-      method: "DELETE",
-    }),
-  myToggleWidget: (widgetId: string, isVisible: boolean) =>
-    request<{ is_visible: boolean }>(
-      `/dashboards/my/widgets/${widgetId}/visibility`,
-      { method: "PATCH", body: JSON.stringify({ is_visible: isVisible }) },
-    ),
-
-  // ── Admin per-user/per-role widget access ───────────
-  adminGetUserWidgetAccess: (userId: string) =>
-    request<{ widget_access: WidgetAccessMap }>(
-      `/admin/users/${userId}/widget-access`,
-    ),
-  adminSetUserWidgetAccess: (userId: string, overrides: WidgetAccessMap) =>
-    request<{ updated: boolean }>(
-      `/admin/users/${userId}/widget-access`,
-      { method: "PUT", body: JSON.stringify({ widget_overrides: overrides }) },
-    ),
-  adminGetRoleWidgetAccess: (roleId: string) =>
-    request<{ widget_access_defaults: WidgetAccessMap }>(
-      `/admin/roles/${roleId}/widget-access`,
-    ),
-  adminSetRoleWidgetAccess: (roleId: string, overrides: WidgetAccessMap) =>
-    request<{ updated: boolean }>(
-      `/admin/roles/${roleId}/widget-access`,
-      { method: "PUT", body: JSON.stringify({ widget_overrides: overrides }) },
-    ),
 
   // ── Indent / Store ──────────────────────────────────
 
@@ -4529,6 +4203,178 @@ export const api = {
   pharmacyMargins: () =>
     request<{ margins: unknown[] }>("/pharmacy/analytics/margins"),
 
+  // ── Pharmacy Credit Notes ──────────────────────────────
+  listPharmacyCreditNotes: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<PharmacyCreditNote[]>(`/pharmacy/credit-notes${qs}`);
+  },
+  createPharmacyCreditNote: (data: CreatePharmacyCreditNoteRequest) =>
+    request<PharmacyCreditNote>("/pharmacy/credit-notes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getPharmacyCreditNote: (id: string) =>
+    request<PharmacyCreditNote>(`/pharmacy/credit-notes/${id}`),
+  approvePharmacyCreditNote: (id: string) =>
+    request<PharmacyCreditNote>(`/pharmacy/credit-notes/${id}/approve`, { method: "PUT" }),
+  settlePharmacyCreditNote: (id: string) =>
+    request<PharmacyCreditNote>(`/pharmacy/credit-notes/${id}/settle`, { method: "PUT" }),
+  cancelPharmacyCreditNote: (id: string) =>
+    request<PharmacyCreditNote>(`/pharmacy/credit-notes/${id}/cancel`, { method: "PUT" }),
+
+  listPatientOrdersForReturn: (patientId: string) =>
+    request<Array<{ order_id: string; order_date: string; status: string; items: unknown }>>(`/pharmacy/patient-orders/${patientId}`),
+
+  lookupPosSale: (receipt: string) =>
+    request<{ id: string; receipt_number: string; total_amount: number; payment_mode: string; status: string; items: unknown }>(`/pharmacy/pos/lookup?receipt=${encodeURIComponent(receipt)}`),
+
+  // ── Pharmacy Store Indents ────────────────────────────
+  listPharmacyStoreIndents: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<PharmacyStoreIndent[]>(`/pharmacy/store-indents${qs}`);
+  },
+  createPharmacyStoreIndent: (data: CreateStoreIndentRequest) =>
+    request<PharmacyStoreIndent>("/pharmacy/store-indents", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approvePharmacyStoreIndent: (id: string) =>
+    request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/approve`, { method: "PUT" }),
+  issuePharmacyStoreIndent: (id: string) =>
+    request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/issue`, { method: "PUT" }),
+  receivePharmacyStoreIndent: (id: string) =>
+    request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/receive`, { method: "PUT" }),
+
+  returnPosItems: (saleId: string, data: { items: Array<{ item_id: string; return_qty: number; reason?: string }>; reason?: string }) =>
+    request<Record<string, unknown>>(`/pharmacy/pos/sales/${saleId}/return-items`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Pharmacy Drug Recalls ─────────────────────────────
+  listPharmacyRecalls: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<PharmacyDrugRecall[]>(`/pharmacy/recalls${qs}`);
+  },
+  createPharmacyRecall: (data: {
+    drug_id?: string;
+    drug_name?: string;
+    batch_numbers: string[];
+    reason: string;
+    severity?: string;
+    manufacturer_ref?: string;
+  }) =>
+    request<PharmacyDrugRecall>("/pharmacy/recalls", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completePharmacyRecall: (id: string) =>
+    request<PharmacyDrugRecall>(`/pharmacy/recalls/${id}/complete`, { method: "PUT" }),
+  getRecallAffectedPatients: (id: string) =>
+    request<Record<string, unknown>>(`/pharmacy/recalls/${id}/affected-patients`),
+
+  // ── Pharmacy Destruction Register ─────────────────────
+  listPharmacyDestructions: () =>
+    request<PharmacyDestructionLog[]>("/pharmacy/destruction"),
+  createPharmacyDestruction: (data: {
+    destruction_date: string;
+    method: string;
+    items: unknown[];
+    total_quantity: number;
+    total_value: number;
+    reason: string;
+    witness_name: string;
+    authorized_by?: string;
+    notes?: string;
+  }) =>
+    request<PharmacyDestructionLog>("/pharmacy/destruction", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDestructionCertificate: (id: string) =>
+    request<PharmacyDestructionLog>(`/pharmacy/destruction/${id}/certificate`),
+
+  // ── Generic Substitution ──────────────────────────────
+  listPharmacySubstitutes: (drugId: string) =>
+    request<PharmacySubstitute[]>(`/pharmacy/substitutes/${drugId}`),
+  createPharmacySubstitute: (data: {
+    brand_drug_id: string;
+    generic_drug_id: string;
+    is_therapeutic_equivalent?: boolean;
+    notes?: string;
+  }) =>
+    request<PharmacySubstitute>("/pharmacy/substitutes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Emergency Kits ────────────────────────────────────
+  listPharmacyEmergencyKits: () =>
+    request<PharmacyEmergencyKit[]>("/pharmacy/emergency-kits"),
+  createPharmacyEmergencyKit: (data: {
+    kit_code: string;
+    kit_type: string;
+    location_description?: string;
+    department_id?: string;
+    items: unknown[];
+    check_interval_days?: number;
+  }) =>
+    request<PharmacyEmergencyKit>("/pharmacy/emergency-kits", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  checkPharmacyEmergencyKit: (id: string) =>
+    request<PharmacyEmergencyKit>(`/pharmacy/emergency-kits/${id}/check`, { method: "PUT" }),
+  restockPharmacyEmergencyKit: (id: string, items: unknown[]) =>
+    request<PharmacyEmergencyKit>(`/pharmacy/emergency-kits/${id}/restock`, {
+      method: "PUT",
+      body: JSON.stringify({ items }),
+    }),
+
+  // ── Pharmacy Payments & Reconciliation ────────────────
+  listPharmacyPayments: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<PharmacyPaymentTransaction[]>(`/pharmacy/payments${qs}`);
+  },
+  createPharmacyPayment: (data: {
+    pos_sale_id?: string;
+    order_id?: string;
+    invoice_id?: string;
+    payment_mode: string;
+    amount: number;
+    reference_number?: string;
+    upi_transaction_id?: string;
+    card_last_four?: string;
+    device_terminal_id?: string;
+    shift_id?: string;
+    counter_id?: string;
+  }) =>
+    request<PharmacyPaymentTransaction>("/pharmacy/payments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  reconcilePharmacyPayment: (id: string) =>
+    request<PharmacyPaymentTransaction>(`/pharmacy/payments/${id}/reconcile`, { method: "PUT" }),
+  autoReconcileUpi: () =>
+    request<{ matched_count: number }>("/pharmacy/payments/auto-reconcile", { method: "POST" }),
+  pharmacyDayReconciliation: (params?: { date?: string; counter_id?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<DayReconciliation>(`/pharmacy/payments/day-reconciliation${qs}`);
+  },
+
+  // ── Day Settlement ────────────────────────────────────
+  getPharmacySettlement: (params?: { date?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<PharmacyDaySettlement>(`/pharmacy/settlements${qs}`);
+  },
+  closePharmacySettlement: (id: string, data: { cash_counted: number; notes?: string }) =>
+    request<PharmacyDaySettlement>(`/pharmacy/settlements/${id}/close`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  verifyPharmacySettlement: (id: string) =>
+    request<PharmacyDaySettlement>(`/pharmacy/settlements/${id}/verify`, { method: "PUT" }),
+
   // ── IPD ───────────────────────────────────────────────
 
   listAdmissions: (params?: Record<string, string>) => {
@@ -5647,6 +5493,85 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // ── Orchestration Engine ────────────────────────────────
+  listOrchestrationEvents: (params?: { module?: string }) => {
+    const qs = params?.module ? `?module=${params.module}` : "";
+    return request<EventListResponse>(`/orchestration/events${qs}`);
+  },
+  listConnectors: () => request<ConnectorRow[]>("/orchestration/connectors"),
+  createConnector: (data: CreateConnectorRequest) =>
+    request<ConnectorRow>("/orchestration/connectors", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateConnector: (id: string, data: UpdateConnectorRequest) =>
+    request<ConnectorRow>(`/orchestration/connectors/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  testConnector: (id: string) =>
+    request<ConnectorHealthCheckResponse>(
+      `/orchestration/connectors/${id}/test`,
+      { method: "POST" },
+    ),
+  listJobs: (params?: { status?: string; page?: string; per_page?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return request<JobListResponse>(`/orchestration/jobs${qs}`);
+  },
+  getJobStats: () => request<JobStats>("/orchestration/jobs/stats"),
+
+  // ── Custom Code (Pipeline Code Execution) ───────────────
+
+  listCodeSnippets: () =>
+    request<CustomCodeSnippet[]>("/integration/code-snippets"),
+
+  createCodeSnippet: (data: {
+    name: string;
+    language: string;
+    code: string;
+    description?: string;
+    input_schema?: Record<string, unknown>;
+    output_schema?: Record<string, unknown>;
+  }) =>
+    request<CustomCodeSnippet>("/integration/code-snippets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateCodeSnippet: (
+    id: string,
+    data: Partial<{
+      name: string;
+      language: string;
+      code: string;
+      description: string;
+      input_schema: Record<string, unknown>;
+      output_schema: Record<string, unknown>;
+    }>,
+  ) =>
+    request<CustomCodeSnippet>(`/integration/code-snippets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  testCode: (data: CodeTestRequest) =>
+    request<CodeTestResult>("/integration/code-snippets/test", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  compileRust: (data: CompileRustRequest) =>
+    request<CompileRustResult>("/integration/code/compile-rust", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  aiGenerateCode: (data: AiGenerateCodeRequest) =>
+    request<AiGeneratedCode>("/integration/code/ai-generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   // ── Schema Registry ─────────────────────────────────────
 
   listSchemaModules: () => request<ModuleSummary[]>("/schema/modules"),
@@ -5662,93 +5587,6 @@ export const api = {
       `/schema/form-fields/${encodeURIComponent(formCode)}`,
     ),
 
-  // ── Screens — Admin ──────────────────────────────────────
-
-  adminListScreens: (params?: Record<string, string>) => {
-    const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<ScreenSummary[]>(`/admin/screens${qs}`);
-  },
-  adminCreateScreen: (data: CreateScreenRequest) =>
-    request<{ id: string }>("/admin/screens", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminGetScreen: (id: string) =>
-    request<ScreenMaster>(`/admin/screens/${id}`),
-  adminUpdateScreen: (id: string, data: UpdateScreenRequest) =>
-    request<{ status: string }>(`/admin/screens/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteScreen: (id: string) =>
-    request<{ status: string }>(`/admin/screens/${id}`, { method: "DELETE" }),
-  adminPublishScreen: (id: string, data?: { change_summary?: string }) =>
-    request<{ status: string }>(`/admin/screens/${id}/publish`, {
-      method: "POST",
-      body: JSON.stringify(data ?? {}),
-    }),
-  adminNewScreenVersion: (id: string) =>
-    request<{ id: string }>(`/admin/screens/${id}/new-version`, {
-      method: "POST",
-    }),
-  adminListScreenVersions: (id: string) =>
-    request<ScreenVersionSummary[]>(`/admin/screens/${id}/versions`),
-  adminGetScreenVersion: (id: string, ver: number) =>
-    request<ScreenVersionSnapshot>(`/admin/screens/${id}/versions/${ver}`),
-  adminRestoreScreenVersion: (id: string, ver: number) =>
-    request<{ status: string }>(`/admin/screens/${id}/restore/${ver}`, {
-      method: "POST",
-    }),
-  adminListScreenSidecars: (id: string) =>
-    request<ScreenSidecar[]>(`/admin/screens/${id}/sidecars`),
-  adminCreateScreenSidecar: (id: string, data: CreateSidecarRequest) =>
-    request<{ id: string }>(`/admin/screens/${id}/sidecars`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  adminUpdateScreenSidecar: (
-    id: string,
-    sid: string,
-    data: Record<string, unknown>,
-  ) =>
-    request<{ status: string }>(`/admin/screens/${id}/sidecars/${sid}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteScreenSidecar: (id: string, sid: string) =>
-    request<{ status: string }>(`/admin/screens/${id}/sidecars/${sid}`, {
-      method: "DELETE",
-    }),
-  adminListScreenOverrides: () =>
-    request<TenantScreenOverride[]>("/admin/screen-overrides"),
-  adminUpsertScreenOverride: (
-    screenId: string,
-    data: ScreenOverrideRequest,
-  ) =>
-    request<{ status: string }>(`/admin/screen-overrides/${screenId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  adminDeleteScreenOverride: (screenId: string) =>
-    request<{ status: string }>(`/admin/screen-overrides/${screenId}`, {
-      method: "DELETE",
-    }),
-
-  // ── Screens — User-facing ─────────────────────────────────
-
-  resolveScreen: (code: string) =>
-    request<ResolvedScreen>(`/screens/${encodeURIComponent(code)}`),
-  listModuleScreens: (moduleCode: string) =>
-    request<ScreenSummary[]>(
-      `/screens/module/${encodeURIComponent(moduleCode)}`,
-    ),
-  listModuleSidecars: (
-    moduleCode: string,
-    context?: string,
-  ) =>
-    request<ResolvedSidecar[]>(
-      `/modules/${encodeURIComponent(moduleCode)}/sidecars${context ? `?context=${encodeURIComponent(context)}` : ""}`,
-    ),
 
   // ── Clinical Decision Support ─────────────────────────────
 
@@ -11093,5 +10931,175 @@ export const api = {
     request<RefundGatewayResponse>("/payments/refund", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // ── Order Basket ──────────────────────────────────────────
+  checkBasket: (data: CheckBasketRequest) =>
+    request<CheckBasketResponse>("/orders/basket/check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  signBasket: (data: SignBasketRequest) =>
+    request<SignBasketResponse>("/orders/basket/sign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getBasketDraft: (encounterId: string) =>
+    request<OrderBasketDraft | null>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`),
+  saveBasketDraft: (encounterId: string, data: SaveBasketDraftRequest) =>
+    request<OrderBasketDraft>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteBasketDraft: (encounterId: string) =>
+    request<{ deleted: boolean }>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
+      method: "DELETE",
+    }),
+
+  // ── Doctor Activities ─────────────────────────────────────
+  adminListDoctors: (params?: {
+    specialty_id?: string;
+    is_active?: boolean;
+    is_visiting?: boolean;
+    search?: string;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.specialty_id) qs.set("specialty_id", params.specialty_id);
+    if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
+    if (params?.is_visiting !== undefined) qs.set("is_visiting", String(params.is_visiting));
+    if (params?.search) qs.set("search", params.search);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<DoctorProfile[]>(`/admin/doctors${q ? `?${q}` : ""}`);
+  },
+  adminGetDoctor: (id: string) =>
+    request<DoctorProfile>(`/admin/doctors/${encodeURIComponent(id)}`),
+  adminCreateDoctor: (data: CreateDoctorRequest) =>
+    request<DoctorProfile>("/admin/doctors", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminUpdateDoctor: (id: string, data: UpdateDoctorRequest) =>
+    request<DoctorProfile>(`/admin/doctors/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getMyDoctorProfile: () => request<DoctorProfile>("/doctors/me/profile"),
+  updateMyDoctorProfile: (data: UpdateMyDoctorProfileRequest) =>
+    request<DoctorProfile>("/doctors/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getMyDay: () => request<MyDayResponse>("/doctors/me/dashboard"),
+  getMyPendingSignoffs: () =>
+    request<PendingSignoffEntry[]>("/doctors/me/pending-signoffs"),
+
+  adminListSignatureCredentials: (params?: { doctor_user_id?: string; include_revoked?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.doctor_user_id) qs.set("doctor_user_id", params.doctor_user_id);
+    if (params?.include_revoked) qs.set("include_revoked", "true");
+    const q = qs.toString();
+    return request<SignatureCredential[]>(`/admin/signature-credentials${q ? `?${q}` : ""}`);
+  },
+  adminIssueSignatureCredential: (data: IssueCredentialRequest) =>
+    request<{ credential: SignatureCredential }>("/admin/signature-credentials", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminRevokeSignatureCredential: (id: string, data: RevokeCredentialRequest) =>
+    request<{ revoked: boolean }>(`/admin/signature-credentials/${encodeURIComponent(id)}/revoke`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  signRecord: (data: SignRequest) =>
+    request<SignResponse>("/signatures/sign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listSignaturesForRecord: (record_type: string, record_id: string) => {
+    const qs = new URLSearchParams({ record_type, record_id });
+    return request<SignedRecord[]>(`/signatures/list?${qs.toString()}`);
+  },
+  verifySignature: (data: VerifyRequest) =>
+    request<VerifyResponse>("/signatures/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Doctor Packages (admin)
+  adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
+    if (params?.search) qs.set("search", params.search);
+    const q = qs.toString();
+    return request<DoctorPackage[]>(`/admin/doctor-packages${q ? `?${q}` : ""}`);
+  },
+  adminGetDoctorPackage: (id: string) =>
+    request<PackageWithInclusions>(`/admin/doctor-packages/${encodeURIComponent(id)}`),
+  adminCreateDoctorPackage: (data: CreateDoctorPackageRequest) =>
+    request<PackageWithInclusions>("/admin/doctor-packages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminUpdateDoctorPackage: (id: string, data: UpdateDoctorPackageRequest) =>
+    request<DoctorPackage>(`/admin/doctor-packages/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  adminAddInclusion: (packageId: string, data: CreateInclusionRequest) =>
+    request<DoctorPackageInclusion>(
+      `/admin/doctor-packages/${encodeURIComponent(packageId)}/inclusions`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  adminRemoveInclusion: (packageId: string, inclusionId: string) =>
+    request<{ deleted: boolean }>(
+      `/admin/doctor-packages/${encodeURIComponent(packageId)}/inclusions/${encodeURIComponent(inclusionId)}`,
+      { method: "DELETE" },
+    ),
+
+  // Patient Packages
+  subscribeToPackage: (data: SubscribeRequest) =>
+    request<{ id: string; status: string }>("/patient-packages/subscribe", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPatientPackages: (patientId: string) =>
+    request<SubscriptionWithBalance[]>(
+      `/patient-packages/patient/${encodeURIComponent(patientId)}`,
+    ),
+  consumePackage: (subscriptionId: string, data: ConsumeRequest) =>
+    request<{ consumption_id: string; remaining_after: number }>(
+      `/patient-packages/${encodeURIComponent(subscriptionId)}/consume`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  refundPackage: (subscriptionId: string) =>
+    request<{ refunded: boolean }>(
+      `/patient-packages/${encodeURIComponent(subscriptionId)}/refund`,
+      { method: "POST" },
+    ),
+
+  // Coverage (admin)
+  adminListCoverage: (params?: {
+    absent_doctor_id?: string;
+    covering_doctor_id?: string;
+    active_now?: boolean;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.absent_doctor_id) qs.set("absent_doctor_id", params.absent_doctor_id);
+    if (params?.covering_doctor_id) qs.set("covering_doctor_id", params.covering_doctor_id);
+    if (params?.active_now) qs.set("active_now", "true");
+    const q = qs.toString();
+    return request<CoverageAssignment[]>(`/admin/coverage${q ? `?${q}` : ""}`);
+  },
+  adminCreateCoverage: (data: CreateCoverageRequest) =>
+    request<CoverageAssignment>("/admin/coverage", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminDeleteCoverage: (id: string) =>
+    request<{ deleted: boolean }>(`/admin/coverage/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
 };

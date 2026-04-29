@@ -10,6 +10,9 @@ license.workspace = true
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-yottadb = { path = "../medbrains-yottadb" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+async-trait = "0.1"
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
@@ -43,6 +46,9 @@ ipnet = "2"
 reqwest = { workspace = true }
 rig-core = { workspace = true }
 schemars = { workspace = true }
+mlua = { workspace = true }
+wasmtime = { workspace = true }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls"], default-features = false }

@@ -723,15 +723,23 @@ pub async fn create_patient(
 
     tx.commit().await?;
 
-    // Emit integration event
-    let _ = crate::events::emit_event(
+    // Emit orchestration event — patients.patient.registered
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "patient.registered",
+        "patients.patient.registered",
         serde_json::json!({
             "patient_id": patient.id,
             "uhid": patient.uhid,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name,
+            "phone": patient.phone,
+            "email": patient.email,
+            "gender": format!("{:?}", patient.gender),
+            "date_of_birth": patient.date_of_birth,
+            "category": format!("{:?}", patient.category),
+            "registered_by": claims.sub,
         }),
     )
     .await;

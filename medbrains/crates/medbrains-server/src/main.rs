@@ -14,7 +14,10 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 
 use medbrains_server::{
     config::AppConfig,
-    middleware::request_id::{MakeRequestUuid, request_id_header},
+    middleware::{
+        request_id::{MakeRequestUuid, request_id_header},
+        system_state::SystemStateCache,
+    },
     orchestration, routes, seed,
     state::{AppState, CookieConfig},
 };
@@ -36,6 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load configuration
     let config = AppConfig::from_env()?;
+
+    // Sub-commands run via the same binary so we share code/config:
+    //   medbrains-server audit verify-chain [--tenant=<uuid>|--all]
+    // RFC-INFRA-2026-002 Phase 2 deliverable.
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 3 && args[1] == "audit" && args[2] == "verify-chain" {
+        return run_verify_chain(&config, &args[3..]).await;
+    }
     tracing::info!(bind = %config.bind_addr(), "starting MedBrains server");
 
     // Connect to PostgreSQL
@@ -74,6 +85,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cors_origin: config.cors_origin.clone(),
     };
 
+    // Sprint A.8 — assemble outbox handler registry. The pipeline_fallback
+    // wraps the existing events::dispatch_to_pipelines so unregistered
+    // event_types continue to route through user-defined pipelines.
+    let outbox_registry = build_outbox_registry();
+
+    // Sprint B.4.4 — TopologyRouter. Aurora-default tenants reuse the
+    // shared db_pool for both writer + reader. Tenants opted into
+    // Patroni get lazily-built pools resolved per request via
+    // tenant_db_topology lookups.
+    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> =
+        Arc::new(medbrains_db_topology::PostgresTopologyResolver::new(
+            db_pool.clone(),
+        ));
+    let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> = Arc::new(
+        medbrains_db_topology::TopologyRouter::new(
+            db_pool.clone(),
+            db_pool.clone(),
+            topology_resolver,
+        ),
+    );
+
     // Build shared state
     let state = AppState {
         db: db_pool.clone(),
@@ -83,6 +115,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cookie_config,
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         trusted_proxies: Arc::new(config.trusted_proxies.clone()),
+        system_state_cache: SystemStateCache::new(),
+        outbox: outbox_registry.clone(),
+        topology: topology_router,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -165,7 +200,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(db_pool.clone());
-    orchestration::scheduler::start_scheduler(db_pool);
+    orchestration::scheduler::start_scheduler(db_pool.clone());
+
+    // Sprint A.8 — start outbox worker. In production the worker should
+    // connect with the BYPASSRLS `medbrains_outbox_worker` role; for local
+    // dev we reuse the main pool. assert_bypass_rls() panics if the role
+    // does not have BYPASSRLS — opted out in dev via env var.
+    if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER").ok().as_deref() != Some("true") {
+        let outbox_worker = medbrains_outbox::Worker::new(
+            db_pool.clone(),
+            outbox_registry,
+            medbrains_outbox::WorkerConfig::default(),
+        );
+        let _shutdown_tx = outbox_worker.spawn();
+        tracing::info!("outbox worker spawned");
+    } else {
+        tracing::warn!("MEDBRAINS_DISABLE_OUTBOX_WORKER=true — outbox worker NOT spawned");
+    }
 
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
@@ -174,6 +225,151 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     axum::serve(listener, app).await?;
 
+    Ok(())
+}
+
+/// Sprint A.8 — assemble the outbox Handler Registry.
+///
+/// Registers typed handlers for known event_types and a pipeline_fallback
+/// that delegates to `events::dispatch_to_pipelines` for everything else.
+fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
+    use medbrains_outbox::handlers::{
+        abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio,
+    };
+    use medbrains_outbox::Registry;
+
+    let mut registry = Registry::new();
+
+    // Typed real-money handlers
+    registry.register(razorpay::CreateOrderHandler);
+    registry.register(razorpay::RefundHandler);
+
+    // Twilio per-event-type — distinct registrations for each sms.* code
+    // so the registry's panic-on-duplicate catches accidental re-binds.
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_confirmation"));
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_reminder_24h"));
+    registry.register(twilio::SmsSendHandler::new("sms.appointment_reminder_2h"));
+    registry.register(twilio::SmsSendHandler::new("sms.discharge_summary"));
+    registry.register(twilio::SmsSendHandler::new("sms.vaccination_reminder"));
+    registry.register(twilio::SmsSendHandler::new("sms.cds_critical_interaction"));
+    registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
+
+    // SMTP / ABDM / TPA / HL7 stubs (Phase 1 — log only, return Ok)
+    registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
+    registry.register(abdm_stub::VerifyAbhaHandler);
+    registry.register(abdm_stub::HieBundlePushHandler);
+    registry.register(tpa_stub::PreauthSubmitHandler);
+    registry.register(hl7_stub::CriticalValueHandler);
+
+    // Fallback: route any unregistered event_type to user-defined pipelines.
+    let dispatcher = Arc::new(EventsPipelineDispatcher);
+    registry.set_fallback(pipeline_fallback::PipelineFallbackHandler::new(dispatcher));
+
+    Arc::new(registry)
+}
+
+/// Adapter — implements the outbox `PipelineDispatcher` trait by delegating
+/// to the existing `events::dispatch_to_pipelines` function.
+#[derive(Debug)]
+struct EventsPipelineDispatcher;
+
+#[async_trait::async_trait]
+impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
+    for EventsPipelineDispatcher
+{
+    async fn dispatch(
+        &self,
+        pool: &sqlx::PgPool,
+        tenant_id: uuid::Uuid,
+        user_id: uuid::Uuid,
+        event_type: &str,
+        payload: &serde_json::Value,
+    ) -> Result<(), String> {
+        medbrains_server::events::dispatch_to_pipelines(
+            pool, tenant_id, user_id, event_type, payload,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
+}
+
+/// `medbrains-server audit verify-chain` subcommand.
+/// Walks the audit_log hash chain for one or all tenants and writes a row
+/// to `audit_chain_verifications` with the result. Exits non-zero if any
+/// chain breaks — the K8s CronJob alerts on non-zero exit.
+async fn run_verify_chain(
+    config: &AppConfig,
+    args: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use medbrains_db::audit::AuditLogger;
+
+    let pool_config = medbrains_db::pool::PoolConfig {
+        max_connections: 4,
+        min_connections: 1,
+        acquire_timeout: Duration::from_secs(config.db_pool_acquire_timeout_secs),
+        idle_timeout: Duration::from_secs(config.db_pool_idle_timeout_secs),
+        max_lifetime: Duration::from_secs(config.db_pool_max_lifetime_secs),
+        statement_cache_capacity: config.db_statement_cache_capacity,
+        slow_statement_threshold: Duration::from_millis(config.db_slow_query_ms),
+    };
+    let pool =
+        medbrains_db::pool::create_pool_with_config(&config.database_url, &pool_config).await?;
+
+    // Resolve target tenants
+    let tenant_filter = args.iter().find_map(|a| a.strip_prefix("--tenant="));
+    let tenants: Vec<uuid::Uuid> = if let Some(t) = tenant_filter {
+        vec![uuid::Uuid::parse_str(t)?]
+    } else {
+        AuditLogger::tenants_with_audit_log(&pool).await?
+    };
+
+    let mut any_invalid = false;
+    for tenant in tenants {
+        let started = std::time::Instant::now();
+        let result = AuditLogger::verify_chain_for_tenant(&pool, tenant).await?;
+        let duration_ms: i32 = i32::try_from(started.elapsed().as_millis()).unwrap_or(i32::MAX);
+
+        // Persist the verification result
+        // allow-raw-sql: cron job container, pre-Phase-3 typed helper not yet in medbrains-db
+        sqlx::query(
+            "INSERT INTO audit_chain_verifications ( \
+                 tenant_id, completed_at, rows_checked, head_hash, broken_at, \
+                 valid, duration_ms, triggered_by \
+             ) VALUES ($1, now(), $2, $3, $4, $5, $6, 'cron')",
+        )
+        .bind(result.tenant_id)
+        .bind(result.rows_checked)
+        .bind(result.head_hash.as_deref())
+        .bind(result.broken_at)
+        .bind(result.valid)
+        .bind(duration_ms)
+        .execute(&pool)
+        .await?;
+
+        if result.valid {
+            tracing::info!(
+                tenant_id = %tenant,
+                rows_checked = result.rows_checked,
+                rows_legacy_skipped = result.rows_legacy_skipped,
+                duration_ms,
+                "audit chain verified OK"
+            );
+        } else {
+            any_invalid = true;
+            tracing::error!(
+                tenant_id = %tenant,
+                rows_checked = result.rows_checked,
+                rows_legacy_skipped = result.rows_legacy_skipped,
+                broken_at = ?result.broken_at,
+                "audit chain BROKEN — alert triggered"
+            );
+        }
+    }
+
+    if any_invalid {
+        std::process::exit(2);
+    }
     Ok(())
 }
 

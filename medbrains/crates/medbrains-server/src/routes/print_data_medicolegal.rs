@@ -120,6 +120,14 @@ pub async fn get_ama_form_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let ama_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "other",
+        admission_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(AmaFormPrintData {
@@ -154,6 +162,7 @@ pub async fn get_ama_form_print_data(
         interpreter_used: row.interpreter_used,
         interpreter_name: row.interpreter_name,
         interpreter_language: row.interpreter_language,
+        signatures: super::signed_documents::to_print_signatures(ama_sigs),
     }))
 }
 
@@ -407,6 +416,22 @@ pub async fn get_wound_certificate_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let wound_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "mlc_certificate",
+        case_id,
+    )
+    .await?;
+
+    let wound_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "mlc_certificate",
+        case_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(WoundCertificatePrintData {
@@ -445,6 +470,7 @@ pub async fn get_wound_certificate_print_data(
         examining_doctor: row.examining_doctor,
         doctor_designation: row.doctor_designation,
         doctor_registration_number: row.doctor_registration_number,
+        signatures: super::signed_documents::to_print_signatures(wound_sigs),
     }))
 }
 
@@ -558,6 +584,14 @@ pub async fn get_age_estimation_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let age_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "mlc_certificate",
+        case_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(AgeEstimationPrintData {
@@ -598,6 +632,7 @@ pub async fn get_age_estimation_print_data(
         examining_doctor: row.examining_doctor,
         doctor_designation: row.doctor_designation,
         doctor_registration_number: row.doctor_registration_number,
+        signatures: super::signed_documents::to_print_signatures(age_sigs),
     }))
 }
 
@@ -692,6 +727,14 @@ pub async fn get_death_declaration_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let dd_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "death_certificate",
+        patient_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(DeathDeclarationPrintData {
@@ -724,6 +767,7 @@ pub async fn get_death_declaration_print_data(
         doctor_designation: row.doctor_designation,
         doctor_registration_number: row.doctor_registration_number,
         death_certificate_number: row.death_certificate_number,
+        signatures: super::signed_documents::to_print_signatures(dd_sigs),
     }))
 }
 
@@ -855,6 +899,14 @@ pub async fn get_mlc_documentation_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let mlc_sigs = super::signed_documents::fetch_all_signatures_for_print(
+        &mut tx,
+        &claims.tenant_id,
+        "mlc_certificate",
+        case_id,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(MlcDocumentationPrintData {
@@ -885,5 +937,6 @@ pub async fn get_mlc_documentation_print_data(
         prepared_by: row.prepared_by,
         verified_by: row.verified_by,
         prepared_at: row.prepared_at.format("%d-%b-%Y %H:%M").to_string(),
+        signatures: super::signed_documents::to_print_signatures(mlc_sigs),
     }))
 }

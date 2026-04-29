@@ -1,0 +1,35 @@
+# pgBackRest config — rendered by medbrains-bootstrap.sh on first boot.
+# Placeholders __CLUSTER_ID__, __BUCKET__, __REGION__ are substituted with
+# actual values from EC2 instance tags.
+#
+# Sprint B.3 per RFCs/sprints/SPRINT-B-patroni-ha.md §5.
+
+[global]
+# S3 WAL archive
+repo1-type=s3
+repo1-s3-bucket=__BUCKET__
+repo1-s3-endpoint=s3.__REGION__.amazonaws.com
+repo1-s3-region=__REGION__
+repo1-s3-key-type=auto                  # use IAM instance role
+repo1-path=/cluster-__CLUSTER_ID__
+repo1-storage-verify-tls=y
+repo1-cipher-type=aes-256-cbc           # client-side encryption layer
+
+# Retention — 7 full backups + 35 days of WAL kept hot; older → Glacier via S3 lifecycle
+repo1-retention-full=7
+repo1-retention-archive=35
+repo1-retention-archive-type=full
+
+# Performance
+process-max=4                           # parallel WAL push streams
+compress-type=zst
+compress-level=3
+log-level-console=info
+log-level-file=detail
+log-path=/var/log/pgbackrest
+
+# Stanza for our cluster
+[__CLUSTER_ID__]
+pg1-path=/var/lib/medbrains/pg_data
+pg1-port=5432
+pg1-user=postgres

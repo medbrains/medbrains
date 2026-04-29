@@ -116,6 +116,28 @@ pub struct WristbandPrintData {
 
 // ── Discharge Summary ────────────────────────────────────
 
+/// Visual signature block to be stamped onto a printed document.
+/// One per signer (primary + co-signers).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrintSignatureData {
+    /// ISO 8601 timestamp of when the signer signed.
+    pub signed_at: String,
+    /// Display name of signer ("Dr. Sharma") if resolvable.
+    pub signer_name: Option<String>,
+    /// URL of scanned signature image — print template stamps this
+    /// at the signature box. Null = no image stored, fall back to
+    /// rendered cursive `signer_name`.
+    pub display_image_url: Option<String>,
+    /// Pre-rendered text block printed below image:
+    /// "Digitally signed by Dr. X on YYYY-MM-DD HH:MM • Verify: …"
+    pub display_block: Option<String>,
+    /// signed_records.id as hex — used by verifier endpoint.
+    pub verify_ref: String,
+    /// Drives watermark style: "administrative" | "clinical" |
+    /// "medico_legal" | "statutory_export"
+    pub legal_class: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DischargeSummaryPrintData {
     pub patient_name: String,
@@ -131,6 +153,10 @@ pub struct DischargeSummaryPrintData {
     pub discharge_type: Option<String>,
     pub discharge_summary: Option<String>,
     pub diagnosis: Option<String>,
+    /// Digital signatures stamped onto the PDF. Empty array = unsigned
+    /// (template should render "DRAFT — UNSIGNED" watermark).
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 // ── Receipt (payment) ────────────────────────────────────
@@ -662,6 +688,8 @@ pub struct InsurancePreauthPrintData {
     pub treating_doctor: Option<String>,
     pub contact_number: String,
     pub hospital_name: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -684,6 +712,8 @@ pub struct CashlessClaimPrintData {
     pub claim_status: String,
     pub treating_doctor: Option<String>,
     pub hospital_name: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -982,6 +1012,8 @@ pub struct TreatmentChartPrintData {
     pub iv_fluids: Vec<TreatmentChartIvFluid>,
     pub stat_orders: Vec<StatOrder>,
     pub treating_doctor: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -1039,6 +1071,8 @@ pub struct TransferSummaryPrintData {
     pub receiving_doctor: Option<String>,
     pub transferring_nurse: Option<String>,
     pub receiving_nurse: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1704,6 +1738,8 @@ pub struct AmaFormPrintData {
     pub interpreter_used: bool,
     pub interpreter_name: Option<String>,
     pub interpreter_language: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1781,6 +1817,8 @@ pub struct WoundCertificatePrintData {
     pub examining_doctor: String,
     pub doctor_designation: String,
     pub doctor_registration_number: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -1830,6 +1868,8 @@ pub struct AgeEstimationPrintData {
     pub examining_doctor: String,
     pub doctor_designation: String,
     pub doctor_registration_number: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1881,6 +1921,8 @@ pub struct DeathDeclarationPrintData {
     pub doctor_designation: String,
     pub doctor_registration_number: String,
     pub death_certificate_number: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1916,6 +1958,8 @@ pub struct MlcDocumentationPrintData {
     pub prepared_by: String,
     pub verified_by: String,
     pub prepared_at: String,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -2274,6 +2318,11 @@ pub struct OpdPrescriptionPrintData {
     pub hospital_logo_url: Option<String>,
     pub hospital_address: Option<String>,
     pub hospital_phone: Option<String>,
+    /// Digital signatures stamped onto the PDF. Populated from
+    /// signed_records via signed_documents::fetch_signature_for_print.
+    /// Empty = unsigned, template renders "DRAFT — UNSIGNED" watermark.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2337,6 +2386,9 @@ pub struct LabReportFullPrintData {
     pub barcode_data: String,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Pathologist + co-signer signatures stamped onto the PDF.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2367,6 +2419,9 @@ pub struct CumulativeLabReportPrintData {
     pub pathologist_registration_number: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Pathologist signatures across the trend window.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2420,6 +2475,9 @@ pub struct RadiologyReportFullPrintData {
     pub pacs_study_uid: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
+    /// Radiologist + co-reader signatures stamped onto the PDF.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2479,6 +2537,10 @@ pub struct DeathCertificatePrintData {
     pub hospital_name: String,
     pub hospital_address: Option<String>,
     pub hospital_logo_url: Option<String>,
+    /// Certifying doctor's digital signature stamped onto the certificate.
+    /// Death certificates are statutory_export legal class.
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2628,6 +2690,8 @@ pub struct InsuranceClaimPrintData {
     pub hospital_address: Option<String>,
     pub hospital_empanelment_number: Option<String>,
     pub hospital_logo_url: Option<String>,
+    #[serde(default)]
+    pub signatures: Vec<PrintSignatureData>,
 }
 
 /// TDS Certificate print data

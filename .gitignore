@@ -1,0 +1,23 @@
+# Claude Code session state — do not commit
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local-only env / temp
+.env
+.env.local
+*.log
+
+# Terraform local state + provider cache
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan

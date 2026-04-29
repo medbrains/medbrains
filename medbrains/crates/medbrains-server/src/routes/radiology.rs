@@ -213,13 +213,25 @@ pub async fn create_order(
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let order = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(order))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<RadiologyOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
     let contrast = body.contrast_required.unwrap_or(false);
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
     let allergy = body.allergy_flagged.unwrap_or(false);
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
@@ -244,11 +256,10 @@ pub async fn create_order(
     .bind(contrast)
     .bind(pregnancy)
     .bind(allergy)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(order))
+    Ok(order)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -377,7 +388,18 @@ pub async fn update_order_status(
     tx.commit().await?;
 
     if is_completed {
-        let _ = crate::events::emit_event(
+        // Enrich payload with patient name for orchestration
+        let patient_name = sqlx::query_scalar::<_, String>(
+            "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+        )
+        .bind(order.patient_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "Unknown".to_owned());
+
+        let _ = crate::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -385,7 +407,11 @@ pub async fn update_order_status(
             serde_json::json!({
                 "order_id": order.id,
                 "patient_id": order.patient_id,
+                "patient_name": patient_name,
                 "encounter_id": order.encounter_id,
+                "modality_id": order.modality_id,
+                "body_part": order.body_part,
+                "priority": format!("{:?}", order.priority),
             }),
         )
         .await;

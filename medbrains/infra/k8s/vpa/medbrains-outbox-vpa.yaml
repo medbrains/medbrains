@@ -1,0 +1,29 @@
+# VPA — outbox worker memory tuner
+#
+# Outbox is single-replica by default; VPA is the only autoscaler in
+# play (KEDA scales 1→5 by queue depth but each replica is sized via
+# this VPA).
+#
+# Phase 1: Off mode for observation.
+
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: medbrains-outbox-worker
+  namespace: medbrains-app
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: medbrains-outbox-worker
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: medbrains-outbox-worker
+        controlledResources: ["memory"]
+        minAllowed:
+          memory: 128Mi
+        maxAllowed:
+          memory: 2Gi
+        controlledValues: RequestsOnly

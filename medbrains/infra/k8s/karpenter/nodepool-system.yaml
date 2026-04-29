@@ -1,0 +1,49 @@
+# Karpenter NodePool — system workloads
+# CoreDNS, Cilium, Argo CD, Karpenter itself, External Secrets, OTEL collector.
+# Always on-demand: a flapping system node = control-plane outage.
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: system
+spec:
+  template:
+    metadata:
+      labels:
+        medbrains/pool: system
+    spec:
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["t", "m"]
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: ["2", "4"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["6"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]    # 20% cheaper than x86; all our system charts support arm64
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+      taints:
+        - key: medbrains/pool
+          value: system
+          effect: NoSchedule
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      expireAfter: 720h
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  limits:
+    cpu: 100

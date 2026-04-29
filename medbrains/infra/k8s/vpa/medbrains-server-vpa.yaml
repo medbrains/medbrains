@@ -1,0 +1,47 @@
+# VPA — medbrains-server memory request tuner
+#
+# 2026 best practice (per Kubernetes SIG-Autoscaling):
+#   1. Start in updateMode: "Off"  (recommend-only) for ≥1 week
+#   2. Read VPA recommendations via `kubectl describe vpa medbrains-server`
+#   3. Decide: apply manually at deploy time OR enable enforcement
+#   4. K8s 1.35+: prefer updateMode: "InPlaceOrRecreate" (no pod restart on resize)
+#
+# Rule: VPA controls ONLY memory; HPA controls CPU + req_p95_ms. No
+# overlap = no conflict.
+#
+# Why memory and not CPU here:
+#   - CPU is bursty + clearly visible at request scope; HPA handles it
+#   - Memory is gradual + steady-state; VPA's percentile-based recommender
+#     is exactly the right tool
+
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: medbrains-server
+  namespace: medbrains-app
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: medbrains-server
+
+  # Phase 1 (week 1-2): observe only. Switch to "InPlaceOrRecreate"
+  # after one week of recommendations land in a sensible band.
+  updatePolicy:
+    updateMode: "Off"
+
+  resourcePolicy:
+    containerPolicies:
+      - containerName: medbrains-server
+        # ONLY memory — never let VPA touch CPU (HPA owns it)
+        controlledResources: ["memory"]
+        # Bound the recommendation so a runaway memory leak can't
+        # request 32GB + crash the node. minAllowed prevents VPA from
+        # under-provisioning during low-traffic windows.
+        minAllowed:
+          memory: 256Mi
+        maxAllowed:
+          memory: 4Gi
+        # Don't reduce more than 50% in one go — protects against
+        # eviction storms when a downward recommendation lands.
+        controlledValues: RequestsOnly

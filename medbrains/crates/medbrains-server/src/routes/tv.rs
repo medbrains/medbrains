@@ -732,7 +732,7 @@ async fn get_queue_tokens(
             qt.token_number,
             COALESCE(p.first_name || ' ' || p.last_name, 'Guest') as patient_name,
             d.name as department_name,
-            u.first_name || ' ' || u.last_name as doctor_name,
+            u.full_name as doctor_name,
             qt.status,
             qt.called_at
         FROM queue_tokens qt

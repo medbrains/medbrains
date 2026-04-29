@@ -1,0 +1,53 @@
+# Karpenter NodePool — stateless app workloads on spot
+# medbrains-server (Axum API), background report jobs, OTEL relay.
+# Spot saves ~70% vs on-demand. Eviction notice gives 2 min — long enough
+# for HPA to spin up replacement + outbox to drain in-flight events.
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: app-spot
+spec:
+  template:
+    metadata:
+      labels:
+        medbrains/pool: app-spot
+    spec:
+      requirements:
+        # Compute-optimized + general purpose; covers Axum CPU profile
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m", "r"]
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: ["2", "4", "8", "16"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["6"]
+        # Spot ONLY — pricing tier is 70% off list
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        # ARM64 — 20% cheaper than x86; medbrains-server is multi-arch (Dockerfile builds both)
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      expireAfter: 168h    # weekly rotation
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 30s   # aggressive — spot is cheap, churn is cheaper
+    budgets:
+      - nodes: "20%"
+      - schedule: "0 9 * * 1-5"   # weekday 09:00 IST — never disrupt during peak hours
+        duration: "9h"
+        nodes: "0"
+  limits:
+    cpu: 500    # caps at 500 vCPU spot — enough for 50× r7g.large
+  weight: 100   # prefer spot pool over on-demand

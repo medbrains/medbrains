@@ -399,10 +399,22 @@ pub async fn create_order(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
 
-    let priority = body.priority.as_deref().unwrap_or("routine");
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let order = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(order))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<LabOrder, AppError> {
+    let priority = body.priority.as_deref().unwrap_or("routine");
 
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \
@@ -419,11 +431,10 @@ pub async fn create_order(
     .bind(claims.sub)
     .bind(priority)
     .bind(&body.notes)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(order))
+    Ok(order)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -584,14 +595,55 @@ pub async fn complete_order(
 
     // Emit integration event
     if let Some(ref o) = order {
-        let _ = crate::events::emit_event(
+        // Enrich payload with names for orchestration
+        let patient_info = sqlx::query_as::<_, (String, String)>(
+            "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
+        )
+        .bind(o.patient_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+
+        let (patient_name, uhid) = patient_info
+            .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
+
+        let doctor_name = sqlx::query_scalar::<_, String>(
+            "SELECT full_name FROM users WHERE id = $1",
+        )
+        .bind(o.ordered_by)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "Unknown".to_owned());
+
+        let tests_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM lab_results WHERE order_id = $1 AND tenant_id = $2",
+        )
+        .bind(o.id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+
+        let _ = crate::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
-            "lab.completed",
+            "lab.order.completed",
             serde_json::json!({
                 "order_id": o.id,
                 "patient_id": o.patient_id,
+                "patient_name": patient_name,
+                "uhid": uhid,
+                "doctor_id": o.ordered_by,
+                "doctor_name": doctor_name,
+                "test_id": o.test_id,
+                "tests_count": tests_count,
+                "priority": format!("{:?}", o.priority).to_lowercase(),
             }),
         )
         .await;

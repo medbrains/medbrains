@@ -1,0 +1,61 @@
+# HPA — medbrains-server (Axum API)
+# Custom metric: req_p95_ms (Prometheus Adapter exports as
+# `pods/req_p95_ms` on every pod). Scales up well before users feel
+# latency. Falls back to CPU 60% if Prometheus is unreachable.
+#
+# Targets in production:
+#   p95 latency budget: 250ms
+#   max replicas: 30 (≈ 480 vCPU spot ceiling)
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: medbrains-server
+  namespace: medbrains-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: medbrains-server
+  minReplicas: 3   # PDB minAvailable=2; 3 replicas keeps quorum during rolling restart
+  maxReplicas: 30
+  metrics:
+    # Primary signal — request p95 latency (Prometheus Adapter custom metric).
+    # Reflects user-visible performance; scales BEFORE CPU saturates.
+    - type: Pods
+      pods:
+        metric:
+          name: req_p95_ms
+        target:
+          type: AverageValue
+          averageValue: "250"   # scale up if average p95 across pods > 250ms
+    # Fallback — CPU pressure.
+    # Memory is intentionally NOT used as an HPA metric — it's too laggy
+    # and destructive (k8s docs + 2026 best practice). Memory sizing is
+    # handled by the VPA (medbrains-server-vpa.yaml) which adjusts the
+    # request, not the replica count. Splitting CPU↔HPA / memory↔VPA
+    # avoids metric conflict and is the recommended pattern.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30   # react fast — clinical workload
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300   # cool down slowly to avoid flap
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+      selectPolicy: Min

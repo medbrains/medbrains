@@ -1,0 +1,90 @@
+#cloud-config
+# etcd VM — Debian 12 on Proxmox.
+# Installs etcd ${etcd_version} from upstream binary release (Debian
+# ships an old etcd; we want a modern one for Patroni's etcd3 driver).
+
+packages:
+  - curl
+  - ca-certificates
+
+write_files:
+  - path: /etc/medbrains/instance.env
+    permissions: '0644'
+    content: |
+      MEDBRAINS_CLUSTER_ID=${cluster_id}
+      MEDBRAINS_NODE_ID=${node_id}
+      MEDBRAINS_NODE_INDEX=${node_index}
+      ETCD_VERSION=${etcd_version}
+
+  - path: /usr/local/sbin/medbrains-etcd-bootstrap.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euxo pipefail
+      source /etc/medbrains/instance.env
+
+      readonly LOG=/var/log/medbrains-etcd-bootstrap.log
+      exec > >(tee -a "$LOG") 2>&1
+
+      ARCH=$(dpkg --print-architecture)
+      case "$ARCH" in
+          arm64) ETCD_ARCH="arm64" ;;
+          amd64) ETCD_ARCH="amd64" ;;
+          *) echo "unsupported arch: $ARCH"; exit 1 ;;
+      esac
+
+      curl -fsSL "https://github.com/etcd-io/etcd/releases/download/v$${ETCD_VERSION}/etcd-v$${ETCD_VERSION}-linux-$${ETCD_ARCH}.tar.gz" \
+          -o /tmp/etcd.tgz
+      tar -xzf /tmp/etcd.tgz -C /usr/local/bin --strip-components=1 \
+          "etcd-v$${ETCD_VERSION}-linux-$${ETCD_ARCH}/etcd" \
+          "etcd-v$${ETCD_VERSION}-linux-$${ETCD_ARCH}/etcdctl"
+
+      id etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -d /var/lib/etcd etcd
+      mkdir -p /var/lib/etcd /etc/etcd
+      chown -R etcd:etcd /var/lib/etcd
+
+      PRIVATE_IP="$(hostname -I | awk '{print $1}')"
+
+      cat > /etc/etcd/etcd.conf <<EOF
+      ETCD_NAME="$${MEDBRAINS_NODE_ID}"
+      ETCD_DATA_DIR=/var/lib/etcd
+      ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      ETCD_ADVERTISE_CLIENT_URLS=http://$${PRIVATE_IP}:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$${PRIVATE_IP}:2380
+      ETCD_INITIAL_CLUSTER_TOKEN=$${MEDBRAINS_CLUSTER_ID}-etcd
+      ETCD_INITIAL_CLUSTER_STATE=new
+      # ETCD_INITIAL_CLUSTER must be set after all etcd VMs come up.
+      # Cloud-init can't know peer IPs at first boot for the second/
+      # third nodes deterministically, so we use mDNS-style discovery
+      # by node name + a Flux-managed retry loop. For initial
+      # bootstrap a hospital admin can edit ETCD_INITIAL_CLUSTER once
+      # all 3 IPs are known and restart the service.
+      EOF
+
+      cat > /etc/systemd/system/etcd.service <<EOF
+      [Unit]
+      Description=etcd key-value store (medbrains Patroni DCS)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=notify
+      User=etcd
+      EnvironmentFile=/etc/etcd/etcd.conf
+      ExecStart=/usr/local/bin/etcd
+      Restart=on-failure
+      RestartSec=5s
+      LimitNOFILE=65536
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+
+      systemctl daemon-reload
+      systemctl enable etcd.service
+      # Don't start yet — see comment above; admin completes initial
+      # cluster config in the cutover runbook before first start.
+
+runcmd:
+  - /usr/local/sbin/medbrains-etcd-bootstrap.sh

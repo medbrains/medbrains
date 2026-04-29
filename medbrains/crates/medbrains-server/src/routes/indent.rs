@@ -5,7 +5,9 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use medbrains_core::indent::{IndentItem, IndentRequisition, StoreCatalog, StoreStockMovement};
+use medbrains_core::indent::{
+    IndentItem, IndentRequisition, IndentType, StoreCatalog, StoreStockMovement,
+};
 use medbrains_core::inventory::{
     AbcAnalysisRow, ComplianceCheckRow, ConsumptionAnalysisRow, DeadStockRow,
     EquipmentCondemnation, FsnAnalysisRow, ImplantRegistryEntry, InventoryValuationRow,
@@ -465,17 +467,51 @@ pub async fn submit_requisition(
 
     tx.commit().await?;
 
-    // Emit integration event
-    let _ = crate::events::emit_event(
+    // Enrich payload with names for orchestration
+    let department_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM departments WHERE id = $1",
+    )
+    .bind(req.department_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let requested_by_name = sqlx::query_scalar::<_, String>(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(req.requested_by)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let items_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1",
+    )
+    .bind(req.id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "indent.submitted",
+        "indent.requisition.submitted",
         serde_json::json!({
             "requisition_id": req.id,
             "indent_number": req.indent_number,
             "department_id": req.department_id,
-            "indent_type": req.indent_type,
+            "department_name": department_name,
+            "indent_type": format!("{:?}", req.indent_type),
+            "items_count": items_count,
+            "total_amount": req.total_amount,
+            "requested_by": req.requested_by,
+            "requested_by_name": requested_by_name,
+            "priority": format!("{:?}", req.priority),
         }),
     )
     .await;
@@ -575,18 +611,98 @@ pub async fn approve_requisition(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Auto-draft PO for pharmacy indents on approval
+    if requisition.indent_type == IndentType::Pharmacy && new_status != "rejected" {
+        let approved_items: Vec<&IndentItem> = items
+            .iter()
+            .filter(|i| i.quantity_approved > 0)
+            .collect();
+
+        if !approved_items.is_empty() {
+            let vendor_id: Option<Uuid> = sqlx::query_scalar(
+                "SELECT pc.preferred_supplier_id FROM pharmacy_catalog pc \
+                 JOIN indent_items ii ON ii.item_name ILIKE '%' || pc.name || '%' \
+                 WHERE ii.requisition_id = $1 AND pc.preferred_supplier_id IS NOT NULL \
+                 LIMIT 1",
+            )
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten();
+
+            if let Some(vid) = vendor_id {
+                let po_id = Uuid::new_v4();
+                let po_number = format!("PO-AUTO-{}", &po_id.to_string()[..8]);
+
+                sqlx::query(
+                    "INSERT INTO purchase_orders \
+                     (id, tenant_id, po_number, vendor_id, status, \
+                      indent_requisition_id, notes, created_by) \
+                     VALUES ($1, $2, $3, $4, 'draft', $5, \
+                             'Auto-drafted from pharmacy indent', $6)",
+                )
+                .bind(po_id)
+                .bind(claims.tenant_id)
+                .bind(&po_number)
+                .bind(vid)
+                .bind(id)
+                .bind(claims.sub)
+                .execute(&mut *tx)
+                .await?;
+
+                for item in &approved_items {
+                    sqlx::query(
+                        "INSERT INTO purchase_order_items \
+                         (id, tenant_id, po_id, item_name, quantity_ordered, \
+                          unit_price, indent_item_id) \
+                         VALUES (gen_random_uuid(), $1, $2, $3, $4, \
+                                 COALESCE($5, 0), $6)",
+                    )
+                    .bind(claims.tenant_id)
+                    .bind(po_id)
+                    .bind(&item.item_name)
+                    .bind(item.quantity_approved)
+                    .bind(item.unit_price)
+                    .bind(item.id)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+
+                tracing::info!(
+                    po_number,
+                    indent_id = %id,
+                    "auto-drafted PO from pharmacy indent"
+                );
+            }
+        }
+    }
+
     tx.commit().await?;
 
-    // Emit integration event
-    let _ = crate::events::emit_event(
+    // Enrich payload with department name for orchestration
+    let department_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM departments WHERE id = $1",
+    )
+    .bind(requisition.department_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "indent.approved",
+        "indent.requisition.approved",
         serde_json::json!({
             "requisition_id": requisition.id,
             "indent_number": requisition.indent_number,
-            "status": requisition.status,
+            "department_id": requisition.department_id,
+            "department_name": department_name,
+            "status": format!("{:?}", requisition.status),
+            "approved_by": requisition.approved_by,
+            "items_count": items.len(),
         }),
     )
     .await;

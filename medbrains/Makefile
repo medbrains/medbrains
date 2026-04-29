@@ -2,8 +2,14 @@
        build build-backend build-frontend \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx \
        check-ui-api check-types check-all \
+       check-rls check-sharing check-tenant-leak check-audit check-tracing \
+       check-migration-headers \
+       check-region-pinning check-no-card-logging check-egress-allowlist \
        smoke-test e2e-test generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
+       docker-build \
+       packer-build packer-destroy packer-destroy-dry \
+       deploy deploy-plan deploy-bootstrap \
        clean logs db-shell seed
 
 # Default
@@ -101,7 +107,86 @@ check-ui-api: ## Verify UI pages ↔ API method coverage
 check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
-check-all: check-api check-ui-api check-types ## Run all static checks
+check-all: check-api check-ui-api check-types check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+
+# ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
+
+check-rls: ## Verify every tenant_id-bearing table has RLS coverage
+	python3 ../scripts/check_rls.py
+
+check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
+	python3 ../scripts/check_tenant_leak.py
+
+check-tenant-leak-update-baseline: ## Update baseline after cleanup PR
+	python3 ../scripts/check_tenant_leak.py --update-baseline
+
+check-sharing: ## Verify shareable entities are registered in sharing/registry.rs (soft until Phase 3)
+	python3 ../scripts/check_sharing.py
+
+check-audit: ## Verify state-changing handlers use AuditLayer (soft until Phase 2)
+	python3 ../scripts/check_audit_coverage.py
+
+check-tracing: ## Verify route handlers carry #[tracing::instrument(... fields(tenant_id))]
+	python3 ../scripts/check_tracing_spans.py
+
+check-migration-headers: ## Verify migrations >=124 carry RLS-Posture header block
+	python3 ../scripts/migration_header_lint.py
+
+check-region-pinning: ## DPDP residency check — region-pinned configs may not reference other regions
+	python3 ../scripts/check_region_pinning.py
+
+check-no-card-logging: ## PCI scope check — card identifiers banned from log statements
+	python3 ../scripts/check_no_card_logging.py
+
+check-egress-allowlist: ## Cilium egress allowlist coherence check (soft until Phase 4)
+	python3 ../scripts/check_egress_allowlist.py
+
+# ── Docker ───────────────────────────────────────────────────
+
+docker-build: ## Build the medbrains-server Docker image
+	docker build -t medbrains-server:dev -f Dockerfile .
+
+# ── Packer (Sprint B) ────────────────────────────────────────
+
+packer-build: ## Build the postgres-patroni AMI (~$0.05, ~10min real EC2)
+	cd infra/packer/postgres-bottlerocket && packer build -var "region=ap-south-1" postgres.pkr.hcl
+
+packer-destroy: ## Deregister + delete medbrains-postgres-* AMIs we built
+	infra/packer/postgres-bottlerocket/destroy.sh
+
+packer-destroy-dry: ## Preview what packer-destroy would delete
+	infra/packer/postgres-bottlerocket/destroy.sh --dry-run
+
+# ── Terraform (RFC-INFRA-2026-002 Phase 4) ───────────────────
+
+# Usage: make deploy ENV=prod REGION=ap-south-1
+deploy: ## terraform apply for ENV/REGION combination
+	@if [ -z "$(ENV)" ] || [ -z "$(REGION)" ]; then \
+		echo "Usage: make deploy ENV=<dev|staging|prod> REGION=<aws-region>"; \
+		exit 1; \
+	fi
+	cd infra/terraform/envs/$(ENV)/regions/$(REGION) && \
+		terraform init -upgrade && \
+		terraform plan -out=plan.tfplan && \
+		terraform apply plan.tfplan
+
+deploy-plan: ## terraform plan only for ENV/REGION
+	@if [ -z "$(ENV)" ] || [ -z "$(REGION)" ]; then \
+		echo "Usage: make deploy-plan ENV=<dev|staging|prod> REGION=<aws-region>"; \
+		exit 1; \
+	fi
+	cd infra/terraform/envs/$(ENV)/regions/$(REGION) && \
+		terraform init -upgrade && \
+		terraform plan
+
+deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per region)
+	@if [ -z "$(REGION)" ]; then \
+		echo "Usage: make deploy-bootstrap REGION=<aws-region>"; \
+		exit 1; \
+	fi
+	cd infra/terraform/modules/bootstrap && \
+		terraform init -upgrade && \
+		terraform apply -var=region=$(REGION)
 
 # ── Smoke & E2E Tests ────────────────────────────────────
 

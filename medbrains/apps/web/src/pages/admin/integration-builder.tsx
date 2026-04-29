@@ -1,16 +1,4 @@
-import {
-  ActionIcon,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  Group,
-  Loader,
-  ScrollArea,
-  Select,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Loader, Select, TextInput, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { useHasPermission, useIntegrationBuilderStore } from "@medbrains/stores";
@@ -20,7 +8,9 @@ import {
   IconArrowBackUp,
   IconArrowForwardUp,
   IconArrowLeft,
+  IconBolt,
   IconDeviceFloppy,
+  IconHistory,
   IconPlayerPlay,
   IconToggleLeft,
   IconToggleRight,
@@ -32,6 +22,7 @@ import { NodePalette } from "../../components/Integration/NodePalette";
 import { NodePropertyPanel } from "../../components/Integration/NodePropertyPanel";
 import { PipelineCanvas } from "../../components/Integration/PipelineCanvas";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import s from "./integration-builder.module.scss";
 
 const TRIGGER_TYPE_OPTIONS: { value: PipelineTriggerType; label: string }[] = [
   { value: "internal_event", label: "Internal Event" },
@@ -39,13 +30,6 @@ const TRIGGER_TYPE_OPTIONS: { value: PipelineTriggerType; label: string }[] = [
   { value: "webhook", label: "Webhook" },
   { value: "manual", label: "Manual" },
 ];
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "slate",
-  active: "success",
-  paused: "warning",
-  archived: "dimmed",
-};
 
 export function IntegrationBuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,14 +61,12 @@ export function IntegrationBuilderPage() {
   } = useIntegrationBuilderStore();
   const canSave = serverPipelineId ? canUpdate : canCreate;
 
-  // Load pipeline if editing
   const { isLoading } = useQuery({
     queryKey: ["integration", "pipeline", id],
     queryFn: () => api.getPipeline(id ?? ""),
     enabled: Boolean(id),
   });
 
-  // Load pipeline data on mount when editing
   useEffectOnce(() => {
     if (!id) {
       reset();
@@ -122,48 +104,29 @@ export function IntegrationBuilderPage() {
     onSuccess: (data) => {
       loadPipeline(data);
       markClean();
-      void queryClient.invalidateQueries({
-        queryKey: ["integration", "pipelines"],
-      });
-      notifications.show({
-        title: "Saved",
-        message: "Pipeline saved successfully",
-        color: "success",
-      });
+      void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] });
+      notifications.show({ title: "Saved", message: "Pipeline saved", color: "success" });
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to save pipeline",
-        color: "danger",
-      });
+      notifications.show({ title: "Error", message: "Failed to save", color: "danger" });
     },
   });
 
   const triggerMutation = useMutation({
     mutationFn: () => api.triggerPipeline(serverPipelineId ?? ""),
     onSuccess: () => {
-      notifications.show({
-        title: "Triggered",
-        message: "Pipeline execution started",
-        color: "primary",
-      });
+      notifications.show({ title: "Triggered", message: "Execution started", color: "primary" });
     },
   });
 
   const toggleStatusMutation = useMutation({
     mutationFn: () => {
-      const newStatus = pipeline.status === "active" ? "paused" : "active";
-      return api.updatePipelineStatus(serverPipelineId ?? "", { status: newStatus });
+      const next = pipeline.status === "active" ? "paused" : "active";
+      return api.updatePipelineStatus(serverPipelineId ?? "", { status: next });
     },
     onSuccess: (data) => {
       loadPipeline(data);
       void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] });
-      notifications.show({
-        title: "Status Updated",
-        message: `Pipeline is now ${data.status}`,
-        color: data.status === "active" ? "success" : "warning",
-      });
     },
   });
 
@@ -176,165 +139,200 @@ export function IntegrationBuilderPage() {
   }
 
   return (
-    <Box style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
-      {/* Toolbar */}
-      <Box
-        px="md"
-        py={8}
-        style={{ borderBottom: "1px solid var(--mantine-color-gray-3)", background: "white" }}
-      >
-        <Group justify="space-between">
-          {/* Left side: Back + pipeline info */}
-          <Group gap="sm">
-            <Tooltip label="Back to Hub">
-              <ActionIcon
-                variant="subtle"
-                size="md"
-                onClick={() => navigate("/admin/integration-hub")}
-                aria-label="Go back"
-              >
-                <IconArrowLeft size={18} />
-              </ActionIcon>
-            </Tooltip>
+    <div className={s.builder}>
+      {/* ── Toolbar ── */}
+      <div className={s.toolbar}>
+        <div className={s.toolbarLeft}>
+          <Tooltip label="Back to Hub">
+            <ActionIcon
+              variant="subtle"
+              size="md"
+              onClick={() => navigate("/admin/integration-hub")}
+              aria-label="Back"
+            >
+              <IconArrowLeft size={18} />
+            </ActionIcon>
+          </Tooltip>
 
-            <Divider orientation="vertical" />
+          <TextInput
+            placeholder="Pipeline name"
+            size="xs"
+            value={pipeline.name}
+            onChange={(e) => updatePipelineMeta({ name: e.currentTarget.value })}
+            styles={{
+              input: {
+                fontWeight: 600,
+                fontSize: 14,
+                border: `1px solid var(--mb-border)`,
+                borderRadius: 6,
+              },
+            }}
+            w={220}
+          />
 
+          {!serverPipelineId && (
             <TextInput
-              placeholder="Pipeline name"
+              placeholder="Code (unique)"
               size="xs"
-              value={pipeline.name}
-              onChange={(e) => updatePipelineMeta({ name: e.currentTarget.value })}
-              styles={{ input: { fontWeight: 600, fontSize: 14 } }}
-              w={200}
+              value={pipeline.code}
+              onChange={(e) => updatePipelineMeta({ code: e.currentTarget.value })}
+              w={140}
+              styles={{ input: { fontFamily: "var(--font-mono)", fontSize: 12 } }}
             />
+          )}
 
-            {!serverPipelineId && (
-              <TextInput
-                placeholder="Code (unique)"
-                size="xs"
-                value={pipeline.code}
-                onChange={(e) => updatePipelineMeta({ code: e.currentTarget.value })}
-                w={140}
-                styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
-              />
-            )}
-
+          <div className={s.trigBadge}>
+            <IconBolt size={14} />
             <Select
               size="xs"
               data={TRIGGER_TYPE_OPTIONS}
               value={pipeline.trigger_type}
               onChange={(v) =>
-                updatePipelineMeta({
-                  trigger_type: (v as PipelineTriggerType) ?? "manual",
-                })
+                updatePipelineMeta({ trigger_type: (v as PipelineTriggerType) ?? "manual" })
               }
-              w={150}
+              w={130}
+              variant="unstyled"
+              styles={{ input: { fontWeight: 500, fontSize: 12, padding: 0, height: 20 } }}
             />
+          </div>
 
-            {serverPipelineId && (
-              <Badge color={STATUS_COLORS[pipeline.status] ?? "slate"} variant="light" size="sm">
-                {pipeline.status}
-              </Badge>
-            )}
+          {serverPipelineId && (
+            <span className={s.statusBadge}>
+              <span className={s.statusDot} />
+              {pipeline.status}
+            </span>
+          )}
 
-            {isDirty && (
-              <Badge color="orange" variant="dot" size="xs">
-                Unsaved
-              </Badge>
-            )}
-          </Group>
+          {isDirty && <span className={s.unsavedMark}>● unsaved changes</span>}
+        </div>
 
-          {/* Right side: Actions */}
-          <Group gap={6}>
-            <Tooltip label="Undo (Ctrl+Z)">
-              <ActionIcon variant="subtle" size="md" disabled={!canUndo()} onClick={undo} aria-label="Arrow Back Up">
-                <IconArrowBackUp size={18} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Redo (Ctrl+Shift+Z)">
-              <ActionIcon variant="subtle" size="md" disabled={!canRedo()} onClick={redo} aria-label="Arrow Forward Up">
-                <IconArrowForwardUp size={18} />
-              </ActionIcon>
-            </Tooltip>
+        <div className={s.toolbarRight}>
+          <Tooltip label="Undo">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              disabled={!canUndo()}
+              onClick={undo}
+              aria-label="Undo"
+            >
+              <IconArrowBackUp size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Redo">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              disabled={!canRedo()}
+              onClick={redo}
+              aria-label="Redo"
+            >
+              <IconArrowForwardUp size={16} />
+            </ActionIcon>
+          </Tooltip>
 
-            <Divider orientation="vertical" />
+          {serverPipelineId && (
+            <Button size="xs" variant="outline" leftSection={<IconHistory size={14} />}>
+              Runs
+            </Button>
+          )}
 
-            {canUpdate && serverPipelineId && (
-              <Tooltip
-                label={pipeline.status === "active" ? "Pause Pipeline" : "Activate Pipeline"}
-              >
-                <ActionIcon
-                  variant="light"
-                  size="md"
-                  color={pipeline.status === "active" ? "warning" : "success"}
-                  onClick={() => toggleStatusMutation.mutate()}
-                  loading={toggleStatusMutation.isPending}
-                >
-                  {pipeline.status === "active" ? (
-                    <IconToggleRight size={18} />
-                  ) : (
-                    <IconToggleLeft size={18} />
-                  )}
-                </ActionIcon>
-              </Tooltip>
-            )}
-
-            {canExecute && serverPipelineId && pipeline.status === "active" && (
-              <Button
-                size="xs"
-                variant="light"
-                color="primary"
-                leftSection={<IconPlayerPlay size={14} />}
-                onClick={() => triggerMutation.mutate()}
-                loading={triggerMutation.isPending}
-              >
-                Test Run
-              </Button>
-            )}
-
+          {canExecute && serverPipelineId && pipeline.status === "active" && (
             <Button
               size="xs"
-              leftSection={<IconDeviceFloppy size={14} />}
-              onClick={() => saveMutation.mutate()}
-              loading={saveMutation.isPending}
-              disabled={!canSave || !pipeline.name || (!isDirty && Boolean(serverPipelineId))}
+              variant="outline"
+              leftSection={<IconPlayerPlay size={14} />}
+              onClick={() => triggerMutation.mutate()}
+              loading={triggerMutation.isPending}
             >
-              {serverPipelineId ? "Save" : "Create"}
+              Test run
             </Button>
-          </Group>
-        </Group>
-      </Box>
+          )}
 
-      {/* 3-panel layout */}
-      <Box style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Left — Node Palette */}
-        <ScrollArea
-          style={{
-            width: 260,
-            borderRight: "1px solid var(--mantine-color-gray-3)",
-            background: "var(--mantine-color-gray-0)",
-          }}
-          p="sm"
-        >
+          {canUpdate && serverPipelineId && (
+            <Tooltip label={pipeline.status === "active" ? "Pause" : "Activate"}>
+              <ActionIcon
+                variant="light"
+                size="md"
+                color={pipeline.status === "active" ? "warning" : "success"}
+                onClick={() => toggleStatusMutation.mutate()}
+                loading={toggleStatusMutation.isPending}
+                aria-label="Toggle status"
+              >
+                {pipeline.status === "active" ? (
+                  <IconToggleRight size={16} />
+                ) : (
+                  <IconToggleLeft size={16} />
+                )}
+              </ActionIcon>
+            </Tooltip>
+          )}
+
+          <Button
+            size="xs"
+            leftSection={<IconDeviceFloppy size={14} />}
+            onClick={() => saveMutation.mutate()}
+            loading={saveMutation.isPending}
+            disabled={!canSave || !pipeline.name || (!isDirty && Boolean(serverPipelineId))}
+          >
+            {serverPipelineId ? "Save" : "Create"}
+          </Button>
+        </div>
+      </div>
+
+      {/* ── 3-pane layout ── */}
+      <div className={s.panes}>
+        {/* Left — Palette */}
+        <div className={s.palette}>
           <NodePalette />
-        </ScrollArea>
+        </div>
 
         {/* Center — Canvas */}
-        <Box style={{ flex: 1, position: "relative", background: "var(--mantine-color-gray-1)" }}>
+        <div className={s.canvas}>
           <PipelineCanvas />
-        </Box>
+        </div>
 
-        {/* Right — Property Panel */}
-        <ScrollArea
-          style={{
-            width: 300,
-            borderLeft: "1px solid var(--mantine-color-gray-3)",
-            background: "white",
-          }}
-        >
+        {/* Right — Properties */}
+        <div className={s.props}>
           <NodePropertyPanel />
-        </ScrollArea>
-      </Box>
-    </Box>
+        </div>
+      </div>
+
+      {/* ── Trace panel ── */}
+      {serverPipelineId && (
+        <div className={s.trace}>
+          <div className={s.traceHead}>
+            <h5 className={s.traceTitle}>Last run</h5>
+            <div className={s.traceTabs}>
+              <button type="button" className={s.traceTabActive}>
+                Trace
+              </button>
+              <button type="button" className={s.traceTab}>
+                Inputs
+              </button>
+              <button type="button" className={s.traceTab}>
+                Outputs
+              </button>
+              <button type="button" className={s.traceTab}>
+                Logs
+              </button>
+            </div>
+            <span className={s.traceMeta}>
+              {pipeline.status === "active" ? "Ready" : pipeline.status}
+            </span>
+          </div>
+          <div className={s.traceBody}>
+            <div className={s.traceRow}>
+              <span className={s.traceTs}>—</span>
+              <span className={s.traceStageOk} />
+              <span className={s.traceWhat}>
+                No executions yet <i>trigger a test run to see trace</i>
+              </span>
+              <span className={s.traceDelta} />
+              <span className={s.traceMs} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,0 +1,42 @@
+#cloud-config
+# K3s server (control-plane) bootstrap on Debian 12 cloud-init image.
+# Installs K3s, joins or starts the cluster, then exits.
+# Tailscale + Flux + medbrains-server deploy come later via Flux.
+
+packages:
+  - curl
+  - apparmor
+  - apparmor-utils
+  - iptables
+  - ca-certificates
+  - jq
+  - rsync
+
+write_files:
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: '0644'
+    content: |
+      cluster-init: ${is_ha}
+      token: ${k3s_token}
+      write-kubeconfig-mode: "0644"
+      tls-san:
+        - ${cluster_id}.medbrains.internal
+      disable:
+        - traefik   # we use Cilium / Flux-shipped ingress instead
+      kube-controller-manager-arg:
+        - "node-monitor-period=20s"
+        - "node-monitor-grace-period=40s"
+
+  - path: /etc/medbrains/cluster-meta
+    permissions: '0644'
+    content: |
+      cluster_id=${cluster_id}
+      headscale_login=${headscale_login}
+      role=server
+
+runcmd:
+  - curl -fsSL https://get.k3s.io | INSTALL_K3S_VERSION=${k3s_version} sh -
+  - systemctl enable --now k3s
+  # Reachability check — the bootstrap script in the bridge-agent VM
+  # joins headscale; this server VM only needs DNS resolution to it.
+  - getent hosts $(echo ${headscale_login} | sed 's|^https*://||') || true

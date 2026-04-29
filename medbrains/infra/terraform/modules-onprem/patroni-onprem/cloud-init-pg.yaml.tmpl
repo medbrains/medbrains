@@ -1,0 +1,197 @@
+#cloud-config
+# Patroni PG VM bootstrap — Debian 12 on Proxmox.
+# Installs PG ${pg_version} from PGDG, Patroni ${patroni_version} from
+# PyPI, configures patroni.yml from the values below, formats and
+# mounts /dev/sdb (Proxmox scsi1) as XFS for pg_data, then starts
+# Patroni via systemd. Watchdog uses the kernel softdog module.
+
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - python3-pip
+  - python3-venv
+  - jq
+  - xfsprogs
+  - chrony
+
+write_files:
+  - path: /etc/medbrains/instance.env
+    permissions: '0644'
+    content: |
+      MEDBRAINS_CLUSTER_ID=${cluster_id}
+      MEDBRAINS_NODE_ID=${node_id}
+      MEDBRAINS_ETCD_PEERS=${etcd_peers_csv}
+      MEDBRAINS_SYNC_REPLICATION=${synchronous_replication}
+      MEDBRAINS_PG_VERSION=${pg_version}
+
+  - path: /usr/local/sbin/medbrains-bootstrap-debian.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # On-prem Patroni bootstrap (Debian 12).
+      set -euxo pipefail
+      source /etc/medbrains/instance.env
+
+      readonly LOG=/var/log/medbrains-bootstrap.log
+      exec > >(tee -a "$LOG") 2>&1
+
+      # PGDG repo
+      install -d /usr/share/postgresql-common/pgdg
+      curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+          -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+      echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+          > /etc/apt/sources.list.d/pgdg.list
+
+      apt-get update -y
+      apt-get install -y \
+          postgresql-$${MEDBRAINS_PG_VERSION} \
+          postgresql-contrib-$${MEDBRAINS_PG_VERSION} \
+          pgbackrest
+
+      # Stop default PG instance — Patroni will manage one
+      systemctl stop "postgresql@$${MEDBRAINS_PG_VERSION}-main" || true
+      systemctl disable "postgresql@$${MEDBRAINS_PG_VERSION}-main" || true
+
+      # Patroni in a venv to avoid conflicts with system pip
+      python3 -m venv /opt/patroni-venv
+      /opt/patroni-venv/bin/pip install --no-cache-dir \
+          'patroni[etcd3]==${patroni_version}' \
+          'psycopg[binary,pool]'
+
+      # Mount /dev/sdb as XFS for pg_data
+      mkdir -p /var/lib/medbrains/pg_data /var/lib/medbrains/pg_wal \
+               /var/lib/medbrains/wal-archive /etc/medbrains
+      if ! mountpoint -q /var/lib/medbrains/pg_data; then
+          if ! blkid /dev/sdb >/dev/null 2>&1; then
+              mkfs.xfs /dev/sdb
+          fi
+          echo '/dev/sdb /var/lib/medbrains/pg_data xfs defaults,noatime 0 2' >> /etc/fstab
+          mount -a
+      fi
+
+      # Postgres user — package creates it; ensure ownership
+      chown -R postgres:postgres /var/lib/medbrains
+      chmod 0700 /var/lib/medbrains/pg_data
+
+      # Resolve passwords from sops-encrypted file. Hospital admin drops
+      # /etc/medbrains/secrets/postgres.env via Flux/sops at deploy time.
+      # Until then we use a development fallback so the cluster boots.
+      if [[ -f /etc/medbrains/secrets/postgres.env ]]; then
+          source /etc/medbrains/secrets/postgres.env
+      else
+          POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          REPLICATOR_PASSWORD="$(openssl rand -hex 32)"
+          echo "WARNING: /etc/medbrains/secrets/postgres.env not present; using ephemeral passwords. Replace via Flux before production traffic."
+      fi
+
+      # Render patroni.yml
+      ETCD_HOSTS="$(echo $${MEDBRAINS_ETCD_PEERS} | sed 's/,/:2379,/g'):2379"
+      SYNC_BLOCK=""
+      if [[ "$${MEDBRAINS_SYNC_REPLICATION}" == "true" ]]; then
+          SYNC_BLOCK=$'  synchronous_mode: true\n  synchronous_mode_strict: false'
+      fi
+
+      PRIVATE_IP="$(hostname -I | awk '{print $1}')"
+
+      cat > /etc/medbrains/patroni.yml <<EOF
+      scope: $${MEDBRAINS_CLUSTER_ID}
+      namespace: /medbrains/
+      name: $${MEDBRAINS_NODE_ID}
+
+      restapi:
+        listen: 0.0.0.0:8008
+        connect_address: $${PRIVATE_IP}:8008
+
+      etcd3:
+        hosts: $${ETCD_HOSTS}
+
+      bootstrap:
+        dcs:
+          ttl: 30
+          loop_wait: 10
+          retry_timeout: 10
+          maximum_lag_on_failover: 1048576
+      $${SYNC_BLOCK}
+          postgresql:
+            use_pg_rewind: true
+            use_slots: true
+            parameters:
+              wal_level: replica
+              hot_standby: 'on'
+              wal_keep_size: 1GB
+              max_wal_senders: 10
+              max_replication_slots: 10
+              wal_log_hints: 'on'
+              archive_mode: 'on'
+              archive_command: 'pgbackrest --stanza=$${MEDBRAINS_CLUSTER_ID} archive-push %p'
+              archive_timeout: 60
+        initdb:
+          - encoding: UTF8
+          - data-checksums
+        pg_hba:
+          - host replication replicator 10.0.0.0/8 scram-sha-256
+          - host all all 10.0.0.0/8 scram-sha-256
+
+      postgresql:
+        listen: 0.0.0.0:5432
+        connect_address: $${PRIVATE_IP}:5432
+        data_dir: /var/lib/medbrains/pg_data
+        bin_dir: /usr/lib/postgresql/$${MEDBRAINS_PG_VERSION}/bin
+        authentication:
+          replication:
+            username: replicator
+            password: $${REPLICATOR_PASSWORD}
+          superuser:
+            username: postgres
+            password: $${POSTGRES_PASSWORD}
+        basebackup:
+          - max-rate: '100M'
+
+      watchdog:
+        mode: required
+        device: /dev/watchdog
+        safety_margin: 5
+      EOF
+
+      chown postgres:postgres /etc/medbrains/patroni.yml
+      chmod 0600 /etc/medbrains/patroni.yml
+
+      # Watchdog: load softdog
+      echo softdog | tee -a /etc/modules-load.d/softdog.conf
+      modprobe softdog || true
+      echo 'KERNEL=="watchdog", OWNER="postgres", GROUP="postgres", MODE="0660"' \
+          | tee /etc/udev/rules.d/61-watchdog.rules
+      udevadm control --reload-rules && udevadm trigger || true
+
+      # Patroni systemd unit
+      cat > /etc/systemd/system/patroni.service <<EOF
+      [Unit]
+      Description=Patroni PostgreSQL HA orchestrator (medbrains)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=postgres
+      Group=postgres
+      ExecStart=/opt/patroni-venv/bin/patroni /etc/medbrains/patroni.yml
+      KillMode=process
+      Restart=on-failure
+      RestartSec=5s
+      LimitNOFILE=65535
+      NoNewPrivileges=yes
+      ProtectSystem=full
+      ProtectHome=yes
+      PrivateTmp=yes
+      PrivateDevices=no
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+
+      systemctl daemon-reload
+      systemctl enable --now patroni.service
+
+runcmd:
+  - /usr/local/sbin/medbrains-bootstrap-debian.sh

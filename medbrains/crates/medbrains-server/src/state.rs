@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use jsonwebtoken::{DecodingKey, EncodingKey};
+use medbrains_db_topology::TopologyDispatcher;
+use medbrains_outbox::Registry as OutboxRegistry;
 use medbrains_yottadb::client::YottaDbClient;
 use sqlx::PgPool;
 
+use crate::middleware::system_state::SystemStateCache;
 use crate::routes::ws::QueueBroadcaster;
 
 /// Cookie configuration for `HttpOnly` cookie-based auth.
@@ -27,6 +30,16 @@ pub struct AppState {
     /// Trusted proxy CIDRs for X-Forwarded-For validation.
     /// Only trust forwarded headers if the direct connection is from one of these networks.
     pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
+    /// Sprint A.6: per-tenant system_state cache (normal/degraded/read_only).
+    pub system_state_cache: Arc<SystemStateCache>,
+    /// Sprint A.8: outbox handler registry for the worker.
+    pub outbox: Arc<OutboxRegistry>,
+    /// Sprint B.4.4: per-tenant DB topology router (Aurora vs Patroni).
+    /// Routes that need a tenant-specific pool call
+    /// `state.topology.writer_pool(tenant_id).await?` instead of
+    /// consuming `state.db` directly. Existing call sites are unchanged
+    /// — Aurora-default tenants still use `state.db`.
+    pub topology: Arc<dyn TopologyDispatcher>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -39,6 +52,9 @@ impl std::fmt::Debug for AppState {
             .field("cookie_config", &self.cookie_config)
             .field("queue_broadcaster", &self.queue_broadcaster)
             .field("trusted_proxies", &self.trusted_proxies.len())
+            .field("system_state_cache", &"Arc<SystemStateCache>")
+            .field("outbox", &"Arc<OutboxRegistry>")
+            .field("topology", &"Arc<dyn TopologyDispatcher>")
             .finish()
     }
 }

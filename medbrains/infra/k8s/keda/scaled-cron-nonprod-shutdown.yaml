@@ -1,0 +1,43 @@
+# KEDA ScaledObject — non-prod environments scale to zero overnight.
+# Saves ~60% of dev/staging EC2 spend.
+#
+# Apply ONLY in dev + staging clusters. Prod has different ScaledObject
+# with HPA-only behavior (no overnight shutdown).
+#
+# Targets: medbrains-server, medbrains-tenant-operator (no prod traffic
+# off-hours = nothing to serve). Outbox worker stays running so it can
+# drain accumulated events when scaled back up.
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: medbrains-server-overnight
+  namespace: medbrains-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: medbrains-server
+  pollingInterval: 60
+  cooldownPeriod: 300
+  minReplicaCount: 0   # KEDA permits 0 — saves ALL replicas overnight
+  maxReplicaCount: 30
+  fallback:
+    failureThreshold: 3
+    replicas: 2   # if KEDA itself fails, fall back to 2 replicas (don't drop to zero)
+  triggers:
+    # Cron-based scale-up at 08:00 IST weekdays (02:30 UTC)
+    - type: cron
+      metadata:
+        timezone: Asia/Kolkata
+        start: "0 8 * * 1-5"     # 08:00 IST Mon-Fri — back online
+        end: "0 20 * * 1-5"      # 20:00 IST Mon-Fri — scale to zero
+        desiredReplicas: "3"
+    # Once awake, layer on real-load-based scaling via the existing HPA's
+    # source metrics. KEDA wraps the HPA; both run together when desiredReplicas > 0.
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.observability:9090
+        metricName: req_p95_ms
+        threshold: "250"
+        query: avg(req_p95_ms{namespace="medbrains-app",pod=~"medbrains-server-.*"})

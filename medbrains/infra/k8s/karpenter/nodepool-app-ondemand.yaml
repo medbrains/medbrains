@@ -1,0 +1,50 @@
+# Karpenter NodePool — on-demand fallback for app workloads
+# Catches spot eviction surges + workloads that explicitly demand stable
+# nodes (outbox worker, audit verify-chain CronJob).
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: app-ondemand
+spec:
+  template:
+    metadata:
+      labels:
+        medbrains/pool: app-ondemand
+    spec:
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m", "r"]
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: ["2", "4", "8", "16"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["6"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+      taints:
+        - key: medbrains/capacity
+          value: on-demand
+          effect: NoSchedule    # only pods with explicit toleration land here
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      expireAfter: 720h    # monthly rotation — on-demand is steadier
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  limits:
+    cpu: 200
+  weight: 50    # used only when spot can't satisfy or pod tolerates the taint

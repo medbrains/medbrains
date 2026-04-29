@@ -1,0 +1,28 @@
+[Unit]
+Description=Patroni — PostgreSQL HA orchestrator (medbrains)
+Documentation=https://patroni.readthedocs.io/
+After=network-online.target medbrains-bootstrap.service
+Wants=network-online.target
+Requires=medbrains-bootstrap.service
+
+[Service]
+Type=simple
+User=postgres
+Group=postgres
+ExecStart=/usr/local/bin/patroni /etc/medbrains/patroni.yml
+KillMode=process
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+LimitNOFILE=65535
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+# PrivateDevices=no — need /dev/watchdog access (Patroni STONITH)
+PrivateDevices=no
+
+[Install]
+WantedBy=multi-user.target

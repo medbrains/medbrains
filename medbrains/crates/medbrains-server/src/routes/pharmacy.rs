@@ -15,8 +15,8 @@ use medbrains_core::pharmacy_phase2::{
     PharmacyTransferRequest,
 };
 use medbrains_core::pharmacy_phase3::{
-    PharmacyAllergyCheckLog, PharmacyPosSale, PharmacyPrescriptionRx, PharmacyPricingTier,
-    PharmacyStockReconciliation, PosDaySummary, RxQueueRow,
+    PharmacyAllergyCheckLog, PharmacyPosSale, PharmacyPosSaleItem, PharmacyPrescriptionRx,
+    PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary, RxQueueRow,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -391,6 +391,21 @@ pub async fn create_order(
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let result = create_order_in_tx(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
+    Ok(Json(result))
+}
+
+/// Transaction-scoped sibling of `create_order`. Used by order basket so
+/// multiple orders across modules commit atomically. Caller owns the tx
+/// + tenant context. Does NOT check permissions — caller must.
+pub async fn create_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+) -> Result<OrderDetailResponse, AppError> {
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one item is required".to_owned(),
@@ -398,9 +413,6 @@ pub async fn create_order(
     }
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
@@ -420,7 +432,7 @@ pub async fn create_order(
     .bind(body.discharge_summary_id)
     .bind(body.billing_package_id)
     .bind(body.store_location_id)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     let mut items = Vec::with_capacity(body.items.len());
@@ -440,13 +452,12 @@ pub async fn create_order(
         .bind(item.unit_price)
         .bind(total)
         .bind(item.quantity)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
         items.push(oi);
     }
 
-    tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, items }))
+    Ok(OrderDetailResponse { order, items })
 }
 
 // ══════════════════════════════════════════════════════════
@@ -671,15 +682,31 @@ pub async fn dispense_order(
 
     tx.commit().await?;
 
+    // Enrich payload with names for orchestration
+    let dispensed_patient_name = sqlx::query_scalar::<_, String>(
+        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
+    )
+    .bind(order.patient_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Unknown".to_owned());
+
+    let total_amount: Decimal = items.iter().map(|i| i.total_price).sum();
+
     // Emit integration event
-    let _ = crate::events::emit_event(
+    let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
-        "order.dispensed",
+        "pharmacy.order.dispensed",
         serde_json::json!({
             "order_id": order.id,
             "patient_id": order.patient_id,
+            "patient_name": dispensed_patient_name,
+            "items_count": items.len(),
+            "total_amount": total_amount.to_string(),
         }),
     )
     .await;
@@ -2687,6 +2714,262 @@ pub async fn pos_day_summary(
     Ok(Json(summary))
 }
 
+/// PUT /api/pharmacy/pos/sales/{id}/cancel — Full cancel POS sale, restore stock
+pub async fn cancel_pos_sale(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CancelPosSaleRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Get the POS sale
+    let sale = sqlx::query_as::<_, PharmacyPosSale>(
+        "SELECT * FROM pharmacy_pos_sales WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Get sale items
+    let items = sqlx::query_as::<_, PharmacyPosSaleItem>(
+        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    // Restore stock for each item
+    for item in &items {
+        if let Some(catalog_id) = item.catalog_item_id {
+            sqlx::query(
+                "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
+                 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(item.quantity)
+            .bind(catalog_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+
+            // Restore batch stock if tracked
+            if let Some(batch_id) = item.batch_id {
+                sqlx::query(
+                    "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
+                     quantity_dispensed = quantity_dispensed - $1 WHERE id = $2",
+                )
+                .bind(item.quantity)
+                .bind(batch_id)
+                .execute(&mut *tx)
+                .await?;
+            }
+
+            // Create reverse stock transaction
+            sqlx::query(
+                "INSERT INTO pharmacy_stock_transactions \
+                 (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, created_by) \
+                 VALUES ($1, $2, 'return', $3, $4, $5)",
+            )
+            .bind(claims.tenant_id)
+            .bind(catalog_id)
+            .bind(item.quantity)
+            .bind(id)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Mark all items as cancelled
+    sqlx::query(
+        "UPDATE pharmacy_pos_sale_items SET is_cancelled = true, cancelled_qty = quantity \
+         WHERE pos_sale_id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Mark sale as cancelled
+    sqlx::query(
+        "UPDATE pharmacy_pos_sales SET status = 'cancelled', cancelled_at = now(), \
+         cancelled_by = $3, cancel_reason = $4, refund_amount = total_amount \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(&body.reason)
+    .execute(&mut *tx)
+    .await?;
+
+    // Create refund payment transaction
+    sqlx::query(
+        "INSERT INTO pharmacy_payment_transactions \
+         (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
+         VALUES ($1, $2, 'cash', -$3, $4, $5)",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(sale.total_amount)
+    .bind(format!("REFUND-{}", sale.receipt_number.as_deref().unwrap_or("N/A")))
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(
+        json!({ "status": "cancelled", "refund_amount": sale.total_amount.to_string() }),
+    ))
+}
+
+/// PUT /api/pharmacy/pos/sales/{id}/return-items — Partial return: cancel specific items
+#[derive(Debug, Deserialize)]
+pub struct ReturnPosItemsRequest {
+    pub items: Vec<ReturnPosItem>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReturnPosItem {
+    pub item_id: Uuid,
+    pub return_qty: i32,
+    pub reason: Option<String>,
+}
+
+pub async fn return_pos_items(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReturnPosItemsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut total_refund = Decimal::ZERO;
+
+    for ret_item in &body.items {
+        // Get the sale item
+        let item = sqlx::query_as::<_, PharmacyPosSaleItem>(
+            "SELECT * FROM pharmacy_pos_sale_items \
+             WHERE id = $1 AND pos_sale_id = $2 AND tenant_id = $3",
+        )
+        .bind(ret_item.item_id)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        let return_qty = ret_item.return_qty.min(item.quantity);
+        if return_qty <= 0 {
+            continue;
+        }
+
+        let refund_amount = item.selling_price * Decimal::from(return_qty);
+        total_refund += refund_amount;
+
+        // Mark item as partially/fully cancelled
+        let is_full = return_qty >= item.quantity;
+        sqlx::query(
+            "UPDATE pharmacy_pos_sale_items SET \
+             is_cancelled = $3, cancelled_qty = COALESCE(cancelled_qty, 0) + $4, \
+             cancel_reason = $5 \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(ret_item.item_id)
+        .bind(claims.tenant_id)
+        .bind(is_full)
+        .bind(return_qty)
+        .bind(ret_item.reason.as_deref().or(body.reason.as_deref()))
+        .execute(&mut *tx)
+        .await?;
+
+        // Restore stock
+        if let Some(catalog_id) = item.catalog_item_id {
+            sqlx::query(
+                "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
+                 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(return_qty)
+            .bind(catalog_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+
+            if let Some(batch_id) = item.batch_id {
+                sqlx::query(
+                    "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
+                     quantity_dispensed = quantity_dispensed - $1 WHERE id = $2",
+                )
+                .bind(return_qty)
+                .bind(batch_id)
+                .execute(&mut *tx)
+                .await?;
+            }
+
+            // Reverse stock transaction
+            sqlx::query(
+                "INSERT INTO pharmacy_stock_transactions \
+                 (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, created_by) \
+                 VALUES ($1, $2, 'return', $3, $4, $5)",
+            )
+            .bind(claims.tenant_id)
+            .bind(catalog_id)
+            .bind(return_qty)
+            .bind(id)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Update sale status + refund amount
+    sqlx::query(
+        "UPDATE pharmacy_pos_sales SET \
+         status = CASE \
+           WHEN (SELECT COUNT(*) FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND NOT COALESCE(is_cancelled, false)) = 0 \
+           THEN 'cancelled' ELSE 'partially_cancelled' END, \
+         refund_amount = COALESCE(refund_amount, 0) + $3 \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(total_refund)
+    .execute(&mut *tx)
+    .await?;
+
+    // Create refund payment
+    if total_refund > Decimal::ZERO {
+        sqlx::query(
+            "INSERT INTO pharmacy_payment_transactions \
+             (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
+             VALUES ($1, $2, 'cash', -$3, $4, $5)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(total_refund)
+        .bind(format!("PARTIAL-REFUND-{id}"))
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(Json(json!({
+        "status": "partial_return",
+        "items_returned": body.items.len(),
+        "refund_amount": total_refund.to_string(),
+    })))
+}
+
 // ══════════════════════════════════════════════════════════
 //  Phase 3: Pricing
 // ══════════════════════════════════════════════════════════
@@ -3059,6 +3342,11 @@ pub struct PosSaleItemInput {
 pub struct PosSalesQuery {
     pub payment_mode: Option<String>,
     pub date: Option<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CancelPosSaleRequest {
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

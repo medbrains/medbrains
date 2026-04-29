@@ -1,0 +1,101 @@
+---
+# etcd cluster install — bare-metal Debian/Ubuntu.
+- hosts: etcd
+  gather_facts: yes
+  vars:
+    etcd_version: "{{ etcd_version }}"
+    cluster_id: "{{ cluster_id }}"
+    etcd_hosts_csv: "{{ etcd_hosts_csv }}"
+
+  tasks:
+    - name: Install prerequisites
+      apt:
+        name: [curl, ca-certificates]
+        update_cache: yes
+        state: present
+
+    - name: Detect arch
+      set_fact:
+        etcd_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+
+    - name: Download etcd binary
+      unarchive:
+        src: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_arch }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: yes
+        extra_opts:
+          - "--strip-components=1"
+          - "--wildcards"
+          - "*/etcd"
+          - "*/etcdctl"
+
+    - name: Create etcd user + dirs
+      block:
+        - user:
+            name: etcd
+            system: yes
+            shell: /sbin/nologin
+            home: /var/lib/etcd
+        - file:
+            path: "{{ item }}"
+            state: directory
+            owner: etcd
+            group: etcd
+            mode: '0700'
+          loop:
+            - /var/lib/etcd
+            - /etc/etcd
+
+    - name: Build initial-cluster string
+      set_fact:
+        etcd_initial_cluster: >-
+          {%- set hosts = etcd_hosts_csv.split(',') -%}
+          {%- for h in hosts -%}
+          etcd-{{ loop.index }}=http://{{ h }}:2380{% if not loop.last %},{% endif %}
+          {%- endfor -%}
+
+    - name: Render /etc/etcd/etcd.conf
+      copy:
+        dest: /etc/etcd/etcd.conf
+        owner: etcd
+        group: etcd
+        mode: '0644'
+        content: |
+          ETCD_NAME="{{ etcd_node_id }}"
+          ETCD_DATA_DIR=/var/lib/etcd
+          ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+          ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+          ETCD_ADVERTISE_CLIENT_URLS=http://{{ ansible_default_ipv4.address }}:2379
+          ETCD_INITIAL_ADVERTISE_PEER_URLS=http://{{ ansible_default_ipv4.address }}:2380
+          ETCD_INITIAL_CLUSTER_TOKEN={{ cluster_id }}-etcd
+          ETCD_INITIAL_CLUSTER_STATE=new
+          ETCD_INITIAL_CLUSTER={{ etcd_initial_cluster }}
+
+    - name: Install etcd systemd unit
+      copy:
+        dest: /etc/systemd/system/etcd.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=etcd (medbrains Patroni DCS)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=notify
+          User=etcd
+          EnvironmentFile=/etc/etcd/etcd.conf
+          ExecStart=/usr/local/bin/etcd
+          Restart=on-failure
+          RestartSec=5s
+          LimitNOFILE=65536
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable + start etcd
+      systemd:
+        name: etcd
+        daemon_reload: yes
+        enabled: yes
+        state: started
