@@ -3,6 +3,7 @@ mod config;
 mod heartbeat;
 mod hl7_listener;
 mod ingest;
+mod transport;
 
 use anyhow::Result;
 use clap::Parser;
@@ -28,9 +29,24 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cfg = config::BridgeConfig::load(&cli.config)?;
 
+    // Resolve transport (Headscale tailnet / WSS fallback / no-op).
+    // Verifying health here means a misconfigured tunnel fails the
+    // daemon at startup rather than surfacing later as a 502 storm.
+    let transport = transport::build(&cfg)?;
+    info!(transport = %transport.name(), "transport selected");
+    transport.verify_health().await?;
+
+    // The resolved cloud URL is what subsequent reqwest calls SHOULD
+    // hit. For headscale that's usually identical to api_base; for
+    // wss it's the bridge-ingress proxy. Logged once at startup so
+    // ops can confirm the routing decision.
+    let resolved_cloud_url = transport.cloud_url(&cfg.api_base);
+
     info!(
         name = %cfg.agent_name,
         api_base = %cfg.api_base,
+        resolved_cloud_url = %resolved_cloud_url,
+        transport = %transport.name(),
         "starting MedBrains bridge agent"
     );
 
