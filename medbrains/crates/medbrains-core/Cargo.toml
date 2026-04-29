@@ -14,5 +14,18 @@ chrono = { workspace = true }
 sqlx = { workspace = true }
 rust_decimal = { workspace = true }
 
+# Hybrid deploy mode infrastructure (deploy_mode + secrets +
+# audit_sink + object_store + jwt_signer modules). tokio for async fs;
+# async-trait for the trait Sigs; ed25519-dalek for the local JWT
+# signer. These are runtime traits, not domain types — the crate
+# description still holds for the rest of the modules.
+tokio = { workspace = true }
+async-trait = { workspace = true }
+ed25519-dalek = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

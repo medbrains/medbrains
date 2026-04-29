@@ -65,6 +65,11 @@ url = "2"
 
 # Async streams (WebSocket)
 futures = "0.3"
+async-trait = "0.1"
+
+# Hybrid deploy mode — local Ed25519 JWT signer + tests
+ed25519-dalek = "2"
+tempfile = "3"
 
 # HTTP client (for YottaDB REST)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
