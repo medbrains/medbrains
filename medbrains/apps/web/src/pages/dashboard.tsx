@@ -1,6 +1,7 @@
 import {
   Badge,
   Box,
+  Button,
   Card,
   Divider,
   Grid,
@@ -15,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import type { RecentActivity } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -29,17 +31,53 @@ import {
   IconHeartbeat,
   IconReceipt,
   IconServer,
+  IconSettings,
   IconStethoscope,
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
 import { PageHeader, StatCard } from "../components";
 
+export function DashboardPage() {
+  useRequirePermission(P.DASHBOARD.VIEW);
+  const { t } = useTranslation("dashboard");
+  const navigate = useNavigate();
+  const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+
+  return <DefaultDashboard navigate={navigate} canManage={canManage} t={t} />;
+}
+
+// ── Default Dashboard ───────────────────────────────────
+
 const quickActions = [
-  { label: "Register Patient", description: "Add a new patient record", icon: IconUserPlus, color: "primary", path: "/patients" },
-  { label: "New OPD Visit", description: "Create outpatient visit", icon: IconStethoscope, color: "teal", path: "/opd" },
-  { label: "Lab Order", description: "Request lab investigation", icon: IconFlask, color: "orange", path: "/lab" },
-  { label: "Generate Invoice", description: "Create billing invoice", icon: IconReceipt, color: "violet", path: "/billing" },
+  {
+    label: "Register Patient",
+    description: "Add a new patient record",
+    icon: IconUserPlus,
+    color: "primary",
+    path: "/patients",
+  },
+  {
+    label: "New OPD Visit",
+    description: "Create outpatient visit",
+    icon: IconStethoscope,
+    color: "teal",
+    path: "/opd",
+  },
+  {
+    label: "Lab Order",
+    description: "Request lab investigation",
+    icon: IconFlask,
+    color: "orange",
+    path: "/lab",
+  },
+  {
+    label: "Generate Invoice",
+    description: "Create billing invoice",
+    icon: IconReceipt,
+    color: "violet",
+    path: "/billing",
+  },
 ];
 
 const ACTIVITY_ICON_MAP: Record<string, { icon: typeof IconActivity; color: string }> = {
@@ -61,26 +99,41 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function CardHeader({ title }: { title: string }) {
+function CardHeader({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
   return (
     <>
       <Group justify="space-between" px="lg" py="sm">
         <Text size="sm" fw={600} c="var(--mb-text-primary)">{title}</Text>
+        {action && (
+          <Text
+            size="xs"
+            c="var(--mantine-color-primary-5)"
+            fw={500}
+            style={{ cursor: "pointer" }}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Text>
+        )}
       </Group>
       <Divider />
     </>
   );
 }
 
-export function DashboardPage() {
-  useRequirePermission(P.DASHBOARD.VIEW);
-  const { t } = useTranslation("dashboard");
-  const navigate = useNavigate();
-
+function DefaultDashboard({
+  navigate,
+  canManage,
+  t,
+}: {
+  navigate: ReturnType<typeof useNavigate>;
+  canManage: boolean;
+  t: (key: string) => string;
+}) {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: () => api.getDashboardStats(),
-    refetchInterval: 30_000,
+    refetchInterval: 30_000, // refresh every 30s
   });
 
   const formatRevenue = (val: string) => {
@@ -98,8 +151,21 @@ export function DashboardPage() {
         subtitle={t("overview")}
         icon={<IconDashboard size={20} stroke={1.5} />}
         color="primary"
+        actions={
+          canManage ? (
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconSettings size={14} />}
+              onClick={() => navigate("/admin/settings#dashboards")}
+            >
+              {t("customize")}
+            </Button>
+          ) : undefined
+        }
       />
 
+      {/* Stat Cards — Row 1 */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="md">
         <StatCard
           label={t("stats.totalPatients")}
@@ -129,6 +195,7 @@ export function DashboardPage() {
         />
       </SimpleGrid>
 
+      {/* Stat Cards — Row 2 */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl">
         <StatCard
           label={t("stats.appointments")}
@@ -144,6 +211,7 @@ export function DashboardPage() {
         />
       </SimpleGrid>
 
+      {/* Quick Actions + Activity */}
       <Grid mb="xl">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card padding={0}>
@@ -164,12 +232,21 @@ export function DashboardPage() {
                     gap: 12,
                   }}
                 >
-                  <ThemeIcon variant="light" color={action.color} size={40} radius="lg">
+                  <ThemeIcon
+                    variant="light"
+                    color={action.color}
+                    size={40}
+                    radius="lg"
+                  >
                     <action.icon size={20} stroke={1.5} />
                   </ThemeIcon>
                   <div style={{ flex: 1 }}>
-                    <Text size="sm" fw={600} c="var(--mb-text-primary)">{action.label}</Text>
-                    <Text size="xs" c="var(--mb-text-muted)">{action.description}</Text>
+                    <Text size="sm" fw={600} c="var(--mb-text-primary)">
+                      {action.label}
+                    </Text>
+                    <Text size="xs" c="var(--mb-text-muted)">
+                      {action.description}
+                    </Text>
                   </div>
                   <IconArrowRight size={16} color="var(--mb-text-muted)" />
                 </UnstyledButton>
@@ -189,14 +266,24 @@ export function DashboardPage() {
                   return (
                     <Box key={i}>
                       <Group gap="sm" wrap="nowrap" align="flex-start" px="lg" py="sm">
-                        <ThemeIcon variant="light" color={meta.color} size={28} radius="lg" mt={2}>
+                        <ThemeIcon
+                          variant="light"
+                          color={meta.color}
+                          size={28}
+                          radius="lg"
+                          mt={2}
+                        >
                           <ActivityIcon size={14} stroke={1.5} />
                         </ThemeIcon>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text size="sm" c="var(--mb-text-primary)" lh={1.3}>{item.description}</Text>
+                          <Text size="sm" c="var(--mb-text-primary)" lh={1.3}>
+                            {item.description}
+                          </Text>
                           <Group gap={4} mt={2}>
                             <IconClock size={11} color="var(--mb-text-muted)" />
-                            <Text size="xs" c="var(--mb-text-muted)">{timeAgo(item.occurred_at)}</Text>
+                            <Text size="xs" c="var(--mb-text-muted)">
+                              {timeAgo(item.occurred_at)}
+                            </Text>
                           </Group>
                         </div>
                       </Group>
@@ -205,13 +292,16 @@ export function DashboardPage() {
                   );
                 })
               ) : (
-                <Text size="sm" c="dimmed" ta="center" py="lg">No recent activity</Text>
+                <Text size="sm" c="dimmed" ta="center" py="lg">
+                  No recent activity
+                </Text>
               )}
             </Stack>
           </Card>
         </Grid.Col>
       </Grid>
 
+      {/* Bottom — Module Status + System Health */}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <Card padding={0}>
           <CardHeader title={t("moduleStatus.title")} />
@@ -238,28 +328,36 @@ export function DashboardPage() {
           <Stack gap="sm" p="lg">
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg"><IconServer size={14} /></ThemeIcon>
+                <ThemeIcon variant="light" color="success" size={24} radius="lg">
+                  <IconServer size={14} />
+                </ThemeIcon>
                 <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.apiServer")}</Text>
               </Group>
               <Badge color="success" variant="light" size="sm">Healthy</Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg"><IconServer size={14} /></ThemeIcon>
+                <ThemeIcon variant="light" color="success" size={24} radius="lg">
+                  <IconServer size={14} />
+                </ThemeIcon>
                 <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.postgresql")}</Text>
               </Group>
               <Badge color="success" variant="light" size="sm">Connected</Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon variant="light" color="slate" size={24} radius="lg"><IconServer size={14} /></ThemeIcon>
+                <ThemeIcon variant="light" color="slate" size={24} radius="lg">
+                  <IconServer size={14} />
+                </ThemeIcon>
                 <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.yottadb")}</Text>
               </Group>
               <Badge color="slate" variant="light" size="sm">Deferred</Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg"><IconHeartbeat size={14} /></ThemeIcon>
+                <ThemeIcon variant="light" color="success" size={24} radius="lg">
+                  <IconHeartbeat size={14} />
+                </ThemeIcon>
                 <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.uptime")}</Text>
               </Group>
               <Text size="xs" c="var(--mb-text-secondary)" fw={500}>99.9%</Text>

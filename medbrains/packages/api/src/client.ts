@@ -11102,4 +11102,231 @@ export const api = {
     request<{ deleted: boolean }>(`/admin/coverage/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+
+  // ══════════════════════════════════════════════════════════════════
+  // Nurse Activities
+  // ══════════════════════════════════════════════════════════════════
+
+  // MAR
+  listMarDueNow: (params?: { window_min?: number; patient_id?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.window_min !== undefined) qs.set("window_min", String(params.window_min));
+    if (params?.patient_id) qs.set("patient_id", params.patient_id);
+    const q = qs.toString();
+    return request<unknown[]>(`/nurse/mar/due-now${q ? `?${q}` : ""}`);
+  },
+  administerMar: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/nurse/mar/${id}/administer`, { method: "PUT", body: JSON.stringify(data) }),
+  holdMar: (id: string, data: { reason: string }) =>
+    request<unknown>(`/nurse/mar/${id}/hold`, { method: "PUT", body: JSON.stringify(data) }),
+  refuseMar: (id: string, data: { reason: string }) =>
+    request<unknown>(`/nurse/mar/${id}/refuse`, { method: "PUT", body: JSON.stringify(data) }),
+  listMarForPatient: (patient_id: string) =>
+    request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
+
+  // Vitals schedules
+  listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.encounter_id) qs.set("encounter_id", params.encounter_id);
+    if (params?.due_only) qs.set("due_only", "true");
+    const q = qs.toString();
+    return request<unknown[]>(`/nurse/vitals-schedules${q ? `?${q}` : ""}`);
+  },
+  createVitalsSchedule: (data: { encounter_id: string; frequency_minutes: number }) =>
+    request<unknown>("/nurse/vitals-schedules", { method: "POST", body: JSON.stringify(data) }),
+  endVitalsSchedule: (id: string) =>
+    request<unknown>(`/nurse/vitals-schedules/${id}/end`, { method: "PUT" }),
+
+  // Intake/Output
+  createIoEntry: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/io-entries", { method: "POST", body: JSON.stringify(data) }),
+  listIoForEncounter: (encounter_id: string) =>
+    request<unknown[]>(`/nurse/io-entries/encounter/${encounter_id}`),
+  getEncounterIoBalance: (encounter_id: string, since_hours?: number) => {
+    const qs = since_hours !== undefined ? `?since_hours=${since_hours}` : "";
+    return request<unknown>(`/nurse/io-entries/encounter/${encounter_id}/balance${qs}`);
+  },
+
+  // Pain
+  createPainEntry: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/pain-entries", { method: "POST", body: JSON.stringify(data) }),
+  listPainForEncounter: (encounter_id: string) =>
+    request<unknown[]>(`/nurse/pain-entries/encounter/${encounter_id}`),
+
+  // Fall risk
+  createFallRisk: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/fall-risk", { method: "POST", body: JSON.stringify(data) }),
+  listFallRiskForEncounter: (encounter_id: string) =>
+    request<unknown[]>(`/nurse/fall-risk/encounter/${encounter_id}`),
+
+  // Restraint
+  createRestraintEvent: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/restraint-events", { method: "POST", body: JSON.stringify(data) }),
+  listRestraintForOrder: (restraint_order_id: string) =>
+    request<unknown[]>(`/nurse/restraint-events/order/${restraint_order_id}`),
+
+  // Wound
+  createWound: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/wounds", { method: "POST", body: JSON.stringify(data) }),
+  listWoundsForEncounter: (encounter_id: string) =>
+    request<unknown[]>(`/nurse/wounds/encounter/${encounter_id}`),
+
+  // Handoff (SBAR)
+  createHandoff: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/handoffs", { method: "POST", body: JSON.stringify(data) }),
+  acceptHandoff: (id: string) =>
+    request<unknown>(`/nurse/handoffs/${id}/accept`, { method: "PUT" }),
+  listHandoffsForEncounter: (encounter_id: string) =>
+    request<unknown[]>(`/nurse/handoffs/encounter/${encounter_id}`),
+
+  // Code Blue
+  listCodeBlue: (params?: { active_only?: boolean; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.active_only) qs.set("active_only", "true");
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
+  },
+  startCodeBlue: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/code-blue", { method: "POST", body: JSON.stringify(data) }),
+  appendCodeBlueEntry: (id: string, data: { field: string; entry: unknown }) =>
+    request<unknown>(`/nurse/code-blue/${id}/append`, { method: "PUT", body: JSON.stringify(data) }),
+  endCodeBlue: (id: string, data: { outcome: string; notes?: string }) =>
+    request<unknown>(`/nurse/code-blue/${id}/end`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Equipment checks
+  listEquipmentChecks: (params?: { location_id?: string; overdue_only?: boolean; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.location_id) qs.set("location_id", params.location_id);
+    if (params?.overdue_only) qs.set("overdue_only", "true");
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/nurse/equipment-checks${q ? `?${q}` : ""}`);
+  },
+  createEquipmentCheck: (data: Record<string, unknown>) =>
+    request<unknown>("/nurse/equipment-checks", { method: "POST", body: JSON.stringify(data) }),
+
+  // ══════════════════════════════════════════════════════════════════
+  // Pharmacy Improvements
+  // ══════════════════════════════════════════════════════════════════
+
+  // Repeats
+  checkRepeatEligibility: (prescription_id: string) =>
+    request<unknown>(`/pharmacy/prescriptions/${prescription_id}/repeat-eligibility`),
+  listRepeatsForRx: (prescription_id: string) =>
+    request<unknown[]>(`/pharmacy/prescriptions/${prescription_id}/repeats`),
+  dispenseRepeat: (prescription_id: string, data: { pharmacy_order_id: string; notes?: string }) =>
+    request<unknown>(`/pharmacy/prescriptions/${prescription_id}/repeats`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Substitutions
+  createSubstitution: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/substitutions", { method: "POST", body: JSON.stringify(data) }),
+  listSubstitutionsForItem: (item_id: string) =>
+    request<unknown[]>(`/pharmacy/substitutions/item/${item_id}`),
+
+  // Counseling
+  createCounseling: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/counseling", { method: "POST", body: JSON.stringify(data) }),
+  listCounselingForOrder: (order_id: string) =>
+    request<unknown[]>(`/pharmacy/counseling/order/${order_id}`),
+
+  // Coverage checks
+  createCoverageCheck: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/coverage-checks", { method: "POST", body: JSON.stringify(data) }),
+  listCoverageForOrder: (order_id: string) =>
+    request<unknown[]>(`/pharmacy/coverage-checks/order/${order_id}`),
+
+  // ══════════════════════════════════════════════════════════════════
+  // Pharmacy Finance
+  // ══════════════════════════════════════════════════════════════════
+
+  // Cash drawer
+  listCashDrawers: (params?: { status?: string; cashier_user_id?: string; pharmacy_location_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.cashier_user_id) qs.set("cashier_user_id", params.cashier_user_id);
+    if (params?.pharmacy_location_id) qs.set("pharmacy_location_id", params.pharmacy_location_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/cash-drawers${q ? `?${q}` : ""}`);
+  },
+  openCashDrawer: (data: { pharmacy_location_id: string; opening_float: number; notes?: string }) =>
+    request<unknown>("/pharmacy/cash-drawers", { method: "POST", body: JSON.stringify(data) }),
+  closeCashDrawer: (id: string, data: { actual_close_amount: number; variance_reason?: string; notes?: string }) =>
+    request<unknown>(`/pharmacy/cash-drawers/${id}/close`, { method: "PUT", body: JSON.stringify(data) }),
+  getMyActiveCashDrawer: () =>
+    request<unknown | null>("/pharmacy/cash-drawers/me/active"),
+
+  // Petty cash
+  listPettyCash: (params?: { status?: string; cash_drawer_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.cash_drawer_id) qs.set("cash_drawer_id", params.cash_drawer_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/petty-cash${q ? `?${q}` : ""}`);
+  },
+  createPettyCash: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/petty-cash", { method: "POST", body: JSON.stringify(data) }),
+  decidePettyCash: (id: string, data: { approved: boolean; notes?: string }) =>
+    request<unknown>(`/pharmacy/petty-cash/${id}/decide`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Cash float movements
+  listCashFloatMovements: () =>
+    request<unknown[]>("/pharmacy/cash-float-movements"),
+  createCashFloatMovement: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/cash-float-movements", { method: "POST", body: JSON.stringify(data) }),
+
+  // Free dispensings
+  listFreeDispensings: (params?: { category?: string; from_date?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.from_date) qs.set("from_date", params.from_date);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/free-dispensings${q ? `?${q}` : ""}`);
+  },
+  approveFreeDispensing: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/free-dispensings", { method: "POST", body: JSON.stringify(data) }),
+
+  // Cashier overrides
+  listCashierOverrides: (params?: { cashier_user_id?: string; override_type?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.cashier_user_id) qs.set("cashier_user_id", params.cashier_user_id);
+    if (params?.override_type) qs.set("override_type", params.override_type);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/cashier-overrides${q ? `?${q}` : ""}`);
+  },
+  createCashierOverride: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/cashier-overrides", { method: "POST", body: JSON.stringify(data) }),
+
+  // Supplier payments (pharmacy-scoped — distinct from procurement supplier payments)
+  listPharmacySupplierPayments: (params?: { status?: string; supplier_id?: string; overdue_only?: boolean; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.supplier_id) qs.set("supplier_id", params.supplier_id);
+    if (params?.overdue_only) qs.set("overdue_only", "true");
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/supplier-payments${q ? `?${q}` : ""}`);
+  },
+  createPharmacySupplierPayment: (data: Record<string, unknown>) =>
+    request<unknown>("/pharmacy/supplier-payments", { method: "POST", body: JSON.stringify(data) }),
+  payPharmacySupplier: (id: string, data: { paid_amount: number; payment_mode: string; utr_number?: string }) =>
+    request<unknown>(`/pharmacy/supplier-payments/${id}/pay`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Drug margins
+  listDrugMargins: (params?: { from_date?: string; to_date?: string; drug_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.from_date) qs.set("from_date", params.from_date);
+    if (params?.to_date) qs.set("to_date", params.to_date);
+    if (params?.drug_id) qs.set("drug_id", params.drug_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<unknown[]>(`/pharmacy/drug-margins/daily${q ? `?${q}` : ""}`);
+  },
 };

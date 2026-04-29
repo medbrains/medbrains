@@ -36,7 +36,7 @@ import { P } from "@medbrains/types";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader, StatusDot } from "../components";
-import { PatientRegistrationForm } from "../components/PatientRegistrationForm";
+import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const PER_PAGE = 20;
@@ -100,6 +100,7 @@ function buildFullName(patient: Patient): string {
   ].filter(Boolean);
   return parts.join(" ");
 }
+
 
 // #endregion
 
@@ -351,7 +352,7 @@ export function PatientsPage() {
         size="100%"
         padding="md"
       >
-        <PatientRegistrationForm
+        <PatientRegisterForm
           quickMode={quickMode}
           onSubmit={handleRegisterSubmit}
           onCancel={() => setDrawerOpen(false)}
