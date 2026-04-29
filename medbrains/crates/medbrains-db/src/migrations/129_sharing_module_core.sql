@@ -51,8 +51,16 @@ CREATE TABLE access_group_members (
     PRIMARY KEY (group_id, user_id)
 );
 
+-- Partial index covering non-expiring memberships. We can't use
+-- `expires_at > now()` here because now() is STABLE, not IMMUTABLE,
+-- and Postgres rejects mutable functions in index predicates (CLAUDE.md
+-- migration pitfall). Time-bound rows still get covered by the
+-- secondary index below. Query layer filters with `expires_at IS NULL
+-- OR expires_at > now()` at runtime.
 CREATE INDEX idx_agm_user ON access_group_members(tenant_id, user_id)
-    WHERE expires_at IS NULL OR expires_at > now();
+    WHERE expires_at IS NULL;
+CREATE INDEX idx_agm_user_expiring ON access_group_members(tenant_id, user_id, expires_at)
+    WHERE expires_at IS NOT NULL;
 SELECT apply_tenant_rls('access_group_members');
 
 -- ── relation_tuples — the unified sharing store ────────────────────
