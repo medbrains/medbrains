@@ -188,6 +188,7 @@ pub fn build_router(state: AppState) -> Router {
         // Auth
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
         // Onboarding progress
         .route(

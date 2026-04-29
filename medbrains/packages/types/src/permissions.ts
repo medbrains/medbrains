@@ -436,6 +436,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "admin.users.create", label: "Create User", description: "Create new user accounts", module: "admin" },
   { code: "admin.users.update", label: "Update User", description: "Modify user accounts", module: "admin" },
   { code: "admin.users.delete", label: "Delete User", description: "Remove user accounts", module: "admin" },
+  { code: "admin.users.force_logout", label: "Force User Logout", description: "Force a user to be logged out of all devices and re-authenticate", module: "admin" },
 
   // Admin — Roles
   { code: "admin.roles.list", label: "List Roles", description: "View role definitions", module: "admin" },
@@ -1319,6 +1320,7 @@ export const P = {
       CREATE: "admin.users.create",
       UPDATE: "admin.users.update",
       DELETE: "admin.users.delete",
+      FORCE_LOGOUT: "admin.users.force_logout",
     },
     ROLES: {
       LIST: "admin.roles.list",

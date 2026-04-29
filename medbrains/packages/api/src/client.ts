@@ -1997,6 +1997,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  /**
+   * Revoke every active session for a user.
+   * Self-logout when `user_id` is omitted; admin-initiated when set
+   * (requires `admin.users.force_logout`).
+   */
+  logoutAll: (user_id?: string) =>
+    request<{ status: string }>("/auth/logout-all", {
+      method: "POST",
+      body: JSON.stringify(user_id ? { user_id } : {}),
+    }),
   changePassword: (data: { current_password: string; new_password: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
