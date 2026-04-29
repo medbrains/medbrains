@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mantine/core": "^9.0.0",
+    "@tabler/icons-react": "^3.40.0",
     "idb": "^8.0.3",
     "loro-crdt": "^1.4.0"
   },
