@@ -43,6 +43,10 @@ dev-fast: ## Start everything (skip compile check — use when already compiled)
 dev-backend: db ## Start database + backend only
 	SQLX_OFFLINE=false cargo run
 
+dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
+	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
+	@cargo run -p medbrains-edge-app -- --config apps/edge/etc/medbrains-edge/dev.toml
+
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web
 

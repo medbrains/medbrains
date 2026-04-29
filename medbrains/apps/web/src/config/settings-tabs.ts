@@ -6,6 +6,7 @@ import {
   IconCash,
   IconChartBar,
   IconClock,
+  IconCloudOff,
   IconDashboard,
   IconForms,
   IconHash,
@@ -55,6 +56,7 @@ import { SystemHealthSettings } from "../pages/admin/settings/SystemHealthSettin
 import { UnitsLocaleSettings } from "../pages/admin/settings/UnitsLocaleSettings";
 import { UsersRolesSettings } from "../pages/admin/settings/UsersRolesSettings";
 import { ClinicalConfigSettings } from "../pages/admin/settings/ClinicalConfigSettings";
+import { OfflineModeSettings } from "../pages/admin/settings/OfflineModeSettings";
 
 export interface SettingsTabConfig {
   value: string;
@@ -256,6 +258,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     requiredPermission: "admin.settings.general.manage",
     component: SystemHealthSettings,
   },
+  {
+    value: "offline-mode",
+    i18nKey: "settings.offlineMode",
+    icon: "IconCloudOff",
+    requiredPermission: "admin.settings.general.manage",
+    component: OfflineModeSettings,
+  },
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
@@ -286,4 +295,5 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconListCheck,
   IconChartBar,
   IconHeartRateMonitor,
+  IconCloudOff,
 };

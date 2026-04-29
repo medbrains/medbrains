@@ -84,3 +84,6 @@ apps/web/allure-results/
 *.tfplan
 crash.log
 crash.*.log
+
+# medbrains-edge dev state (Loro docs + Merkle chain)
+var/

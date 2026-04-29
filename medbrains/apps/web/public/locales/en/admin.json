@@ -29,5 +29,6 @@
   "settings.deptHours": "Dept Hours",
   "settings.setupWizard": "Setup Wizard",
   "settings.masterData": "Master Data",
-  "settings.systemHealth": "System Health"
+  "settings.systemHealth": "System Health",
+  "settings.offlineMode": "Offline Mode"
 }

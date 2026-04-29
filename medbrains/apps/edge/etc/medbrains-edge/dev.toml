@@ -1,0 +1,13 @@
+# Local-dev config for the medbrains-edge appliance.
+# Run with: `make dev-edge` (or `cargo run -p medbrains-edge-app -- --config apps/edge/etc/medbrains-edge/dev.toml`)
+#
+# State directories live under ./var/medbrains-edge/ which is gitignored.
+# Open browser tabs at http://localhost:5173 (web app) with offline_mode = true
+# and edge_url = "ws://localhost:7811" set in tenant settings → vitals/notes/etc.
+# converge across tabs.
+
+listen        = "0.0.0.0:7811"
+mdns_hostname = "medbrains-edge-dev.local."
+service_name  = "medbrains-edge-dev"
+docs_path     = "./var/medbrains-edge/docs"
+chain_path    = "./var/medbrains-edge/chain"
