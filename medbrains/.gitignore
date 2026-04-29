@@ -75,3 +75,12 @@ qa/allure-report/
 qa/allure-*/
 qa/kiwi-results/
 apps/web/allure-results/
+
+# Terraform local state + provider caches (~700MB per module)
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log

@@ -1,0 +1,56 @@
+---
+# K3s agent install — bare-metal.
+- hosts: agents
+  gather_facts: yes
+  vars:
+    cluster_id: "{{ cluster_id }}"
+    k3s_version: "{{ k3s_version }}"
+    k3s_token: "{{ k3s_token }}"
+    server_host: "{{ server_host }}"
+
+  tasks:
+    - name: Install prerequisites
+      apt:
+        name:
+          - curl
+          - apparmor
+          - apparmor-utils
+          - iptables
+          - ca-certificates
+        update_cache: yes
+        state: present
+
+    - name: Render /etc/medbrains/cluster-meta
+      copy:
+        dest: /etc/medbrains/cluster-meta
+        mode: '0644'
+        content: |
+          cluster_id={{ cluster_id }}
+          role=agent
+          server_ip={{ server_host }}
+
+    - name: Wait for K3s server API
+      uri:
+        url: "https://{{ server_host }}:6443/healthz"
+        validate_certs: no
+        status_code: [200, 401, 403]
+      retries: 24
+      delay: 5
+      register: k3sapi
+      until: k3sapi.status in [200, 401, 403]
+
+    - name: Install K3s as agent
+      shell: |
+        curl -fsSL https://get.k3s.io | \
+          INSTALL_K3S_VERSION={{ k3s_version }} \
+          K3S_URL=https://{{ server_host }}:6443 \
+          K3S_TOKEN={{ k3s_token }} \
+          sh -
+      args:
+        creates: /usr/local/bin/k3s-agent
+
+    - name: Ensure k3s-agent running
+      systemd:
+        name: k3s-agent
+        state: started
+        enabled: yes

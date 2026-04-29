@@ -1664,3 +1664,104 @@ pub mod order_basket {
     pub const DRAFT: &str = "clinical.order_basket.draft";
     pub const VIEW_AUDIT: &str = "clinical.order_basket.view_audit";
 }
+
+pub mod nurse {
+    pub mod profile {
+        pub const VIEW: &str = "nurse.profile.view";
+        pub const MANAGE: &str = "nurse.profile.manage";
+    }
+    pub mod shift {
+        pub const VIEW: &str = "nurse.shift.view";
+        pub const MANAGE: &str = "nurse.shift.manage";
+    }
+    pub mod mar {
+        pub const VIEW: &str = "nurse.mar.view";
+        pub const ADMINISTER: &str = "nurse.mar.administer";
+        pub const HOLD: &str = "nurse.mar.hold";
+        pub const REFUSE: &str = "nurse.mar.refuse";
+    }
+    pub mod vitals {
+        pub const VIEW: &str = "nurse.vitals.view";
+        pub const RECORD: &str = "nurse.vitals.record";
+    }
+    pub mod intake_output {
+        pub const VIEW: &str = "nurse.intake_output.view";
+        pub const RECORD: &str = "nurse.intake_output.record";
+    }
+    pub mod restraint {
+        pub const VIEW: &str = "nurse.restraint.view";
+        pub const RECORD: &str = "nurse.restraint.record";
+    }
+    pub mod pain {
+        pub const VIEW: &str = "nurse.pain.view";
+        pub const RECORD: &str = "nurse.pain.record";
+    }
+    pub mod wound {
+        pub const VIEW: &str = "nurse.wound.view";
+        pub const RECORD: &str = "nurse.wound.record";
+    }
+    pub mod fall_risk {
+        pub const VIEW: &str = "nurse.fall_risk.view";
+        pub const RECORD: &str = "nurse.fall_risk.record";
+    }
+    pub mod handoff {
+        pub const VIEW: &str = "nurse.handoff.view";
+        pub const RECORD: &str = "nurse.handoff.record";
+    }
+    pub mod code_blue {
+        pub const VIEW: &str = "nurse.code_blue.view";
+        pub const RECORD: &str = "nurse.code_blue.record";
+    }
+    pub mod equipment {
+        pub const VIEW: &str = "nurse.equipment.view";
+        pub const RECORD: &str = "nurse.equipment.record";
+    }
+    pub mod dashboard {
+        pub const VIEW: &str = "nurse.dashboard.view";
+    }
+}
+
+pub mod pharmacy_improvements {
+    pub mod repeats {
+        pub const VIEW: &str = "pharmacy_improvements.repeats.view";
+        pub const DISPENSE: &str = "pharmacy_improvements.repeats.dispense";
+    }
+    pub mod substitution {
+        pub const VIEW: &str = "pharmacy_improvements.substitution.view";
+        pub const RECORD: &str = "pharmacy_improvements.substitution.record";
+    }
+    pub mod counseling {
+        pub const VIEW: &str = "pharmacy_improvements.counseling.view";
+        pub const RECORD: &str = "pharmacy_improvements.counseling.record";
+    }
+    pub mod coverage {
+        pub const VIEW: &str = "pharmacy_improvements.coverage.view";
+        pub const CHECK: &str = "pharmacy_improvements.coverage.check";
+    }
+}
+
+pub mod pharmacy_finance {
+    pub mod cash_drawer {
+        pub const VIEW: &str = "pharmacy_finance.cash_drawer.view";
+        pub const OPEN: &str = "pharmacy_finance.cash_drawer.open";
+        pub const CLOSE: &str = "pharmacy_finance.cash_drawer.close";
+    }
+    pub mod petty_cash {
+        pub const VIEW: &str = "pharmacy_finance.petty_cash.view";
+        pub const RECORD: &str = "pharmacy_finance.petty_cash.record";
+    }
+    pub mod free_dispensing {
+        pub const VIEW: &str = "pharmacy_finance.free_dispensing.view";
+        pub const APPROVE: &str = "pharmacy_finance.free_dispensing.approve";
+    }
+    pub mod supplier_payments {
+        pub const VIEW: &str = "pharmacy_finance.supplier_payments.view";
+        pub const MANAGE: &str = "pharmacy_finance.supplier_payments.manage";
+    }
+    pub mod cashier_audit {
+        pub const VIEW: &str = "pharmacy_finance.cashier_audit.view";
+    }
+    pub mod finance_reports {
+        pub const VIEW: &str = "pharmacy_finance.finance_reports.view";
+    }
+}

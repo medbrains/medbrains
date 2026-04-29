@@ -43,6 +43,10 @@ pub mod lab;
 pub mod lms;
 pub mod mrd;
 pub mod multi_hospital;
+pub mod nurse_clinical;
+pub mod nurse_handoff;
+pub mod nurse_mar;
+pub mod nurse_vitals;
 pub mod occ_health;
 pub mod onboarding;
 pub mod coverage;
@@ -60,8 +64,13 @@ pub mod signed_documents;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;
+pub mod pharmacy_cash_drawer;
+pub mod pharmacy_dispense_ops;
 pub mod pharmacy_finance;
+pub mod pharmacy_free_dispensing;
 pub mod pharmacy_payments;
+pub mod pharmacy_petty_cash;
+pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
@@ -1836,6 +1845,189 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/pharmacy/settlements/{id}/verify",
             put(pharmacy_payments::verify_settlement),
+        )
+        // ── Pharmacy Improvements: Repeats ─────────────────
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility",
+            get(pharmacy_repeats::check_eligibility),
+        )
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeats",
+            get(pharmacy_repeats::list_repeats_for_rx)
+                .post(pharmacy_repeats::dispense_repeat),
+        )
+        // ── Pharmacy Finance: Cash Drawer ──────────────────
+        .route(
+            "/api/pharmacy/cash-drawers",
+            get(pharmacy_cash_drawer::list_drawers)
+                .post(pharmacy_cash_drawer::open_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/me/active",
+            get(pharmacy_cash_drawer::get_my_active_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/{id}/close",
+            put(pharmacy_cash_drawer::close_drawer),
+        )
+        // ── Nurse Activities: MAR ──────────────────────────
+        .route("/api/nurse/mar/due-now", get(nurse_mar::list_due_now))
+        .route("/api/nurse/mar/{id}/administer", put(nurse_mar::administer))
+        .route("/api/nurse/mar/{id}/hold", put(nurse_mar::hold))
+        .route("/api/nurse/mar/{id}/refuse", put(nurse_mar::refuse))
+        .route(
+            "/api/nurse/mar/patient/{patient_id}",
+            get(nurse_mar::list_for_patient),
+        )
+        // ── Nurse Activities: Vitals + I/O + Pain + Fall Risk
+        .route(
+            "/api/nurse/vitals-schedules",
+            get(nurse_vitals::list_vitals_schedules)
+                .post(nurse_vitals::create_vitals_schedule),
+        )
+        .route(
+            "/api/nurse/vitals-schedules/{id}/end",
+            put(nurse_vitals::end_vitals_schedule),
+        )
+        .route(
+            "/api/nurse/io-entries",
+            post(nurse_vitals::create_io_entry),
+        )
+        .route(
+            "/api/nurse/io-entries/encounter/{encounter_id}",
+            get(nurse_vitals::list_io_for_encounter),
+        )
+        .route(
+            "/api/nurse/io-entries/encounter/{encounter_id}/balance",
+            get(nurse_vitals::io_balance),
+        )
+        .route(
+            "/api/nurse/pain-entries",
+            post(nurse_vitals::create_pain_entry),
+        )
+        .route(
+            "/api/nurse/pain-entries/encounter/{encounter_id}",
+            get(nurse_vitals::list_pain_for_encounter),
+        )
+        .route(
+            "/api/nurse/fall-risk",
+            post(nurse_vitals::create_fall_risk),
+        )
+        .route(
+            "/api/nurse/fall-risk/encounter/{encounter_id}",
+            get(nurse_vitals::list_fall_risk_for_encounter),
+        )
+        // ── Nurse Activities: Restraint + Wound ────────────
+        .route(
+            "/api/nurse/restraint-events",
+            post(nurse_clinical::create_restraint_event),
+        )
+        .route(
+            "/api/nurse/restraint-events/order/{restraint_order_id}",
+            get(nurse_clinical::list_restraint_for_order),
+        )
+        .route(
+            "/api/nurse/wounds",
+            post(nurse_clinical::create_wound),
+        )
+        .route(
+            "/api/nurse/wounds/encounter/{encounter_id}",
+            get(nurse_clinical::list_wounds_for_encounter),
+        )
+        // ── Nurse Activities: Handoff + Code Blue + Equipment
+        .route(
+            "/api/nurse/handoffs",
+            post(nurse_handoff::create_handoff),
+        )
+        .route(
+            "/api/nurse/handoffs/{id}/accept",
+            put(nurse_handoff::accept_handoff),
+        )
+        .route(
+            "/api/nurse/handoffs/encounter/{encounter_id}",
+            get(nurse_handoff::list_handoffs_for_encounter),
+        )
+        .route(
+            "/api/nurse/code-blue",
+            get(nurse_handoff::list_code_blue)
+                .post(nurse_handoff::start_code_blue),
+        )
+        .route(
+            "/api/nurse/code-blue/{id}/append",
+            put(nurse_handoff::append_code_blue_entry),
+        )
+        .route(
+            "/api/nurse/code-blue/{id}/end",
+            put(nurse_handoff::end_code_blue),
+        )
+        .route(
+            "/api/nurse/equipment-checks",
+            get(nurse_handoff::list_equipment_checks)
+                .post(nurse_handoff::create_equipment_check),
+        )
+        // ── Pharmacy Improvements: Substitution + Counseling + Coverage
+        .route(
+            "/api/pharmacy/substitutions",
+            post(pharmacy_dispense_ops::create_substitution),
+        )
+        .route(
+            "/api/pharmacy/substitutions/item/{item_id}",
+            get(pharmacy_dispense_ops::list_substitutions_for_item),
+        )
+        .route(
+            "/api/pharmacy/counseling",
+            post(pharmacy_dispense_ops::create_counseling),
+        )
+        .route(
+            "/api/pharmacy/counseling/order/{order_id}",
+            get(pharmacy_dispense_ops::list_counseling_for_order),
+        )
+        .route(
+            "/api/pharmacy/coverage-checks",
+            post(pharmacy_dispense_ops::create_coverage_check),
+        )
+        .route(
+            "/api/pharmacy/coverage-checks/order/{order_id}",
+            get(pharmacy_dispense_ops::list_coverage_for_order),
+        )
+        // ── Pharmacy Finance: Petty Cash + Float Movements ─
+        .route(
+            "/api/pharmacy/petty-cash",
+            get(pharmacy_petty_cash::list_petty_cash)
+                .post(pharmacy_petty_cash::create_petty_cash),
+        )
+        .route(
+            "/api/pharmacy/petty-cash/{id}/decide",
+            put(pharmacy_petty_cash::decide_petty_cash),
+        )
+        .route(
+            "/api/pharmacy/cash-float-movements",
+            get(pharmacy_petty_cash::list_float_movements)
+                .post(pharmacy_petty_cash::create_float_movement),
+        )
+        // ── Pharmacy Finance: Free Dispensing + Overrides + Suppliers + Margins
+        .route(
+            "/api/pharmacy/free-dispensings",
+            get(pharmacy_free_dispensing::list_free_dispensings)
+                .post(pharmacy_free_dispensing::approve_free_dispensing),
+        )
+        .route(
+            "/api/pharmacy/cashier-overrides",
+            get(pharmacy_free_dispensing::list_cashier_overrides)
+                .post(pharmacy_free_dispensing::create_cashier_override),
+        )
+        .route(
+            "/api/pharmacy/supplier-payments",
+            get(pharmacy_free_dispensing::list_supplier_payments)
+                .post(pharmacy_free_dispensing::create_supplier_payment),
+        )
+        .route(
+            "/api/pharmacy/supplier-payments/{id}/pay",
+            put(pharmacy_free_dispensing::pay_supplier),
+        )
+        .route(
+            "/api/pharmacy/drug-margins/daily",
+            get(pharmacy_free_dispensing::list_margins),
         )
         // ── Indent / Store ─────────────────────────────────
         .route(

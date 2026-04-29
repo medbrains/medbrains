@@ -1,0 +1,60 @@
+scope: {{ cluster_id }}
+namespace: /medbrains/
+name: {{ pg_node_id }}
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: {{ ansible_default_ipv4.address }}:8008
+
+etcd3:
+  hosts: {% for h in etcd_hosts_csv.split(',') %}{{ h }}:2379{% if not loop.last %},{% endif %}{% endfor %}
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+{% if synchronous_replication == 'True' or synchronous_replication == 'true' %}
+    synchronous_mode: true
+    synchronous_mode_strict: false
+{% endif %}
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        wal_level: replica
+        hot_standby: 'on'
+        wal_keep_size: 1GB
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_log_hints: 'on'
+        archive_mode: 'on'
+        archive_command: 'pgbackrest --stanza={{ cluster_id }} archive-push %p'
+        archive_timeout: 60
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  pg_hba:
+    - host replication replicator 10.0.0.0/8 scram-sha-256
+    - host all all 10.0.0.0/8 scram-sha-256
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: {{ ansible_default_ipv4.address }}:5432
+  data_dir: /var/lib/medbrains/pg_data
+  bin_dir: /usr/lib/postgresql/{{ pg_version }}/bin
+  authentication:
+    replication:
+      username: replicator
+      password: "{{ lookup('env', 'REPLICATOR_PASSWORD') | default('CHANGE_ME_VIA_SOPS', true) }}"
+    superuser:
+      username: postgres
+      password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('CHANGE_ME_VIA_SOPS', true) }}"
+  basebackup:
+    - max-rate: '100M'
+
+watchdog:
+  mode: required
+  device: /dev/watchdog
+  safety_margin: 5

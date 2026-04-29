@@ -1,0 +1,155 @@
+---
+# Patroni install — bare-metal Debian 12 / Ubuntu 24.04.
+- hosts: patroni
+  gather_facts: yes
+  vars:
+    pg_version: "{{ pg_version }}"
+    patroni_version: "{{ patroni_version }}"
+    cluster_id: "{{ cluster_id }}"
+    etcd_hosts_csv: "{{ etcd_hosts_csv }}"
+    pg_data_block_device: "{{ pg_data_block_device }}"
+    synchronous_replication: "{{ synchronous_replication }}"
+
+  tasks:
+    - name: PGDG apt key + repo
+      block:
+        - apt_key:
+            url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+            keyring: /usr/share/keyrings/pgdg.gpg
+            state: present
+        - apt_repository:
+            repo: "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+            state: present
+            filename: pgdg
+
+    - name: Install PG + Patroni deps
+      apt:
+        name:
+          - "postgresql-{{ pg_version }}"
+          - "postgresql-contrib-{{ pg_version }}"
+          - pgbackrest
+          - python3-pip
+          - python3-venv
+          - jq
+          - xfsprogs
+        update_cache: yes
+        state: present
+
+    - name: Stop default PG instance
+      systemd:
+        name: "postgresql@{{ pg_version }}-main"
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Patroni venv
+      pip:
+        name:
+          - "patroni[etcd3]=={{ patroni_version }}"
+          - "psycopg[binary,pool]"
+        virtualenv: /opt/patroni-venv
+        virtualenv_command: python3 -m venv
+
+    - name: Create dirs
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+      loop:
+        - /var/lib/medbrains
+        - /var/lib/medbrains/pg_data
+        - /var/lib/medbrains/wal-archive
+        - /etc/medbrains
+
+    - name: Format + mount data disk (when configured)
+      block:
+        - filesystem:
+            fstype: xfs
+            dev: "{{ pg_data_block_device }}"
+        - mount:
+            path: /var/lib/medbrains/pg_data
+            src: "{{ pg_data_block_device }}"
+            fstype: xfs
+            opts: defaults,noatime
+            state: mounted
+      when: pg_data_block_device | length > 0
+
+    - name: Re-set ownership on pg_data after mount
+      file:
+        path: /var/lib/medbrains/pg_data
+        owner: postgres
+        group: postgres
+        mode: '0700'
+        state: directory
+
+    - name: Generate dev-fallback passwords if no sops file
+      shell: |
+        if [[ ! -f /etc/medbrains/secrets/postgres.env ]]; then
+            mkdir -p /etc/medbrains/secrets
+            cat > /etc/medbrains/secrets/postgres.env <<EOF
+        POSTGRES_PASSWORD=$(openssl rand -hex 32)
+        REPLICATOR_PASSWORD=$(openssl rand -hex 32)
+        EOF
+            chmod 0600 /etc/medbrains/secrets/postgres.env
+        fi
+      args:
+        creates: /etc/medbrains/secrets/postgres.env
+
+    - name: Render patroni.yml
+      template:
+        src: patroni.yml.j2
+        dest: /etc/medbrains/patroni.yml
+        owner: postgres
+        group: postgres
+        mode: '0600'
+
+    - name: Load softdog
+      block:
+        - copy:
+            dest: /etc/modules-load.d/softdog.conf
+            content: "softdog\n"
+        - modprobe:
+            name: softdog
+            state: present
+        - copy:
+            dest: /etc/udev/rules.d/61-watchdog.rules
+            content: 'KERNEL=="watchdog", OWNER="postgres", GROUP="postgres", MODE="0660"'
+        - shell: udevadm control --reload-rules && udevadm trigger
+          changed_when: false
+
+    - name: Patroni systemd unit
+      copy:
+        dest: /etc/systemd/system/patroni.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Patroni PostgreSQL HA orchestrator (medbrains)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=postgres
+          Group=postgres
+          ExecStart=/opt/patroni-venv/bin/patroni /etc/medbrains/patroni.yml
+          KillMode=process
+          Restart=on-failure
+          RestartSec=5s
+          LimitNOFILE=65535
+          NoNewPrivileges=yes
+          ProtectSystem=full
+          ProtectHome=yes
+          PrivateTmp=yes
+          PrivateDevices=no
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable + start patroni
+      systemd:
+        name: patroni
+        daemon_reload: yes
+        enabled: yes
+        state: started
