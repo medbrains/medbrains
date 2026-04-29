@@ -9,6 +9,8 @@ members = [
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-bridge",
     "crates/medbrains-proxy",
+    "crates/medbrains-edge",
+    "apps/edge",
 ]
 
 [workspace.package]
@@ -73,6 +75,15 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # AI / LLM
 rig-core = { version = "0.35", features = ["derive"] }
 schemars = "1"
+
+# CRDT (Loro) — offline-first replication. Sprint C foundation.
+loro = "1.4"
+
+# LAN service discovery for the edge sync hub
+mdns-sd = "0.13"
+
+# Test deps
+tempfile = "3"
 
 # ── Build profiles ──────────────────────────────────────────
 

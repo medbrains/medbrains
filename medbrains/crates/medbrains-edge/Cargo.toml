@@ -1,0 +1,45 @@
+[package]
+name = "medbrains-edge"
+description = "Offline-first edge sync for hospital deployments — Loro CRDT-backed LAN sync hub. Open-source under Apache-2.0."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "Apache-2.0"
+
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+
+# Async runtime + WebSocket sync server
+tokio = { workspace = true }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# CRDT engine
+loro = { workspace = true }
+
+# LAN service discovery (mDNS)
+mdns-sd = { workspace = true }
+
+# Serialization + types
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Errors
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Hashing for the Merkle audit chain
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true
