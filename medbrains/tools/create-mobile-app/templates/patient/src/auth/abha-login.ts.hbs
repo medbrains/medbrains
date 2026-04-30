@@ -1,0 +1,26 @@
+/**
+ * ABHA login stub — wire to the NHA consumer endpoint after
+ * registration. Returns a `TenantIdentity` the shell signs in with.
+{{#unless abdm}}
+ *
+ * NOTE: ABDM ABHA login was disabled at scaffold time. Toggle on by
+ * passing `abdm=true` to medbrains-create-mobile-app or by replacing
+ * this stub with your hospital's standard auth.
+{{/unless}}
+ */
+
+import type { TenantIdentity } from "@medbrains/mobile-shell";
+
+export interface AbhaLoginResult {
+  identity: TenantIdentity;
+  refreshToken?: string;
+}
+
+export async function abhaLogin(
+  _abhaToken: string,
+): Promise<AbhaLoginResult> {
+  // Replace with a real call to your tenant's `/api/portal/abha/login`
+  // endpoint. The server validates the ABHA token, issues a JWT,
+  // and returns the identity.
+  throw new Error("abhaLogin: implement against your tenant's NHA endpoint");
+}

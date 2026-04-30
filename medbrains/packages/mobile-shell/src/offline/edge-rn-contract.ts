@@ -1,74 +1,36 @@
 /**
- * TypeScript contract for the `@medbrains/edge-rn-bindings` package
- * that the `@medbrains/uniffi-rn-plugin` Expo config plugin emits at
- * host-app prebuild time.
+ * Re-exports from `@medbrains/edge-rn-bindings`. The bindings
+ * package is a placeholder workspace package whose `lib/` is
+ * overwritten at host-app prebuild by `@medbrains/uniffi-rn-plugin`
+ * (running `uniffi-bindgen-react-native`). Consumers depend on the
+ * package, not this file — this re-export exists so internal
+ * mobile-shell modules import from one place.
  *
- * The plugin runs `uniffi-bindgen-react-native` which writes a real
- * implementation; this file declares the *shape* we depend on so
- * `mobile-shell` typechecks standalone. Keep it in lockstep with
- * `crates/medbrains-edge-rn/src/edge_rn.udl`.
+ * Source of truth for the wire format:
+ *   crates/medbrains-edge-rn/src/edge_rn.udl
  */
 
-export interface JwtClaims {
-  sub: string;
-  tenantId: string;
-  iat: number;
-  exp: number;
-  departmentIds: ReadonlyArray<string>;
-  permissions: ReadonlyArray<string>;
-  role: string | null;
-}
+export type {
+  AuthzCacheHandle,
+  CacheKey,
+  CacheSourceKind,
+  CheckOutcome,
+  DenyReasonKind,
+  JwtClaims,
+  JwtOutcome,
+  OfflinePolicyKind,
+  RevocationCacheHandle,
+} from "@medbrains/edge-rn-bindings";
 
-export type JwtOutcome =
-  | { tag: "Valid"; claims: JwtClaims }
-  | { tag: "Expired" }
-  | { tag: "NotYetValid" }
-  | { tag: "InvalidSignature" }
-  | { tag: "Malformed"; reason: string };
-
-export interface CacheKey {
-  tenantId: string;
-  userId: string;
-  objectType: string;
-  objectId: string;
-  action: string;
-}
-
-export type CacheSourceKind =
-  | "CloudFresh"
-  | "CloudCached"
-  | "JwtFallback"
-  | "OnlineRequiredDeny";
-
-export type DenyReasonKind =
-  | "CacheMissStrict"
-  | "JwtLacksPermission"
-  | "OnlineRequired"
-  | "Expired";
-
-export type CheckOutcome =
-  | { tag: "Allow"; source: CacheSourceKind }
-  | { tag: "Deny"; reason: DenyReasonKind };
-
-export type OfflinePolicyKind = "CacheOnly" | "CacheThenJwt" | "OnlineRequired";
-
-export interface AuthzCacheHandle {
-  checkOffline(
-    key: CacheKey,
-    jwtPermissions: ReadonlyArray<string>,
-    policy: OfflinePolicyKind,
-  ): CheckOutcome;
-  record(key: CacheKey, allowed: boolean, source: CacheSourceKind): void;
-  invalidate(keys: ReadonlyArray<CacheKey>): void;
-}
-
-export interface RevocationCacheHandle {
-  recordRevocation(userId: string, revokedAtUnix: number): void;
-  isRevoked(userId: string, jwtIatUnix: number): boolean;
-  pullWindowMax(): number;
-  forget(userId: string): void;
-  len(): number;
-}
+import type {
+  AuthzCacheHandle,
+  CacheKey,
+  CacheSourceKind,
+  CheckOutcome,
+  JwtOutcome,
+  OfflinePolicyKind,
+  RevocationCacheHandle,
+} from "@medbrains/edge-rn-bindings";
 
 export interface EdgeRnBindings {
   verifyJwt(
@@ -91,3 +53,13 @@ export interface EdgeRnBindings {
     capacity: number,
   ) => RevocationCacheHandle;
 }
+
+// Helper imports re-exported as values for downstream code that
+// wants to construct cache keys etc. without a transitive dep on
+// the bindings package directly.
+export type {
+  CacheKey as ExportedCacheKey,
+  CheckOutcome as ExportedCheckOutcome,
+  CacheSourceKind as ExportedCacheSourceKind,
+  OfflinePolicyKind as ExportedOfflinePolicyKind,
+};

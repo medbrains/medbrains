@@ -1,0 +1,44 @@
+{
+  "name": "@medbrains/{{id}}",
+  "private": true,
+  "version": "0.1.0",
+  "description": "{{displayName}} — generated from medbrains-create-mobile-app, variant: {{variant}}",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --clean",
+    "build:dev:ios": "eas build --profile development --platform ios",
+    "build:dev:android": "eas build --profile development --platform android",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/"
+  },
+  "dependencies": {
+    "@medbrains/api": "workspace:*",
+    "@medbrains/mobile-shell": "workspace:*",
+    "@medbrains/types": "workspace:*",
+    "@medbrains/ui-mobile": "workspace:*",
+    "@react-navigation/native": "^7.1.33",
+    "@react-navigation/native-stack": "^7.14.4",
+    "@tanstack/react-query": "^5.90.21",
+    "expo": "^54.0.0",
+    "expo-camera": "^15.0.0",
+    "expo-local-authentication": "^14.0.0",
+    "expo-secure-store": "^13.0.0",
+    "expo-status-bar": "^2.0.0",
+    "react": "^19.2.4",
+    "react-native": "^0.84.1",
+    "react-native-paper": "^5.15.0",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "^4.10.0",
+    "zustand": "^5.0.11"{{#if isTv}},
+    "@react-native-tvos/config-tv": "^0.1.0"{{/if}}{{#if offlineFirst}},
+    "@medbrains/uniffi-rn-plugin": "workspace:*"{{/if}}
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.6",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

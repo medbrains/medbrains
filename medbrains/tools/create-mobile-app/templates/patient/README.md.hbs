@@ -1,0 +1,34 @@
+# {{displayName}}
+
+Public-store patient app generated from the **patient** template.
+
+## Distribution
+
+- EAS Build profile: `production` → store distribution (App Store +
+  Play Store)
+- Listing files: `apps/{{id}}/store/` (you'll add metadata + screenshots)
+- ABDM compliance markers in `app.json` for PHR consumer checks
+{{#if abdm}}- ABHA login flow stubbed in `src/auth/abha-login.ts` —
+  wire the consumer endpoint registered with NHA
+{{/if}}
+
+## Pre-wired
+
+- `Shell` variant `patient` with biometric **recommended** (skippable
+  for accessibility, App Store review compliance)
+- `expo-secure-store` for JWT + (optionally) ABHA token
+- DPDP-aligned consent revocation flow scaffold
+
+## Modules generated
+
+{{#each moduleEntries}}- `{{this.id}}` — {{this.displayName}}
+{{/each}}
+
+## Next steps
+
+1. Run `pnpm install` from the workspace root.
+2. `pnpm --filter @medbrains/{{id}} typecheck`
+3. `pnpm --filter @medbrains/{{id}} prebuild`
+4. `pnpm --filter @medbrains/{{id}} start` to run on the Expo Go dev
+   client (or `build:dev:ios` for a custom build with secure store).
+5. Submit to TestFlight + Play Console internal track via `eas submit`.

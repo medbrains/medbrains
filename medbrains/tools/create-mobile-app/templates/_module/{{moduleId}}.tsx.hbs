@@ -1,0 +1,31 @@
+/**
+ * {{moduleId}} module placeholder. Replace this scaffold with real
+ * screens. The Module contract guarantees the shell will only mount
+ * this navigator when the user has every permission listed in
+ * `requiredPermissions`.
+ */
+
+import { View } from "react-native";
+import { Text } from "react-native-paper";
+import { Card, COLORS } from "@medbrains/ui-mobile";
+import type { Module } from "@medbrains/mobile-shell";
+
+function {{moduleSymbol}}Screen() {
+  return (
+    <View style={{ flex: 1, padding: 16, backgroundColor: COLORS.canvas }}>
+      <Card eyebrow="MODULE" title="{{moduleId}}">
+        <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
+          Replace this placeholder with the real {{moduleId}} workflow.
+        </Text>
+      </Card>
+    </View>
+  );
+}
+
+export const {{moduleSymbol}}Module: Module = {
+  id: "{{moduleId}}",
+  displayName: "{{moduleDisplayName}}",
+  icon: () => null,
+  requiredPermissions: [],
+  navigator: {{moduleSymbol}}Screen,
+};

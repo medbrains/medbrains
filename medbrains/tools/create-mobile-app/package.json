@@ -1,0 +1,13 @@
+{
+  "name": "@medbrains/create-mobile-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Scaffolds Expo Prebuild mobile/TV apps wired to @medbrains/mobile-shell + @medbrains/ui-mobile + @medbrains/uniffi-rn-plugin. Variants: staff (MDM-distributed clinical), patient (public-store + ABHA), tv (Android TV kiosk), vendor (skeleton).",
+  "type": "module",
+  "bin": {
+    "medbrains-create-mobile-app": "./src/index.mjs"
+  },
+  "scripts": {
+    "test": "node --test src/render.test.mjs"
+  }
+}

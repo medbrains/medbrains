@@ -21,9 +21,7 @@ export async function loadEdgeRnBindings(): Promise<EdgeRnBindings> {
   if (cached) {
     return cached;
   }
-  const mod = (await import(
-    /* @vite-ignore */ "@medbrains/edge-rn-bindings"
-  )) as unknown as EdgeRnBindings;
-  cached = mod;
-  return mod;
+  const mod = await import("@medbrains/edge-rn-bindings");
+  cached = mod as unknown as EdgeRnBindings;
+  return cached;
 }
