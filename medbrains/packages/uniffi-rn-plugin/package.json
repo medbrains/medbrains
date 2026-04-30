@@ -1,0 +1,31 @@
+{
+  "name": "@medbrains/uniffi-rn-plugin",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Expo config plugin that builds the medbrains-edge-rn Rust crate and wires it into the host Expo app's iOS staticlib + Android jniLibs. Wraps uniffi-bindgen-react-native to generate TypeScript Turbo Module bindings.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@expo/config-plugins": "^9.0.0"
+  },
+  "peerDependencies": {
+    "expo": ">=51"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^2.0.0"
+  }
+}
