@@ -1,3 +1,4 @@
+use medbrains_authz::AuthzContext;
 use uuid::Uuid;
 
 use crate::{error::AppError, middleware::auth::Claims};
@@ -76,6 +77,26 @@ pub fn require_ownership(
         return Ok(());
     }
     Err(AppError::Forbidden)
+}
+
+/// Build a `medbrains-authz::AuthzContext` from JWT claims.
+///
+/// Bridge from request-time identity (Claims) to the resource-scoped
+/// permission resolver (`state.authz.check(...)`). Bypass roles are
+/// flagged so the SpiceDB backend short-circuits without a network
+/// round-trip.
+///
+/// Group memberships are NOT loaded here — the resolver looks them up
+/// from `access_group_members` so JWTs stay small. If hot-path latency
+/// ever demands it, add a `groups` Vec to Claims + populate at login.
+pub fn authz_context(claims: &Claims) -> AuthzContext {
+    AuthzContext {
+        tenant_id: claims.tenant_id,
+        user_id: claims.sub,
+        role: claims.role.clone(),
+        department_ids: claims.department_ids.clone(),
+        is_bypass: is_bypass_role(claims),
+    }
 }
 
 /// Check if user owns a resource (non-error version).
