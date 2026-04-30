@@ -1,0 +1,49 @@
+{
+  "title": "Outbox Queue Depth",
+  "uid": "medbrains-outbox",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["medbrains", "outbox"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Pending events",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (event_type) (medbrains_outbox_pending_count)",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Retrying events",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (event_type) (medbrains_outbox_retrying_count)",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "DLQ depth",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (event_type) (medbrains_outbox_dlq_count)",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 }
+    }
+  ]
+}
