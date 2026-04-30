@@ -42,6 +42,7 @@ pub mod it_security;
 pub mod lab;
 pub mod lms;
 pub mod mrd;
+pub mod abdm;
 pub mod multi_hospital;
 pub mod nurse_clinical;
 pub mod clinical_offline;
@@ -1847,6 +1848,27 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/pharmacy/settlements/{id}/verify",
             put(pharmacy_payments::verify_settlement),
+        )
+        // ── ABDM (Phase 11): HFR registration + gateway HIP relay ─
+        .route(
+            "/api/abdm/hfr",
+            get(abdm::hfr::list_registrations).post(abdm::hfr::register),
+        )
+        .route(
+            "/api/abdm/hfr/tenant",
+            get(abdm::hfr::get_tenant_facility),
+        )
+        .route(
+            "/api/abdm/gateway/callback",
+            post(abdm::hip_relay::receive_callback),
+        )
+        .route(
+            "/api/abdm/gateway/callbacks/pending",
+            get(abdm::hip_relay::list_pending_callbacks),
+        )
+        .route(
+            "/api/abdm/gateway/callbacks/{id}/ack",
+            put(abdm::hip_relay::ack_callback),
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
         .route(
