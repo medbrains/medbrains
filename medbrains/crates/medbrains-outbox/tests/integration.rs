@@ -260,6 +260,10 @@ fn test_ctx(event_type: &str) -> HandlerCtx {
         event_type: event_type.to_string(),
         actor_user_id: Some(uuid::Uuid::new_v4()),
         attempts: 1,
+        secret_resolver: std::sync::Arc::new(
+            medbrains_core::secrets::EnvSecretResolver::new(),
+        ),
+        http_client: reqwest::Client::new(),
     }
 }
 

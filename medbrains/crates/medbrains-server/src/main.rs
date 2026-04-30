@@ -292,9 +292,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
 
     let mut registry = Registry::new();
 
-    // Typed real-money handlers
-    registry.register(razorpay::CreateOrderHandler);
-    registry.register(razorpay::RefundHandler);
+    // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
+    registry.register(razorpay::CreateOrderHandler::new());
+    registry.register(razorpay::RefundHandler::new());
 
     // Twilio per-event-type — distinct registrations for each sms.* code
     // so the registry's panic-on-duplicate catches accidental re-binds.
