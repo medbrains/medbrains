@@ -879,6 +879,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Idempotent seeds — always run (ON CONFLICT DO NOTHING / DO UPDATE)
     seed_built_in_roles(pool, tenant_id).await?;
+    seed_default_groups(pool, tenant_id).await?;
     departments::seed_departments(pool, tenant_id).await?;
     lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
     pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;
@@ -945,6 +946,100 @@ async fn seed_built_in_roles(
     tx.commit().await?;
 
     tracing::info!("Seeded {} built-in roles", BUILT_IN_ROLES.len());
+
+    Ok(())
+}
+
+/// One default access group (Zanzibar `access_group` definition).
+/// Members get `access_group:{id}#member@user:{uid}` tuples in SpiceDB.
+struct DefaultGroup {
+    code: &'static str,
+    name: &'static str,
+    description: &'static str,
+}
+
+/// 8 default access_groups. Membership is empty by default — admins
+/// assign through the Groups admin UI (M4 deliverable). Roles like
+/// `hospital_admin` may be auto-added at user-create time per
+/// `seed/role_policies.rs::POLICIES.default_groups` (M1 step 2).
+///
+/// Idempotent: ON CONFLICT (tenant_id, code) DO UPDATE name/description.
+const DEFAULT_GROUPS: &[DefaultGroup] = &[
+    DefaultGroup {
+        code: "integrations_admin",
+        name: "Integrations Administrators",
+        description: "Users authorized to create + manage integration pipelines.",
+    },
+    DefaultGroup {
+        code: "pipeline_runners",
+        name: "Pipeline Runners",
+        description: "Users authorized to execute integration pipelines.",
+    },
+    DefaultGroup {
+        code: "lab_seniors",
+        name: "Lab Seniors",
+        description: "Senior lab technicians authorized to amend results + manage QC.",
+    },
+    DefaultGroup {
+        code: "billing_seniors",
+        name: "Billing Seniors",
+        description: "Senior billing clerks authorized to apply discounts + write-offs.",
+    },
+    DefaultGroup {
+        code: "radiologists",
+        name: "Radiologists",
+        description: "Doctors authorized to read DICOM + finalize radiology reports.",
+    },
+    DefaultGroup {
+        code: "mlc_signatories",
+        name: "MLC Signatories",
+        description: "Authorized signatories for medico-legal cases (IPC § 39).",
+    },
+    DefaultGroup {
+        code: "code_blue_team",
+        name: "Code Blue Team",
+        description: "Clinical staff authorized to activate emergency code-blue protocols.",
+    },
+    DefaultGroup {
+        code: "data_exporters",
+        name: "Data Exporters",
+        description: "Users authorized to export module data (with audit watermark).",
+    },
+];
+
+/// Insert the 8 default access_groups for the tenant. Idempotent —
+/// re-running just refreshes name/description, never wipes member rows.
+async fn seed_default_groups(
+    pool: &PgPool,
+    tenant_id: uuid::Uuid,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut tx = pool.begin().await?;
+
+    sqlx::query("SELECT set_config('app.tenant_id', $1::text, true)")
+        .bind(tenant_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+
+    for group in DEFAULT_GROUPS {
+        sqlx::query(
+            "INSERT INTO access_groups (tenant_id, code, name, description, is_active) \
+             VALUES ($1, $2, $3, $4, true) \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+               name = EXCLUDED.name, \
+               description = EXCLUDED.description, \
+               updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(group.code)
+        .bind(group.name)
+        .bind(group.description)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    tracing::info!("Seeded {} default access groups", DEFAULT_GROUPS.len());
 
     Ok(())
 }
