@@ -154,4 +154,24 @@ pub trait AuthzBackend: Send + Sync {
         ctx: &AuthzContext,
         tuple_id: Uuid,
     ) -> Result<(), AuthzError>;
+
+    /// Revoke a tuple by its (object, relation, subject) coordinates —
+    /// SpiceDB doesn't expose tuple IDs over the wire so this is the
+    /// only working revoke path for the SpiceDB backend. The Postgres
+    /// backend's default impl falls through to the tuple-id-based
+    /// `revoke_tuple` after looking up the matching row by coordinates
+    /// (see `backend_pg.rs::revoke_specific`).
+    async fn revoke_specific(
+        &self,
+        ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation: Relation,
+        subject: Subject,
+    ) -> Result<(), AuthzError> {
+        let _ = (ctx, object_type, object_id, relation, subject);
+        Err(AuthzError::Other(
+            "revoke_specific not supported on this backend".to_owned(),
+        ))
+    }
 }

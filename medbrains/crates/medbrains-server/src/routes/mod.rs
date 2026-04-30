@@ -95,6 +95,7 @@ pub mod scheduling;
 pub mod schema_registry;
 pub mod security;
 pub mod setup;
+pub mod sharing;
 pub mod specialty_interventional;
 pub mod specialty_maternity;
 pub mod specialty_other;
@@ -189,6 +190,14 @@ pub fn build_router(state: AppState) -> Router {
         // Auth
         .route("/api/auth/me", get(auth::me))
         .route("/api/access/manifest", get(access::get_manifest))
+        // ── Sharing API (manual per-resource grants) ─────────
+        .route(
+            "/api/sharing/grants",
+            post(sharing::create_grant)
+                .delete(sharing::revoke_grant)
+                .get(sharing::list_grants),
+        )
+        .route("/api/sharing/granted-to-me", get(sharing::list_granted_to_me))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))

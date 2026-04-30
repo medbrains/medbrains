@@ -441,6 +441,43 @@ impl AuthzBackend for SpiceDbBackend {
         Ok(synthetic_tuple_id(object_type, object_id, &relation, &subject))
     }
 
+    async fn revoke_specific(
+        &self,
+        _ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation: Relation,
+        subject: Subject,
+    ) -> Result<(), AuthzError> {
+        // Inline copy of the inherent `revoke_specific` (kept for
+        // backward-compat — handlers that already had a typed
+        // `&SpiceDbBackend` reference can keep using it).
+        let relationship = v1::Relationship {
+            resource: Some(v1::ObjectReference {
+                object_type: object_type.to_owned(),
+                object_id: object_id.to_string(),
+            }),
+            relation: relation_to_relname(relation).to_owned(),
+            subject: Some(Self::subject_to_ref(&subject)),
+            optional_caveat: None,
+            optional_expires_at: None,
+        };
+        let req = v1::WriteRelationshipsRequest {
+            updates: vec![v1::RelationshipUpdate {
+                operation: TupleOp::Delete as i32,
+                relationship: Some(relationship),
+            }],
+            optional_preconditions: vec![],
+            optional_transaction_metadata: None,
+        };
+        let mut client = (*self.client).clone();
+        client
+            .write_relationships(Request::new(req))
+            .await
+            .map_err(|e| AuthzError::Other(format!("revoke_specific: {e}")))?;
+        Ok(())
+    }
+
     async fn revoke_tuple(
         &self,
         _ctx: &AuthzContext,
