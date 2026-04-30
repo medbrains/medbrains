@@ -899,3 +899,81 @@ async fn resolve_department_ids(
 
     Ok(dept_ids.unwrap_or_default())
 }
+
+// ── Phase A.1: revocations endpoint for offline devices ────────────
+//
+// Devices (mobile, TV, edge) periodically pull this to know which
+// users have been deactivated. Each entry tells the device "every
+// JWT for user_id with iat < deactivated_at is revoked".
+//
+// Cursor model: caller passes `?since=<rfc3339>`. Server returns
+// rows where deactivated_at > since, sorted ascending. Caller
+// records the max deactivated_at it saw and uses that as next
+// `since`. Page size capped at 500; an honest device pulling every
+// 15 min stays well under that.
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct RevocationRow {
+    pub user_id: Uuid,
+    pub deactivated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RevocationsResponse {
+    pub revocations: Vec<RevocationRow>,
+    /// Echo back the cursor the caller should use next time. Equal
+    /// to the max `deactivated_at` in the result set, or the input
+    /// `since` if nothing changed.
+    pub next_since: chrono::DateTime<chrono::Utc>,
+    /// True if more rows exist past the cap; caller should pull
+    /// again immediately.
+    pub has_more: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RevocationsQuery {
+    /// RFC3339 timestamp. Server returns rows with
+    /// `deactivated_at > since`. Default = epoch (full backfill).
+    pub since: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+const REVOCATIONS_PAGE_SIZE: i64 = 500;
+
+pub async fn list_revocations(
+    State(state): State<crate::state::AppState>,
+    Extension(claims): Extension<crate::middleware::auth::Claims>,
+    axum::extract::Query(q): axum::extract::Query<RevocationsQuery>,
+) -> Result<Json<RevocationsResponse>, crate::error::AppError> {
+    let since = q
+        .since
+        .unwrap_or_else(|| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap_or_default());
+
+    let rows: Vec<RevocationRow> = sqlx::query_as(
+        "SELECT id AS user_id, deactivated_at \
+         FROM users \
+         WHERE tenant_id = $1 \
+           AND is_active = FALSE \
+           AND deactivated_at IS NOT NULL \
+           AND deactivated_at > $2 \
+         ORDER BY deactivated_at ASC \
+         LIMIT $3",
+    )
+    .bind(claims.tenant_id)
+    .bind(since)
+    .bind(REVOCATIONS_PAGE_SIZE + 1)
+    .fetch_all(&state.db)
+    .await?;
+
+    let has_more = rows.len() as i64 > REVOCATIONS_PAGE_SIZE;
+    let trimmed: Vec<RevocationRow> = rows.into_iter().take(REVOCATIONS_PAGE_SIZE as usize).collect();
+    let next_since = trimmed
+        .last()
+        .map(|r| r.deactivated_at)
+        .unwrap_or(since);
+
+    Ok(Json(RevocationsResponse {
+        revocations: trimmed,
+        next_since,
+        has_more,
+    }))
+}

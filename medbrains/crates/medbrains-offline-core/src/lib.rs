@@ -16,6 +16,9 @@
 //!   Originally in `medbrains-edge::authz_cache` (PR #9).
 //! - [`ONLINE_REQUIRED_ACTIONS`] — fixed list of high-risk actions
 //!   that always deny offline regardless of cached state.
+//! - [`verify_jwt`] — Ed25519 JWT signature + expiry check (Phase A.1).
+//! - [`RevocationCache`] — sled-backed user-id → revoked-at, used by
+//!   devices that pull `/api/auth/revocations` periodically (Phase A.1).
 //!
 //! # What does NOT live here
 //!
@@ -24,8 +27,14 @@
 //! - Transport — every consumer brings its own (HTTP, WSS, UniFFI)
 
 pub mod authz_cache;
+pub mod jwt_verify;
+pub mod revocation_cache;
 
 pub use authz_cache::{
     AuthzCache, AuthzCacheError, CacheEntry, CacheKey, CacheMetrics, CacheSource, CheckOutcome,
     DenyReason, ONLINE_REQUIRED_ACTIONS, OfflinePolicy,
 };
+pub use jwt_verify::{
+    DEFAULT_CLOCK_SKEW, JwtClaims, JwtOutcome, VerifyError, VerifyingKey, verify_jwt,
+};
+pub use revocation_cache::{RevocationCache, RevocationCacheError, RevocationEntry};

@@ -192,6 +192,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
+        // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
+        .route("/api/auth/revocations", get(auth::list_revocations))
         // Onboarding progress
         .route(
             "/api/onboarding/progress",
