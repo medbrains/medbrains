@@ -10,11 +10,17 @@ workspace = true
 [dependencies]
 async-trait = "0.1"
 chrono = { workspace = true }
+prost = "0.14.3"
+prost-types = "0.14.3"
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2.workspace = true
+spicedb-rs-client = "1.49"
+spicedb-rs-proto = "1.49"
 sqlx = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tonic = "0.14.5"
 tracing = { workspace = true }
 uuid = { workspace = true }
 

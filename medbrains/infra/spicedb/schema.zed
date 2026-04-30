@@ -39,11 +39,9 @@ definition access_group {
     permission membership = member
 }
 
-// ── Caveats — contextual, time-bounded access ──────────────────────────────
-
-caveat is_active_now(now timestamp, expires_at timestamp) {
-    expires_at == null || now < expires_at
-}
+// Time-bounded access uses SpiceDB's native `optional_expires_at` field on
+// each relationship — no caveat required. Expired tuples are filtered at
+// resolution time and garbage-collected by SpiceDB's GC worker.
 
 // ── Patient ────────────────────────────────────────────────────────────────
 
@@ -65,8 +63,8 @@ definition patient {
     relation group_member: user | access_group#member
 
     // Explicit per-user grants from the sharing API.
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = owner + attending + dept_member + group_member + viewer + editor
     permission edit = owner + attending + editor
@@ -90,8 +88,8 @@ definition encounter {
 
     relation group_member: user | access_group#member
 
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = owner + attending + dept_member + group_member + viewer + editor
     permission edit = owner + attending + editor
@@ -115,8 +113,8 @@ definition admission {
 
     relation group_member: user | access_group#member
 
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = attending + dept_member + ward_member + group_member + viewer + editor
     permission edit = attending + editor
@@ -137,8 +135,8 @@ definition lab_order {
 
     relation group_member: user | access_group#member
 
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = ordering_provider + dept_member + group_member + viewer + editor
     permission edit = ordering_provider + editor
@@ -158,8 +156,8 @@ definition pharmacy_order {
     relation dept_member: user | department#member
     relation group_member: user | access_group#member
 
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = prescriber + dept_member + group_member + viewer + editor
     permission edit = prescriber + editor
@@ -176,8 +174,8 @@ definition radiology_order {
     relation ordering_provider: user
     relation dept_member: user | department#member
     relation group_member: user | access_group#member
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = ordering_provider + dept_member + group_member + viewer + editor
     permission edit = ordering_provider + editor
@@ -195,8 +193,8 @@ definition invoice {
     // Department visibility via encounter.department_id.
     relation dept_member: user | department#member
 
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = owner + dept_member + viewer + editor
     permission edit = owner + editor
@@ -226,8 +224,8 @@ definition clinical_document {
     relation owner: user
     relation patient_attending: user
     relation dept_member: user | department#member
-    relation viewer: user with is_active_now
-    relation editor: user with is_active_now
+    relation viewer: user
+    relation editor: user
 
     permission view = owner + patient_attending + dept_member + viewer + editor
     permission edit = owner + editor
