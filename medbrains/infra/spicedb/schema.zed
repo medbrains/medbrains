@@ -1,0 +1,257 @@
+// MedBrains — SpiceDB schema (Zanzibar)
+//
+// Encodes per-resource access for clinical + operational entities. Subjects
+// are users, roles, departments, or access groups; permissions resolve via
+// `Check` / `LookupResources` / `BulkCheckPermission` from medbrains-rebac.
+//
+// Conventions:
+//   - `tenant` is the multi-tenant boundary; every object has `tenant: tenant`.
+//   - `dept_member` lets a department's members see resources scoped to that
+//     department without per-resource grants — derived at backfill time.
+//   - `attending` / `ordering_provider` / `prescriber` come from existing FK
+//     columns in our Postgres schema (encounters.doctor_id, etc.).
+//   - `viewer` / `editor` / `consultant` are explicit grants made via the
+//     sharing API — these are the only "manually managed" relations.
+//
+// Bypass roles (`super_admin`, `hospital_admin`) are NOT modeled here; they
+// short-circuit in `medbrains-rebac::Subject::is_bypass` before SpiceDB is
+// ever called. Keeps the schema clean.
+
+// ── Subject definitions ────────────────────────────────────────────────────
+
+definition tenant {}
+
+definition user {
+    relation tenant: tenant
+}
+
+definition department {
+    relation tenant: tenant
+    relation member: user
+}
+
+definition access_group {
+    relation tenant: tenant
+    relation member: user
+
+    // The set of users in this group, used for `group#member` references on
+    // resource definitions below.
+    permission membership = member
+}
+
+// ── Caveats — contextual, time-bounded access ──────────────────────────────
+
+caveat is_active_now(now timestamp, expires_at timestamp) {
+    expires_at == null || now < expires_at
+}
+
+// ── Patient ────────────────────────────────────────────────────────────────
+
+definition patient {
+    relation tenant: tenant
+
+    // Derived from FK: patients.registered_by (the receptionist / clerk).
+    relation owner: user
+
+    // Derived from FK: encounter.doctor_id of the patient's most recent
+    // encounter. Backfill writes one tuple per (patient, attending_doctor).
+    relation attending: user
+
+    // Department visibility: patient → encounter → department.
+    // Backfill emits department:{dept_id}#member as the subject.
+    relation dept_member: user | department#member
+
+    // Access groups (care teams, tumor boards, on-call rotations).
+    relation group_member: user | access_group#member
+
+    // Explicit per-user grants from the sharing API.
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = owner + attending + dept_member + group_member + viewer + editor
+    permission edit = owner + attending + editor
+    permission delete = owner
+    permission share = owner + attending
+}
+
+// ── Encounter (OPD visit) ──────────────────────────────────────────────────
+
+definition encounter {
+    relation tenant: tenant
+
+    // FK: encounters.created_by (the user who registered the encounter).
+    relation owner: user
+
+    // FK: encounters.doctor_id.
+    relation attending: user
+
+    // FK: encounters.department_id → department:{id}#member.
+    relation dept_member: user | department#member
+
+    relation group_member: user | access_group#member
+
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = owner + attending + dept_member + group_member + viewer + editor
+    permission edit = owner + attending + editor
+    permission delete = owner
+    permission share = owner + attending
+}
+
+// ── Admission (IPD) ────────────────────────────────────────────────────────
+
+definition admission {
+    relation tenant: tenant
+
+    // FK: admissions.admitting_doctor.
+    relation attending: user
+
+    // Joined via admissions.encounter_id → encounters.department_id.
+    relation dept_member: user | department#member
+
+    // Ward-based visibility — bed_id → wards.department_id.
+    relation ward_member: user | department#member
+
+    relation group_member: user | access_group#member
+
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = attending + dept_member + ward_member + group_member + viewer + editor
+    permission edit = attending + editor
+    permission discharge = attending
+    permission share = attending
+}
+
+// ── Lab order ──────────────────────────────────────────────────────────────
+
+definition lab_order {
+    relation tenant: tenant
+
+    // FK: lab_orders.ordered_by.
+    relation ordering_provider: user
+
+    // Indirect via encounter.department_id.
+    relation dept_member: user | department#member
+
+    relation group_member: user | access_group#member
+
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = ordering_provider + dept_member + group_member + viewer + editor
+    permission edit = ordering_provider + editor
+    permission cancel = ordering_provider
+    permission add_results = ordering_provider + dept_member
+    permission share = ordering_provider
+}
+
+// ── Pharmacy order ─────────────────────────────────────────────────────────
+
+definition pharmacy_order {
+    relation tenant: tenant
+
+    // FK: pharmacy_orders.ordered_by (the prescribing doctor).
+    relation prescriber: user
+
+    relation dept_member: user | department#member
+    relation group_member: user | access_group#member
+
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = prescriber + dept_member + group_member + viewer + editor
+    permission edit = prescriber + editor
+    permission dispense = dept_member
+    permission cancel = prescriber
+    permission share = prescriber
+}
+
+// ── Radiology order ────────────────────────────────────────────────────────
+
+definition radiology_order {
+    relation tenant: tenant
+
+    relation ordering_provider: user
+    relation dept_member: user | department#member
+    relation group_member: user | access_group#member
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = ordering_provider + dept_member + group_member + viewer + editor
+    permission edit = ordering_provider + editor
+    permission share = ordering_provider
+}
+
+// ── Billing invoice ────────────────────────────────────────────────────────
+
+definition invoice {
+    relation tenant: tenant
+
+    // FK: invoices.created_by (clerk).
+    relation owner: user
+
+    // Department visibility via encounter.department_id.
+    relation dept_member: user | department#member
+
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = owner + dept_member + viewer + editor
+    permission edit = owner + editor
+    permission record_payment = owner + dept_member
+    permission cancel = owner
+    permission share = owner
+}
+
+// ── OPD queue token ────────────────────────────────────────────────────────
+
+definition opd_queue_entry {
+    relation tenant: tenant
+
+    relation doctor: user
+    relation dept_member: user | department#member
+    relation group_member: user | access_group#member
+
+    permission view = doctor + dept_member + group_member
+    permission call_next = doctor + dept_member
+}
+
+// ── Clinical document (notes, discharge summary, consent forms) ────────────
+
+definition clinical_document {
+    relation tenant: tenant
+
+    relation owner: user
+    relation patient_attending: user
+    relation dept_member: user | department#member
+    relation viewer: user with is_active_now
+    relation editor: user with is_active_now
+
+    permission view = owner + patient_attending + dept_member + viewer + editor
+    permission edit = owner + editor
+    permission sign = owner + patient_attending
+    permission delete = owner
+}
+
+// ── Integration pipeline ───────────────────────────────────────────────────
+
+definition pipeline {
+    relation tenant: tenant
+
+    // FK: pipelines.created_by.
+    relation creator: user
+
+    // Group of users who can run this pipeline (e.g. the
+    // `pipeline_runners` access_group seeded at install time).
+    relation runner: user | access_group#member
+
+    // Group of users who can view pipeline runs and history.
+    relation viewer: user | access_group#member
+
+    permission view = creator + runner + viewer
+    permission edit = creator
+    permission run = creator + runner
+    permission delete = creator
+}
