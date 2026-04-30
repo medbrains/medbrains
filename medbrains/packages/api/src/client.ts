@@ -148,7 +148,6 @@ import type {
   ModuleEntitySchema,
   ModuleSummary,
   PipelineListResponse,
-  SchemaField,
   TriggerPipelineRequest,
   UpdatePipelineRequest,
   UpdatePipelineStatusRequest,
@@ -1996,6 +1995,16 @@ export const api = {
     request<{ status: string }>("/auth/logout", {
       method: "POST",
       body: JSON.stringify({}),
+    }),
+  /**
+   * Revoke every active session for a user.
+   * Self-logout when `user_id` is omitted; admin-initiated when set
+   * (requires `admin.users.force_logout`).
+   */
+  logoutAll: (user_id?: string) =>
+    request<{ status: string }>("/auth/logout-all", {
+      method: "POST",
+      body: JSON.stringify(user_id ? { user_id } : {}),
     }),
   changePassword: (data: { current_password: string; new_password: string }) =>
     request<{ status: string }>("/auth/change-password", {
@@ -5582,12 +5591,6 @@ export const api = {
     request<EventSchema>(
       `/schema/events/${encodeURIComponent(eventType)}`,
     ),
-  getFormFieldSchema: (formCode: string) =>
-    request<SchemaField[]>(
-      `/schema/form-fields/${encodeURIComponent(formCode)}`,
-    ),
-
-
   // ── Clinical Decision Support ─────────────────────────────
 
   checkDrugSafety: (data: CheckDrugInteractionsRequest) =>

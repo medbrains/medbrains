@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import { createPatientApi } from "../helpers/journey-steps";
 
 /**
@@ -15,7 +15,7 @@ test.describe("Maternity journey", () => {
       description: "Maternity::Full ANC to newborn",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx, { gender: "female" });
 
     // Maternity registration
@@ -74,7 +74,7 @@ test.describe("Maternity journey", () => {
   });
 
   test("maternity list endpoints reachable", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const lists = [
       "/api/specialty/maternity/registrations",
       "/api/specialty/maternity/anc",

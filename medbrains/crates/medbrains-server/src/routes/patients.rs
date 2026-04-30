@@ -448,7 +448,7 @@ pub async fn list_patients(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Build dynamic WHERE conditions
     let mut conditions = vec!["tenant_id = $1".to_owned()];
@@ -646,7 +646,7 @@ pub async fn create_patient(
     let reg_source_str = body.registration_source.map(|s| enum_to_str(&s));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let uhid = generate_uhid(&mut tx, &claims.tenant_id).await?;
 
@@ -758,7 +758,7 @@ pub async fn get_patient(
 ) -> Result<Json<Patient>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let patient = sqlx::query_as_unchecked!(
         Patient,
@@ -832,7 +832,7 @@ pub async fn update_patient(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Cast optional enums to text for COALESCE, then cast back
     let gender_str = body.gender.map(|g| enum_to_str(&g));
@@ -944,7 +944,7 @@ pub async fn list_patient_identifiers(
 ) -> Result<Json<Vec<PatientIdentifier>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -982,7 +982,7 @@ pub async fn create_patient_identifier(
     let is_primary = body.is_primary.unwrap_or(false);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -1023,7 +1023,7 @@ pub async fn update_patient_identifier(
     let id_type_str = body.id_type.map(|t| enum_to_str(&t));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -1070,7 +1070,7 @@ pub async fn delete_patient_identifier(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_identifiers \
@@ -1101,7 +1101,7 @@ pub async fn list_patient_addresses(
 ) -> Result<Json<Vec<PatientAddress>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -1144,7 +1144,7 @@ pub async fn create_patient_address(
     let is_primary = body.is_primary.unwrap_or(false);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -1190,7 +1190,7 @@ pub async fn update_patient_address(
     let addr_type_str = body.address_type.map(|t| enum_to_str(&t));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -1245,7 +1245,7 @@ pub async fn delete_patient_address(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_addresses \
@@ -1276,7 +1276,7 @@ pub async fn list_patient_contacts(
 ) -> Result<Json<Vec<PatientContact>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientContact,
@@ -1317,7 +1317,7 @@ pub async fn create_patient_contact(
     let priority = body.priority.unwrap_or(1);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientContact,
@@ -1370,7 +1370,7 @@ pub async fn update_patient_contact(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientContact,
@@ -1417,7 +1417,7 @@ pub async fn delete_patient_contact(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_contacts \
@@ -1448,7 +1448,7 @@ pub async fn list_patient_insurance(
 ) -> Result<Json<Vec<PatientInsurance>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientInsurance,
@@ -1488,7 +1488,7 @@ pub async fn create_patient_insurance(
     let is_active = body.is_active.unwrap_or(true);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientInsurance,
@@ -1534,7 +1534,7 @@ pub async fn update_patient_insurance(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientInsurance,
@@ -1591,7 +1591,7 @@ pub async fn delete_patient_insurance(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_insurance \
@@ -1622,7 +1622,7 @@ pub async fn list_patient_allergies(
 ) -> Result<Json<Vec<PatientAllergy>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -1660,7 +1660,7 @@ pub async fn create_patient_allergy(
     let is_active = body.is_active.unwrap_or(true);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -1700,7 +1700,7 @@ pub async fn update_patient_allergy(
     let severity_str = body.severity.map(|s| enum_to_str(&s));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -1743,7 +1743,7 @@ pub async fn delete_patient_allergy(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_allergies \
@@ -1774,7 +1774,7 @@ pub async fn list_patient_consents(
 ) -> Result<Json<Vec<PatientConsent>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -1816,7 +1816,7 @@ pub async fn create_patient_consent(
     let consent_date = body.consent_date.unwrap_or_else(Utc::now);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -1862,7 +1862,7 @@ pub async fn update_patient_consent(
     let capture_mode_str = body.capture_mode.map(|m| enum_to_str(&m));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -1913,7 +1913,7 @@ pub async fn delete_patient_consent(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_consents \
@@ -1945,7 +1945,7 @@ pub async fn match_patients(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Step 1: Check for exact identifier hash match (highest confidence)
     if let Some(ref hash) = body.identifier_hash {
@@ -2021,7 +2021,7 @@ pub async fn list_religions(
 ) -> Result<Json<Vec<MasterReligion>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterReligion,
@@ -2043,7 +2043,7 @@ pub async fn list_occupations(
 ) -> Result<Json<Vec<MasterOccupation>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterOccupation,
@@ -2065,7 +2065,7 @@ pub async fn list_relations(
 ) -> Result<Json<Vec<MasterRelation>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterRelation,
@@ -2110,7 +2110,7 @@ pub async fn list_patient_visits(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(PatientVisitRow,
         "SELECT
@@ -2162,7 +2162,7 @@ pub async fn list_patient_lab_orders(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientLabOrderRow,
@@ -2212,7 +2212,7 @@ pub async fn list_patient_invoices(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientInvoiceRow,
@@ -2262,7 +2262,7 @@ pub async fn list_patient_appointments(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAppointmentRow,
@@ -2317,7 +2317,7 @@ pub async fn merge_patients(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Snapshot the merged patient before marking
     let merged_patient = sqlx::query_as_unchecked!(
@@ -2383,7 +2383,7 @@ pub async fn unmerge_patient(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let history = sqlx::query_as!(
         PatientMergeHistory,
@@ -2425,7 +2425,7 @@ pub async fn list_merge_history(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientMergeHistory,
@@ -2462,7 +2462,7 @@ pub async fn list_family_links(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         FamilyLinkRow,
@@ -2517,7 +2517,7 @@ pub async fn create_family_link(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let link = sqlx::query_as!(PatientFamilyLink,
         "INSERT INTO patient_family_links (tenant_id, patient_id, related_patient_id, relationship, is_primary_contact, notes, created_by)
@@ -2547,7 +2547,7 @@ pub async fn delete_family_link(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_family_links WHERE id = $1 AND patient_id = $2",
@@ -2588,7 +2588,7 @@ pub async fn list_patient_documents(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientDocument,
@@ -2612,7 +2612,7 @@ pub async fn create_patient_document(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let doc = sqlx::query_as!(PatientDocument,
         "INSERT INTO patient_documents (tenant_id, patient_id, document_type, document_name, file_url, file_size, mime_type, uploaded_by, notes)
@@ -2644,7 +2644,7 @@ pub async fn delete_patient_document(
     require_permission(&claims, permissions::patients::DELETE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2",
@@ -2672,7 +2672,7 @@ pub async fn update_patient_photo(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     sqlx::query!(
         "UPDATE patients SET photo_url = $1, photo_captured_at = now(), updated_at = now() WHERE id = $2",

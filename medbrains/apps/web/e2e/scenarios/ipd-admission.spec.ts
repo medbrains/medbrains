@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   admitToIpd,
@@ -12,16 +12,17 @@ test.describe("IPD admission journey", () => {
       description: "IPD::Admit + bed allocation + discharge",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const admissionId = await admitToIpd(ctx, { patientId: patient.id });
 
-    const adm = await api<{ id: string; patient_id: string }>(
+    // GET returns { admission, encounter, tasks }
+    const detail = await api<{ admission: { id: string; patient_id: string } }>(
       ctx,
       "GET",
       `/api/ipd/admissions/${admissionId}`,
     );
-    expect(adm.patient_id).toBe(patient.id);
+    expect(detail.admission.patient_id).toBe(patient.id);
 
     try {
       await api(ctx, "POST", `/api/ipd/admissions/${admissionId}/discharge`, {
@@ -34,7 +35,7 @@ test.describe("IPD admission journey", () => {
   });
 
   test("bed dashboard + available beds + admissions list", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const dashboard = await api<unknown>(ctx, "GET", "/api/ipd/bed-dashboard");
     expect(dashboard).toBeTruthy();
     const beds = await api<unknown[]>(ctx, "GET", "/api/ipd/beds/available");

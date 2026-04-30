@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 test.describe("Nurse activities CRUD", () => {
   test("MAR due-now + I/O + code blue + handoffs lists", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
 
     const due = await api<unknown[]>(ctx, "GET", "/api/nurse/mar/due-now");
     expect(Array.isArray(due)).toBe(true);
@@ -31,7 +31,7 @@ test.describe("Nurse activities CRUD", () => {
   });
 
   test("code blue start → end lifecycle", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     // Need a patient — use a fixed UUID won't pass FK. Skip if no patient
     // route is available.
     const patients = await api<{ patients: Array<{ id: string }> }>(

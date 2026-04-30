@@ -188,7 +188,7 @@ pub async fn list_predictions(
     require_permission(&claims, permissions::scheduling::predictions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -237,7 +237,7 @@ pub async fn score_appointment(
     require_permission(&claims, permissions::scheduling::predictions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Simple stub: hash appointment_id bytes to get a deterministic "probability"
     let bytes = body.appointment_id.as_bytes();
@@ -288,7 +288,7 @@ pub async fn score_batch(
     require_permission(&claims, permissions::scheduling::predictions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut results = Vec::with_capacity(body.appointment_ids.len());
 
@@ -348,7 +348,7 @@ pub async fn list_waitlist(
     require_permission(&claims, permissions::scheduling::waitlist::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM scheduling_waitlist WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -403,7 +403,7 @@ pub async fn create_waitlist_entry(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let id = Uuid::new_v4();
 
@@ -443,7 +443,7 @@ pub async fn update_waitlist_entry(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row: SchedulingWaitlistEntry = sqlx::query_as(
         "UPDATE scheduling_waitlist SET \
@@ -485,7 +485,7 @@ pub async fn offer_slot(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row: SchedulingWaitlistEntry = sqlx::query_as(
         "UPDATE scheduling_waitlist SET \
@@ -514,7 +514,7 @@ pub async fn respond_to_offer(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row: SchedulingWaitlistEntry = if body.accept {
         sqlx::query_as(
@@ -554,7 +554,7 @@ pub async fn auto_fill_slots(
     require_permission(&claims, permissions::scheduling::AUTO_FILL_MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Stub: count waiting entries that could be processed
     let (waiting_count,): (i64,) = sqlx::query_as(
@@ -587,7 +587,7 @@ pub async fn list_overbooking_rules(
     require_permission(&claims, permissions::scheduling::overbooking::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -635,7 +635,7 @@ pub async fn create_overbooking_rule(
     require_permission(&claims, permissions::scheduling::overbooking::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let id = Uuid::new_v4();
     let is_active = body.is_active.unwrap_or(true);
@@ -671,7 +671,7 @@ pub async fn update_overbooking_rule(
     require_permission(&claims, permissions::scheduling::overbooking::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row: SchedulingOverbookingRule = sqlx::query_as(
         "UPDATE scheduling_overbooking_rules SET \
@@ -704,7 +704,7 @@ pub async fn delete_overbooking_rule(
     require_permission(&claims, permissions::scheduling::overbooking::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     sqlx::query("DELETE FROM scheduling_overbooking_rules WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -724,7 +724,7 @@ pub async fn get_overbooking_recommendation(
     require_permission(&claims, permissions::scheduling::overbooking::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Parse the date to determine day_of_week (0=Sunday .. 6=Saturday in chrono)
     let parsed_date = chrono::NaiveDate::parse_from_str(&params.date, "%Y-%m-%d")
@@ -799,7 +799,7 @@ pub async fn noshow_rates(
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from(
         "SELECT \
@@ -850,7 +850,7 @@ pub async fn prediction_accuracy(
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let (total_predictions,): (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM noshow_prediction_scores WHERE tenant_id = $1")
@@ -877,7 +877,7 @@ pub async fn waitlist_stats(
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let (total_waiting,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM scheduling_waitlist \
@@ -950,7 +950,7 @@ pub async fn detect_conflicts(
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, ConflictRow>(
         "SELECT \
@@ -1001,7 +1001,7 @@ pub async fn promote_waitlist(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Find the first waiting entry matching doctor/department criteria
     let mut sql = String::from(
@@ -1081,7 +1081,7 @@ pub async fn schedule_analytics(
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let date_from = params.date_from.as_deref().unwrap_or("2000-01-01");
     let date_to = params.date_to.as_deref().unwrap_or("2099-12-31");
@@ -1223,7 +1223,7 @@ pub async fn create_recurring(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut appointment_ids = Vec::new();
     let mut created: i64 = 0;
@@ -1321,7 +1321,7 @@ pub async fn create_block(
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Insert as a cancelled appointment with reason = "BLOCK: <reason>".
     // The appointments table requires a patient_id, so we use the current

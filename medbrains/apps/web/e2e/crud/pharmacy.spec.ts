@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -12,7 +12,7 @@ import {
 
 test.describe("Pharmacy CRUD", () => {
   test("order → dispense → partial return → restock", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     const rxId = await createPrescription(ctx, encounterId);
@@ -42,7 +42,7 @@ test.describe("Pharmacy CRUD", () => {
   });
 
   test("catalog + stock + returns lists", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const catalog = await api<unknown[]>(ctx, "GET", "/api/pharmacy/catalog");
     expect(Array.isArray(catalog)).toBe(true);
     expect(catalog.length).toBeGreaterThan(0);
@@ -55,7 +55,7 @@ test.describe("Pharmacy CRUD", () => {
   });
 
   test("404 on unknown order", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const fake = "00000000-0000-0000-0000-000000000000";
     await expect(
       api(ctx, "GET", `/api/pharmacy/orders/${fake}`),

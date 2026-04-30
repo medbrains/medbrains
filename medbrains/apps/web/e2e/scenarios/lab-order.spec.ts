@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -14,7 +14,7 @@ test.describe("Lab order journey", () => {
       description: "Lab::Full lab order lifecycle",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     const orderId = await createLabOrder(ctx, {
@@ -22,7 +22,9 @@ test.describe("Lab order journey", () => {
       encounterId,
     });
 
-    // Collection (specimen) — endpoint exists per routes/mod.rs
+    // Collection (specimen) — endpoint exists per routes/mod.rs.
+    // Cancel only accepts {ordered, sample_collected}, so skip process()
+    // before testing the cancel path.
     try {
       await api(ctx, "PUT", `/api/lab/orders/${orderId}/collect`, {
         collected_at: new Date().toISOString(),
@@ -31,23 +33,18 @@ test.describe("Lab order journey", () => {
       // Some seeds skip collect step; non-fatal.
     }
 
-    try {
-      await api(ctx, "PUT", `/api/lab/orders/${orderId}/process`, {});
-    } catch {
-      // Non-fatal.
-    }
-
     await cancelLabOrder(ctx, orderId, "spec lifecycle test");
-    const after = await api<{ status: string }>(
+    // GET returns { order, results }
+    const after = await api<{ order: { status: string } }>(
       ctx,
       "GET",
       `/api/lab/orders/${orderId}`,
     );
-    expect(["cancelled", "canceled"]).toContain(after.status);
+    expect(["cancelled", "canceled"]).toContain(after.order.status);
   });
 
   test("catalog has at least one test", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const catalog = await api<unknown[]>(ctx, "GET", "/api/lab/catalog");
     expect(Array.isArray(catalog)).toBe(true);
     expect(catalog.length).toBeGreaterThan(0);

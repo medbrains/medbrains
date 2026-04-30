@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 // Admin GET surface (dashboards is POST-only).
 const ENDPOINTS = ["/api/admin/forms", "/api/admin/fields", "/api/admin/modules"];
@@ -7,7 +7,7 @@ const ENDPOINTS = ["/api/admin/forms", "/api/admin/fields", "/api/admin/modules"
 test.describe("Admin analytics", () => {
   for (const path of ENDPOINTS) {
     test(`GET ${path}`, async ({ request }) => {
-      const ctx = await loginAsAdmin(request);
+      const ctx = await getAuthContextFromCookies(request);
       try {
         const data = await api<unknown>(ctx, "GET", path);
         expect(data).toBeTruthy();

@@ -35,7 +35,10 @@ export default defineConfig({
     {
       name: "crud",
       testMatch: /crud\/.*\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
       dependencies: ["setup"],
     },
 
@@ -54,7 +57,10 @@ export default defineConfig({
     {
       name: "analytics",
       testMatch: /analytics\/.*\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
       dependencies: ["setup"],
     },
 

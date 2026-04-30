@@ -254,7 +254,7 @@ pub async fn dashboard(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Accreditation scores from quality_accreditation_compliance
     let acc_rows: Vec<(String, i64, i64)> = sqlx::query_as(
@@ -388,7 +388,7 @@ pub async fn department_dashboard(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, ComplianceChecklist>(
         "SELECT * FROM compliance_checklists \
@@ -411,7 +411,7 @@ pub async fn dashboard_gaps(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let gap_rows: Vec<GapRow> = sqlx::query_as(
         "SELECT cl.id, cl.name, cl.department_id, d.name AS department_name, \
@@ -466,7 +466,7 @@ pub async fn list_checklists(
     require_permission(&claims, permissions::regulatory::checklists::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM compliance_checklists WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -510,7 +510,7 @@ pub async fn create_checklist(
     require_permission(&claims, permissions::regulatory::checklists::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceChecklist>(
         "INSERT INTO compliance_checklists \
@@ -546,7 +546,7 @@ pub async fn get_checklist(
     require_permission(&claims, permissions::regulatory::checklists::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let checklist = sqlx::query_as::<_, ComplianceChecklist>(
         "SELECT * FROM compliance_checklists WHERE id = $1 AND tenant_id = $2",
@@ -584,7 +584,7 @@ pub async fn update_checklist(
     require_permission(&claims, permissions::regulatory::checklists::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceChecklist>(
         "UPDATE compliance_checklists SET \
@@ -621,7 +621,7 @@ pub async fn batch_checklist_items(
     require_permission(&claims, permissions::regulatory::checklists::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut results = Vec::new();
     let mut compliant = 0i32;
@@ -715,7 +715,7 @@ pub async fn update_checklist_item(
     require_permission(&claims, permissions::regulatory::checklists::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceChecklistItem>(
         "UPDATE compliance_checklist_items SET \
@@ -761,7 +761,7 @@ pub async fn list_adr_reports(
     require_permission(&claims, permissions::regulatory::adr::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM adr_reports WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -797,7 +797,7 @@ pub async fn create_adr_report(
     require_permission(&claims, permissions::regulatory::adr::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let now = Utc::now();
     let report_number = format!(
@@ -854,7 +854,7 @@ pub async fn get_adr_report(
     require_permission(&claims, permissions::regulatory::adr::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdrReport>(
         "SELECT * FROM adr_reports WHERE id = $1 AND tenant_id = $2",
@@ -877,7 +877,7 @@ pub async fn update_adr_report(
     require_permission(&claims, permissions::regulatory::adr::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdrReport>(
         "UPDATE adr_reports SET \
@@ -923,7 +923,7 @@ pub async fn submit_adr_to_pvpi(
     require_permission(&claims, permissions::regulatory::adr::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdrReport>(
         "UPDATE adr_reports SET \
@@ -956,7 +956,7 @@ pub async fn list_mv_reports(
     require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, MateriovigilanceReport>(
@@ -991,7 +991,7 @@ pub async fn create_mv_report(
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let now = Utc::now();
     let report_number = format!(
@@ -1040,7 +1040,7 @@ pub async fn get_mv_report(
     require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MateriovigilanceReport>(
         "SELECT * FROM materiovigilance_reports WHERE id = $1 AND tenant_id = $2",
@@ -1063,7 +1063,7 @@ pub async fn update_mv_report(
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MateriovigilanceReport>(
         "UPDATE materiovigilance_reports SET \
@@ -1103,7 +1103,7 @@ pub async fn submit_mv_to_cdsco(
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MateriovigilanceReport>(
         "UPDATE materiovigilance_reports SET \
@@ -1136,7 +1136,7 @@ pub async fn list_pcpndt_forms(
     require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PcpndtForm>(
@@ -1171,7 +1171,7 @@ pub async fn create_pcpndt_form(
     require_permission(&claims, permissions::regulatory::pcpndt::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let now = Utc::now();
     let form_number = format!(
@@ -1216,7 +1216,7 @@ pub async fn get_pcpndt_form(
     require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PcpndtForm>(
         "SELECT * FROM pcpndt_forms WHERE id = $1 AND tenant_id = $2",
@@ -1239,7 +1239,7 @@ pub async fn update_pcpndt_form(
     require_permission(&claims, permissions::regulatory::pcpndt::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PcpndtForm>(
         "UPDATE pcpndt_forms SET \
@@ -1272,7 +1272,7 @@ pub async fn pcpndt_quarterly_summary(
     require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let summary: Vec<(String, i64)> = sqlx::query_as(
         "SELECT procedure_type, COUNT(*) \
@@ -1322,7 +1322,7 @@ pub async fn list_calendar(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut sql = String::from("SELECT * FROM compliance_calendar WHERE tenant_id = $1");
     let mut param_idx = 2u32;
@@ -1372,7 +1372,7 @@ pub async fn create_calendar_event(
     require_permission(&claims, permissions::regulatory::calendar::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceCalendarEvent>(
         "INSERT INTO compliance_calendar \
@@ -1410,7 +1410,7 @@ pub async fn update_calendar_event(
     require_permission(&claims, permissions::regulatory::calendar::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceCalendarEvent>(
         "UPDATE compliance_calendar SET \
@@ -1450,7 +1450,7 @@ pub async fn overdue_calendar(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Auto-update overdue items
     sqlx::query(
@@ -1578,7 +1578,7 @@ pub async fn auto_populate_checklist(
     require_permission(&claims, permissions::regulatory::checklists::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get checklist and its accreditation body
     let checklist = sqlx::query_as::<_, ComplianceChecklist>(
@@ -1692,7 +1692,7 @@ pub async fn list_submissions(
     require_permission(&claims, permissions::regulatory::calendar::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = match (&params.status, &params.department_id) {
         (Some(status), Some(dept)) => {
@@ -1756,7 +1756,7 @@ pub async fn create_submission(
     require_permission(&claims, permissions::regulatory::calendar::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceCalendarEvent>(
         "INSERT INTO compliance_calendar \
@@ -1791,7 +1791,7 @@ pub async fn list_mock_surveys(
     require_permission(&claims, permissions::regulatory::checklists::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = match (&params.department_id, &params.status) {
         (Some(dept), Some(status)) => {
@@ -1865,7 +1865,7 @@ pub async fn create_mock_survey(
     };
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ComplianceChecklist>(
         "INSERT INTO compliance_checklists \
@@ -1904,15 +1904,15 @@ pub async fn staff_credentials(
     let expiry_days = params.expiry_within_days.unwrap_or(90);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, StaffCredentialRow>(
         "SELECT ec.employee_id, \
                 e.first_name || ' ' || COALESCE(e.last_name, '') AS employee_name, \
-                ec.credential_type, \
-                ec.credential_number, \
-                ec.issuing_authority, \
-                ec.issue_date, \
+                ec.credential_type::text AS credential_type, \
+                ec.registration_no AS credential_number, \
+                ec.issuing_body AS issuing_authority, \
+                ec.issued_date AS issue_date, \
                 ec.expiry_date, \
                 (ec.expiry_date - CURRENT_DATE)::int AS days_to_expiry, \
                 (ec.expiry_date < CURRENT_DATE) AS is_expired \
@@ -1943,7 +1943,7 @@ pub async fn license_dashboard(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, LicenseDashboardRow>(
         "SELECT id, license_type, license_number, issuing_authority, \
@@ -1973,17 +1973,19 @@ pub async fn nabl_document_tracking(
     require_permission(&claims, permissions::regulatory::dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, NablDocumentRow>(
-        "SELECT id, document_type, document_name, status, \
-                uploaded_at, expiry_date, \
-                CASE WHEN expiry_date IS NOT NULL \
-                  THEN (expiry_date - CURRENT_DATE)::int \
+        "SELECT id, document_type, title AS document_name, \
+                CASE WHEN is_current THEN 'current' ELSE 'archived' END AS status, \
+                created_at AS uploaded_at, \
+                review_date AS expiry_date, \
+                CASE WHEN review_date IS NOT NULL \
+                  THEN (review_date - CURRENT_DATE)::int \
                   ELSE NULL END AS days_to_expiry \
          FROM lab_nabl_documents \
          WHERE tenant_id = $1 \
-         ORDER BY expiry_date ASC NULLS LAST LIMIT 200",
+         ORDER BY review_date ASC NULLS LAST LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

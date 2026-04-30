@@ -502,13 +502,13 @@ pub async fn logout(
         .map(|c| c.value().to_owned())
         .or_else(|| body.and_then(|b| b.refresh_token.clone()));
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
     if let Some(ref raw) = refresh_raw {
         let mut hasher = Sha256::new();
         hasher.update(raw.as_bytes());
         let token_hash = hex::encode(hasher.finalize());
-
-        let mut tx = state.db.begin().await?;
-        medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
         sqlx::query!(
             "UPDATE refresh_tokens SET revoked = true WHERE token_hash = $1 AND user_id = $2",
@@ -517,9 +517,18 @@ pub async fn logout(
         )
         .execute(&mut *tx)
         .await?;
-
-        tx.commit().await?;
     }
+
+    // Bump perm_version so any outstanding access JWT (incl. one held by an
+    // attacker who exfiltrated the cookie) is rejected on the next request.
+    sqlx::query!(
+        "UPDATE users SET perm_version = perm_version + 1 WHERE id = $1",
+        claims.sub
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     // Clear all cookies
     let cfg = &state.cookie_config;
@@ -527,6 +536,82 @@ pub async fn logout(
         .add(clear_cookie("access_token", "/api", cfg))
         .add(clear_cookie("refresh_token", "/api/auth", cfg))
         .add(clear_cookie("csrf_token", "/", cfg));
+
+    Ok((response_jar, Json(serde_json::json!({ "status": "ok" }))))
+}
+
+// ── Logout-all (every device) ───────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct LogoutAllRequest {
+    /// Optional target user. If omitted, logs out the caller.
+    /// Setting `user_id` requires `admin.users.force_logout`.
+    pub user_id: Option<Uuid>,
+}
+
+pub async fn logout_all(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    body: Option<Json<LogoutAllRequest>>,
+) -> Result<impl IntoResponse, AppError> {
+    let target_user = body.as_ref().and_then(|b| b.user_id).unwrap_or(claims.sub);
+
+    // Admin path: force-logout someone else.
+    if target_user != claims.sub {
+        let perms = resolve_permissions(&state.db, claims.tenant_id, claims.sub, &claims.role)
+            .await?;
+        let is_bypass = claims.role == "super_admin" || claims.role == "hospital_admin";
+        if !is_bypass && !perms.iter().any(|p| p == "admin.users.force_logout") {
+            return Err(AppError::Forbidden);
+        }
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    sqlx::query!(
+        "UPDATE refresh_tokens SET revoked = true \
+         WHERE user_id = $1 AND revoked = false",
+        target_user
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query!(
+        "UPDATE users SET perm_version = perm_version + 1 WHERE id = $1",
+        target_user
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "logout_all",
+            entity_type: "user",
+            entity_id: Some(target_user),
+            old_values: None,
+            new_values: None,
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await?;
+
+    // Clear cookies on the calling response only when self-logout.
+    let cfg = &state.cookie_config;
+    let response_jar = if target_user == claims.sub {
+        CookieJar::new()
+            .add(clear_cookie("access_token", "/api", cfg))
+            .add(clear_cookie("refresh_token", "/api/auth", cfg))
+            .add(clear_cookie("csrf_token", "/", cfg))
+    } else {
+        CookieJar::new()
+    };
 
     Ok((response_jar, Json(serde_json::json!({ "status": "ok" }))))
 }
@@ -546,7 +631,7 @@ pub async fn me(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MeResponse>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query!(
         "SELECT id, tenant_id, username, email, full_name, role::text AS \"role!\" \
@@ -612,7 +697,7 @@ pub async fn change_password(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get current hash
     let current_hash =
@@ -638,8 +723,18 @@ pub async fn change_password(
         .to_string();
 
     sqlx::query!(
-        "UPDATE users SET password_hash = $1 WHERE id = $2",
+        "UPDATE users SET password_hash = $1, perm_version = perm_version + 1 WHERE id = $2",
         new_hash,
+        claims.sub
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Revoke every active refresh token for this user — a password change
+    // implies any token previously issued is potentially compromised.
+    sqlx::query!(
+        "UPDATE refresh_tokens SET revoked = true \
+         WHERE user_id = $1 AND revoked = false",
         claims.sub
     )
     .execute(&mut *tx)

@@ -1272,6 +1272,7 @@ pub mod admin {
         pub const CREATE: &str = "admin.users.create";
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
+        pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
     }
 
     /// Sprint A: per-tenant operating mode flip (normal/degraded/read_only).

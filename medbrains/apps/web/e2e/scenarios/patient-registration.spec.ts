@@ -15,9 +15,9 @@ async function openRegisterDrawer(page: Page, quick = false): Promise<Locator> {
 }
 
 async function fillRegistrationForm(dialog: Locator, patient: PatientFormData) {
-  await dialog.getByLabel("First Name").fill(patient.firstName);
-  await dialog.getByLabel(/Last Name/).fill(patient.lastName);
-  await dialog.getByLabel(/Phone Primary/).fill(patient.phone);
+  await dialog.getByLabel("First name").fill(patient.firstName);
+  await dialog.getByLabel("Last name").fill(patient.lastName);
+  await dialog.getByLabel("Phone (primary)").fill(patient.phone);
 }
 
 test.describe("Patient Registration Flow", () => {

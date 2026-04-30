@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -13,7 +13,7 @@ test.describe("Billing invoice journey", () => {
       description: "Billing::Generate invoice + line item + payment",
     });
 
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
     const invoiceId = await createInvoice(ctx, {
@@ -34,12 +34,13 @@ test.describe("Billing invoice journey", () => {
       // Some seeds enforce charge-master FK; skip silently.
     }
 
-    const inv = await api<{ id: string; status: string }>(
+    // GET returns { invoice, items, payments }
+    const detail = await api<{ invoice: { id: string; status: string } }>(
       ctx,
       "GET",
       `/api/billing/invoices/${invoiceId}`,
     );
-    expect(inv.id).toBe(invoiceId);
+    expect(detail.invoice.id).toBe(invoiceId);
 
     // Payment best-effort.
     try {
@@ -54,7 +55,7 @@ test.describe("Billing invoice journey", () => {
   });
 
   test("invoices list returns paginated shape", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const list = await api<unknown>(ctx, "GET", "/api/billing/invoices");
     expect(list).toBeTruthy();
   });

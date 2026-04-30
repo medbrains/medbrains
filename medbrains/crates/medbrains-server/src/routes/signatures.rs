@@ -72,7 +72,7 @@ pub async fn issue_credential(
         signing::generate_keypair().map_err(|e| AppError::Internal(format!("keygen: {e}")))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     if body.make_default {
         // Unset any existing default for this doctor
@@ -129,7 +129,7 @@ pub async fn revoke_credential(
     require_permission(&claims, permissions::admin::signature_credentials::REVOKE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let updated = sqlx::query(
         "UPDATE doctor_signature_credentials \
@@ -164,7 +164,7 @@ pub async fn list_credentials(
     require_permission(&claims, permissions::admin::signature_credentials::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let include_revoked = q.include_revoked.unwrap_or(false);
 
@@ -257,7 +257,7 @@ pub async fn sign_record(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Resolve credential — explicit id or doctor's default
     let cred_row: Option<(Uuid, Option<Vec<u8>>, Option<String>, Option<String>)> = if let Some(cid) = body.credential_id
@@ -421,7 +421,7 @@ pub async fn list_signatures(
     require_permission(&claims, permissions::doctor::signature::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, SignedRecord>(
         "SELECT id, tenant_id, record_type, record_id, signer_user_id, \
@@ -471,7 +471,7 @@ pub async fn verify_signature(
     require_permission(&claims, permissions::doctor::signature::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row: (Vec<u8>, Vec<u8>, Option<Uuid>, Uuid, DateTime<Utc>) = sqlx::query_as(
         "SELECT payload_hash, signature_bytes, signer_credential_id, \

@@ -118,7 +118,7 @@ pub async fn list_orders(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
@@ -214,7 +214,7 @@ pub async fn create_order(
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
     let order = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
     Ok(Json(order))
@@ -274,7 +274,7 @@ pub async fn get_order(
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "SELECT * FROM radiology_orders WHERE id = $1 AND tenant_id = $2",
@@ -324,7 +324,7 @@ pub async fn update_order_status(
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let completed_clause = if body.status == "completed" {
         ", completed_at = now()"
@@ -438,7 +438,7 @@ pub async fn cancel_order(
     require_permission(&claims, permissions::radiology::orders::CANCEL)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "UPDATE radiology_orders SET \
@@ -474,7 +474,7 @@ pub async fn create_report(
     let is_critical = body.is_critical.unwrap_or(false);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Verify order exists
     let order_exists = sqlx::query_scalar::<_, bool>(
@@ -534,7 +534,7 @@ pub async fn verify_report(
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let report = sqlx::query_as::<_, RadiologyReport>(
         "UPDATE radiology_reports SET \
@@ -575,7 +575,7 @@ pub async fn list_modalities(
     require_permission(&claims, permissions::radiology::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let modalities = sqlx::query_as::<_, RadiologyModality>(
         "SELECT * FROM radiology_modalities WHERE tenant_id = $1 ORDER BY name",
@@ -596,7 +596,7 @@ pub async fn create_modality(
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
         "INSERT INTO radiology_modalities (tenant_id, code, name, description) \
@@ -622,7 +622,7 @@ pub async fn update_modality(
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
         "UPDATE radiology_modalities SET \
@@ -654,7 +654,7 @@ pub async fn delete_modality(
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query("DELETE FROM radiology_modalities WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -685,7 +685,7 @@ pub async fn record_dose(
     let dose_unit = body.dose_unit.as_deref().unwrap_or("mGy");
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get patient_id from the order
     let patient_id = sqlx::query_scalar::<_, Uuid>(
@@ -742,7 +742,7 @@ pub async fn list_radiology_appointments(
     require_permission(&claims, permissions::radiology::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.created_at), '[]'::json) FROM ( \
@@ -792,7 +792,7 @@ pub async fn create_radiology_appointment(
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
@@ -835,7 +835,7 @@ pub async fn get_radiology_tat(
     require_permission(&claims, permissions::radiology::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, RadiologyTatRow>(
         "SELECT rm.name AS modality_name, \
@@ -869,7 +869,7 @@ pub async fn list_dicom_studies(
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<
         _,
@@ -923,7 +923,7 @@ pub async fn get_prior_studies(
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, (Uuid, String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
         "SELECT id, study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
@@ -951,7 +951,7 @@ pub async fn create_share_link(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let token = Uuid::new_v4().to_string();
     let study_id = body["study_id"]
@@ -1023,7 +1023,7 @@ pub async fn get_pacs_config(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let config: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='radiology' AND key='pacs_config'",
@@ -1044,7 +1044,7 @@ pub async fn update_pacs_config(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     sqlx::query(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
@@ -1067,7 +1067,7 @@ pub async fn list_dosimetry_records(
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
         "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
@@ -1097,7 +1097,7 @@ pub async fn create_dosimetry_record(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let dose: f64 = body["dose_value"].as_f64().unwrap_or(0.0);
     let limit: f64 = body["annual_limit"].as_f64().unwrap_or(20.0);
@@ -1148,7 +1148,7 @@ pub async fn get_download_package(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let study = sqlx::query_as::<_, (String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
         "SELECT study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \

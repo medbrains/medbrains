@@ -188,6 +188,7 @@ pub fn build_router(state: AppState) -> Router {
         // Auth
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
         // Onboarding progress
         .route(
@@ -2513,10 +2514,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/schema/events/{event_type}",
             get(schema_registry::get_event_schema),
-        )
-        .route(
-            "/api/schema/form-fields/{form_code}",
-            get(schema_registry::get_form_field_schema),
         )
         // ── Integration Hub ──────────────────────────────
         .route(

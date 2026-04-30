@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAsAdmin, api } from "../helpers/api";
+import { getAuthContextFromCookies, api } from "../helpers/api";
 
 test.describe("Consent CRUD", () => {
   test("templates + audit lists", async ({ request }) => {
-    const ctx = await loginAsAdmin(request);
+    const ctx = await getAuthContextFromCookies(request);
     const templates = await api<unknown>(ctx, "GET", "/api/consent/templates");
     expect(templates).toBeTruthy();
     const audit = await api<unknown>(ctx, "GET", "/api/consent/audit");

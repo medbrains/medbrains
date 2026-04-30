@@ -129,7 +129,7 @@ pub async fn list_payments(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "SELECT * FROM pharmacy_payment_transactions \
@@ -154,7 +154,7 @@ pub async fn create_payment(
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let now = Utc::now();
     let ts = now.format("%Y%m%d%H%M%S");
@@ -202,7 +202,7 @@ pub async fn reconcile_payment(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "UPDATE pharmacy_payment_transactions SET \
@@ -238,7 +238,7 @@ pub async fn auto_reconcile_upi(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let result = sqlx::query_scalar::<_, i64>(
         "WITH matched AS ( \
@@ -286,7 +286,7 @@ pub async fn day_reconciliation(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let target_date = params
         .date
@@ -319,7 +319,7 @@ pub async fn day_reconciliation(
          FROM pharmacy_payment_transactions \
          WHERE tenant_id = $1 \
            AND created_at::date = $2 \
-           AND ($3::uuid IS NULL OR counter_id = $3)",
+           AND ($3::uuid IS NULL OR counter_id = $3::text)",
     )
     .bind(claims.tenant_id)
     .bind(target_date)
@@ -343,7 +343,7 @@ pub async fn get_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let target_date = params
         .date
@@ -405,7 +405,7 @@ pub async fn close_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
         "UPDATE pharmacy_day_settlements SET \
@@ -440,7 +440,7 @@ pub async fn verify_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
         "UPDATE pharmacy_day_settlements SET \

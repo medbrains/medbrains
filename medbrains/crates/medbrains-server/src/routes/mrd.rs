@@ -202,7 +202,7 @@ pub async fn list_records(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MrdMedicalRecord>(
         "SELECT * FROM mrd_medical_records \
@@ -229,7 +229,7 @@ pub async fn create_record(
     require_permission(&claims, permissions::mrd::records::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Auto-generate record number from sequence if not provided
     let record_number = if let Some(rn) = &body.record_number {
@@ -297,7 +297,7 @@ pub async fn get_record(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row =
         sqlx::query_as::<_, MrdMedicalRecord>("SELECT * FROM mrd_medical_records WHERE id = $1")
@@ -318,7 +318,7 @@ pub async fn update_record(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MrdMedicalRecord>(
         "UPDATE mrd_medical_records SET \
@@ -358,7 +358,7 @@ pub async fn list_movements(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
@@ -382,7 +382,7 @@ pub async fn issue_record(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let due_days = body.due_days.unwrap_or(7);
     let due_date = Utc::now().date_naive() + chrono::Duration::days(i64::from(due_days));
@@ -423,7 +423,7 @@ pub async fn return_record(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MrdRecordMovement>(
         "UPDATE mrd_record_movements SET \
@@ -450,7 +450,7 @@ pub async fn list_births(
     require_permission(&claims, permissions::mrd::births::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MrdBirthRegister>(
         "SELECT * FROM mrd_birth_register \
@@ -475,7 +475,7 @@ pub async fn create_birth(
     require_permission(&claims, permissions::mrd::births::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let register_number = if let Some(rn) = &body.register_number {
         rn.clone()
@@ -541,7 +541,7 @@ pub async fn get_birth(
     require_permission(&claims, permissions::mrd::births::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row =
         sqlx::query_as::<_, MrdBirthRegister>("SELECT * FROM mrd_birth_register WHERE id = $1")
@@ -565,7 +565,7 @@ pub async fn list_deaths(
     require_permission(&claims, permissions::mrd::deaths::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MrdDeathRegister>(
         "SELECT * FROM mrd_death_register \
@@ -590,7 +590,7 @@ pub async fn create_death(
     require_permission(&claims, permissions::mrd::deaths::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let register_number = if let Some(rn) = &body.register_number {
         rn.clone()
@@ -660,7 +660,7 @@ pub async fn get_death(
     require_permission(&claims, permissions::mrd::deaths::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row =
         sqlx::query_as::<_, MrdDeathRegister>("SELECT * FROM mrd_death_register WHERE id = $1")
@@ -683,7 +683,7 @@ pub async fn list_retention_policies(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MrdRetentionPolicy>(
         "SELECT * FROM mrd_retention_policies ORDER BY record_type, category",
@@ -703,7 +703,7 @@ pub async fn create_retention_policy(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MrdRetentionPolicy>(
         "INSERT INTO mrd_retention_policies \
@@ -736,7 +736,7 @@ pub async fn update_retention_policy(
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MrdRetentionPolicy>(
         "UPDATE mrd_retention_policies SET \
@@ -770,7 +770,7 @@ pub async fn stats_morbidity_mortality(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Morbidity — top 20 diagnoses by ICD code
     let morbidity = sqlx::query_as::<_, MorbidityRow>(
@@ -826,15 +826,17 @@ pub async fn stats_admission_discharge(
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AdmDischRow>(
         "SELECT \
            dep.name AS department_name, \
-           COUNT(*) AS total_admitted, \
-           COUNT(*) FILTER (WHERE a.status = 'discharged') AS total_discharged, \
-           COUNT(*) FILTER (WHERE a.discharge_type = 'deceased') AS total_deaths, \
-           AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400) \
+           COUNT(*)::bigint AS total_admitted, \
+           COUNT(*) FILTER (WHERE a.status = 'discharged'::admission_status)::bigint \
+             AS total_discharged, \
+           COUNT(*) FILTER (WHERE a.discharge_type = 'deceased'::discharge_type)::bigint \
+             AS total_deaths, \
+           AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400)::float8 \
              AS avg_los_days \
          FROM admissions a \
          JOIN encounters enc ON enc.id = a.encounter_id \

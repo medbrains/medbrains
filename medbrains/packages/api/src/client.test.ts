@@ -10944,14 +10944,6 @@ describe("/schema endpoints", () => {
     expect(url).toContain("/api/schema/events");
   });
 
-  it("getFormFieldSchema → GET /schema/form-fields/{param_1}", async () => {
-    mockOk({});
-    await api.getFormFieldSchema("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/schema/form-fields");
-  });
-
 });
 
 describe("/screens endpoints", () => {

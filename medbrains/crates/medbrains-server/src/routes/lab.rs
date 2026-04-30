@@ -3743,16 +3743,23 @@ pub async fn get_analyzer_worklist(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, String, chrono::DateTime<chrono::Utc>)>(
+    // Department scoping is taken from the encounter, not the lab order
+    // (lab_orders has no direct department_id). Optional filter joins
+    // through encounters when a department is provided.
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, Option<String>, String, chrono::DateTime<chrono::Utc>)>(
         "SELECT lo.id, lo.patient_id, lo.sample_barcode, \
          COALESCE(p.first_name || ' ' || p.last_name, p.first_name), lo.created_at \
-         FROM lab_orders lo JOIN patients p ON p.id = lo.patient_id \
-         WHERE lo.status IN ('ordered', 'sample_collected') \
-         AND ($1::uuid IS NULL OR lo.department_id = $1) \
+         FROM lab_orders lo \
+         JOIN patients p ON p.id = lo.patient_id \
+         LEFT JOIN encounters e ON e.id = lo.encounter_id AND e.tenant_id = lo.tenant_id \
+         WHERE lo.tenant_id = $2 \
+           AND lo.status IN ('ordered', 'sample_collected') \
+           AND ($1::uuid IS NULL OR e.department_id = $1) \
          ORDER BY lo.priority DESC, lo.created_at ASC \
          LIMIT 100",
     )
     .bind(params.department_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -3762,7 +3769,7 @@ pub async fn get_analyzer_worklist(
             serde_json::json!({
                 "order_id": r.0,
                 "patient_id": r.1,
-                "sample_barcode": r.2,
+                "sample_barcode": r.2.as_deref().unwrap_or(""),
                 "patient_name": r.3,
                 "ordered_at": r.4,
             })
