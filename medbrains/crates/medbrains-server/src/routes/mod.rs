@@ -1,3 +1,4 @@
+pub mod access;
 pub mod admin;
 pub mod admin_db_topology;
 pub mod admin_system_state;
@@ -187,6 +188,7 @@ pub fn build_router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth
         .route("/api/auth/me", get(auth::me))
+        .route("/api/access/manifest", get(access::get_manifest))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))

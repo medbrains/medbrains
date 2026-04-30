@@ -72,6 +72,7 @@ pub mod order_set;
 pub mod object_store;
 pub mod ot;
 pub mod patient;
+pub mod access;
 pub mod payment;
 pub mod permissions;
 pub mod pharmacy;

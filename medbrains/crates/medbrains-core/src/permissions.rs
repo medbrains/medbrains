@@ -2,6 +2,28 @@
 //!
 //! Single source of truth for all permission codes, mirroring
 //! the frontend `P` object in `packages/types/src/permissions.ts`.
+//!
+//! TODO (next iteration): add a flat `PERMISSIONS: &[PermissionDef]`
+//! array alongside the hierarchical const modules so the access
+//! manifest can iterate them without macros. See
+//! `crates/medbrains-core/src/access/mod.rs` for the consolidated
+//! access table this should plug into.
+
+/// Permission count surfaced to the runtime manifest API. Hardcoded
+/// for now until the hierarchical `pub const` tree is consolidated
+/// into a flat array (see TODO above). Mirrors the count in
+/// `packages/types/src/permissions.ts::PERMISSIONS.length`.
+pub const PERMISSION_COUNT: usize = 660;
+
+/// Returns all known permission codes. Currently hardcoded — see
+/// TODO above. The CI check `make check-permissions-sync` (planned)
+/// will validate this against `packages/types/src/permissions.ts`.
+#[must_use]
+pub fn all_codes() -> Vec<&'static str> {
+    // Placeholder — once the flat array lands this returns &[&str].
+    // For now the manifest API just exposes the count.
+    Vec::new()
+}
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
