@@ -8,6 +8,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+anyhow.workspace = true
 async-trait = "0.1"
 chrono = { workspace = true }
 prost = "0.14.3"
@@ -26,3 +27,7 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[[bin]]
+name = "rebac-backfill"
+path = "src/bin/backfill.rs"

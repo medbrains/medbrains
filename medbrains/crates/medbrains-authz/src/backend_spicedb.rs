@@ -391,6 +391,48 @@ impl AuthzBackend for SpiceDbBackend {
 }
 
 impl SpiceDbBackend {
+    /// Write a tuple with an explicit relation name. Used by backfill
+    /// + sharing-API code paths that need access to relations the
+    /// `Relation` enum doesn't model (e.g. `dept_member`, `ward_member`,
+    /// `group_member`).
+    pub async fn write_raw(
+        &self,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<(), AuthzError> {
+        let optional_expires_at = expires_at.map(|t| prost_types::Timestamp {
+            seconds: t.timestamp(),
+            nanos: t.timestamp_subsec_nanos() as i32,
+        });
+        let relationship = v1::Relationship {
+            resource: Some(v1::ObjectReference {
+                object_type: object_type.to_owned(),
+                object_id: object_id.to_string(),
+            }),
+            relation: relation_name.to_owned(),
+            subject: Some(Self::subject_to_ref(&subject)),
+            optional_caveat: None,
+            optional_expires_at,
+        };
+        let req = v1::WriteRelationshipsRequest {
+            updates: vec![v1::RelationshipUpdate {
+                operation: TupleOp::Touch as i32,
+                relationship: Some(relationship),
+            }],
+            optional_preconditions: vec![],
+            optional_transaction_metadata: None,
+        };
+        let mut client = (*self.client).clone();
+        client
+            .write_relationships(Request::new(req))
+            .await
+            .map_err(|e| AuthzError::Other(format!("write_raw: {e}")))?;
+        Ok(())
+    }
+
     /// SpiceDB-native revoke: matches by (resource, relation, subject)
     /// rather than by tuple id (which SpiceDB doesn't expose).
     pub async fn revoke_specific(
