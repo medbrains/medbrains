@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::backoff::{next_retry_at, MAX_ATTEMPTS};
 use crate::handler::{HandlerCtx, HandlerError, Registry};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WorkerConfig {
     /// How often the worker polls for new rows. Default 2s.
     pub poll_interval: StdDuration,
@@ -31,22 +31,47 @@ pub struct WorkerConfig {
     /// Threshold beyond which a `claimed_at` is considered stale and
     /// the row reset to `pending`. Default 10min.
     pub stale_claim_threshold: StdDuration,
+    /// Per-tenant credential resolver passed into every HandlerCtx.
+    /// Phase 1.1+ handlers (Razorpay, Twilio, ABDM, …) use this to
+    /// fetch keys at dispatch time rather than at startup so rotation
+    /// propagates without a worker restart.
+    pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+    /// Shared HTTPS client for outbound integrations.
+    pub http_client: reqwest::Client,
 }
 
-impl Default for WorkerConfig {
-    fn default() -> Self {
+impl std::fmt::Debug for WorkerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WorkerConfig")
+            .field("poll_interval", &self.poll_interval)
+            .field("batch_size", &self.batch_size)
+            .field("worker_id", &self.worker_id)
+            .field("stale_claim_sweep_interval", &self.stale_claim_sweep_interval)
+            .field("stale_claim_threshold", &self.stale_claim_threshold)
+            .finish_non_exhaustive()
+    }
+}
+
+impl WorkerConfig {
+    /// Build a default config with the provided substrate handles.
+    /// Other fields use sensible defaults (poll 2s, batch 32, etc.).
+    pub fn with_substrate(
+        secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+        http_client: reqwest::Client,
+    ) -> Self {
         Self {
             poll_interval: StdDuration::from_secs(2),
             batch_size: 32,
             worker_id: format!("worker-{}", Uuid::new_v4()),
             stale_claim_sweep_interval: StdDuration::from_secs(5 * 60),
             stale_claim_threshold: StdDuration::from_secs(10 * 60),
+            secret_resolver,
+            http_client,
         }
     }
 }
 
 /// Spawnable outbox worker.
-#[derive(Debug)]
 pub struct Worker {
     pool: PgPool,
     registry: Arc<Registry>,
@@ -170,6 +195,8 @@ async fn drain_once(
         let registry_clone = Arc::new(registry_lookup(registry, &event_type));
         let pool_clone = pool.clone();
         let worker_id = config.worker_id.clone();
+        let secret_resolver = config.secret_resolver.clone();
+        let http_client = config.http_client.clone();
         tokio::spawn(async move {
             dispatch_one(
                 pool_clone,
@@ -181,6 +208,8 @@ async fn drain_once(
                 attempts,
                 actor_user_id,
                 worker_id,
+                secret_resolver,
+                http_client,
             )
             .await;
         });
@@ -209,6 +238,8 @@ async fn dispatch_one(
     attempts: i32,
     actor_user_id: Option<Uuid>,
     _worker_id: String,
+    secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+    http_client: reqwest::Client,
 ) {
     let ctx = HandlerCtx {
         pool: pool.clone(),
@@ -217,6 +248,8 @@ async fn dispatch_one(
         event_type: event_type.clone(),
         actor_user_id,
         attempts,
+        secret_resolver,
+        http_client,
     };
 
     let handler = match handler.as_ref() {

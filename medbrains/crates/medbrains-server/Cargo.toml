@@ -49,6 +49,7 @@ schemars = { workspace = true }
 mlua = { workspace = true }
 wasmtime = { workspace = true }
 anyhow = { workspace = true }
+medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls"], default-features = false }

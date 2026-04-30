@@ -106,6 +106,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     );
 
+    // ── ReBAC backend (SpiceDB sidecar; falls back to Postgres-native) ──
+    //
+    // SPICEDB_ENDPOINT and SPICEDB_TOKEN come from .env / k8s config.
+    // If unset (or connection fails), we silently fall back to the
+    // Postgres-native AuthzPgBackend so dev environments without
+    // SpiceDB running still boot. Production deploys always set these.
+    let authz: Arc<dyn medbrains_authz::AuthzBackend> = match std::env::var("SPICEDB_ENDPOINT") {
+        Ok(endpoint) => {
+            let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+            match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await
+            {
+                Ok(client) => {
+                    tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
+                    Arc::new(client)
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, endpoint = %endpoint,
+                        "rebac: SpiceDB connect failed, falling back to Postgres backend");
+                    Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db_pool.clone()))
+                }
+            }
+        }
+        Err(_) => {
+            tracing::warn!(
+                "rebac: SPICEDB_ENDPOINT unset, using Postgres-native authz backend"
+            );
+            Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db_pool.clone()))
+        }
+    };
+
     // Build shared state
     let state = AppState {
         db: db_pool.clone(),
@@ -118,6 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry.clone(),
         topology: topology_router,
+        authz,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -206,11 +237,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // connect with the BYPASSRLS `medbrains_outbox_worker` role; for local
     // dev we reuse the main pool. assert_bypass_rls() panics if the role
     // does not have BYPASSRLS — opted out in dev via env var.
+    //
+    // Phase 1.1: real handlers (Razorpay) need a SecretResolver + a
+    // shared reqwest::Client threaded through HandlerCtx. Dev uses
+    // EnvSecretResolver (reads MEDBRAINS_DEV_<TENANT>_RAZORPAY_KEY_ID
+    // etc. from process env). Prod will swap to AwsSecretsManagerResolver
+    // in a follow-up PR; dispatch is via trait object so the swap is
+    // a 2-line change at startup.
     if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER").ok().as_deref() != Some("true") {
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .user_agent(concat!("medbrains-outbox/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("build outbox http client");
+
+        let secret_resolver: std::sync::Arc<dyn medbrains_core::secrets::SecretResolver> =
+            std::sync::Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+
+        let worker_config = medbrains_outbox::WorkerConfig::with_substrate(
+            secret_resolver,
+            http_client,
+        );
+
         let outbox_worker = medbrains_outbox::Worker::new(
             db_pool.clone(),
             outbox_registry,
-            medbrains_outbox::WorkerConfig::default(),
+            worker_config,
         );
         let _shutdown_tx = outbox_worker.spawn();
         tracing::info!("outbox worker spawned");
@@ -240,9 +292,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
 
     let mut registry = Registry::new();
 
-    // Typed real-money handlers
-    registry.register(razorpay::CreateOrderHandler);
-    registry.register(razorpay::RefundHandler);
+    // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
+    registry.register(razorpay::CreateOrderHandler::new());
+    registry.register(razorpay::RefundHandler::new());
 
     // Twilio per-event-type — distinct registrations for each sms.* code
     // so the registry's panic-on-duplicate catches accidental re-binds.

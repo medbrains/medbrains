@@ -12,7 +12,7 @@ use uuid::Uuid;
 /// Per-event-dispatch context passed to handlers. Carries the pool +
 /// the actor context captured at queue time so RLS scoping matches the
 /// original request, even though the worker connects with BYPASSRLS.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HandlerCtx {
     pub pool: PgPool,
     pub tenant_id: Uuid,
@@ -20,6 +20,24 @@ pub struct HandlerCtx {
     pub event_type: String,
     pub actor_user_id: Option<Uuid>,
     pub attempts: i32,
+    /// Per-tenant credential resolver. Handlers fetch secrets at
+    /// dispatch time (not at startup) so key rotation propagates
+    /// without restart.
+    pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+    /// Shared HTTPS client for outbound integrations.
+    pub http_client: reqwest::Client,
+}
+
+impl std::fmt::Debug for HandlerCtx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HandlerCtx")
+            .field("tenant_id", &self.tenant_id)
+            .field("event_id", &self.event_id)
+            .field("event_type", &self.event_type)
+            .field("actor_user_id", &self.actor_user_id)
+            .field("attempts", &self.attempts)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Errors a handler can raise. The worker uses these to decide retry vs

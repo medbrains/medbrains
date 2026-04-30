@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use jsonwebtoken::{DecodingKey, EncodingKey};
+use medbrains_authz::AuthzBackend;
 use medbrains_db_topology::TopologyDispatcher;
 use medbrains_outbox::Registry as OutboxRegistry;
 use medbrains_yottadb::client::YottaDbClient;
@@ -40,6 +41,10 @@ pub struct AppState {
     /// consuming `state.db` directly. Existing call sites are unchanged
     /// — Aurora-default tenants still use `state.db`.
     pub topology: Arc<dyn TopologyDispatcher>,
+    /// ReBAC backend (SpiceDB or Postgres-native fallback). Per-resource
+    /// access checks: `state.authz.check(&ctx, Relation::Viewer, "patient", id)`.
+    /// See `crates/medbrains-authz` and `infra/spicedb/schema.zed`.
+    pub authz: Arc<dyn AuthzBackend>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -55,6 +60,7 @@ impl std::fmt::Debug for AppState {
             .field("system_state_cache", &"Arc<SystemStateCache>")
             .field("outbox", &"Arc<OutboxRegistry>")
             .field("topology", &"Arc<dyn TopologyDispatcher>")
+            .field("authz", &"Arc<dyn AuthzBackend>")
             .finish()
     }
 }
