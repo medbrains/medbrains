@@ -75,6 +75,7 @@ pub mod patient;
 pub mod access;
 pub mod payment;
 pub mod permissions;
+pub mod perms_block;
 pub mod pharmacy;
 pub mod pharmacy_phase2;
 pub mod pharmacy_phase3;

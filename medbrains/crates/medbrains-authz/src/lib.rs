@@ -114,6 +114,28 @@ pub trait AuthzBackend: Send + Sync {
         relation: Relation,
     ) -> Result<Vec<Uuid>, AuthzError>;
 
+    /// Bulk-check N (relation, object_id) pairs in one round trip.
+    /// Used by list handlers to compute `_perms` for every row in a
+    /// single backend call. Returns a HashMap keyed on (relation, id).
+    ///
+    /// Default impl falls back to N individual `check()` calls — slow
+    /// but correct. Backends should override for true bulk semantics
+    /// (e.g. SpiceDB `BulkCheckPermission` gRPC, or single-SQL
+    /// LEFT-JOIN-with-`BOOL_OR` for the Postgres fallback).
+    async fn bulk_check(
+        &self,
+        ctx: &AuthzContext,
+        items: &[(String, Relation, Uuid)],
+    ) -> Result<std::collections::HashMap<(String, Relation, Uuid), bool>, AuthzError> {
+        // Fan out via plain `check()`; subclasses override for speed.
+        let mut out = std::collections::HashMap::with_capacity(items.len());
+        for (object_type, relation, id) in items {
+            let allowed = self.check(ctx, *relation, object_type, *id).await?;
+            out.insert((object_type.clone(), *relation, *id), allowed);
+        }
+        Ok(out)
+    }
+
     /// Write a new explicit tuple. Source = `explicit`.
     async fn write_tuple(
         &self,
