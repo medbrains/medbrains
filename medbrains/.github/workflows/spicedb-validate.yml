@@ -1,0 +1,93 @@
+name: SpiceDB Schema Validate
+
+# Runs `zed validate` against infra/spicedb/schema.zed on every PR
+# that touches the schema. Stops a malformed schema from landing on
+# master before the operator's schema-write Job has a chance to
+# reject it on the cluster.
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - "medbrains/infra/spicedb/schema.zed"
+      - ".github/workflows/spicedb-validate.yml"
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - "medbrains/infra/spicedb/schema.zed"
+      - ".github/workflows/spicedb-validate.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zed-validate:
+    name: zed validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin zed to the same minor as the SpiceDB image we deploy
+      # (modules/spicedb/main.tf::spicedb_image_version). Bump both
+      # together when upgrading.
+      - name: Install zed
+        env:
+          ZED_VERSION: "0.27.2"
+        run: |
+          set -euo pipefail
+          curl -sSL \
+            "https://github.com/authzed/zed/releases/download/v${ZED_VERSION}/zed_${ZED_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin zed
+          zed version
+
+      - name: Validate schema
+        run: |
+          set -euo pipefail
+          cd medbrains/infra/spicedb
+          # Use --schema-file because we're not pointing at a live
+          # cluster — pure parse + type-check.
+          zed validate --schema-file schema.zed
+
+  # On merge to master, write the schema to the dev cluster so the
+  # next deploy doesn't drift. Gated on the dev cluster being applied
+  # (Phase 5 of the hybrid roadmap). The job is allowed to fail
+  # softly for now — once Phase 5 lands, drop `continue-on-error`.
+  dev-cluster-sync:
+    name: Apply schema to dev cluster
+    needs: zed-validate
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zed
+        env:
+          ZED_VERSION: "0.27.2"
+        run: |
+          set -euo pipefail
+          curl -sSL \
+            "https://github.com/authzed/zed/releases/download/v${ZED_VERSION}/zed_${ZED_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin zed
+
+      - name: Configure zed context
+        env:
+          DEV_SPICEDB_ENDPOINT: ${{ secrets.DEV_SPICEDB_ENDPOINT }}
+          DEV_SPICEDB_TOKEN: ${{ secrets.DEV_SPICEDB_TOKEN }}
+        run: |
+          if [ -z "${DEV_SPICEDB_ENDPOINT:-}" ] || [ -z "${DEV_SPICEDB_TOKEN:-}" ]; then
+            echo "::warning::DEV_SPICEDB_* secrets not set — skipping schema-write. Configure once Phase 5 cluster is applied."
+            exit 0
+          fi
+          zed context set dev "$DEV_SPICEDB_ENDPOINT" "$DEV_SPICEDB_TOKEN"
+
+      - name: Write schema
+        env:
+          DEV_SPICEDB_ENDPOINT: ${{ secrets.DEV_SPICEDB_ENDPOINT }}
+        run: |
+          if [ -z "${DEV_SPICEDB_ENDPOINT:-}" ]; then
+            echo "Skipping — no dev endpoint configured."
+            exit 0
+          fi
+          zed schema write medbrains/infra/spicedb/schema.zed
