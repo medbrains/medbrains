@@ -23,6 +23,7 @@ pub mod consent;
 pub mod cssd;
 pub mod dashboard;
 pub mod devices;
+pub mod device_pairing;
 pub mod diet;
 pub mod documents;
 pub mod emergency;
@@ -140,6 +141,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .route("/api/health", get(health::health_check))
         .route("/api/auth/refresh", post(auth::refresh_token))
+        // Device pairing — gated by short-lived one-time token, not JWT
+        .route("/api/device-pairing/pair", post(device_pairing::pair_device))
         // Onboarding — public endpoints
         .route("/api/onboarding/status", get(onboarding::status))
         .route("/api/onboarding/init", post(onboarding::init))
@@ -6246,6 +6249,20 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/devices/agents", get(devices::list_bridge_agents))
         // Device data ingest (bridge agent calls)
         .route("/api/device-ingest/{module}", post(devices::ingest_device_data))
+        // Mobile/TV device pairing — admin mints a one-time QR token,
+        // device exchanges for JWT + cert fingerprint
+        .route(
+            "/api/admin/device-pairing-tokens",
+            post(device_pairing::mint_pairing_token),
+        )
+        .route(
+            "/api/admin/paired-devices",
+            get(device_pairing::list_paired_devices),
+        )
+        .route(
+            "/api/admin/paired-devices/{id}",
+            axum::routing::delete(device_pairing::revoke_paired_device),
+        )
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
         // are populated and 503 response carries no audit weight.

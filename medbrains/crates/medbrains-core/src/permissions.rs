@@ -1620,6 +1620,12 @@ pub mod devices {
         pub const LIST: &str = "devices.catalog.list";
         pub const MANAGE: &str = "devices.catalog.manage";
     }
+
+    pub mod pairing {
+        pub const TOKEN_CREATE: &str = "devices.pairing.token.create";
+        pub const PAIRED_LIST: &str = "devices.pairing.paired.list";
+        pub const PAIRED_REVOKE: &str = "devices.pairing.paired.revoke";
+    }
 }
 
 pub mod lms {

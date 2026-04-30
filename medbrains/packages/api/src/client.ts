@@ -11411,4 +11411,52 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // ── Device pairing (mobile / TV / vendor) ────────────────────────
+  mintDevicePairingToken: (data: {
+    intended_device_label: string;
+    intended_app_variant: "staff" | "tv" | "vendor";
+    intended_user_id?: string;
+    notes?: string;
+  }) =>
+    request<{
+      id: string;
+      token: string;
+      qr_payload: string;
+      expires_at: string;
+      intended_device_label: string;
+      intended_app_variant: string;
+    }>("/admin/device-pairing-tokens", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listPairedDevices: () =>
+    request<
+      Array<{
+        id: string;
+        label: string;
+        app_variant: string;
+        cert_fingerprint: string;
+        issued_to_user_id: string | null;
+        paired_at: string;
+        last_seen_at: string | null;
+        revoked_at: string | null;
+      }>
+    >("/admin/paired-devices"),
+
+  revokePairedDevice: (id: string, reason?: string) =>
+    request<{
+      id: string;
+      label: string;
+      app_variant: string;
+      cert_fingerprint: string;
+      issued_to_user_id: string | null;
+      paired_at: string;
+      last_seen_at: string | null;
+      revoked_at: string | null;
+    }>(`/admin/paired-devices/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
+    }),
 };

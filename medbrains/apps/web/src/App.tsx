@@ -82,6 +82,9 @@ const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ defa
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
 const DocumentsPage = lazy(() => import("./pages/documents").then((m) => ({ default: m.DocumentsPage })));
 const DevicesPage = lazy(() => import("./pages/admin/devices").then((m) => ({ default: m.DevicesPage })));
+const PairedDevicesPage = lazy(() =>
+  import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
+);
 
 export function App() {
   return (
@@ -179,6 +182,7 @@ export function App() {
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="devices" element={<DevicesPage />} />
+              <Route path="paired-devices" element={<PairedDevicesPage />} />
             </Route>
           </Route>
         </Routes>
