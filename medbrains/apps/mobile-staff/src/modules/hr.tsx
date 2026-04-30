@@ -4,11 +4,26 @@
  * request from anywhere.
  */
 
+import type { ReactNode } from "react";
 import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import type { IntentTone } from "@medbrains/ui-mobile";
 import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { EntityListScreen } from "../components/entity-list.js";
+import { EntityRow } from "../components/entity-row.js";
+import { listAttendance } from "../api/hr.js";
 
-function HrScreen() {
+const STATUS_TONE: Record<string, IntentTone> = {
+  present: "success",
+  absent: "alert",
+  late: "warn",
+  on_leave: "info",
+  weekly_off: "neutral",
+};
+
+function HrHome(): ReactNode {
+  const router = useModuleRouter();
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -19,6 +34,13 @@ function HrScreen() {
         { eyebrow: "LEAVE", count: "—", title: "Pending approvals" },
       ]}
       actions={[
+        {
+          id: "attendance",
+          label: "Attendance",
+          description: "Today's punch register.",
+          permission: P.HR.ATTENDANCE_LIST,
+          onPress: () => router.push("attendance"),
+        },
         {
           id: "punch",
           label: "Punch in / out",
@@ -50,6 +72,34 @@ function HrScreen() {
           permission: P.HR.CREDENTIALS_LIST,
         },
       ]}
+    />
+  );
+}
+
+function AttendanceScreen(): ReactNode {
+  return (
+    <EntityListScreen
+      eyebrow="HR"
+      title="Attendance"
+      fetcher={() => listAttendance()}
+      rowKey={(a) => a.id}
+      renderRow={(a) => (
+        <EntityRow
+          title={a.employee_name}
+          subtitle={`${a.shift_date} · in ${a.punch_in_at ?? "—"} · out ${a.punch_out_at ?? "—"}`}
+          badge={{ label: a.status, tone: STATUS_TONE[a.status] ?? "neutral" }}
+        />
+      )}
+      emptyTitle="No attendance records"
+    />
+  );
+}
+
+function HrScreen(): ReactNode {
+  return (
+    <ModuleRouter
+      initial="home"
+      screens={{ home: <HrHome />, attendance: <AttendanceScreen /> }}
     />
   );
 }

@@ -3,11 +3,32 @@
  * Compliance bodies: PESO (gas), AERB (water), local fire NOC.
  */
 
+import type { ReactNode } from "react";
 import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import type { IntentTone } from "@medbrains/ui-mobile";
 import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { EntityListScreen } from "../components/entity-list.js";
+import { EntityRow } from "../components/entity-row.js";
+import { listWorkOrders } from "../api/facilities.js";
 
-function FacilitiesScreen() {
+const STATUS_TONE: Record<string, IntentTone> = {
+  open: "warn",
+  assigned: "info",
+  in_progress: "info",
+  completed: "success",
+  cancelled: "alert",
+};
+const PRIORITY_TONE: Record<string, IntentTone> = {
+  low: "neutral",
+  medium: "info",
+  high: "warn",
+  critical: "alert",
+};
+
+function FacilitiesHome(): ReactNode {
+  const router = useModuleRouter();
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -23,6 +44,7 @@ function FacilitiesScreen() {
           label: "Work orders",
           description: "Open / dispatch / close + cost capture.",
           permission: P.FACILITIES.WORK_ORDERS_LIST,
+          onPress: () => router.push("work-orders"),
         },
         {
           id: "create-wo",
@@ -49,6 +71,35 @@ function FacilitiesScreen() {
           permission: P.FACILITIES.WATER_LIST,
         },
       ]}
+    />
+  );
+}
+
+function WorkOrdersScreen(): ReactNode {
+  return (
+    <EntityListScreen
+      eyebrow="FACILITIES"
+      title="Work orders"
+      fetcher={() => listWorkOrders()}
+      rowKey={(w) => w.id}
+      renderRow={(w) => (
+        <EntityRow
+          title={w.title}
+          subtitle={`${w.work_order_number} · ${w.category} · ${w.scheduled_date ?? "unscheduled"}`}
+          badge={{ label: w.status, tone: STATUS_TONE[w.status] ?? "neutral" }}
+          accent={PRIORITY_TONE[w.priority] === "alert"}
+        />
+      )}
+      emptyTitle="No work orders"
+    />
+  );
+}
+
+function FacilitiesScreen(): ReactNode {
+  return (
+    <ModuleRouter
+      initial="home"
+      screens={{ home: <FacilitiesHome />, "work-orders": <WorkOrdersScreen /> }}
     />
   );
 }
