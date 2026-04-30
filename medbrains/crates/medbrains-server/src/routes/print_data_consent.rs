@@ -83,7 +83,7 @@ pub async fn get_general_consent_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -168,7 +168,7 @@ pub async fn get_surgical_consent_print_data(
     require_permission(&claims, permissions::ot::bookings::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -262,7 +262,7 @@ pub async fn get_anesthesia_consent_print_data(
     require_permission(&claims, permissions::ot::bookings::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -358,7 +358,7 @@ pub async fn get_blood_consent_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -453,7 +453,7 @@ pub async fn get_hiv_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -530,7 +530,7 @@ pub async fn get_ama_consent_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -627,7 +627,7 @@ pub async fn get_photo_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -718,7 +718,7 @@ pub async fn get_dnr_consent_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, DnrConsentRow>(
         "SELECT \
@@ -791,7 +791,7 @@ pub async fn get_organ_donation_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -883,7 +883,7 @@ pub async fn get_research_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, ResearchEnrollmentRow>(
         "SELECT \
@@ -960,7 +960,7 @@ pub async fn get_abdm_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get patient with ABHA details
     let row: (String, String, Option<String>, Option<String>) = sqlx::query_as(
@@ -1024,7 +1024,7 @@ pub async fn get_teaching_consent_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \

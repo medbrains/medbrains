@@ -483,7 +483,7 @@ pub async fn list_admissions(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["a.tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
@@ -598,7 +598,7 @@ pub async fn create_admission(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let today = Utc::now().date_naive();
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
@@ -747,7 +747,7 @@ pub async fn get_admission(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let admission =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -795,7 +795,7 @@ pub async fn update_admission(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let admission = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET \
@@ -840,7 +840,7 @@ pub async fn transfer_bed(
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let admission = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET \
@@ -888,7 +888,7 @@ pub async fn discharge_patient(
     require_permission(&claims, permissions::ipd::discharge::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let dt: DischargeType = serde_json::from_value(serde_json::Value::String(
         body.discharge_type.clone(),
@@ -1039,7 +1039,7 @@ pub async fn list_nursing_tasks(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks \
@@ -1069,7 +1069,7 @@ pub async fn create_nursing_task(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM admissions WHERE id = $1 AND tenant_id = $2)",
@@ -1118,7 +1118,7 @@ pub async fn update_nursing_task(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let (completed_at, completed_by) = if body.is_completed == Some(true) {
         (Some(Utc::now()), Some(claims.sub))
@@ -1171,7 +1171,7 @@ pub async fn list_progress_notes(
     require_permission(&claims, permissions::ipd::progress_notes::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let notes = sqlx::query_as::<_, IpdProgressNote>(
         "SELECT * FROM ipd_progress_notes \
@@ -1201,7 +1201,7 @@ pub async fn create_progress_note(
     require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let note = sqlx::query_as::<_, IpdProgressNote>(
         "INSERT INTO ipd_progress_notes \
@@ -1242,7 +1242,7 @@ pub async fn update_progress_note(
     require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let note = sqlx::query_as::<_, IpdProgressNote>(
         "UPDATE ipd_progress_notes SET \
@@ -1281,7 +1281,7 @@ pub async fn list_assessments(
     require_permission(&claims, permissions::ipd::assessments::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdClinicalAssessment>(
         "SELECT * FROM ipd_clinical_assessments \
@@ -1311,7 +1311,7 @@ pub async fn create_assessment(
     require_permission(&claims, permissions::ipd::assessments::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdClinicalAssessment>(
         "INSERT INTO ipd_clinical_assessments \
@@ -1351,7 +1351,7 @@ pub async fn list_mar(
     require_permission(&claims, permissions::ipd::mar::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT * FROM ipd_medication_administration \
@@ -1381,7 +1381,7 @@ pub async fn create_mar(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdMedicationAdministration>(
         "INSERT INTO ipd_medication_administration \
@@ -1420,7 +1420,7 @@ pub async fn update_mar(
     require_permission(&claims, permissions::ipd::mar::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
         .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
@@ -1476,7 +1476,7 @@ pub async fn list_intake_output(
     require_permission(&claims, permissions::ipd::io_chart::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdIntakeOutput>(
         "SELECT * FROM ipd_intake_output \
@@ -1506,7 +1506,7 @@ pub async fn create_intake_output(
     require_permission(&claims, permissions::ipd::io_chart::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let shift: NursingShift = serde_json::from_value(serde_json::Value::String(body.shift.clone()))
         .map_err(|_| AppError::BadRequest(format!("Invalid shift '{}'", body.shift)))?;
@@ -1551,7 +1551,7 @@ pub async fn get_io_balance(
     require_permission(&claims, permissions::ipd::io_chart::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let intake = sqlx::query_as::<_, IoSummaryRow>(
         "SELECT COALESCE(SUM(volume_ml), 0) AS total \
@@ -1597,7 +1597,7 @@ pub async fn list_nursing_assessments(
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdNursingAssessment>(
         "SELECT * FROM ipd_nursing_assessments \
@@ -1627,7 +1627,7 @@ pub async fn create_nursing_assessment(
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let empty = serde_json::json!({});
     let row = sqlx::query_as::<_, IpdNursingAssessment>(
@@ -1676,7 +1676,7 @@ pub async fn update_nursing_assessment(
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdNursingAssessment>(
         "UPDATE ipd_nursing_assessments SET \
@@ -1731,7 +1731,7 @@ pub async fn list_care_plans(
     require_permission(&claims, permissions::ipd::care_plans::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdCarePlan>(
         "SELECT * FROM ipd_care_plans \
@@ -1761,7 +1761,7 @@ pub async fn create_care_plan(
     require_permission(&claims, permissions::ipd::care_plans::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdCarePlan>(
         "INSERT INTO ipd_care_plans \
@@ -1802,7 +1802,7 @@ pub async fn update_care_plan(
     require_permission(&claims, permissions::ipd::care_plans::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let (resolved_at, resolved_by) = if body.status.as_deref() == Some("resolved") {
         (Some(Utc::now()), Some(claims.sub))
@@ -1851,7 +1851,7 @@ pub async fn list_handovers(
     require_permission(&claims, permissions::ipd::handover::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdHandoverReport>(
         "SELECT * FROM ipd_handover_reports \
@@ -1881,7 +1881,7 @@ pub async fn create_handover(
     require_permission(&claims, permissions::ipd::handover::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdHandoverReport>(
         "INSERT INTO ipd_handover_reports \
@@ -1926,7 +1926,7 @@ pub async fn acknowledge_handover(
     require_permission(&claims, permissions::ipd::handover::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdHandoverReport>(
         "UPDATE ipd_handover_reports SET \
@@ -1958,7 +1958,7 @@ pub async fn list_discharge_checklist(
     require_permission(&claims, permissions::ipd::discharge_checklist::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdDischargeChecklist>(
         "SELECT * FROM ipd_discharge_checklists \
@@ -1988,7 +1988,7 @@ pub async fn init_discharge_checklist(
     require_permission(&claims, permissions::ipd::discharge_checklist::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
@@ -2029,7 +2029,7 @@ pub async fn update_discharge_checklist_item(
     require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let (completed_by, completed_at) = if body.status == "completed" {
         (Some(claims.sub), Some(Utc::now()))
@@ -2071,7 +2071,7 @@ pub async fn list_wards(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, WardListRow>(
         "SELECT w.id, w.code, w.name, w.department_id, d.name AS department_name, \
@@ -2104,7 +2104,7 @@ pub async fn get_ward(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let ward = sqlx::query_as::<_, Ward>("SELECT * FROM wards WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -2126,7 +2126,7 @@ pub async fn create_ward(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let ward = sqlx::query_as::<_, Ward>(
         "INSERT INTO wards (tenant_id, code, name, department_id, ward_type, gender_restriction) \
@@ -2155,7 +2155,7 @@ pub async fn update_ward(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let ward = sqlx::query_as::<_, Ward>(
         "UPDATE wards SET \
@@ -2190,7 +2190,7 @@ pub async fn list_ward_beds(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, WardBedRow>(
         "SELECT wbm.id AS mapping_id, wbm.bed_location_id, \
@@ -2227,7 +2227,7 @@ pub async fn assign_bed_to_ward(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mapping = sqlx::query_as::<_, WardBedMapping>(
         "INSERT INTO ward_bed_mappings (tenant_id, ward_id, bed_location_id, bed_type_id, sort_order) \
@@ -2273,7 +2273,7 @@ pub async fn remove_bed_from_ward(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Check bed is vacant
     let bed_loc_id = sqlx::query_scalar::<_, Uuid>(
@@ -2342,7 +2342,7 @@ pub async fn bed_dashboard_summary(
     require_permission(&claims, permissions::ipd::bed_dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, BedDashboardSummaryRow>(
         "SELECT bs.ward_id, w.name AS ward_name, \
@@ -2376,7 +2376,7 @@ pub async fn bed_dashboard_beds(
     require_permission(&claims, permissions::ipd::bed_dashboard::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["bs.tenant_id = $1".to_owned()];
     let mut idx: usize = 2;
@@ -2430,7 +2430,7 @@ pub async fn update_bed_status(
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let updated = sqlx::query_scalar::<_, bool>(
         "UPDATE bed_states SET status = $3::bed_status \
@@ -2463,7 +2463,7 @@ pub async fn list_attenders(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AdmissionAttender>(
         "SELECT * FROM admission_attenders \
@@ -2489,7 +2489,7 @@ pub async fn create_attender(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdmissionAttender>(
         "INSERT INTO admission_attenders \
@@ -2523,7 +2523,7 @@ pub async fn delete_attender(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     sqlx::query(
         "DELETE FROM admission_attenders \
@@ -2551,7 +2551,7 @@ pub async fn list_discharge_templates(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, DischargeSummaryTemplate>(
         "SELECT * FROM discharge_summary_templates \
@@ -2575,7 +2575,7 @@ pub async fn create_discharge_template(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let tmpl = sqlx::query_as::<_, DischargeSummaryTemplate>(
         "INSERT INTO discharge_summary_templates \
@@ -2603,7 +2603,7 @@ pub async fn get_discharge_summary(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "SELECT * FROM ipd_discharge_summaries \
@@ -2628,7 +2628,7 @@ pub async fn create_discharge_summary(
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "INSERT INTO ipd_discharge_summaries \
@@ -2684,7 +2684,7 @@ pub async fn update_discharge_summary(
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Check status is draft
     let current_status = sqlx::query_scalar::<_, DischargeSummaryStatus>(
@@ -2753,7 +2753,7 @@ pub async fn finalize_discharge_summary(
     require_permission(&claims, permissions::ipd::discharge_summary::FINALIZE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "UPDATE ipd_discharge_summaries SET \
@@ -2788,7 +2788,7 @@ pub async fn report_census(
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CensusWardRow>(
         "SELECT bs.ward_id, w.name AS ward_name, \
@@ -2825,7 +2825,7 @@ pub async fn report_occupancy(
         .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, OccupancyRow>(
         "WITH ward_beds AS ( \
@@ -2883,7 +2883,7 @@ pub async fn report_alos(
         .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AlosRow>(
         "SELECT d.name AS department_name, a.discharge_type, \
@@ -2926,7 +2926,7 @@ pub async fn report_discharge_stats(
         .ok_or_else(|| AppError::BadRequest("'to' date is required".to_owned()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, DischargeStatRow>(
         "SELECT a.discharge_type, COUNT(*)::bigint AS count \
@@ -3161,7 +3161,7 @@ pub async fn list_ip_types(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpTypeConfiguration>(
         "SELECT * FROM ip_type_configurations \
@@ -3184,7 +3184,7 @@ pub async fn create_ip_type(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpTypeConfiguration>(
         "INSERT INTO ip_type_configurations \
@@ -3217,7 +3217,7 @@ pub async fn update_ip_type(
     require_permission(&claims, permissions::ipd::wards::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpTypeConfiguration>(
         "UPDATE ip_type_configurations SET \
@@ -3261,7 +3261,7 @@ pub async fn list_admission_checklist(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AdmissionChecklist>(
         "SELECT * FROM admission_checklists \
@@ -3286,7 +3286,7 @@ pub async fn create_admission_checklist_items(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut results = Vec::new();
     for (i, item) in body.items.iter().enumerate() {
@@ -3318,7 +3318,7 @@ pub async fn toggle_checklist_item(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let completed_by = if body.is_completed {
         Some(claims.sub)
@@ -3361,7 +3361,7 @@ pub async fn list_bed_reservations(
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut idx = 2u32;
@@ -3407,7 +3407,7 @@ pub async fn create_bed_reservation(
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let reserved_until: chrono::DateTime<Utc> = body
         .reserved_until
@@ -3442,7 +3442,7 @@ pub async fn update_reservation_status(
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let cancelled_by = if body.status == "cancelled" {
         Some(claims.sub)
@@ -3483,7 +3483,7 @@ pub async fn list_bed_reservations_for_bed(
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, BedReservation>(
         "SELECT * FROM bed_reservations \
@@ -3512,7 +3512,7 @@ pub async fn list_bed_turnaround(
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = if let (Some(from), Some(to)) = (params.from, params.to) {
         sqlx::query_as::<_, BedTurnaroundLog>(
@@ -3550,7 +3550,7 @@ pub async fn create_bed_turnaround(
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, BedTurnaroundLog>(
         "INSERT INTO bed_turnaround_log \
@@ -3577,7 +3577,7 @@ pub async fn complete_bed_turnaround(
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let now = Utc::now();
     let row = sqlx::query_as::<_, BedTurnaroundLog>(
@@ -3615,7 +3615,7 @@ pub async fn list_clinical_docs(
     require_permission(&claims, permissions::ipd::clinical_docs::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = if let Some(ref doc_type) = params.doc_type {
         sqlx::query_as::<_, IpdClinicalDocumentation>(
@@ -3654,7 +3654,7 @@ pub async fn create_clinical_doc(
     require_permission(&claims, permissions::ipd::clinical_docs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
@@ -3701,7 +3701,7 @@ pub async fn update_clinical_doc(
     require_permission(&claims, permissions::ipd::clinical_docs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let next_review: Option<chrono::DateTime<Utc>> = body
         .next_review_at
@@ -3736,7 +3736,7 @@ pub async fn resolve_clinical_doc(
     require_permission(&claims, permissions::ipd::clinical_docs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdClinicalDocumentation>(
         "UPDATE ipd_clinical_documentations SET \
@@ -3766,7 +3766,7 @@ pub async fn list_restraint_checks(
     require_permission(&claims, permissions::ipd::clinical_docs::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, RestraintMonitoringLog>(
         "SELECT * FROM restraint_monitoring_logs \
@@ -3791,7 +3791,7 @@ pub async fn create_restraint_check(
     require_permission(&claims, permissions::ipd::clinical_docs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, RestraintMonitoringLog>(
         "INSERT INTO restraint_monitoring_logs \
@@ -3827,7 +3827,7 @@ pub async fn list_transfers(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdTransferLog>(
         "SELECT * FROM ipd_transfer_logs \
@@ -3852,7 +3852,7 @@ pub async fn create_transfer(
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdTransferLog>(
         "INSERT INTO ipd_transfer_logs \
@@ -3890,7 +3890,7 @@ pub async fn get_death_summary(
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDeathSummary>(
         "SELECT * FROM ipd_death_summaries \
@@ -3914,7 +3914,7 @@ pub async fn create_death_summary(
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
@@ -3968,7 +3968,7 @@ pub async fn update_death_summary(
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDeathSummary>(
         "UPDATE ipd_death_summaries SET \
@@ -4016,7 +4016,7 @@ pub async fn list_birth_records(
     require_permission(&claims, permissions::ipd::birth_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, IpdBirthRecord>(
         "SELECT * FROM ipd_birth_records \
@@ -4041,7 +4041,7 @@ pub async fn create_birth_record(
     require_permission(&claims, permissions::ipd::birth_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mother_patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
@@ -4094,7 +4094,7 @@ pub async fn update_birth_record(
     require_permission(&claims, permissions::ipd::birth_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdBirthRecord>(
         "UPDATE ipd_birth_records SET \
@@ -4142,7 +4142,7 @@ pub async fn get_discharge_tat(
     require_permission(&claims, permissions::ipd::discharge_tat::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDischargeTatLog>(
         "SELECT * FROM ipd_discharge_tat_log \
@@ -4165,7 +4165,7 @@ pub async fn initiate_discharge_tat(
     require_permission(&claims, permissions::ipd::discharge::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IpdDischargeTatLog>(
         "INSERT INTO ipd_discharge_tat_log \
@@ -4193,7 +4193,7 @@ pub async fn update_discharge_tat(
     require_permission(&claims, permissions::ipd::discharge_tat::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let billing_ts: Option<chrono::DateTime<Utc>> = body
         .billing_cleared_at
@@ -4263,7 +4263,7 @@ pub async fn list_available_beds(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AvailableBed>(
         "SELECT \
@@ -4318,7 +4318,7 @@ pub async fn get_investigations(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4395,7 +4395,7 @@ pub async fn get_estimated_cost(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4449,7 +4449,7 @@ pub async fn get_admission_advances(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4482,7 +4482,7 @@ pub async fn get_admission_prior_auth(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4517,7 +4517,7 @@ pub async fn link_mlc(
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET mlc_case_id = $1, updated_at = now() \
@@ -4542,7 +4542,7 @@ pub async fn get_admission_mlc(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4577,7 +4577,7 @@ pub async fn get_billing_summary(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4640,7 +4640,7 @@ pub async fn get_admission_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let data = sqlx::query_as::<_, AdmissionPrintData>(
         "SELECT \
@@ -4682,7 +4682,7 @@ pub async fn get_admission_diet_orders(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, medbrains_core::diet::DietOrder>(
         "SELECT * FROM diet_orders \
@@ -4707,7 +4707,7 @@ pub async fn get_admission_consents(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let adm =
         sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
@@ -4742,7 +4742,7 @@ pub async fn generate_discharge_summary(
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Fetch admission
     let adm =
@@ -4845,7 +4845,7 @@ pub async fn bed_transfer(
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get current admission with current bed
     let adm = sqlx::query_as::<_, Admission>(
@@ -4930,7 +4930,7 @@ pub async fn expected_discharges(
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, ExpectedDischargeRow>(
         "SELECT a.id AS admission_id, a.patient_id, \

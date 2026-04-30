@@ -124,7 +124,7 @@ pub async fn list_psych_patients(
 ) -> Result<Json<Vec<PsychPatient>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychPatient>(
         "SELECT * FROM psych_patients \
@@ -148,7 +148,7 @@ pub async fn get_psych_patient(
 ) -> Result<Json<PsychPatient>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychPatient>("SELECT * FROM psych_patients WHERE id = $1")
         .bind(id)
@@ -169,7 +169,7 @@ pub async fn create_psych_patient(
         permissions::specialty::psychiatry::patients::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychPatient>(
         "INSERT INTO psych_patients \
@@ -208,7 +208,7 @@ pub async fn update_psych_patient(
         permissions::specialty::psychiatry::patients::UPDATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychPatient>(
         "UPDATE psych_patients SET \
@@ -250,7 +250,7 @@ pub async fn list_assessments(
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychAssessment>(
         "SELECT * FROM psych_assessments WHERE psych_patient_id = $1 \
@@ -275,7 +275,7 @@ pub async fn create_assessment(
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychAssessment>(
         "INSERT INTO psych_assessments \
@@ -311,7 +311,7 @@ pub async fn list_ect_sessions(
 ) -> Result<Json<Vec<PsychEctRegister>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychEctRegister>(
         "SELECT * FROM psych_ect_register WHERE psych_patient_id = $1 \
@@ -333,7 +333,7 @@ pub async fn create_ect_session(
 ) -> Result<Json<PsychEctRegister>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychEctRegister>(
         "INSERT INTO psych_ect_register \
@@ -373,7 +373,7 @@ pub async fn list_restraints(
 ) -> Result<Json<Vec<PsychSeclusionRestraint>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::restraint::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychSeclusionRestraint>(
         "SELECT * FROM psych_seclusion_restraint WHERE psych_patient_id = $1 \
@@ -398,7 +398,7 @@ pub async fn create_restraint(
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let review_hours = body.review_due_hours.unwrap_or(4);
 
@@ -435,7 +435,7 @@ pub async fn release_restraint(
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychSeclusionRestraint>(
         "UPDATE psych_seclusion_restraint SET \
@@ -462,7 +462,7 @@ pub async fn list_mhrb_notifications(
 ) -> Result<Json<Vec<PsychMhrbNotification>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychMhrbNotification>(
         "SELECT * FROM psych_mhrb_notifications WHERE psych_patient_id = $1 \
@@ -484,7 +484,7 @@ pub async fn create_mhrb_notification(
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychMhrbNotification>(
         "INSERT INTO psych_mhrb_notifications \
@@ -512,7 +512,7 @@ pub async fn update_mhrb_notification(
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychMhrbNotification>(
         "UPDATE psych_mhrb_notifications SET \
@@ -544,7 +544,7 @@ pub async fn list_counseling_sessions(
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PsychCounselingSession>(
         "SELECT * FROM psych_counseling_sessions WHERE psych_patient_id = $1 \
@@ -569,7 +569,7 @@ pub async fn create_counseling_session(
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PsychCounselingSession>(
         "INSERT INTO psych_counseling_sessions \

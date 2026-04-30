@@ -136,7 +136,7 @@ pub async fn list_registrations(
         permissions::specialty::maternity::registrations::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, MaternityRegistration>(
         "SELECT * FROM maternity_registrations \
@@ -165,7 +165,7 @@ pub async fn get_registration(
         permissions::specialty::maternity::registrations::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MaternityRegistration>(
         "SELECT * FROM maternity_registrations WHERE id = $1",
@@ -188,7 +188,7 @@ pub async fn create_registration(
         permissions::specialty::maternity::registrations::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, MaternityRegistration>(
         "INSERT INTO maternity_registrations \
@@ -232,7 +232,7 @@ pub async fn list_anc_visits(
 ) -> Result<Json<Vec<AncVisit>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, AncVisit>(
         "SELECT * FROM anc_visits WHERE registration_id = $1 ORDER BY visit_number",
@@ -253,7 +253,7 @@ pub async fn create_anc_visit(
 ) -> Result<Json<AncVisit>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AncVisit>(
         "INSERT INTO anc_visits \
@@ -301,7 +301,7 @@ pub async fn list_labor_records(
 ) -> Result<Json<Vec<LaborRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, LaborRecord>(
         "SELECT * FROM labor_records WHERE registration_id = $1 ORDER BY created_at DESC",
@@ -322,7 +322,7 @@ pub async fn create_labor_record(
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, LaborRecord>(
         "INSERT INTO labor_records \
@@ -354,7 +354,7 @@ pub async fn update_labor_record(
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, LaborRecord>(
         "UPDATE labor_records SET \
@@ -405,7 +405,7 @@ pub async fn list_newborns(
 ) -> Result<Json<Vec<NewbornRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, NewbornRecord>(
         "SELECT * FROM newborn_records WHERE labor_id = $1 ORDER BY birth_date",
@@ -426,7 +426,7 @@ pub async fn create_newborn(
 ) -> Result<Json<NewbornRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, NewbornRecord>(
         "INSERT INTO newborn_records \
@@ -474,7 +474,7 @@ pub async fn list_postnatal(
 ) -> Result<Json<Vec<PostnatalRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PostnatalRecord>(
         "SELECT * FROM postnatal_records WHERE registration_id = $1 \
@@ -496,7 +496,7 @@ pub async fn create_postnatal(
 ) -> Result<Json<PostnatalRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PostnatalRecord>(
         "INSERT INTO postnatal_records \

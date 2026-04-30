@@ -58,7 +58,7 @@ pub async fn get_incident_report_print_data(
     require_permission(&claims, permissions::admin::roles::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, IncidentReportRow>(
         "SELECT \
@@ -199,7 +199,7 @@ pub async fn get_rca_template_print_data(
     require_permission(&claims, permissions::admin::roles::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, RcaTemplateRow>(
         "SELECT \
@@ -436,7 +436,7 @@ pub async fn get_capa_form_print_data(
     require_permission(&claims, permissions::admin::roles::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CapaFormRow>(
         "SELECT \
@@ -582,7 +582,7 @@ pub async fn get_adr_report_print_data(
     require_permission(&claims, permissions::regulatory::adr::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AdrReportRow>(
         "SELECT \
@@ -759,7 +759,7 @@ pub async fn get_transfusion_reaction_print_data(
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, TransfusionReactionRow>(
         "SELECT \

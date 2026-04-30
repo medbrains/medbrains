@@ -178,7 +178,7 @@ pub async fn list_cath_procedures(
 ) -> Result<Json<Vec<CathProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CathProcedure>(
         "SELECT * FROM cath_procedures \
@@ -204,7 +204,7 @@ pub async fn get_cath_procedure(
 ) -> Result<Json<CathProcedure>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathProcedure>("SELECT * FROM cath_procedures WHERE id = $1")
         .bind(id)
@@ -225,7 +225,7 @@ pub async fn create_cath_procedure(
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathProcedure>(
         "INSERT INTO cath_procedures \
@@ -263,7 +263,7 @@ pub async fn update_cath_procedure(
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathProcedure>(
         "UPDATE cath_procedures SET \
@@ -304,7 +304,7 @@ pub async fn list_hemodynamics(
 ) -> Result<Json<Vec<CathHemodynamic>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CathHemodynamic>(
         "SELECT * FROM cath_hemodynamics WHERE procedure_id = $1 ORDER BY recorded_at",
@@ -328,7 +328,7 @@ pub async fn create_hemodynamic(
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathHemodynamic>(
         "INSERT INTO cath_hemodynamics \
@@ -361,7 +361,7 @@ pub async fn list_cath_devices(
 ) -> Result<Json<Vec<CathDevice>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CathDevice>(
         "SELECT * FROM cath_devices WHERE procedure_id = $1 ORDER BY created_at",
@@ -382,7 +382,7 @@ pub async fn create_cath_device(
 ) -> Result<Json<CathDevice>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathDevice>(
         "INSERT INTO cath_devices \
@@ -419,7 +419,7 @@ pub async fn list_stemi_timeline(
 ) -> Result<Json<Vec<CathStemiTimeline>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CathStemiTimeline>(
         "SELECT * FROM cath_stemi_timeline WHERE procedure_id = $1 ORDER BY event_time",
@@ -440,7 +440,7 @@ pub async fn create_stemi_event(
 ) -> Result<Json<CathStemiTimeline>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathStemiTimeline>(
         "INSERT INTO cath_stemi_timeline \
@@ -492,7 +492,7 @@ pub async fn list_post_monitoring(
 ) -> Result<Json<Vec<CathPostMonitoring>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::monitoring::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, CathPostMonitoring>(
         "SELECT * FROM cath_post_monitoring WHERE procedure_id = $1 ORDER BY monitored_at",
@@ -516,7 +516,7 @@ pub async fn create_post_monitoring(
         permissions::specialty::cath_lab::monitoring::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CathPostMonitoring>(
         "INSERT INTO cath_post_monitoring \
@@ -552,7 +552,7 @@ pub async fn list_endoscopy_procedures(
 ) -> Result<Json<Vec<EndoscopyProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, EndoscopyProcedure>(
         "SELECT * FROM endoscopy_procedures \
@@ -579,7 +579,7 @@ pub async fn create_endoscopy_procedure(
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyProcedure>(
         "INSERT INTO endoscopy_procedures \
@@ -614,7 +614,7 @@ pub async fn update_endoscopy_procedure(
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyProcedure>(
         "UPDATE endoscopy_procedures SET \
@@ -653,7 +653,7 @@ pub async fn list_scopes(
 ) -> Result<Json<Vec<EndoscopyScope>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, EndoscopyScope>(
         "SELECT * FROM endoscopy_scopes \
@@ -677,7 +677,7 @@ pub async fn create_scope(
 ) -> Result<Json<EndoscopyScope>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyScope>(
         "INSERT INTO endoscopy_scopes \
@@ -706,7 +706,7 @@ pub async fn update_scope(
 ) -> Result<Json<EndoscopyScope>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyScope>(
         "UPDATE endoscopy_scopes SET \
@@ -735,7 +735,7 @@ pub async fn list_reprocessing(
         permissions::specialty::endoscopy::reprocessing::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, EndoscopyReprocessing>(
         "SELECT * FROM endoscopy_reprocessing ORDER BY reprocessed_at DESC LIMIT 200",
@@ -757,7 +757,7 @@ pub async fn create_reprocessing(
         permissions::specialty::endoscopy::reprocessing::MANAGE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyReprocessing>(
         "INSERT INTO endoscopy_reprocessing \
@@ -807,7 +807,7 @@ pub async fn list_biopsy_specimens(
 ) -> Result<Json<Vec<EndoscopyBiopsySpecimen>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, EndoscopyBiopsySpecimen>(
         "SELECT * FROM endoscopy_biopsy_specimens WHERE procedure_id = $1 ORDER BY created_at",
@@ -831,7 +831,7 @@ pub async fn create_biopsy_specimen(
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, EndoscopyBiopsySpecimen>(
         "INSERT INTO endoscopy_biopsy_specimens \

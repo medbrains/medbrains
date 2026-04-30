@@ -51,7 +51,7 @@ pub async fn get_nabh_quality_report_print_data(
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let indicators = sqlx::query_as::<_, QualityIndicatorRow>(
         "SELECT \
@@ -151,7 +151,7 @@ pub async fn get_nmc_compliance_report_print_data(
     require_permission(&claims, permissions::regulatory::checklists::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let sections = sqlx::query_as::<_, ComplianceSectionRow>(
         "SELECT \
@@ -266,7 +266,7 @@ pub async fn get_nabl_quality_report_print_data(
     require_permission(&claims, permissions::lab::qc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let qc_metrics = sqlx::query_as::<_, QcMetricRow>(
         "SELECT analyte, mean, sd, cv, westgard_violations \
@@ -417,7 +417,7 @@ pub async fn get_spcb_bmw_returns_print_data(
     require_permission(&claims, permissions::infection_control::biowaste::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Parse quarter (e.g., "2024-Q1") to get year
     let year: i32 = quarter
@@ -570,7 +570,7 @@ pub async fn get_peso_compliance_print_data(
     require_permission(&claims, permissions::facilities::gas::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let gas_systems = sqlx::query_as::<_, MedicalGasSystemRow>(
         "SELECT gas_type, source_type, location, capacity, last_tested, next_test_due, status \
@@ -714,7 +714,7 @@ pub async fn get_drug_license_report_print_data(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let inspections = sqlx::query_as::<_, DrugInspectionRow>(
         "SELECT inspection_date, inspector_name, findings, compliance_status \
@@ -880,7 +880,7 @@ pub async fn get_pcpndt_report_print_data(
     require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let equipment = sqlx::query_as::<_, PcpndtEquipmentRow>(
         "SELECT equipment_name, registration_number, location \
@@ -1030,7 +1030,7 @@ pub async fn get_birth_register_print_data(
     require_permission(&claims, permissions::ipd::birth_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let entries = sqlx::query_as::<_, BirthRegisterEntryRow>(
         "SELECT \
@@ -1142,7 +1142,7 @@ pub async fn get_death_register_print_data(
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let entries = sqlx::query_as::<_, DeathRegisterEntryRow>(
         "SELECT \
@@ -1248,7 +1248,7 @@ pub async fn get_mlc_register_summary_print_data(
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let entries = sqlx::query_as::<_, MlcSummaryEntryRow>(
         "SELECT \
@@ -1375,7 +1375,7 @@ pub async fn get_aebas_attendance_print_data(
     require_permission(&claims, permissions::hr::attendance::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let departments = sqlx::query_as::<_, DepartmentAttendanceRow>(
         "SELECT \
@@ -1466,7 +1466,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     require_permission(&claims, permissions::regulatory::checklists::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let sections = sqlx::query_as::<_, NarfSectionRow>(
         "SELECT section_name, max_score, achieved_score, percentage \

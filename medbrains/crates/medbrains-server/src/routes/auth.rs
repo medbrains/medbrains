@@ -503,7 +503,7 @@ pub async fn logout(
         .or_else(|| body.and_then(|b| b.refresh_token.clone()));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     if let Some(ref raw) = refresh_raw {
         let mut hasher = Sha256::new();
@@ -567,7 +567,7 @@ pub async fn logout_all(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \
@@ -631,7 +631,7 @@ pub async fn me(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MeResponse>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query!(
         "SELECT id, tenant_id, username, email, full_name, role::text AS \"role!\" \
@@ -697,7 +697,7 @@ pub async fn change_password(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Get current hash
     let current_hash =

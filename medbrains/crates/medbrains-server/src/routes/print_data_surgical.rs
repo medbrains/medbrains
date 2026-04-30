@@ -52,7 +52,7 @@ pub async fn get_case_sheet_cover_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, CaseSheetCoverRow>(
         "SELECT \
@@ -160,7 +160,7 @@ pub async fn get_preop_assessment_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PreopAssessmentRow>(
         "SELECT \
@@ -320,7 +320,7 @@ pub async fn get_surgical_safety_checklist_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, SurgicalSafetyRow>(
         "SELECT \
@@ -439,7 +439,7 @@ pub async fn get_anesthesia_record_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, AnesthesiaRecordRow>(
         "SELECT \
@@ -649,7 +649,7 @@ pub async fn get_operation_notes_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, OperationNotesRow>(
         "SELECT \
@@ -784,7 +784,7 @@ pub async fn get_postop_orders_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PostopOrdersRow>(
         "SELECT \
@@ -952,7 +952,7 @@ pub async fn get_transfusion_monitoring_print_data(
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, TransfusionMonitoringRow>(
         "SELECT \
