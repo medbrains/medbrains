@@ -13,6 +13,7 @@ members = [
     "crates/medbrains-outbox",
     "crates/medbrains-db-topology",
     "crates/medbrains-edge",
+    "crates/medbrains-edge-rn",
     "crates/medbrains-fhir",
     "apps/edge",
 ]

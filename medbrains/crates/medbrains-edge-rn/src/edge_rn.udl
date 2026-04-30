@@ -1,0 +1,66 @@
+// React Native bridge — UniFFI Interface Definition Language.
+//
+// Generates Kotlin (Android), Swift (iOS), and TypeScript (RN) bindings
+// for the Loro CRDT operations the mobile/TV apps need to mirror what
+// `useAppendOnlyCrdtList` / `useCrdtText` give the web client.
+//
+// The same wire format runs on web (via wasm), edge (server), and now
+// mobile/TV (UniFFI). One protocol, three transports.
+
+namespace edge_rn {
+};
+
+[Error]
+enum BridgeError {
+    "DocNotFound",
+    "InvalidUpdate",
+    "InvalidVersionVector",
+    "Loro",
+    "Serde",
+};
+
+dictionary AppendItem {
+    string json_value;
+};
+
+dictionary TextSnapshot {
+    string text;
+    sequence<u8> version_vector;
+};
+
+interface DocHandle {
+    [Throws=BridgeError]
+    constructor(string doc_id);
+
+    /// Apply a Loro update produced by another peer. Returns the
+    /// merged version vector so the caller can ack.
+    [Throws=BridgeError]
+    sequence<u8> apply_update(sequence<u8> update_bytes);
+
+    /// Export a delta since `their_vv` — what this peer needs to
+    /// catch up. Empty result means nothing new.
+    [Throws=BridgeError]
+    sequence<u8> export_since(sequence<u8> their_vv);
+
+    /// Append-only list operations (matches the web hook surface).
+    /// Returns the produced update bytes the caller pushes upstream.
+    [Throws=BridgeError]
+    sequence<u8> append_to_list(string container_name, AppendItem item);
+
+    [Throws=BridgeError]
+    sequence<string> list_entries(string container_name);
+
+    /// Free-form text container.
+    [Throws=BridgeError]
+    sequence<u8> set_text(string container_name, string new_text);
+
+    [Throws=BridgeError]
+    TextSnapshot read_text(string container_name);
+
+    /// Doc id this handle was opened for.
+    string doc_id();
+
+    /// Current version vector (for use as `since` in pulls).
+    [Throws=BridgeError]
+    sequence<u8> version_vector();
+};
