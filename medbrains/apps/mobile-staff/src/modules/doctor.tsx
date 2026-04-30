@@ -1,14 +1,20 @@
 /**
- * Doctor module — OPD queue, prescriptions, clinical notes.
- * Mirrors the web's `pages/opd.tsx` surface; handheld variant
- * focuses on quick consult intake.
+ * Doctor module — OPD queue → token state machine + (future)
+ * consultation editor + prescription composer. Mirrors the web's
+ * `pages/opd.tsx` surface; handheld focus is fast consult intake.
  */
 
+import type { ReactNode } from "react";
 import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
 import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { QueueListScreen } from "./doctor/queue-list.js";
+import { QueueDetailScreen } from "./doctor/queue-detail.js";
+import type { QueueEntry } from "../api/opd.js";
 
-function DoctorScreen() {
+function DoctorHome(): ReactNode {
+  const router = useModuleRouter();
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -24,6 +30,7 @@ function DoctorScreen() {
           label: "OPD queue",
           description: "Call next, view tokens, mark consult complete.",
           permission: P.OPD.QUEUE_LIST,
+          onPress: () => router.push("queue"),
         },
         {
           id: "visit",
@@ -50,6 +57,21 @@ function DoctorScreen() {
           permission: P.OPD.APPOINTMENT.LIST,
         },
       ]}
+    />
+  );
+}
+
+function DoctorScreen(): ReactNode {
+  return (
+    <ModuleRouter
+      initial="home"
+      screens={{
+        home: <DoctorHome />,
+        queue: <QueueListScreen />,
+        "queue-detail": (payload) => (
+          <QueueDetailScreen entry={payload as QueueEntry} />
+        ),
+      }}
     />
   );
 }

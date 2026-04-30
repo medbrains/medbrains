@@ -4,11 +4,17 @@
  * usage — the AuthzCache + Loro append paths flow through here.
  */
 
+import type { ReactNode } from "react";
 import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
 import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { AdmissionsListScreen } from "./nurse/admissions-list.js";
+import { MarScheduleScreen } from "./nurse/mar-schedule.js";
+import type { AdmissionRow } from "../api/ipd.js";
 
-function NurseScreen() {
+function NurseHome(): ReactNode {
+  const router = useModuleRouter();
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -24,6 +30,7 @@ function NurseScreen() {
           label: "MAR — administer dose",
           description: "Five-rights check + barcode scan + signature.",
           permission: P.IPD.MAR_CREATE,
+          onPress: () => router.push("admissions"),
         },
         {
           id: "vitals",
@@ -50,6 +57,19 @@ function NurseScreen() {
           permission: P.IPD.CLINICAL_DOCS_CREATE,
         },
       ]}
+    />
+  );
+}
+
+function NurseScreen(): ReactNode {
+  return (
+    <ModuleRouter
+      initial="home"
+      screens={{
+        home: <NurseHome />,
+        admissions: <AdmissionsListScreen />,
+        mar: (payload) => <MarScheduleScreen admission={payload as AdmissionRow} />,
+      }}
     />
   );
 }
