@@ -13,12 +13,13 @@
 //! `verify_abdm_signature()` and is feature-gated until production
 //! credentials land.
 
-use axum::{Json, extract::State, http::HeaderMap};
+use axum::{Json, body::Bytes, extract::State, http::HeaderMap};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
+use super::signature::{SignatureMode, verify_signature};
 use crate::{error::AppError, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -32,15 +33,24 @@ pub struct CallbackAck {
 /// Generic callback receiver. The gateway's payload shape varies by
 /// `callback_type` — we persist the raw JSON and let the on-prem
 /// server pick it apart.
+///
+/// Note we extract the body as `Bytes` (not `Json<Value>`) so the
+/// signature verifier sees the exact bytes the gateway signed —
+/// re-serializing through serde would re-order keys.
 pub async fn receive_callback(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    body_bytes: Bytes,
 ) -> Result<Json<CallbackAck>, AppError> {
-    verify_abdm_signature(&headers, &body)?;
+    if let Err(e) = verify_signature(&headers, &body_bytes, SignatureMode::from_env()) {
+        tracing::warn!(error = %e, "abdm callback signature rejected");
+        return Err(AppError::Unauthorized);
+    }
 
-    let tenant_id = extract_tenant_from_recipient(&headers)
-        .ok_or_else(|| AppError::BadRequest("missing x-hcx-recipient-code header".into()))?;
+    let body: Value = serde_json::from_slice(&body_bytes)
+        .map_err(|e| AppError::BadRequest(format!("malformed JSON: {e}")))?;
+
+    let tenant_id = resolve_tenant_from_recipient(&state, &headers).await?;
     let correlation_id = headers
         .get("x-hcx-correlation-id")
         .and_then(|v| v.to_str().ok())
@@ -77,37 +87,48 @@ pub async fn receive_callback(
     Ok(Json(row))
 }
 
-/// Verify the gateway's request signature. Production: NHA-issued
-/// public key + JWE-encrypted payload. Staging: shared bearer token.
-/// Returns `Ok(())` on a stub-accept path so the relay receives
-/// staging traffic even before the real signing key is provisioned.
-fn verify_abdm_signature(_headers: &HeaderMap, _body: &Value) -> Result<(), AppError> {
-    // Phase 11.1 — accept all callbacks; structural validation only.
-    // Phase 11.2 will plug in the JWE/JWS verification once NHA hands
-    // over the real keys. The route handler keeps the signature
-    // surface stable so swapping in real verify is one-line.
-    Ok(())
-}
-
-/// Map the `x-hcx-recipient-code` header (the HCX participant code
-/// the gateway routes to) to a tenant id. The mapping is stored in
-/// `tenants.abdm_hcx_sender_code`; we look up that here.
+/// Resolve `x-hcx-recipient-code` → tenant id via the
+/// `tenants.abdm_hcx_sender_code` column. SELECT-on-every-callback
+/// is fine — gateway throughput per tenant is in claims/sec, not
+/// chat/sec, and the index on the column makes it ~sub-ms.
 ///
-/// Note: in production we'd cache this mapping for hot path
-/// performance — for Phase 11.1 the SELECT-on-every-callback is fine
-/// because the gateway throughput on a single tenant is low (claims,
-/// not chat).
-fn extract_tenant_from_recipient(headers: &HeaderMap) -> Option<Uuid> {
-    let _code = headers.get("x-hcx-recipient-code")?.to_str().ok()?;
-    // The DB lookup happens inside receive_callback's tx so the row
-    // we insert into abdm_gateway_callbacks references a real tenant.
-    // Phase 11.1 stub: return None so callers must supply a header
-    // shape that includes the tenant directly. Phase 11.2 swaps in a
-    // SELECT against tenants.abdm_hcx_sender_code = $1.
+/// The dev override `x-medbrains-tenant-id` header is preserved so
+/// local smoke tests don't need a real HFR registration. It only
+/// activates when the recipient code is missing or unknown.
+async fn resolve_tenant_from_recipient(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Uuid, AppError> {
+    let code = headers
+        .get("x-hcx-recipient-code")
+        .and_then(|v| v.to_str().ok());
+
+    if let Some(c) = code {
+        let row: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM tenants WHERE abdm_hcx_sender_code = $1 \
+              AND abdm_facility_active = TRUE",
+        )
+        .bind(c)
+        .fetch_optional(&state.db)
+        .await?;
+        if let Some((id,)) = row {
+            return Ok(id);
+        }
+        tracing::warn!(
+            recipient_code = c,
+            "abdm callback: no active tenant matches x-hcx-recipient-code"
+        );
+    }
+
     headers
         .get("x-medbrains-tenant-id")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "no tenant for x-hcx-recipient-code; set abdm_hcx_sender_code on the tenant first".into(),
+            )
+        })
 }
 
 /// Pending callbacks an on-prem server can pull. Returns the oldest
