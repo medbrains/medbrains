@@ -133,6 +133,10 @@ fn sanitize_doc_id(doc_id: &str) -> Result<String, DocStoreError> {
     for c in doc_id.chars() {
         match c {
             'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' => out.push(c),
+            // ':' is the SpiceDB-style separator used by
+            // [`crate::sync::parse_doc_id`]. Map to '_' on disk so the
+            // filename stays portable across filesystems.
+            ':' => out.push('_'),
             '/' => out.push('-'),
             _ => return Err(DocStoreError::InvalidDocId(doc_id.to_owned())),
         }

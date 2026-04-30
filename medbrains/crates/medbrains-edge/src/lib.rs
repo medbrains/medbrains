@@ -55,13 +55,18 @@
 //! contacting MedBrains — the protocol is documented, the binary is
 //! reproducible, the CRDT format is upstream Loro.
 
+pub mod authz_cache;
 pub mod doc_store;
 pub mod merkle;
 pub mod sync;
 
+pub use authz_cache::{
+    AuthzCache, AuthzCacheError, CacheEntry, CacheKey, CacheMetrics, CacheSource, CheckOutcome,
+    DenyReason, ONLINE_REQUIRED_ACTIONS, OfflinePolicy,
+};
 pub use doc_store::DocStore;
 pub use merkle::MerkleAudit;
-pub use sync::{SyncServer, SyncServerError};
+pub use sync::{SessionContext, SyncServer, SyncServerError};
 
 /// Server-side handshake protocol version. Bumped on incompatible
 /// wire-format changes.

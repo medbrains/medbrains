@@ -37,6 +37,10 @@ anyhow = { workspace = true }
 # Hashing for the Merkle audit chain
 sha2 = { workspace = true }
 
+# Edge authz cache: persistent embedded KV + in-memory LRU
+sled = "0.34"
+lru = "0.12"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true }
