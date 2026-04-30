@@ -2012,6 +2012,83 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // ── Access manifest (single-source-of-truth for roles/groups/screens/policies) ──
+  getAccessManifest: () =>
+    request<{
+      roles: { code: string; name: string; description: string; permission_count: number }[];
+      groups: { code: string; name: string; description: string }[];
+      screens: {
+        code: string;
+        label: string;
+        route: string;
+        module: string;
+        required_permission: string | null;
+      }[];
+      policies: {
+        role: string;
+        mandatory_dept_types: string[];
+        default_groups: string[];
+        allow_multiple_depts: boolean;
+        min_perm_set: string[];
+      }[];
+      resources: { object_type: string; relations: string[]; permissions: string[] }[];
+      permission_count: number;
+    }>("/access/manifest"),
+
+  // ── Sharing API (per-resource grants) ──
+  createSharingGrant: (data: {
+    object_type: string;
+    object_id: string;
+    relation: string;
+    subject: { type: "user" | "role" | "department" | "group"; id: string };
+    expires_at?: string;
+    reason?: string;
+  }) =>
+    request<{
+      tuple_id: string;
+      object_type: string;
+      object_id: string;
+      relation: string;
+      status: string;
+    }>("/sharing/grants", { method: "POST", body: JSON.stringify(data) }),
+
+  revokeSharingGrant: (data: {
+    object_type: string;
+    object_id: string;
+    relation: string;
+    subject: { type: "user" | "role" | "department" | "group"; id: string };
+  }) =>
+    request<{ status: string }>("/sharing/grants", {
+      method: "DELETE",
+      body: JSON.stringify(data),
+    }),
+
+  listSharingGrants: (object_type: string, object_id: string) =>
+    request<
+      Array<{
+        object_type: string;
+        object_id: string;
+        relation: string;
+        subject_type: string;
+        subject_id: string;
+        expires_at: string | null;
+      }>
+    >(
+      `/sharing/grants?object_type=${encodeURIComponent(object_type)}&object_id=${encodeURIComponent(object_id)}`,
+    ),
+
+  listGrantedToMe: () =>
+    request<
+      Array<{
+        object_type: string;
+        object_id: string;
+        relation: string;
+        subject_type: string;
+        subject_id: string;
+        expires_at: string | null;
+      }>
+    >("/sharing/granted-to-me"),
+
   // Onboarding
   onboardingStatus: () =>
     request<OnboardingStatusResponse>("/onboarding/status"),
