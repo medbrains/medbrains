@@ -1,21 +1,18 @@
-const { getDefaultConfig, mergeConfig } = require("@react-native/metro-config");
-const path = require("path");
+// Workspace-aware Metro config — resolves `@medbrains/*` packages
+// out of the monorepo even when symlinked via pnpm.
+const { getDefaultConfig } = require("expo/metro-config");
+const path = require("node:path");
 
 const projectRoot = __dirname;
-const monorepoRoot = path.resolve(projectRoot, "../..");
+const workspaceRoot = path.resolve(projectRoot, "../..");
 
-const config = {
-  watchFolders: [monorepoRoot],
-  resolver: {
-    nodeModulesPaths: [
-      path.resolve(projectRoot, "node_modules"),
-      path.resolve(monorepoRoot, "node_modules"),
-    ],
-    blockList: [
-      new RegExp(path.resolve(monorepoRoot, "apps/web") + "/.*"),
-      new RegExp(path.resolve(monorepoRoot, "apps/mobile") + "/.*"),
-    ],
-  },
-};
+const config = getDefaultConfig(projectRoot);
 
-module.exports = mergeConfig(getDefaultConfig(projectRoot), config);
+config.watchFolders = [workspaceRoot];
+config.resolver.nodeModulesPaths = [
+  path.resolve(projectRoot, "node_modules"),
+  path.resolve(workspaceRoot, "node_modules"),
+];
+config.resolver.disableHierarchicalLookup = true;
+
+module.exports = config;

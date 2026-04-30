@@ -11,12 +11,11 @@
     "types": ["react-native"],
     "baseUrl": ".",
     "paths": {
-      "@medbrains/types": ["../../packages/types/src"],
-      "@medbrains/utils": ["../../packages/utils/src"],
-      "@medbrains/schemas": ["../../packages/schemas/src"],
       "@medbrains/api": ["../../packages/api/src"],
-      "@medbrains/stores": ["../../packages/stores/src"]
+      "@medbrains/mobile-shell": ["../../packages/mobile-shell/src"],
+      "@medbrains/types": ["../../packages/types/src"],
+      "@medbrains/ui-mobile": ["../../packages/ui-mobile/src"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "App.tsx"]
 }
