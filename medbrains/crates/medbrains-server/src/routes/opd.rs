@@ -224,6 +224,24 @@ pub async fn list_encounters(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC scope — only encounters caller has `view` on ─────
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        Some(
+            state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "encounter",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+                .unwrap_or_default(),
+        )
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -232,6 +250,18 @@ pub async fn list_encounters(
         "encounter_type = 'opd'".to_owned(),
     ];
     let mut bind_idx: usize = 2;
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            return Ok(Json(EncounterListResponse {
+                encounters: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     #[allow(clippy::items_after_statements, clippy::struct_field_names)]
     struct Bind {
@@ -302,6 +332,9 @@ pub async fn list_encounters(
             count_q = count_q.bind(d);
         }
     }
+    if let Some(ref ids) = visible_ids {
+        count_q = count_q.bind(ids.clone());
+    }
     let total = count_q.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -320,6 +353,9 @@ pub async fn list_encounters(
         if let Some(d) = b.date_val {
             data_q = data_q.bind(d);
         }
+    }
+    if let Some(ref ids) = visible_ids {
+        data_q = data_q.bind(ids.clone());
     }
     let encounters = data_q
         .bind(per_page)
@@ -461,6 +497,17 @@ pub async fn get_encounter(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Encounter>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    // ── ReBAC pre-check — must hold `view` on the specific encounter ──
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::NotFound);
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -482,11 +482,41 @@ pub async fn list_admissions(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC scope — only admissions caller has `view` on ────
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        Some(
+            state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "admission",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+                .unwrap_or_default(),
+        )
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["a.tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            return Ok(Json(AdmissionListResponse {
+                admissions: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("a.id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     #[allow(clippy::items_after_statements, clippy::struct_field_names)]
     struct Bind {
@@ -544,6 +574,9 @@ pub async fn list_admissions(
             count_q = count_q.bind(s.clone());
         }
     }
+    if let Some(ref ids) = visible_ids {
+        count_q = count_q.bind(ids.clone());
+    }
     let total = count_q.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -569,6 +602,9 @@ pub async fn list_admissions(
         if let Some(ref s) = b.string_val {
             data_q = data_q.bind(s.clone());
         }
+    }
+    if let Some(ref ids) = visible_ids {
+        data_q = data_q.bind(ids.clone());
     }
     let admissions = data_q
         .bind(per_page)
@@ -745,6 +781,17 @@ pub async fn get_admission(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdmissionDetailResponse>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+
+    // ── ReBAC pre-check — must hold `view` on the specific admission ─
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::NotFound);
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
