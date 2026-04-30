@@ -29,6 +29,7 @@ pub mod middleware;
 pub mod orchestration;
 pub mod routes;
 pub mod seed;
+pub mod services;
 pub mod signing;
 pub mod state;
 pub mod validation;
