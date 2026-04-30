@@ -8,6 +8,7 @@ license = "Apache-2.0"
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
+medbrains-offline-core = { path = "../medbrains-offline-core" }
 
 # Async runtime + WebSocket sync server
 tokio = { workspace = true }
@@ -36,10 +37,6 @@ anyhow = { workspace = true }
 
 # Hashing for the Merkle audit chain
 sha2 = { workspace = true }
-
-# Edge authz cache: persistent embedded KV + in-memory LRU
-sled = "0.34"
-lru = "0.12"
 
 [dev-dependencies]
 tempfile = { workspace = true }

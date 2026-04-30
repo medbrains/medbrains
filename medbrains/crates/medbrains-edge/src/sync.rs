@@ -9,7 +9,7 @@
 //! reusable `SyncServer` struct that ties together a `DocStore` and
 //! a `MerkleAudit`. Tests at the bottom show the merge cycle.
 
-use crate::authz_cache::{
+use medbrains_offline_core::{
     AuthzCache, CacheKey, CacheSource, CheckOutcome, DenyReason, OfflinePolicy,
 };
 use crate::doc_store::{DocStore, DocStoreError};

@@ -1,11 +1,11 @@
-//! Edge-side authz read cache.
+//! Read-only authz cache.
 //!
 //! The cloud is the authority for permission grants — SpiceDB ReBAC
-//! lives there and only there. The edge node is **strictly
-//! read-only**: it serves cached permission decisions during WAN
-//! outages so clinical pages keep functioning, and it accepts cache
-//! invalidation frames pushed from the cloud, but it MUST NOT mint
-//! permission grants on its own.
+//! lives there and only there. Devices (edge servers, mobile, TV)
+//! are **strictly read-only**: they serve cached permission decisions
+//! during WAN outages so clinical pages keep functioning, and they
+//! accept cache invalidation frames pushed from the cloud, but they
+//! MUST NOT mint permission grants on their own.
 //!
 //! # Design
 //!
@@ -23,14 +23,13 @@
 //!   missed, the strongest claim we have is the JWT the user logged
 //!   in with.
 //!
-//! # Out of scope (next PR)
+//! # History
 //!
-//! - Wiring this into [`crate::sync::SyncServer::handle_push`] so
-//!   incoming `Frame::CacheInvalidate` frames mutate the cache.
-//! - Appending each check to [`crate::merkle::MerkleAudit`] — the
-//!   audit hook point is marked `// AUDIT_HOOK` below; threading an
-//!   `Arc<MerkleAudit>` here is deferred to the integration PR to
-//!   keep this module reviewable.
+//! Originally lived in `medbrains-edge::authz_cache` (PR #9). Moved
+//! here in Phase A so mobile + TV bindings (`medbrains-edge-rn`) can
+//! consume the same logic the edge server uses without depending on
+//! the full edge crate. `medbrains-edge` re-exports from this crate
+//! for back-compat.
 
 use lru::LruCache;
 use serde::{Deserialize, Serialize};

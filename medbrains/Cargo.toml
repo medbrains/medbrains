@@ -15,6 +15,7 @@ members = [
     "crates/medbrains-edge",
     "crates/medbrains-edge-rn",
     "crates/medbrains-fhir",
+    "crates/medbrains-offline-core",
     "apps/edge",
 ]
 
