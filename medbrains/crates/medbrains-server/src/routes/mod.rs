@@ -44,6 +44,7 @@ pub mod lms;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod nurse_clinical;
+pub mod clinical_offline;
 pub mod nurse_handoff;
 pub mod nurse_mar;
 pub mod nurse_vitals;
@@ -1965,6 +1966,30 @@ pub fn build_router(state: AppState) -> Router {
             "/api/nurse/equipment-checks",
             get(nurse_handoff::list_equipment_checks)
                 .post(nurse_handoff::create_equipment_check),
+        )
+        // ── Clinical offline-mode REST adapters (Phase 7) ─────────────
+        // Mirror endpoints for the four CRDT hooks. Same data the edge
+        // node holds in Loro containers — surfaced here for tenants
+        // running in REST mode.
+        .route(
+            "/api/clinical/handoff-entries/shifts/{shift_id}",
+            get(clinical_offline::list_handoff_entries)
+                .post(clinical_offline::create_handoff_entry),
+        )
+        .route(
+            "/api/clinical/triage-entries/visits/{visit_id}",
+            get(clinical_offline::list_triage_entries)
+                .post(clinical_offline::create_triage_entry),
+        )
+        .route(
+            "/api/clinical/patient-notes/{patient_id}",
+            get(clinical_offline::get_patient_notes)
+                .put(clinical_offline::update_patient_notes),
+        )
+        .route(
+            "/api/clinical/nursing-shift-notes/{shift_id}",
+            get(clinical_offline::get_nursing_shift_notes)
+                .put(clinical_offline::update_nursing_shift_notes),
         )
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
         .route(

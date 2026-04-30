@@ -13,6 +13,11 @@ pub mod patients {
     pub const CREATE: &str = "patients.create";
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
+
+    pub mod notes {
+        pub const VIEW: &str = "patients.notes.view";
+        pub const EDIT: &str = "patients.notes.edit";
+    }
 }
 
 pub mod opd {
@@ -1708,6 +1713,16 @@ pub mod nurse {
     pub mod handoff {
         pub const VIEW: &str = "nurse.handoff.view";
         pub const RECORD: &str = "nurse.handoff.record";
+    }
+    pub mod handoff_entries {
+        // Lightweight T2 append-only log used by the offline-mode
+        // handoff hook. Distinct from the SBAR `handoff` resource.
+        pub const VIEW: &str = "nurse.handoff_entries.view";
+        pub const RECORD: &str = "nurse.handoff_entries.record";
+    }
+    pub mod shift_notes {
+        pub const VIEW: &str = "nurse.shift_notes.view";
+        pub const EDIT: &str = "nurse.shift_notes.edit";
     }
     pub mod code_blue {
         pub const VIEW: &str = "nurse.code_blue.view";

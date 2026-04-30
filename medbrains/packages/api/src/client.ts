@@ -11332,4 +11332,83 @@ export const api = {
     const q = qs.toString();
     return request<unknown[]>(`/pharmacy/drug-margins/daily${q ? `?${q}` : ""}`);
   },
+
+  // ── Clinical offline-mode REST adapters (Phase 7) ───────────────────
+  // Mirror endpoints for the 4 CRDT hooks. Same data the edge node
+  // holds in Loro containers — used when the tenant is in REST mode.
+
+  listClinicalHandoffEntries: (shiftId: string) =>
+    request<Array<{
+      id: string;
+      shift_id: string;
+      author_user_id: string;
+      author_name: string;
+      category: "alert" | "info" | "task";
+      note: string;
+      authored_at: string;
+    }>>(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`),
+  createClinicalHandoffEntry: (
+    shiftId: string,
+    data: { category: "alert" | "info" | "task"; note: string; department_id?: string },
+  ) =>
+    request<unknown>(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listClinicalTriageEntries: (visitId: string) =>
+    request<Array<{
+      id: string;
+      er_visit_id: string;
+      author_user_id: string;
+      author_name: string;
+      esi_level: 1 | 2 | 3 | 4 | 5;
+      chief_complaint: string;
+      observation: string;
+      authored_at: string;
+    }>>(`/clinical/triage-entries/visits/${visitId}`),
+  createClinicalTriageEntry: (
+    visitId: string,
+    data: { esi_level: 1 | 2 | 3 | 4 | 5; chief_complaint: string; observation?: string },
+  ) =>
+    request<unknown>(`/clinical/triage-entries/visits/${visitId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getPatientNotes: (patientId: string) =>
+    request<{
+      patient_id: string;
+      text: string;
+      last_author_id: string | null;
+      last_author_name: string | null;
+      last_edited_at: string | null;
+      version: number;
+    }>(`/clinical/patient-notes/${patientId}`),
+  updatePatientNotes: (
+    patientId: string,
+    data: { text: string; if_version?: number },
+  ) =>
+    request<unknown>(`/clinical/patient-notes/${patientId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getNursingShiftNotes: (shiftId: string) =>
+    request<{
+      shift_id: string;
+      text: string;
+      last_author_id: string | null;
+      last_author_name: string | null;
+      last_edited_at: string | null;
+      version: number;
+    }>(`/clinical/nursing-shift-notes/${encodeURIComponent(shiftId)}`),
+  updateNursingShiftNotes: (
+    shiftId: string,
+    data: { text: string; department_id?: string; if_version?: number },
+  ) =>
+    request<unknown>(`/clinical/nursing-shift-notes/${encodeURIComponent(shiftId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };
