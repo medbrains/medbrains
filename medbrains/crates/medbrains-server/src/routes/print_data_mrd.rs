@@ -1401,7 +1401,7 @@ struct TransfusionReqRow {
     consent_obtained: bool,
     sample_collected_by: Option<String>,
     sample_collected_at: Option<chrono::DateTime<chrono::Utc>>,
-    requested_by: String,
+    requested_by: Option<String>,
     requested_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -1494,7 +1494,7 @@ pub async fn get_transfusion_requisition_print_data(
         sample_collected_at: row
             .sample_collected_at
             .map(|t| t.format("%d-%b-%Y %H:%M").to_string()),
-        requested_by: row.requested_by,
+        requested_by: row.requested_by.unwrap_or_default(),
         requested_at: row.requested_at.format("%d-%b-%Y %H:%M").to_string(),
     }))
 }
