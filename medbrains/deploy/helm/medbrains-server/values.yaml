@@ -1,0 +1,104 @@
+# Defaults wired for Enterprise-k3s tier (single ARM node + RDS + ingress-nginx).
+# Override via terraform / `helm install -f overrides.yaml`.
+
+image:
+  repository: ghcr.io/domnicamalan/medbrains
+  tag: latest
+  pullPolicy: IfNotPresent
+  # Set to "ghcr-pull" if image is private and the secret has been created.
+  pullSecretName: ""
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+# Ingress + cert-manager TLS for the public hostname.
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  host: hims.amh.org.in
+  tls:
+    enabled: true
+    secretName: medbrains-tls
+
+# Postgres connection. Either set databaseUrl directly or fill in the
+# parts and let the helper template assemble it. Secret-managed in
+# production — for the bootstrap path, terraform passes a full URL via
+# the `--set` flag.
+database:
+  url: "" # postgres://user:pass@host:5432/medbrains?sslmode=require
+  existingSecret: ""
+  existingSecretKey: DATABASE_URL
+
+config:
+  domain: "hims.amh.org.in"
+  adminEmail: "ops@amh.org.in"
+  rustLog: "info,medbrains=debug,sqlx=warn"
+
+# Pod-level resource budget. Tuned for t4g.medium (2 vCPU / 4 GB).
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 1500Mi
+
+# Distroless `nonroot` user (uid/gid 65532). Matches Dockerfile.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Liveness/readiness via /api/health (axum route).
+probes:
+  liveness:
+    path: /api/health
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /api/health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# HPA — CPU-based, kicks in once pod usage > 70%.
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+serviceAccount:
+  create: true
+  name: ""
+
+# Schedule onto ARM-only nodes when the cluster has them. k3s tier
+# cluster has only one ARM node, so this is a no-op safety net.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra env vars passed to the container.
+extraEnv: []
+# - name: FOO
+#   value: bar

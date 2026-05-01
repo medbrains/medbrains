@@ -535,7 +535,7 @@ ALTER TABLE ONLY public.processed_webhooks
 -- Name: idx_bridge_agents_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bridge_agents_status ON public.bridge_agents USING btree (status) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_bridge_agents_status ON public.bridge_agents USING btree (status) WHERE is_active;
 
 
 
@@ -543,7 +543,7 @@ CREATE INDEX idx_bridge_agents_status ON public.bridge_agents USING btree (statu
 -- Name: idx_bridge_agents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bridge_agents_tenant ON public.bridge_agents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bridge_agents_tenant ON public.bridge_agents USING btree (tenant_id);
 
 
 
@@ -551,7 +551,7 @@ CREATE INDEX idx_bridge_agents_tenant ON public.bridge_agents USING btree (tenan
 -- Name: idx_connectors_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_connectors_tenant ON public.connectors USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_connectors_tenant ON public.connectors USING btree (tenant_id);
 
 
 
@@ -559,7 +559,7 @@ CREATE INDEX idx_connectors_tenant ON public.connectors USING btree (tenant_id);
 -- Name: idx_connectors_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_connectors_type ON public.connectors USING btree (connector_type);
+CREATE INDEX IF NOT EXISTS idx_connectors_type ON public.connectors USING btree (connector_type);
 
 
 
@@ -567,7 +567,7 @@ CREATE INDEX idx_connectors_type ON public.connectors USING btree (connector_typ
 -- Name: idx_event_registry_code; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_event_registry_code ON public.event_registry USING btree (event_code);
+CREATE INDEX IF NOT EXISTS idx_event_registry_code ON public.event_registry USING btree (event_code);
 
 
 
@@ -575,7 +575,7 @@ CREATE INDEX idx_event_registry_code ON public.event_registry USING btree (event
 -- Name: idx_event_registry_module; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_event_registry_module ON public.event_registry USING btree (module);
+CREATE INDEX IF NOT EXISTS idx_event_registry_module ON public.event_registry USING btree (module);
 
 
 
@@ -583,7 +583,7 @@ CREATE INDEX idx_event_registry_module ON public.event_registry USING btree (mod
 -- Name: idx_exec_steps_exec; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_exec_steps_exec ON public.integration_execution_steps USING btree (execution_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_exec_steps_exec ON public.integration_execution_steps USING btree (execution_id, created_at);
 
 
 
@@ -591,7 +591,7 @@ CREATE INDEX idx_exec_steps_exec ON public.integration_execution_steps USING btr
 -- Name: idx_int_exec_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_exec_created ON public.integration_executions USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_int_exec_created ON public.integration_executions USING btree (created_at DESC);
 
 
 
@@ -599,7 +599,7 @@ CREATE INDEX idx_int_exec_created ON public.integration_executions USING btree (
 -- Name: idx_int_exec_pipeline; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_exec_pipeline ON public.integration_executions USING btree (pipeline_id);
+CREATE INDEX IF NOT EXISTS idx_int_exec_pipeline ON public.integration_executions USING btree (pipeline_id);
 
 
 
@@ -607,7 +607,7 @@ CREATE INDEX idx_int_exec_pipeline ON public.integration_executions USING btree 
 -- Name: idx_int_exec_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_exec_status ON public.integration_executions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_int_exec_status ON public.integration_executions USING btree (tenant_id, status);
 
 
 
@@ -615,7 +615,7 @@ CREATE INDEX idx_int_exec_status ON public.integration_executions USING btree (t
 -- Name: idx_int_exec_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_exec_tenant ON public.integration_executions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_int_exec_tenant ON public.integration_executions USING btree (tenant_id);
 
 
 
@@ -623,7 +623,7 @@ CREATE INDEX idx_int_exec_tenant ON public.integration_executions USING btree (t
 -- Name: idx_int_node_tpl_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_node_tpl_category ON public.integration_node_templates USING btree (category);
+CREATE INDEX IF NOT EXISTS idx_int_node_tpl_category ON public.integration_node_templates USING btree (category);
 
 
 
@@ -631,7 +631,7 @@ CREATE INDEX idx_int_node_tpl_category ON public.integration_node_templates USIN
 -- Name: idx_int_node_tpl_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_node_tpl_tenant ON public.integration_node_templates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_int_node_tpl_tenant ON public.integration_node_templates USING btree (tenant_id);
 
 
 
@@ -639,7 +639,7 @@ CREATE INDEX idx_int_node_tpl_tenant ON public.integration_node_templates USING 
 -- Name: idx_int_node_tpl_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_node_tpl_type ON public.integration_node_templates USING btree (node_type);
+CREATE INDEX IF NOT EXISTS idx_int_node_tpl_type ON public.integration_node_templates USING btree (node_type);
 
 
 
@@ -647,7 +647,7 @@ CREATE INDEX idx_int_node_tpl_type ON public.integration_node_templates USING bt
 -- Name: idx_int_pipelines_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_pipelines_status ON public.integration_pipelines USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_int_pipelines_status ON public.integration_pipelines USING btree (tenant_id, status);
 
 
 
@@ -655,7 +655,7 @@ CREATE INDEX idx_int_pipelines_status ON public.integration_pipelines USING btre
 -- Name: idx_int_pipelines_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_pipelines_tenant ON public.integration_pipelines USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_int_pipelines_tenant ON public.integration_pipelines USING btree (tenant_id);
 
 
 
@@ -663,7 +663,7 @@ CREATE INDEX idx_int_pipelines_tenant ON public.integration_pipelines USING btre
 -- Name: idx_int_pipelines_trigger; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_pipelines_trigger ON public.integration_pipelines USING btree (tenant_id, trigger_type);
+CREATE INDEX IF NOT EXISTS idx_int_pipelines_trigger ON public.integration_pipelines USING btree (tenant_id, trigger_type);
 
 
 
@@ -671,7 +671,7 @@ CREATE INDEX idx_int_pipelines_trigger ON public.integration_pipelines USING btr
 -- Name: idx_int_pipelines_trigger_config; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_int_pipelines_trigger_config ON public.integration_pipelines USING gin (trigger_config);
+CREATE INDEX IF NOT EXISTS idx_int_pipelines_trigger_config ON public.integration_pipelines USING gin (trigger_config);
 
 
 
@@ -679,7 +679,7 @@ CREATE INDEX idx_int_pipelines_trigger_config ON public.integration_pipelines US
 -- Name: idx_module_config_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_module_config_tenant ON public.module_config USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_module_config_tenant ON public.module_config USING btree (tenant_id);
 
 
 
@@ -687,7 +687,7 @@ CREATE INDEX idx_module_config_tenant ON public.module_config USING btree (tenan
 -- Name: idx_module_sidecars_lookup; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_module_sidecars_lookup ON public.module_sidecars USING btree (tenant_id, module_code, context_code) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_module_sidecars_lookup ON public.module_sidecars USING btree (tenant_id, module_code, context_code) WHERE is_active;
 
 
 
@@ -695,7 +695,7 @@ CREATE INDEX idx_module_sidecars_lookup ON public.module_sidecars USING btree (t
 -- Name: idx_module_sidecars_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_module_sidecars_tenant ON public.module_sidecars USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_module_sidecars_tenant ON public.module_sidecars USING btree (tenant_id);
 
 
 
@@ -703,7 +703,7 @@ CREATE INDEX idx_module_sidecars_tenant ON public.module_sidecars USING btree (t
 -- Name: idx_outbox_dlq_event_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbox_dlq_event_type ON public.outbox_dlq USING btree (tenant_id, event_type, moved_at DESC);
+CREATE INDEX IF NOT EXISTS idx_outbox_dlq_event_type ON public.outbox_dlq USING btree (tenant_id, event_type, moved_at DESC);
 
 
 
@@ -711,7 +711,7 @@ CREATE INDEX idx_outbox_dlq_event_type ON public.outbox_dlq USING btree (tenant_
 -- Name: idx_outbox_dlq_tenant_moved; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbox_dlq_tenant_moved ON public.outbox_dlq USING btree (tenant_id, moved_at DESC);
+CREATE INDEX IF NOT EXISTS idx_outbox_dlq_tenant_moved ON public.outbox_dlq USING btree (tenant_id, moved_at DESC);
 
 
 
@@ -719,7 +719,7 @@ CREATE INDEX idx_outbox_dlq_tenant_moved ON public.outbox_dlq USING btree (tenan
 -- Name: idx_processed_webhooks_received; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_processed_webhooks_received ON public.processed_webhooks USING btree (received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_processed_webhooks_received ON public.processed_webhooks USING btree (received_at DESC);
 
 
 
@@ -727,7 +727,7 @@ CREATE INDEX idx_processed_webhooks_received ON public.processed_webhooks USING 
 -- Name: idx_processed_webhooks_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_processed_webhooks_tenant ON public.processed_webhooks USING btree (tenant_id, received_at DESC) WHERE (tenant_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_processed_webhooks_tenant ON public.processed_webhooks USING btree (tenant_id, received_at DESC) WHERE (tenant_id IS NOT NULL);
 
 
 
@@ -735,7 +735,7 @@ CREATE INDEX idx_processed_webhooks_tenant ON public.processed_webhooks USING bt
 -- Name: outbox_events_aggregate; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX outbox_events_aggregate ON public.outbox_events USING btree (tenant_id, aggregate_type, aggregate_id);
+CREATE INDEX IF NOT EXISTS outbox_events_aggregate ON public.outbox_events USING btree (tenant_id, aggregate_type, aggregate_id);
 
 
 
@@ -743,7 +743,7 @@ CREATE INDEX outbox_events_aggregate ON public.outbox_events USING btree (tenant
 -- Name: outbox_events_drain; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX outbox_events_drain ON public.outbox_events USING btree (tenant_id, next_retry_at) WHERE (status = ANY (ARRAY['pending'::text, 'retrying'::text]));
+CREATE INDEX IF NOT EXISTS outbox_events_drain ON public.outbox_events USING btree (tenant_id, next_retry_at) WHERE (status = ANY (ARRAY['pending'::text, 'retrying'::text]));
 
 
 
@@ -751,7 +751,7 @@ CREATE INDEX outbox_events_drain ON public.outbox_events USING btree (tenant_id,
 -- Name: outbox_events_idemp; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX outbox_events_idemp ON public.outbox_events USING btree (tenant_id, event_type, idempotency_key) WHERE (idempotency_key IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS outbox_events_idemp ON public.outbox_events USING btree (tenant_id, event_type, idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
 
@@ -759,7 +759,7 @@ CREATE UNIQUE INDEX outbox_events_idemp ON public.outbox_events USING btree (ten
 -- Name: outbox_events_stale_claim; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX outbox_events_stale_claim ON public.outbox_events USING btree (claimed_at) WHERE ((status = 'retrying'::text) AND (claimed_at IS NOT NULL));
+CREATE INDEX IF NOT EXISTS outbox_events_stale_claim ON public.outbox_events USING btree (claimed_at) WHERE ((status = 'retrying'::text) AND (claimed_at IS NOT NULL));
 
 
 

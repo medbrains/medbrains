@@ -1,7 +1,7 @@
 # KMS module — 4 CMKs per region: app, db, audit, secrets.
 # Each with rotation enabled, scoped key policy, alias.
 
-variable "region"      { type = string }
+variable "region" { type = string }
 variable "environment" { type = string }
 variable "account_id" {
   type        = string
@@ -28,15 +28,15 @@ resource "aws_kms_key" "purpose" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "EnableIAMUserPermissions"
-        Effect = "Allow"
+        Sid       = "EnableIAMUserPermissions"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
-        Action   = "kms:*"
-        Resource = "*"
+        Action    = "kms:*"
+        Resource  = "*"
       },
       {
-        Sid    = "AllowCloudWatchLogs"
-        Effect = "Allow"
+        Sid       = "AllowCloudWatchLogs"
+        Effect    = "Allow"
         Principal = { Service = "logs.${var.region}.amazonaws.com" }
         Action = [
           "kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*",
@@ -66,11 +66,11 @@ resource "aws_kms_key" "jwt_signer" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "EnableIAMUserPermissions"
-        Effect = "Allow"
+        Sid       = "EnableIAMUserPermissions"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
-        Action   = "kms:*"
-        Resource = "*"
+        Action    = "kms:*"
+        Resource  = "*"
       },
     ]
   })

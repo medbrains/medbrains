@@ -495,7 +495,7 @@ ALTER TABLE ONLY public.work_orders
 -- Name: idx_facilities_parent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_facilities_parent ON public.facilities USING btree (parent_id);
+CREATE INDEX IF NOT EXISTS idx_facilities_parent ON public.facilities USING btree (parent_id);
 
 
 
@@ -503,7 +503,7 @@ CREATE INDEX idx_facilities_parent ON public.facilities USING btree (parent_id);
 -- Name: idx_facilities_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_facilities_tenant ON public.facilities USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_facilities_tenant ON public.facilities USING btree (tenant_id);
 
 
 
@@ -511,7 +511,7 @@ CREATE INDEX idx_facilities_tenant ON public.facilities USING btree (tenant_id);
 -- Name: idx_facilities_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_facilities_type ON public.facilities USING btree (tenant_id, facility_type);
+CREATE INDEX IF NOT EXISTS idx_facilities_type ON public.facilities USING btree (tenant_id, facility_type);
 
 
 
@@ -519,7 +519,7 @@ CREATE INDEX idx_facilities_type ON public.facilities USING btree (tenant_id, fa
 -- Name: idx_fms_energy_readings_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_energy_readings_at ON public.fms_energy_readings USING btree (tenant_id, reading_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fms_energy_readings_at ON public.fms_energy_readings USING btree (tenant_id, reading_at DESC);
 
 
 
@@ -527,7 +527,7 @@ CREATE INDEX idx_fms_energy_readings_at ON public.fms_energy_readings USING btre
 -- Name: idx_fms_energy_readings_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_energy_readings_source ON public.fms_energy_readings USING btree (tenant_id, source_type);
+CREATE INDEX IF NOT EXISTS idx_fms_energy_readings_source ON public.fms_energy_readings USING btree (tenant_id, source_type);
 
 
 
@@ -535,7 +535,7 @@ CREATE INDEX idx_fms_energy_readings_source ON public.fms_energy_readings USING 
 -- Name: idx_fms_energy_readings_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_energy_readings_tenant ON public.fms_energy_readings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_energy_readings_tenant ON public.fms_energy_readings USING btree (tenant_id);
 
 
 
@@ -543,7 +543,7 @@ CREATE INDEX idx_fms_energy_readings_tenant ON public.fms_energy_readings USING 
 -- Name: idx_fms_fire_drills_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_drills_date ON public.fms_fire_drills USING btree (tenant_id, drill_date DESC);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_drills_date ON public.fms_fire_drills USING btree (tenant_id, drill_date DESC);
 
 
 
@@ -551,7 +551,7 @@ CREATE INDEX idx_fms_fire_drills_date ON public.fms_fire_drills USING btree (ten
 -- Name: idx_fms_fire_drills_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_drills_tenant ON public.fms_fire_drills USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_drills_tenant ON public.fms_fire_drills USING btree (tenant_id);
 
 
 
@@ -559,7 +559,7 @@ CREATE INDEX idx_fms_fire_drills_tenant ON public.fms_fire_drills USING btree (t
 -- Name: idx_fms_fire_equipment_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_equipment_tenant ON public.fms_fire_equipment USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_equipment_tenant ON public.fms_fire_equipment USING btree (tenant_id);
 
 
 
@@ -567,7 +567,7 @@ CREATE INDEX idx_fms_fire_equipment_tenant ON public.fms_fire_equipment USING bt
 -- Name: idx_fms_fire_equipment_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_equipment_type ON public.fms_fire_equipment USING btree (tenant_id, equipment_type);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_equipment_type ON public.fms_fire_equipment USING btree (tenant_id, equipment_type);
 
 
 
@@ -575,7 +575,7 @@ CREATE INDEX idx_fms_fire_equipment_type ON public.fms_fire_equipment USING btre
 -- Name: idx_fms_fire_inspections_equipment; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_inspections_equipment ON public.fms_fire_inspections USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_inspections_equipment ON public.fms_fire_inspections USING btree (tenant_id, equipment_id);
 
 
 
@@ -583,7 +583,7 @@ CREATE INDEX idx_fms_fire_inspections_equipment ON public.fms_fire_inspections U
 -- Name: idx_fms_fire_inspections_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_inspections_tenant ON public.fms_fire_inspections USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_inspections_tenant ON public.fms_fire_inspections USING btree (tenant_id);
 
 
 
@@ -591,7 +591,7 @@ CREATE INDEX idx_fms_fire_inspections_tenant ON public.fms_fire_inspections USIN
 -- Name: idx_fms_fire_noc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_fire_noc_tenant ON public.fms_fire_noc USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_fire_noc_tenant ON public.fms_fire_noc USING btree (tenant_id);
 
 
 
@@ -599,7 +599,7 @@ CREATE INDEX idx_fms_fire_noc_tenant ON public.fms_fire_noc USING btree (tenant_
 -- Name: idx_fms_gas_compliance_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_gas_compliance_tenant ON public.fms_gas_compliance USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_gas_compliance_tenant ON public.fms_gas_compliance USING btree (tenant_id);
 
 
 
@@ -607,7 +607,7 @@ CREATE INDEX idx_fms_gas_compliance_tenant ON public.fms_gas_compliance USING bt
 -- Name: idx_fms_gas_readings_gas_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_gas_readings_gas_type ON public.fms_gas_readings USING btree (tenant_id, gas_type);
+CREATE INDEX IF NOT EXISTS idx_fms_gas_readings_gas_type ON public.fms_gas_readings USING btree (tenant_id, gas_type);
 
 
 
@@ -615,7 +615,7 @@ CREATE INDEX idx_fms_gas_readings_gas_type ON public.fms_gas_readings USING btre
 -- Name: idx_fms_gas_readings_reading_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_gas_readings_reading_at ON public.fms_gas_readings USING btree (tenant_id, reading_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fms_gas_readings_reading_at ON public.fms_gas_readings USING btree (tenant_id, reading_at DESC);
 
 
 
@@ -623,7 +623,7 @@ CREATE INDEX idx_fms_gas_readings_reading_at ON public.fms_gas_readings USING bt
 -- Name: idx_fms_gas_readings_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_gas_readings_tenant ON public.fms_gas_readings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_gas_readings_tenant ON public.fms_gas_readings USING btree (tenant_id);
 
 
 
@@ -631,7 +631,7 @@ CREATE INDEX idx_fms_gas_readings_tenant ON public.fms_gas_readings USING btree 
 -- Name: idx_fms_water_schedules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_water_schedules_tenant ON public.fms_water_schedules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_water_schedules_tenant ON public.fms_water_schedules USING btree (tenant_id);
 
 
 
@@ -639,7 +639,7 @@ CREATE INDEX idx_fms_water_schedules_tenant ON public.fms_water_schedules USING 
 -- Name: idx_fms_water_tests_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_water_tests_date ON public.fms_water_tests USING btree (tenant_id, sample_date DESC);
+CREATE INDEX IF NOT EXISTS idx_fms_water_tests_date ON public.fms_water_tests USING btree (tenant_id, sample_date DESC);
 
 
 
@@ -647,7 +647,7 @@ CREATE INDEX idx_fms_water_tests_date ON public.fms_water_tests USING btree (ten
 -- Name: idx_fms_water_tests_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_water_tests_source ON public.fms_water_tests USING btree (tenant_id, source_type);
+CREATE INDEX IF NOT EXISTS idx_fms_water_tests_source ON public.fms_water_tests USING btree (tenant_id, source_type);
 
 
 
@@ -655,7 +655,7 @@ CREATE INDEX idx_fms_water_tests_source ON public.fms_water_tests USING btree (t
 -- Name: idx_fms_water_tests_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_water_tests_tenant ON public.fms_water_tests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_water_tests_tenant ON public.fms_water_tests USING btree (tenant_id);
 
 
 
@@ -663,7 +663,7 @@ CREATE INDEX idx_fms_water_tests_tenant ON public.fms_water_tests USING btree (t
 -- Name: idx_fms_work_orders_priority; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_work_orders_priority ON public.fms_work_orders USING btree (tenant_id, priority);
+CREATE INDEX IF NOT EXISTS idx_fms_work_orders_priority ON public.fms_work_orders USING btree (tenant_id, priority);
 
 
 
@@ -671,7 +671,7 @@ CREATE INDEX idx_fms_work_orders_priority ON public.fms_work_orders USING btree 
 -- Name: idx_fms_work_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_work_orders_status ON public.fms_work_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_fms_work_orders_status ON public.fms_work_orders USING btree (tenant_id, status);
 
 
 
@@ -679,7 +679,7 @@ CREATE INDEX idx_fms_work_orders_status ON public.fms_work_orders USING btree (t
 -- Name: idx_fms_work_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_fms_work_orders_tenant ON public.fms_work_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fms_work_orders_tenant ON public.fms_work_orders USING btree (tenant_id);
 
 
 
@@ -687,7 +687,7 @@ CREATE INDEX idx_fms_work_orders_tenant ON public.fms_work_orders USING btree (t
 -- Name: idx_work_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_work_orders_status ON public.work_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_work_orders_status ON public.work_orders USING btree (tenant_id, status);
 
 
 

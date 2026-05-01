@@ -8,10 +8,10 @@
 # based on what the hospital's IT team is willing to operate.
 
 provider "proxmox" {
-  alias    = "onprem"
-  endpoint = var.proxmox_endpoint
+  alias     = "onprem"
+  endpoint  = var.proxmox_endpoint
   api_token = var.proxmox_api_token_id != "" ? "${var.proxmox_api_token_id}=${var.proxmox_api_token_secret}" : null
-  insecure = false
+  insecure  = false
 }
 
 # ── Proxmox path ─────────────────────────────────────────────────────
@@ -104,12 +104,12 @@ module "k3s_baremetal" {
 output "pg_endpoint_hint" {
   value = (var.onprem_substrate == "proxmox"
     ? join(",", module.patroni_proxmox[0].pg_ips)
-    : join(",", var.baremetal_pg_hosts))
+  : join(",", var.baremetal_pg_hosts))
   description = "Patroni nodes — point app.medbrains-server at any one for /leader REST"
 }
 
 output "k3s_server" {
   value = (var.onprem_substrate == "proxmox"
     ? module.k3s_proxmox[0].server_ip
-    : var.baremetal_k3s_server)
+  : var.baremetal_k3s_server)
 }

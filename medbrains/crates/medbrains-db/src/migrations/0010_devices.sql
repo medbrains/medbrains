@@ -247,7 +247,7 @@ ALTER TABLE ONLY public.device_routing_rules
 -- Name: idx_adapter_catalog_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adapter_catalog_category ON public.device_adapter_catalog USING btree (device_category);
+CREATE INDEX IF NOT EXISTS idx_adapter_catalog_category ON public.device_adapter_catalog USING btree (device_category);
 
 
 
@@ -255,7 +255,7 @@ CREATE INDEX idx_adapter_catalog_category ON public.device_adapter_catalog USING
 -- Name: idx_adapter_catalog_manufacturer; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adapter_catalog_manufacturer ON public.device_adapter_catalog USING btree (manufacturer_code);
+CREATE INDEX IF NOT EXISTS idx_adapter_catalog_manufacturer ON public.device_adapter_catalog USING btree (manufacturer_code);
 
 
 
@@ -263,7 +263,7 @@ CREATE INDEX idx_adapter_catalog_manufacturer ON public.device_adapter_catalog U
 -- Name: idx_adapter_catalog_protocol; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adapter_catalog_protocol ON public.device_adapter_catalog USING btree (protocol);
+CREATE INDEX IF NOT EXISTS idx_adapter_catalog_protocol ON public.device_adapter_catalog USING btree (protocol);
 
 
 
@@ -271,7 +271,7 @@ CREATE INDEX idx_adapter_catalog_protocol ON public.device_adapter_catalog USING
 -- Name: idx_adapter_catalog_search; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adapter_catalog_search ON public.device_adapter_catalog USING gin (to_tsvector('english'::regconfig, ((((manufacturer || ' '::text) || model) || ' '::text) || COALESCE(device_subcategory, ''::text))));
+CREATE INDEX IF NOT EXISTS idx_adapter_catalog_search ON public.device_adapter_catalog USING gin (to_tsvector('english'::regconfig, ((((manufacturer || ' '::text) || model) || ' '::text) || COALESCE(device_subcategory, ''::text))));
 
 
 
@@ -279,7 +279,7 @@ CREATE INDEX idx_adapter_catalog_search ON public.device_adapter_catalog USING g
 -- Name: idx_device_config_history_device; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_config_history_device ON public.device_config_history USING btree (device_instance_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_device_config_history_device ON public.device_config_history USING btree (device_instance_id, created_at DESC);
 
 
 
@@ -287,7 +287,7 @@ CREATE INDEX idx_device_config_history_device ON public.device_config_history US
 -- Name: idx_device_instances_adapter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_instances_adapter ON public.device_instances USING btree (adapter_code);
+CREATE INDEX IF NOT EXISTS idx_device_instances_adapter ON public.device_instances USING btree (adapter_code);
 
 
 
@@ -295,7 +295,7 @@ CREATE INDEX idx_device_instances_adapter ON public.device_instances USING btree
 -- Name: idx_device_instances_bridge; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_instances_bridge ON public.device_instances USING btree (bridge_agent_id);
+CREATE INDEX IF NOT EXISTS idx_device_instances_bridge ON public.device_instances USING btree (bridge_agent_id);
 
 
 
@@ -303,7 +303,7 @@ CREATE INDEX idx_device_instances_bridge ON public.device_instances USING btree 
 -- Name: idx_device_instances_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_instances_dept ON public.device_instances USING btree (department_id);
+CREATE INDEX IF NOT EXISTS idx_device_instances_dept ON public.device_instances USING btree (department_id);
 
 
 
@@ -311,7 +311,7 @@ CREATE INDEX idx_device_instances_dept ON public.device_instances USING btree (d
 -- Name: idx_device_instances_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_instances_status ON public.device_instances USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_device_instances_status ON public.device_instances USING btree (tenant_id, status);
 
 
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_device_instances_status ON public.device_instances USING btree 
 -- Name: idx_device_instances_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_instances_tenant ON public.device_instances USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_device_instances_tenant ON public.device_instances USING btree (tenant_id);
 
 
 
@@ -327,7 +327,7 @@ CREATE INDEX idx_device_instances_tenant ON public.device_instances USING btree 
 -- Name: idx_device_messages_device; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_messages_device ON public.device_messages USING btree (device_instance_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_device_messages_device ON public.device_messages USING btree (device_instance_id, created_at DESC);
 
 
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_device_messages_device ON public.device_messages USING btree (d
 -- Name: idx_device_messages_retry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_messages_retry ON public.device_messages USING btree (next_retry_at) WHERE ((processing_status = 'failed'::public.device_message_status) AND (next_retry_at IS NOT NULL));
+CREATE INDEX IF NOT EXISTS idx_device_messages_retry ON public.device_messages USING btree (next_retry_at) WHERE ((processing_status = 'failed'::public.device_message_status) AND (next_retry_at IS NOT NULL));
 
 
 
@@ -343,7 +343,7 @@ CREATE INDEX idx_device_messages_retry ON public.device_messages USING btree (ne
 -- Name: idx_device_messages_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_messages_status ON public.device_messages USING btree (processing_status) WHERE (processing_status = ANY (ARRAY['received'::public.device_message_status, 'parsed'::public.device_message_status, 'mapped'::public.device_message_status, 'failed'::public.device_message_status]));
+CREATE INDEX IF NOT EXISTS idx_device_messages_status ON public.device_messages USING btree (processing_status) WHERE (processing_status = ANY (ARRAY['received'::public.device_message_status, 'parsed'::public.device_message_status, 'mapped'::public.device_message_status, 'failed'::public.device_message_status]));
 
 
 
@@ -351,7 +351,7 @@ CREATE INDEX idx_device_messages_status ON public.device_messages USING btree (p
 -- Name: idx_device_routing_rules_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_routing_rules_active ON public.device_routing_rules USING btree (tenant_id, target_module) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_device_routing_rules_active ON public.device_routing_rules USING btree (tenant_id, target_module) WHERE is_active;
 
 
 
@@ -359,7 +359,7 @@ CREATE INDEX idx_device_routing_rules_active ON public.device_routing_rules USIN
 -- Name: idx_device_routing_rules_adapter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_routing_rules_adapter ON public.device_routing_rules USING btree (adapter_code);
+CREATE INDEX IF NOT EXISTS idx_device_routing_rules_adapter ON public.device_routing_rules USING btree (adapter_code);
 
 
 
@@ -367,7 +367,7 @@ CREATE INDEX idx_device_routing_rules_adapter ON public.device_routing_rules USI
 -- Name: idx_device_routing_rules_device; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_routing_rules_device ON public.device_routing_rules USING btree (device_instance_id);
+CREATE INDEX IF NOT EXISTS idx_device_routing_rules_device ON public.device_routing_rules USING btree (device_instance_id);
 
 
 
@@ -375,7 +375,7 @@ CREATE INDEX idx_device_routing_rules_device ON public.device_routing_rules USIN
 -- Name: idx_device_routing_rules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_device_routing_rules_tenant ON public.device_routing_rules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_device_routing_rules_tenant ON public.device_routing_rules USING btree (tenant_id);
 
 
 

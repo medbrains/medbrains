@@ -9,13 +9,18 @@ DNS records already pointing at it.
 
 ## Provider matrix
 
-| Sub-module | When to use |
-|---|---|
-| **`digitalocean`** | Recommended default for an Indian hospital pilot. Mumbai region, ~$24/mo for a 4 GB / 80 GB droplet that comfortably runs a 100-bed hospital |
-| **`existing-host`** | The hospital already owns the box (bare metal in the IT room, or pre-provisioned VM). Terraform doesn't create a host; just runs install.sh over SSH |
+| Sub-module | When to use | Tier |
+|---|---|---|
+| **`aws-ec2`** | Single-host AWS deploy for a small hospital. Rust binary + docker postgres on the same instance. | Starter |
+| **`aws-fargate`** | ECS Fargate task behind ALB + RDS + S3. Scales horizontally; supports overnight scale-to-zero. | Growth |
+| **`aws-k3s`** | Single EC2 host running k3s. Same Kubernetes API as Enterprise tier but cost-sensitive. | Enterprise-k3s |
+| **`aws-eks`** | EKS cluster + RDS + S3. Phase 3 wraps `modules/eks` (Karpenter) + `modules/aurora`. | Enterprise |
+| **`digitalocean`** | DO droplet in Bangalore, ~$24/mo. | Pilot |
+| **`existing-host`** | The hospital already owns the box. Terraform just runs install.sh over SSH. | Bring-your-own |
 
-Hetzner Cloud, AWS EC2, Linode, Vultr — pluggable via the same
-sub-module pattern as `modules/dns`. Add when a tenant needs them.
+The `aws-*` sub-modules are normally selected via the
+`modules/hospital-package` buyer-tier router rather than wired
+directly. See that module's README for the tier matrix.
 
 ## What every sub-module does
 

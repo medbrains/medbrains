@@ -35,6 +35,7 @@ export default defineConfig(async () => {
     },
     build: {
       sourcemap: "hidden",
+      target: "es2022",
       rollupOptions: {
         output: {
           manualChunks: {

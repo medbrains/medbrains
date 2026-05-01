@@ -2,7 +2,7 @@
 # NAT GW per AZ, VPC endpoints for S3, ECR, STS, KMS,
 # Secrets Manager, CloudWatch Logs.
 
-variable "region"      { type = string }
+variable "region" { type = string }
 variable "environment" { type = string }
 variable "cidr_block" {
   type    = string
@@ -21,7 +21,7 @@ resource "aws_vpc" "this" {
   cidr_block           = var.cidr_block
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = "medbrains-${var.environment}-${var.region}" }
+  tags                 = { Name = "medbrains-${var.environment}-${var.region}" }
 }
 
 # Subnets — 3 AZs × {public, private, db}
@@ -57,7 +57,7 @@ resource "aws_subnet" "db" {
   vpc_id            = aws_vpc.this.id
   cidr_block        = cidrsubnet(var.cidr_block, 8, 32 + index(local.full_azs, each.value))
   availability_zone = each.value
-  tags = { Name = "db-${each.value}" }
+  tags              = { Name = "db-${each.value}" }
 }
 
 # Internet GW + NAT GW per AZ
@@ -127,7 +127,7 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
   service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = concat(
+  route_table_ids = concat(
     [aws_route_table.public.id, aws_route_table.db.id],
     [for rt in aws_route_table.private : rt.id],
   )

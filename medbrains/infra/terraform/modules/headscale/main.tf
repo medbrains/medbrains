@@ -82,9 +82,9 @@ variable "allowed_egress_cidrs" {
 }
 
 locals {
-  name        = "medbrains-${var.environment}-headscale"
-  derp_port   = 3478
-  api_port    = 8080
+  name         = "medbrains-${var.environment}-headscale"
+  derp_port    = 3478
+  api_port     = 8080
   metrics_port = 9090
 }
 

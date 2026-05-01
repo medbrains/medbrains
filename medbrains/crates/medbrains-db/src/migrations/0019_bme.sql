@@ -428,7 +428,7 @@ ALTER TABLE ONLY public.equipment
 -- Name: equipment_checks_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX equipment_checks_due_idx ON public.equipment_checks USING btree (tenant_id, next_check_due_at) WHERE (next_check_due_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS equipment_checks_due_idx ON public.equipment_checks USING btree (tenant_id, next_check_due_at) WHERE (next_check_due_at IS NOT NULL);
 
 
 
@@ -436,7 +436,7 @@ CREATE INDEX equipment_checks_due_idx ON public.equipment_checks USING btree (te
 -- Name: idx_bme_breakdowns_equip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_breakdowns_equip ON public.bme_breakdowns USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_bme_breakdowns_equip ON public.bme_breakdowns USING btree (tenant_id, equipment_id);
 
 
 
@@ -444,7 +444,7 @@ CREATE INDEX idx_bme_breakdowns_equip ON public.bme_breakdowns USING btree (tena
 -- Name: idx_bme_breakdowns_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_breakdowns_status ON public.bme_breakdowns USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bme_breakdowns_status ON public.bme_breakdowns USING btree (tenant_id, status);
 
 
 
@@ -452,7 +452,7 @@ CREATE INDEX idx_bme_breakdowns_status ON public.bme_breakdowns USING btree (ten
 -- Name: idx_bme_breakdowns_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_breakdowns_tenant ON public.bme_breakdowns USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_breakdowns_tenant ON public.bme_breakdowns USING btree (tenant_id);
 
 
 
@@ -460,7 +460,7 @@ CREATE INDEX idx_bme_breakdowns_tenant ON public.bme_breakdowns USING btree (ten
 -- Name: idx_bme_calibrations_due; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_calibrations_due ON public.bme_calibrations USING btree (tenant_id, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_bme_calibrations_due ON public.bme_calibrations USING btree (tenant_id, next_due_date);
 
 
 
@@ -468,7 +468,7 @@ CREATE INDEX idx_bme_calibrations_due ON public.bme_calibrations USING btree (te
 -- Name: idx_bme_calibrations_equip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_calibrations_equip ON public.bme_calibrations USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_bme_calibrations_equip ON public.bme_calibrations USING btree (tenant_id, equipment_id);
 
 
 
@@ -476,7 +476,7 @@ CREATE INDEX idx_bme_calibrations_equip ON public.bme_calibrations USING btree (
 -- Name: idx_bme_calibrations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_calibrations_tenant ON public.bme_calibrations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_calibrations_tenant ON public.bme_calibrations USING btree (tenant_id);
 
 
 
@@ -484,7 +484,7 @@ CREATE INDEX idx_bme_calibrations_tenant ON public.bme_calibrations USING btree 
 -- Name: idx_bme_contracts_end; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_contracts_end ON public.bme_contracts USING btree (tenant_id, end_date);
+CREATE INDEX IF NOT EXISTS idx_bme_contracts_end ON public.bme_contracts USING btree (tenant_id, end_date);
 
 
 
@@ -492,7 +492,7 @@ CREATE INDEX idx_bme_contracts_end ON public.bme_contracts USING btree (tenant_i
 -- Name: idx_bme_contracts_equip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_contracts_equip ON public.bme_contracts USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_bme_contracts_equip ON public.bme_contracts USING btree (tenant_id, equipment_id);
 
 
 
@@ -500,7 +500,7 @@ CREATE INDEX idx_bme_contracts_equip ON public.bme_contracts USING btree (tenant
 -- Name: idx_bme_contracts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_contracts_tenant ON public.bme_contracts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_contracts_tenant ON public.bme_contracts USING btree (tenant_id);
 
 
 
@@ -508,7 +508,7 @@ CREATE INDEX idx_bme_contracts_tenant ON public.bme_contracts USING btree (tenan
 -- Name: idx_bme_equipment_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_equipment_dept ON public.bme_equipment USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_bme_equipment_dept ON public.bme_equipment USING btree (tenant_id, department_id);
 
 
 
@@ -516,7 +516,7 @@ CREATE INDEX idx_bme_equipment_dept ON public.bme_equipment USING btree (tenant_
 -- Name: idx_bme_equipment_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_equipment_status ON public.bme_equipment USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bme_equipment_status ON public.bme_equipment USING btree (tenant_id, status);
 
 
 
@@ -524,7 +524,7 @@ CREATE INDEX idx_bme_equipment_status ON public.bme_equipment USING btree (tenan
 -- Name: idx_bme_equipment_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_equipment_tenant ON public.bme_equipment USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_equipment_tenant ON public.bme_equipment USING btree (tenant_id);
 
 
 
@@ -532,7 +532,7 @@ CREATE INDEX idx_bme_equipment_tenant ON public.bme_equipment USING btree (tenan
 -- Name: idx_bme_pm_schedules_due; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_pm_schedules_due ON public.bme_pm_schedules USING btree (tenant_id, next_due_date);
+CREATE INDEX IF NOT EXISTS idx_bme_pm_schedules_due ON public.bme_pm_schedules USING btree (tenant_id, next_due_date);
 
 
 
@@ -540,7 +540,7 @@ CREATE INDEX idx_bme_pm_schedules_due ON public.bme_pm_schedules USING btree (te
 -- Name: idx_bme_pm_schedules_equip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_pm_schedules_equip ON public.bme_pm_schedules USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_bme_pm_schedules_equip ON public.bme_pm_schedules USING btree (tenant_id, equipment_id);
 
 
 
@@ -548,7 +548,7 @@ CREATE INDEX idx_bme_pm_schedules_equip ON public.bme_pm_schedules USING btree (
 -- Name: idx_bme_pm_schedules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_pm_schedules_tenant ON public.bme_pm_schedules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_pm_schedules_tenant ON public.bme_pm_schedules USING btree (tenant_id);
 
 
 
@@ -556,7 +556,7 @@ CREATE INDEX idx_bme_pm_schedules_tenant ON public.bme_pm_schedules USING btree 
 -- Name: idx_bme_vendor_evaluations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_vendor_evaluations_tenant ON public.bme_vendor_evaluations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_vendor_evaluations_tenant ON public.bme_vendor_evaluations USING btree (tenant_id);
 
 
 
@@ -564,7 +564,7 @@ CREATE INDEX idx_bme_vendor_evaluations_tenant ON public.bme_vendor_evaluations 
 -- Name: idx_bme_vendor_evaluations_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_vendor_evaluations_vendor ON public.bme_vendor_evaluations USING btree (tenant_id, vendor_id);
+CREATE INDEX IF NOT EXISTS idx_bme_vendor_evaluations_vendor ON public.bme_vendor_evaluations USING btree (tenant_id, vendor_id);
 
 
 
@@ -572,7 +572,7 @@ CREATE INDEX idx_bme_vendor_evaluations_vendor ON public.bme_vendor_evaluations 
 -- Name: idx_bme_work_orders_equip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_work_orders_equip ON public.bme_work_orders USING btree (tenant_id, equipment_id);
+CREATE INDEX IF NOT EXISTS idx_bme_work_orders_equip ON public.bme_work_orders USING btree (tenant_id, equipment_id);
 
 
 
@@ -580,7 +580,7 @@ CREATE INDEX idx_bme_work_orders_equip ON public.bme_work_orders USING btree (te
 -- Name: idx_bme_work_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_work_orders_status ON public.bme_work_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bme_work_orders_status ON public.bme_work_orders USING btree (tenant_id, status);
 
 
 
@@ -588,7 +588,7 @@ CREATE INDEX idx_bme_work_orders_status ON public.bme_work_orders USING btree (t
 -- Name: idx_bme_work_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bme_work_orders_tenant ON public.bme_work_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bme_work_orders_tenant ON public.bme_work_orders USING btree (tenant_id);
 
 
 
@@ -596,7 +596,7 @@ CREATE INDEX idx_bme_work_orders_tenant ON public.bme_work_orders USING btree (t
 -- Name: idx_calibrations_equipment; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_calibrations_equipment ON public.calibrations USING btree (tenant_id, equipment_id, calibration_date DESC);
+CREATE INDEX IF NOT EXISTS idx_calibrations_equipment ON public.calibrations USING btree (tenant_id, equipment_id, calibration_date DESC);
 
 
 

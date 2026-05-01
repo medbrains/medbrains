@@ -795,7 +795,7 @@ ALTER TABLE ONLY public.tat_records
 -- Name: idx_dq_issues_unresolved; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dq_issues_unresolved ON public.data_quality_issues USING btree (tenant_id, is_resolved, severity);
+CREATE INDEX IF NOT EXISTS idx_dq_issues_unresolved ON public.data_quality_issues USING btree (tenant_id, is_resolved, severity);
 
 
 
@@ -803,7 +803,7 @@ CREATE INDEX idx_dq_issues_unresolved ON public.data_quality_issues USING btree 
 -- Name: idx_qid_period; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_qid_period ON public.quality_indicator_data USING btree (tenant_id, indicator_id, period DESC);
+CREATE INDEX IF NOT EXISTS idx_qid_period ON public.quality_indicator_data USING btree (tenant_id, indicator_id, period DESC);
 
 
 
@@ -811,7 +811,7 @@ CREATE INDEX idx_qid_period ON public.quality_indicator_data USING btree (tenant
 -- Name: idx_quality_accred_compliance_standard; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_accred_compliance_standard ON public.quality_accreditation_compliance USING btree (tenant_id, standard_id);
+CREATE INDEX IF NOT EXISTS idx_quality_accred_compliance_standard ON public.quality_accreditation_compliance USING btree (tenant_id, standard_id);
 
 
 
@@ -819,7 +819,7 @@ CREATE INDEX idx_quality_accred_compliance_standard ON public.quality_accreditat
 -- Name: idx_quality_accred_compliance_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_accred_compliance_tenant ON public.quality_accreditation_compliance USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_accred_compliance_tenant ON public.quality_accreditation_compliance USING btree (tenant_id);
 
 
 
@@ -827,7 +827,7 @@ CREATE INDEX idx_quality_accred_compliance_tenant ON public.quality_accreditatio
 -- Name: idx_quality_accred_standards_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_accred_standards_tenant ON public.quality_accreditation_standards USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_accred_standards_tenant ON public.quality_accreditation_standards USING btree (tenant_id);
 
 
 
@@ -835,7 +835,7 @@ CREATE INDEX idx_quality_accred_standards_tenant ON public.quality_accreditation
 -- Name: idx_quality_action_items_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_action_items_source ON public.quality_action_items USING btree (tenant_id, source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_quality_action_items_source ON public.quality_action_items USING btree (tenant_id, source_type, source_id);
 
 
 
@@ -843,7 +843,7 @@ CREATE INDEX idx_quality_action_items_source ON public.quality_action_items USIN
 -- Name: idx_quality_action_items_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_action_items_tenant ON public.quality_action_items USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_action_items_tenant ON public.quality_action_items USING btree (tenant_id);
 
 
 
@@ -851,7 +851,7 @@ CREATE INDEX idx_quality_action_items_tenant ON public.quality_action_items USIN
 -- Name: idx_quality_audits_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_audits_dept ON public.quality_audits USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_quality_audits_dept ON public.quality_audits USING btree (tenant_id, department_id);
 
 
 
@@ -859,7 +859,7 @@ CREATE INDEX idx_quality_audits_dept ON public.quality_audits USING btree (tenan
 -- Name: idx_quality_audits_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_audits_status ON public.quality_audits USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_quality_audits_status ON public.quality_audits USING btree (tenant_id, status);
 
 
 
@@ -867,7 +867,7 @@ CREATE INDEX idx_quality_audits_status ON public.quality_audits USING btree (ten
 -- Name: idx_quality_audits_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_audits_tenant ON public.quality_audits USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_audits_tenant ON public.quality_audits USING btree (tenant_id);
 
 
 
@@ -875,7 +875,7 @@ CREATE INDEX idx_quality_audits_tenant ON public.quality_audits USING btree (ten
 -- Name: idx_quality_capa_incident; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_capa_incident ON public.quality_capa USING btree (tenant_id, incident_id);
+CREATE INDEX IF NOT EXISTS idx_quality_capa_incident ON public.quality_capa USING btree (tenant_id, incident_id);
 
 
 
@@ -883,7 +883,7 @@ CREATE INDEX idx_quality_capa_incident ON public.quality_capa USING btree (tenan
 -- Name: idx_quality_capa_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_capa_tenant ON public.quality_capa USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_capa_tenant ON public.quality_capa USING btree (tenant_id);
 
 
 
@@ -891,7 +891,7 @@ CREATE INDEX idx_quality_capa_tenant ON public.quality_capa USING btree (tenant_
 -- Name: idx_quality_committee_meetings_lookup; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_committee_meetings_lookup ON public.quality_committee_meetings USING btree (tenant_id, committee_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_quality_committee_meetings_lookup ON public.quality_committee_meetings USING btree (tenant_id, committee_id, scheduled_date);
 
 
 
@@ -899,7 +899,7 @@ CREATE INDEX idx_quality_committee_meetings_lookup ON public.quality_committee_m
 -- Name: idx_quality_committee_meetings_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_committee_meetings_tenant ON public.quality_committee_meetings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_committee_meetings_tenant ON public.quality_committee_meetings USING btree (tenant_id);
 
 
 
@@ -907,7 +907,7 @@ CREATE INDEX idx_quality_committee_meetings_tenant ON public.quality_committee_m
 -- Name: idx_quality_committees_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_committees_tenant ON public.quality_committees USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_committees_tenant ON public.quality_committees USING btree (tenant_id);
 
 
 
@@ -915,7 +915,7 @@ CREATE INDEX idx_quality_committees_tenant ON public.quality_committees USING bt
 -- Name: idx_quality_doc_acks_doc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_doc_acks_doc ON public.quality_document_acknowledgments USING btree (tenant_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_quality_doc_acks_doc ON public.quality_document_acknowledgments USING btree (tenant_id, document_id);
 
 
 
@@ -923,7 +923,7 @@ CREATE INDEX idx_quality_doc_acks_doc ON public.quality_document_acknowledgments
 -- Name: idx_quality_doc_acks_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_doc_acks_tenant ON public.quality_document_acknowledgments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_doc_acks_tenant ON public.quality_document_acknowledgments USING btree (tenant_id);
 
 
 
@@ -931,7 +931,7 @@ CREATE INDEX idx_quality_doc_acks_tenant ON public.quality_document_acknowledgme
 -- Name: idx_quality_document_versions_doc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_document_versions_doc ON public.quality_document_versions USING btree (tenant_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_quality_document_versions_doc ON public.quality_document_versions USING btree (tenant_id, document_id);
 
 
 
@@ -939,7 +939,7 @@ CREATE INDEX idx_quality_document_versions_doc ON public.quality_document_versio
 -- Name: idx_quality_document_versions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_document_versions_tenant ON public.quality_document_versions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_document_versions_tenant ON public.quality_document_versions USING btree (tenant_id);
 
 
 
@@ -947,7 +947,7 @@ CREATE INDEX idx_quality_document_versions_tenant ON public.quality_document_ver
 -- Name: idx_quality_documents_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_documents_dept ON public.quality_documents USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_quality_documents_dept ON public.quality_documents USING btree (tenant_id, department_id);
 
 
 
@@ -955,7 +955,7 @@ CREATE INDEX idx_quality_documents_dept ON public.quality_documents USING btree 
 -- Name: idx_quality_documents_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_documents_status ON public.quality_documents USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_quality_documents_status ON public.quality_documents USING btree (tenant_id, status);
 
 
 
@@ -963,7 +963,7 @@ CREATE INDEX idx_quality_documents_status ON public.quality_documents USING btre
 -- Name: idx_quality_documents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_documents_tenant ON public.quality_documents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_documents_tenant ON public.quality_documents USING btree (tenant_id);
 
 
 
@@ -971,7 +971,7 @@ CREATE INDEX idx_quality_documents_tenant ON public.quality_documents USING btre
 -- Name: idx_quality_incidents_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_incidents_date ON public.quality_incidents USING btree (tenant_id, incident_date);
+CREATE INDEX IF NOT EXISTS idx_quality_incidents_date ON public.quality_incidents USING btree (tenant_id, incident_date);
 
 
 
@@ -979,7 +979,7 @@ CREATE INDEX idx_quality_incidents_date ON public.quality_incidents USING btree 
 -- Name: idx_quality_incidents_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_incidents_severity ON public.quality_incidents USING btree (tenant_id, severity);
+CREATE INDEX IF NOT EXISTS idx_quality_incidents_severity ON public.quality_incidents USING btree (tenant_id, severity);
 
 
 
@@ -987,7 +987,7 @@ CREATE INDEX idx_quality_incidents_severity ON public.quality_incidents USING bt
 -- Name: idx_quality_incidents_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_incidents_status ON public.quality_incidents USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_quality_incidents_status ON public.quality_incidents USING btree (tenant_id, status);
 
 
 
@@ -995,7 +995,7 @@ CREATE INDEX idx_quality_incidents_status ON public.quality_incidents USING btre
 -- Name: idx_quality_incidents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_incidents_tenant ON public.quality_incidents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_incidents_tenant ON public.quality_incidents USING btree (tenant_id);
 
 
 
@@ -1003,7 +1003,7 @@ CREATE INDEX idx_quality_incidents_tenant ON public.quality_incidents USING btre
 -- Name: idx_quality_indicator_values_lookup; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_indicator_values_lookup ON public.quality_indicator_values USING btree (tenant_id, indicator_id, period_start);
+CREATE INDEX IF NOT EXISTS idx_quality_indicator_values_lookup ON public.quality_indicator_values USING btree (tenant_id, indicator_id, period_start);
 
 
 
@@ -1011,7 +1011,7 @@ CREATE INDEX idx_quality_indicator_values_lookup ON public.quality_indicator_val
 -- Name: idx_quality_indicator_values_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_indicator_values_tenant ON public.quality_indicator_values USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_indicator_values_tenant ON public.quality_indicator_values USING btree (tenant_id);
 
 
 
@@ -1019,7 +1019,7 @@ CREATE INDEX idx_quality_indicator_values_tenant ON public.quality_indicator_val
 -- Name: idx_quality_indicators_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_quality_indicators_tenant ON public.quality_indicators USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_quality_indicators_tenant ON public.quality_indicators USING btree (tenant_id);
 
 
 
@@ -1027,7 +1027,7 @@ CREATE INDEX idx_quality_indicators_tenant ON public.quality_indicators USING bt
 -- Name: idx_tat_benchmarks_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tat_benchmarks_tenant ON public.tat_benchmarks USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_tat_benchmarks_tenant ON public.tat_benchmarks USING btree (tenant_id, category);
 
 
 
@@ -1035,7 +1035,7 @@ CREATE INDEX idx_tat_benchmarks_tenant ON public.tat_benchmarks USING btree (ten
 -- Name: idx_tat_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tat_records_tenant ON public.tat_records USING btree (tenant_id, category, start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_tat_records_tenant ON public.tat_records USING btree (tenant_id, category, start_time DESC);
 
 
 

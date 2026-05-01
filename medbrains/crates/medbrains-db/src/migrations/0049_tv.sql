@@ -60,7 +60,7 @@ ALTER TABLE ONLY public.tv_displays
 -- Name: idx_tv_announcements_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tv_announcements_active ON public.tv_announcements USING btree (tenant_id, starts_at, ends_at) WHERE (ends_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_tv_announcements_active ON public.tv_announcements USING btree (tenant_id, starts_at, ends_at) WHERE (ends_at IS NULL);
 
 
 
@@ -68,7 +68,7 @@ CREATE INDEX idx_tv_announcements_active ON public.tv_announcements USING btree 
 -- Name: idx_tv_announcements_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tv_announcements_tenant ON public.tv_announcements USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tv_announcements_tenant ON public.tv_announcements USING btree (tenant_id);
 
 
 

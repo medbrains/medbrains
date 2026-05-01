@@ -296,7 +296,7 @@ ALTER TABLE ONLY public.transport_requests
 -- Name: idx_amb_drivers_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_drivers_active ON public.ambulance_drivers USING btree (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_amb_drivers_active ON public.ambulance_drivers USING btree (tenant_id, is_active);
 
 
 
@@ -304,7 +304,7 @@ CREATE INDEX idx_amb_drivers_active ON public.ambulance_drivers USING btree (ten
 -- Name: idx_amb_drivers_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_drivers_tenant ON public.ambulance_drivers USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_amb_drivers_tenant ON public.ambulance_drivers USING btree (tenant_id);
 
 
 
@@ -312,7 +312,7 @@ CREATE INDEX idx_amb_drivers_tenant ON public.ambulance_drivers USING btree (ten
 -- Name: idx_amb_logs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_logs_tenant ON public.ambulance_trip_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_amb_logs_tenant ON public.ambulance_trip_logs USING btree (tenant_id);
 
 
 
@@ -320,7 +320,7 @@ CREATE INDEX idx_amb_logs_tenant ON public.ambulance_trip_logs USING btree (tena
 -- Name: idx_amb_logs_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_logs_time ON public.ambulance_trip_logs USING btree (tenant_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_amb_logs_time ON public.ambulance_trip_logs USING btree (tenant_id, recorded_at DESC);
 
 
 
@@ -328,7 +328,7 @@ CREATE INDEX idx_amb_logs_time ON public.ambulance_trip_logs USING btree (tenant
 -- Name: idx_amb_logs_trip; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_logs_trip ON public.ambulance_trip_logs USING btree (tenant_id, trip_id);
+CREATE INDEX IF NOT EXISTS idx_amb_logs_trip ON public.ambulance_trip_logs USING btree (tenant_id, trip_id);
 
 
 
@@ -336,7 +336,7 @@ CREATE INDEX idx_amb_logs_trip ON public.ambulance_trip_logs USING btree (tenant
 -- Name: idx_amb_maint_ambulance; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_maint_ambulance ON public.ambulance_maintenance USING btree (tenant_id, ambulance_id);
+CREATE INDEX IF NOT EXISTS idx_amb_maint_ambulance ON public.ambulance_maintenance USING btree (tenant_id, ambulance_id);
 
 
 
@@ -344,7 +344,7 @@ CREATE INDEX idx_amb_maint_ambulance ON public.ambulance_maintenance USING btree
 -- Name: idx_amb_maint_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_maint_date ON public.ambulance_maintenance USING btree (tenant_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_amb_maint_date ON public.ambulance_maintenance USING btree (tenant_id, scheduled_date);
 
 
 
@@ -352,7 +352,7 @@ CREATE INDEX idx_amb_maint_date ON public.ambulance_maintenance USING btree (ten
 -- Name: idx_amb_maint_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_maint_status ON public.ambulance_maintenance USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_amb_maint_status ON public.ambulance_maintenance USING btree (tenant_id, status);
 
 
 
@@ -360,7 +360,7 @@ CREATE INDEX idx_amb_maint_status ON public.ambulance_maintenance USING btree (t
 -- Name: idx_amb_maint_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_maint_tenant ON public.ambulance_maintenance USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_amb_maint_tenant ON public.ambulance_maintenance USING btree (tenant_id);
 
 
 
@@ -368,7 +368,7 @@ CREATE INDEX idx_amb_maint_tenant ON public.ambulance_maintenance USING btree (t
 -- Name: idx_amb_trips_ambulance; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_ambulance ON public.ambulance_trips USING btree (tenant_id, ambulance_id);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_ambulance ON public.ambulance_trips USING btree (tenant_id, ambulance_id);
 
 
 
@@ -376,7 +376,7 @@ CREATE INDEX idx_amb_trips_ambulance ON public.ambulance_trips USING btree (tena
 -- Name: idx_amb_trips_driver; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_driver ON public.ambulance_trips USING btree (tenant_id, driver_id);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_driver ON public.ambulance_trips USING btree (tenant_id, driver_id);
 
 
 
@@ -384,7 +384,7 @@ CREATE INDEX idx_amb_trips_driver ON public.ambulance_trips USING btree (tenant_
 -- Name: idx_amb_trips_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_patient ON public.ambulance_trips USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_patient ON public.ambulance_trips USING btree (tenant_id, patient_id);
 
 
 
@@ -392,7 +392,7 @@ CREATE INDEX idx_amb_trips_patient ON public.ambulance_trips USING btree (tenant
 -- Name: idx_amb_trips_requested; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_requested ON public.ambulance_trips USING btree (tenant_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_requested ON public.ambulance_trips USING btree (tenant_id, requested_at DESC);
 
 
 
@@ -400,7 +400,7 @@ CREATE INDEX idx_amb_trips_requested ON public.ambulance_trips USING btree (tena
 -- Name: idx_amb_trips_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_status ON public.ambulance_trips USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_status ON public.ambulance_trips USING btree (tenant_id, status);
 
 
 
@@ -408,7 +408,7 @@ CREATE INDEX idx_amb_trips_status ON public.ambulance_trips USING btree (tenant_
 -- Name: idx_amb_trips_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_tenant ON public.ambulance_trips USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_tenant ON public.ambulance_trips USING btree (tenant_id);
 
 
 
@@ -416,7 +416,7 @@ CREATE INDEX idx_amb_trips_tenant ON public.ambulance_trips USING btree (tenant_
 -- Name: idx_amb_trips_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_amb_trips_type ON public.ambulance_trips USING btree (tenant_id, trip_type);
+CREATE INDEX IF NOT EXISTS idx_amb_trips_type ON public.ambulance_trips USING btree (tenant_id, trip_type);
 
 
 
@@ -424,7 +424,7 @@ CREATE INDEX idx_amb_trips_type ON public.ambulance_trips USING btree (tenant_id
 -- Name: idx_ambulances_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ambulances_status ON public.ambulances USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_ambulances_status ON public.ambulances USING btree (tenant_id, status);
 
 
 
@@ -432,7 +432,7 @@ CREATE INDEX idx_ambulances_status ON public.ambulances USING btree (tenant_id, 
 -- Name: idx_ambulances_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ambulances_tenant ON public.ambulances USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ambulances_tenant ON public.ambulances USING btree (tenant_id);
 
 
 
@@ -440,7 +440,7 @@ CREATE INDEX idx_ambulances_tenant ON public.ambulances USING btree (tenant_id);
 -- Name: idx_ambulances_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ambulances_type ON public.ambulances USING btree (tenant_id, ambulance_type);
+CREATE INDEX IF NOT EXISTS idx_ambulances_type ON public.ambulances USING btree (tenant_id, ambulance_type);
 
 
 
@@ -448,7 +448,7 @@ CREATE INDEX idx_ambulances_type ON public.ambulances USING btree (tenant_id, am
 -- Name: idx_transport_requests_assigned; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transport_requests_assigned ON public.transport_requests USING btree (assigned_to) WHERE (status = ANY (ARRAY['assigned'::public.transport_status, 'in_transit'::public.transport_status]));
+CREATE INDEX IF NOT EXISTS idx_transport_requests_assigned ON public.transport_requests USING btree (assigned_to) WHERE (status = ANY (ARRAY['assigned'::public.transport_status, 'in_transit'::public.transport_status]));
 
 
 
@@ -456,7 +456,7 @@ CREATE INDEX idx_transport_requests_assigned ON public.transport_requests USING 
 -- Name: idx_transport_requests_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transport_requests_date ON public.transport_requests USING btree (tenant_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transport_requests_date ON public.transport_requests USING btree (tenant_id, requested_at DESC);
 
 
 
@@ -464,7 +464,7 @@ CREATE INDEX idx_transport_requests_date ON public.transport_requests USING btre
 -- Name: idx_transport_requests_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transport_requests_status ON public.transport_requests USING btree (tenant_id, status) WHERE (status <> ALL (ARRAY['completed'::public.transport_status, 'cancelled'::public.transport_status]));
+CREATE INDEX IF NOT EXISTS idx_transport_requests_status ON public.transport_requests USING btree (tenant_id, status) WHERE (status <> ALL (ARRAY['completed'::public.transport_status, 'cancelled'::public.transport_status]));
 
 
 
@@ -472,7 +472,7 @@ CREATE INDEX idx_transport_requests_status ON public.transport_requests USING bt
 -- Name: idx_transport_requests_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transport_requests_tenant ON public.transport_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_transport_requests_tenant ON public.transport_requests USING btree (tenant_id);
 
 
 

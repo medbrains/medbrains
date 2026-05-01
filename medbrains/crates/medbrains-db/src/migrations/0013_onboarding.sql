@@ -41,7 +41,7 @@ ALTER TABLE ONLY public.onboarding_progress
 -- Name: idx_onboarding_progress_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_onboarding_progress_tenant ON public.onboarding_progress USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_onboarding_progress_tenant ON public.onboarding_progress USING btree (tenant_id);
 
 
 

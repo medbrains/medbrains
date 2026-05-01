@@ -1923,7 +1923,7 @@ ALTER TABLE ONLY public.users
 -- Name: idx_access_alerts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_alerts_tenant ON public.access_alerts USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_alerts_tenant ON public.access_alerts USING btree (tenant_id, created_at DESC);
 
 
 
@@ -1931,7 +1931,7 @@ CREATE INDEX idx_access_alerts_tenant ON public.access_alerts USING btree (tenan
 -- Name: idx_access_groups_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_groups_tenant ON public.access_groups USING btree (tenant_id) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_access_groups_tenant ON public.access_groups USING btree (tenant_id) WHERE (is_active = true);
 
 
 
@@ -1939,7 +1939,7 @@ CREATE INDEX idx_access_groups_tenant ON public.access_groups USING btree (tenan
 -- Name: idx_access_log_correlation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_log_correlation ON public.access_log USING btree (correlation_id) WHERE (correlation_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_access_log_correlation ON public.access_log USING btree (correlation_id) WHERE (correlation_id IS NOT NULL);
 
 
 
@@ -1947,7 +1947,7 @@ CREATE INDEX idx_access_log_correlation ON public.access_log USING btree (correl
 -- Name: idx_access_log_entity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_log_entity ON public.access_log USING btree (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_access_log_entity ON public.access_log USING btree (entity_type, entity_id);
 
 
 
@@ -1955,7 +1955,7 @@ CREATE INDEX idx_access_log_entity ON public.access_log USING btree (entity_type
 -- Name: idx_access_log_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_log_patient ON public.access_log USING btree (tenant_id, patient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_log_patient ON public.access_log USING btree (tenant_id, patient_id, created_at DESC);
 
 
 
@@ -1963,7 +1963,7 @@ CREATE INDEX idx_access_log_patient ON public.access_log USING btree (tenant_id,
 -- Name: idx_access_log_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_log_tenant ON public.access_log USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_log_tenant ON public.access_log USING btree (tenant_id, created_at DESC);
 
 
 
@@ -1971,7 +1971,7 @@ CREATE INDEX idx_access_log_tenant ON public.access_log USING btree (tenant_id, 
 -- Name: idx_access_log_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_access_log_user ON public.access_log USING btree (tenant_id, user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_log_user ON public.access_log USING btree (tenant_id, user_id, created_at DESC);
 
 
 
@@ -1979,7 +1979,7 @@ CREATE INDEX idx_access_log_user ON public.access_log USING btree (tenant_id, us
 -- Name: idx_agm_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_agm_user ON public.access_group_members USING btree (tenant_id, user_id) WHERE (expires_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_agm_user ON public.access_group_members USING btree (tenant_id, user_id) WHERE (expires_at IS NULL);
 
 
 
@@ -1987,7 +1987,7 @@ CREATE INDEX idx_agm_user ON public.access_group_members USING btree (tenant_id,
 -- Name: idx_agm_user_expiring; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_agm_user_expiring ON public.access_group_members USING btree (tenant_id, user_id, expires_at) WHERE (expires_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_agm_user_expiring ON public.access_group_members USING btree (tenant_id, user_id, expires_at) WHERE (expires_at IS NOT NULL);
 
 
 
@@ -1995,7 +1995,7 @@ CREATE INDEX idx_agm_user_expiring ON public.access_group_members USING btree (t
 -- Name: idx_break_glass_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_break_glass_active ON public.break_glass_events USING btree (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_break_glass_active ON public.break_glass_events USING btree (tenant_id, is_active);
 
 
 
@@ -2003,7 +2003,7 @@ CREATE INDEX idx_break_glass_active ON public.break_glass_events USING btree (te
 -- Name: idx_dpdp_consents_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dpdp_consents_patient ON public.dpdp_consents USING btree (tenant_id, patient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dpdp_consents_patient ON public.dpdp_consents USING btree (tenant_id, patient_id, created_at DESC);
 
 
 
@@ -2011,7 +2011,7 @@ CREATE INDEX idx_dpdp_consents_patient ON public.dpdp_consents USING btree (tena
 -- Name: idx_refresh_tokens_family; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refresh_tokens_family ON public.refresh_tokens USING btree (family_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family ON public.refresh_tokens USING btree (family_id);
 
 
 
@@ -2019,7 +2019,7 @@ CREATE INDEX idx_refresh_tokens_family ON public.refresh_tokens USING btree (fam
 -- Name: idx_refresh_tokens_hash; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refresh_tokens_hash ON public.refresh_tokens USING btree (token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON public.refresh_tokens USING btree (token_hash);
 
 
 
@@ -2027,7 +2027,7 @@ CREATE INDEX idx_refresh_tokens_hash ON public.refresh_tokens USING btree (token
 -- Name: idx_refresh_tokens_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_id);
 
 
 
@@ -2035,7 +2035,7 @@ CREATE INDEX idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_
 -- Name: idx_refresh_tokens_user_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens USING btree (user_id) WHERE (revoked = false);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_active ON public.refresh_tokens USING btree (user_id) WHERE (revoked = false);
 
 
 
@@ -2043,7 +2043,7 @@ CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens USING btree
 -- Name: idx_roles_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_roles_tenant ON public.roles USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_roles_tenant ON public.roles USING btree (tenant_id);
 
 
 
@@ -2051,7 +2051,7 @@ CREATE INDEX idx_roles_tenant ON public.roles USING btree (tenant_id);
 -- Name: idx_ufa_facility; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ufa_facility ON public.user_facility_assignments USING btree (facility_id);
+CREATE INDEX IF NOT EXISTS idx_ufa_facility ON public.user_facility_assignments USING btree (facility_id);
 
 
 
@@ -2059,7 +2059,7 @@ CREATE INDEX idx_ufa_facility ON public.user_facility_assignments USING btree (f
 -- Name: idx_ufa_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ufa_tenant ON public.user_facility_assignments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ufa_tenant ON public.user_facility_assignments USING btree (tenant_id);
 
 
 
@@ -2067,7 +2067,7 @@ CREATE INDEX idx_ufa_tenant ON public.user_facility_assignments USING btree (ten
 -- Name: idx_ufa_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ufa_user ON public.user_facility_assignments USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_ufa_user ON public.user_facility_assignments USING btree (user_id);
 
 
 
@@ -2075,7 +2075,7 @@ CREATE INDEX idx_ufa_user ON public.user_facility_assignments USING btree (user_
 -- Name: idx_users_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_users_tenant ON public.users USING btree (tenant_id);
 
 
 
@@ -2083,7 +2083,7 @@ CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
 -- Name: rt_expiry_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX rt_expiry_idx ON ONLY public.relation_tuples USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS rt_expiry_idx ON ONLY public.relation_tuples USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2091,7 +2091,7 @@ CREATE INDEX rt_expiry_idx ON ONLY public.relation_tuples USING btree (expires_a
 -- Name: relation_tuples_p0_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p0_expires_at_idx ON public.relation_tuples_p0 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p0_expires_at_idx ON public.relation_tuples_p0 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2099,7 +2099,7 @@ CREATE INDEX relation_tuples_p0_expires_at_idx ON public.relation_tuples_p0 USIN
 -- Name: rt_lookup_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX rt_lookup_idx ON ONLY public.relation_tuples USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS rt_lookup_idx ON ONLY public.relation_tuples USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2107,7 +2107,7 @@ CREATE INDEX rt_lookup_idx ON ONLY public.relation_tuples USING btree (tenant_id
 -- Name: relation_tuples_p0_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p0_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p0 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p0_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p0 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2115,7 +2115,7 @@ CREATE INDEX relation_tuples_p0_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: rt_derived_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX rt_derived_idx ON ONLY public.relation_tuples USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS rt_derived_idx ON ONLY public.relation_tuples USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2123,7 +2123,7 @@ CREATE INDEX rt_derived_idx ON ONLY public.relation_tuples USING btree (tenant_i
 -- Name: relation_tuples_p0_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p0_tenant_id_source_derived_from_idx ON public.relation_tuples_p0 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p0_tenant_id_source_derived_from_idx ON public.relation_tuples_p0 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2131,7 +2131,7 @@ CREATE INDEX relation_tuples_p0_tenant_id_source_derived_from_idx ON public.rela
 -- Name: rt_subject_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX rt_subject_idx ON ONLY public.relation_tuples USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS rt_subject_idx ON ONLY public.relation_tuples USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2139,7 +2139,7 @@ CREATE INDEX rt_subject_idx ON ONLY public.relation_tuples USING btree (tenant_i
 -- Name: relation_tuples_p0_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p0_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p0 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p0_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p0 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2147,7 +2147,7 @@ CREATE INDEX relation_tuples_p0_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p10_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p10_expires_at_idx ON public.relation_tuples_p10 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p10_expires_at_idx ON public.relation_tuples_p10 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2155,7 +2155,7 @@ CREATE INDEX relation_tuples_p10_expires_at_idx ON public.relation_tuples_p10 US
 -- Name: relation_tuples_p10_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p10_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p10 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p10_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p10 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2163,7 +2163,7 @@ CREATE INDEX relation_tuples_p10_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p10_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p10_tenant_id_source_derived_from_idx ON public.relation_tuples_p10 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p10_tenant_id_source_derived_from_idx ON public.relation_tuples_p10 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2171,7 +2171,7 @@ CREATE INDEX relation_tuples_p10_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p10_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p10_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p10 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p10_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p10 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2179,7 +2179,7 @@ CREATE INDEX relation_tuples_p10_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p11_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p11_expires_at_idx ON public.relation_tuples_p11 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p11_expires_at_idx ON public.relation_tuples_p11 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2187,7 +2187,7 @@ CREATE INDEX relation_tuples_p11_expires_at_idx ON public.relation_tuples_p11 US
 -- Name: relation_tuples_p11_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p11_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p11 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p11_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p11 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2195,7 +2195,7 @@ CREATE INDEX relation_tuples_p11_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p11_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p11_tenant_id_source_derived_from_idx ON public.relation_tuples_p11 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p11_tenant_id_source_derived_from_idx ON public.relation_tuples_p11 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2203,7 +2203,7 @@ CREATE INDEX relation_tuples_p11_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p11_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p11_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p11 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p11_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p11 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2211,7 +2211,7 @@ CREATE INDEX relation_tuples_p11_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p12_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p12_expires_at_idx ON public.relation_tuples_p12 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p12_expires_at_idx ON public.relation_tuples_p12 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2219,7 +2219,7 @@ CREATE INDEX relation_tuples_p12_expires_at_idx ON public.relation_tuples_p12 US
 -- Name: relation_tuples_p12_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p12_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p12 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p12_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p12 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2227,7 +2227,7 @@ CREATE INDEX relation_tuples_p12_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p12_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p12_tenant_id_source_derived_from_idx ON public.relation_tuples_p12 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p12_tenant_id_source_derived_from_idx ON public.relation_tuples_p12 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2235,7 +2235,7 @@ CREATE INDEX relation_tuples_p12_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p12_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p12_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p12 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p12_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p12 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2243,7 +2243,7 @@ CREATE INDEX relation_tuples_p12_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p13_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p13_expires_at_idx ON public.relation_tuples_p13 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p13_expires_at_idx ON public.relation_tuples_p13 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2251,7 +2251,7 @@ CREATE INDEX relation_tuples_p13_expires_at_idx ON public.relation_tuples_p13 US
 -- Name: relation_tuples_p13_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p13_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p13 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p13_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p13 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2259,7 +2259,7 @@ CREATE INDEX relation_tuples_p13_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p13_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p13_tenant_id_source_derived_from_idx ON public.relation_tuples_p13 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p13_tenant_id_source_derived_from_idx ON public.relation_tuples_p13 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2267,7 +2267,7 @@ CREATE INDEX relation_tuples_p13_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p13_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p13_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p13 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p13_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p13 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2275,7 +2275,7 @@ CREATE INDEX relation_tuples_p13_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p14_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p14_expires_at_idx ON public.relation_tuples_p14 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p14_expires_at_idx ON public.relation_tuples_p14 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2283,7 +2283,7 @@ CREATE INDEX relation_tuples_p14_expires_at_idx ON public.relation_tuples_p14 US
 -- Name: relation_tuples_p14_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p14_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p14 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p14_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p14 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2291,7 +2291,7 @@ CREATE INDEX relation_tuples_p14_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p14_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p14_tenant_id_source_derived_from_idx ON public.relation_tuples_p14 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p14_tenant_id_source_derived_from_idx ON public.relation_tuples_p14 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2299,7 +2299,7 @@ CREATE INDEX relation_tuples_p14_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p14_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p14_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p14 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p14_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p14 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2307,7 +2307,7 @@ CREATE INDEX relation_tuples_p14_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p15_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p15_expires_at_idx ON public.relation_tuples_p15 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p15_expires_at_idx ON public.relation_tuples_p15 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2315,7 +2315,7 @@ CREATE INDEX relation_tuples_p15_expires_at_idx ON public.relation_tuples_p15 US
 -- Name: relation_tuples_p15_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p15_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p15 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p15_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p15 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2323,7 +2323,7 @@ CREATE INDEX relation_tuples_p15_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p15_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p15_tenant_id_source_derived_from_idx ON public.relation_tuples_p15 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p15_tenant_id_source_derived_from_idx ON public.relation_tuples_p15 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2331,7 +2331,7 @@ CREATE INDEX relation_tuples_p15_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p15_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p15_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p15 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p15_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p15 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2339,7 +2339,7 @@ CREATE INDEX relation_tuples_p15_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p16_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p16_expires_at_idx ON public.relation_tuples_p16 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p16_expires_at_idx ON public.relation_tuples_p16 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2347,7 +2347,7 @@ CREATE INDEX relation_tuples_p16_expires_at_idx ON public.relation_tuples_p16 US
 -- Name: relation_tuples_p16_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p16_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p16 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p16_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p16 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2355,7 +2355,7 @@ CREATE INDEX relation_tuples_p16_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p16_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p16_tenant_id_source_derived_from_idx ON public.relation_tuples_p16 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p16_tenant_id_source_derived_from_idx ON public.relation_tuples_p16 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2363,7 +2363,7 @@ CREATE INDEX relation_tuples_p16_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p16_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p16_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p16 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p16_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p16 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2371,7 +2371,7 @@ CREATE INDEX relation_tuples_p16_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p17_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p17_expires_at_idx ON public.relation_tuples_p17 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p17_expires_at_idx ON public.relation_tuples_p17 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2379,7 +2379,7 @@ CREATE INDEX relation_tuples_p17_expires_at_idx ON public.relation_tuples_p17 US
 -- Name: relation_tuples_p17_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p17_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p17 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p17_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p17 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2387,7 +2387,7 @@ CREATE INDEX relation_tuples_p17_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p17_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p17_tenant_id_source_derived_from_idx ON public.relation_tuples_p17 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p17_tenant_id_source_derived_from_idx ON public.relation_tuples_p17 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2395,7 +2395,7 @@ CREATE INDEX relation_tuples_p17_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p17_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p17_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p17 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p17_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p17 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2403,7 +2403,7 @@ CREATE INDEX relation_tuples_p17_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p18_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p18_expires_at_idx ON public.relation_tuples_p18 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p18_expires_at_idx ON public.relation_tuples_p18 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2411,7 +2411,7 @@ CREATE INDEX relation_tuples_p18_expires_at_idx ON public.relation_tuples_p18 US
 -- Name: relation_tuples_p18_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p18_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p18 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p18_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p18 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2419,7 +2419,7 @@ CREATE INDEX relation_tuples_p18_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p18_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p18_tenant_id_source_derived_from_idx ON public.relation_tuples_p18 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p18_tenant_id_source_derived_from_idx ON public.relation_tuples_p18 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2427,7 +2427,7 @@ CREATE INDEX relation_tuples_p18_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p18_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p18_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p18 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p18_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p18 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2435,7 +2435,7 @@ CREATE INDEX relation_tuples_p18_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p19_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p19_expires_at_idx ON public.relation_tuples_p19 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p19_expires_at_idx ON public.relation_tuples_p19 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2443,7 +2443,7 @@ CREATE INDEX relation_tuples_p19_expires_at_idx ON public.relation_tuples_p19 US
 -- Name: relation_tuples_p19_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p19_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p19 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p19_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p19 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2451,7 +2451,7 @@ CREATE INDEX relation_tuples_p19_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p19_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p19_tenant_id_source_derived_from_idx ON public.relation_tuples_p19 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p19_tenant_id_source_derived_from_idx ON public.relation_tuples_p19 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2459,7 +2459,7 @@ CREATE INDEX relation_tuples_p19_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p19_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p19_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p19 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p19_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p19 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2467,7 +2467,7 @@ CREATE INDEX relation_tuples_p19_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p1_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p1_expires_at_idx ON public.relation_tuples_p1 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p1_expires_at_idx ON public.relation_tuples_p1 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2475,7 +2475,7 @@ CREATE INDEX relation_tuples_p1_expires_at_idx ON public.relation_tuples_p1 USIN
 -- Name: relation_tuples_p1_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p1_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p1 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p1_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p1 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2483,7 +2483,7 @@ CREATE INDEX relation_tuples_p1_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p1_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p1_tenant_id_source_derived_from_idx ON public.relation_tuples_p1 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p1_tenant_id_source_derived_from_idx ON public.relation_tuples_p1 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2491,7 +2491,7 @@ CREATE INDEX relation_tuples_p1_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p1_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p1_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p1 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p1_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p1 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2499,7 +2499,7 @@ CREATE INDEX relation_tuples_p1_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p20_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p20_expires_at_idx ON public.relation_tuples_p20 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p20_expires_at_idx ON public.relation_tuples_p20 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2507,7 +2507,7 @@ CREATE INDEX relation_tuples_p20_expires_at_idx ON public.relation_tuples_p20 US
 -- Name: relation_tuples_p20_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p20_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p20 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p20_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p20 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2515,7 +2515,7 @@ CREATE INDEX relation_tuples_p20_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p20_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p20_tenant_id_source_derived_from_idx ON public.relation_tuples_p20 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p20_tenant_id_source_derived_from_idx ON public.relation_tuples_p20 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2523,7 +2523,7 @@ CREATE INDEX relation_tuples_p20_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p20_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p20_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p20 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p20_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p20 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2531,7 +2531,7 @@ CREATE INDEX relation_tuples_p20_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p21_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p21_expires_at_idx ON public.relation_tuples_p21 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p21_expires_at_idx ON public.relation_tuples_p21 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2539,7 +2539,7 @@ CREATE INDEX relation_tuples_p21_expires_at_idx ON public.relation_tuples_p21 US
 -- Name: relation_tuples_p21_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p21_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p21 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p21_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p21 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2547,7 +2547,7 @@ CREATE INDEX relation_tuples_p21_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p21_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p21_tenant_id_source_derived_from_idx ON public.relation_tuples_p21 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p21_tenant_id_source_derived_from_idx ON public.relation_tuples_p21 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2555,7 +2555,7 @@ CREATE INDEX relation_tuples_p21_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p21_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p21_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p21 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p21_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p21 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2563,7 +2563,7 @@ CREATE INDEX relation_tuples_p21_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p22_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p22_expires_at_idx ON public.relation_tuples_p22 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p22_expires_at_idx ON public.relation_tuples_p22 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2571,7 +2571,7 @@ CREATE INDEX relation_tuples_p22_expires_at_idx ON public.relation_tuples_p22 US
 -- Name: relation_tuples_p22_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p22_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p22 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p22_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p22 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2579,7 +2579,7 @@ CREATE INDEX relation_tuples_p22_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p22_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p22_tenant_id_source_derived_from_idx ON public.relation_tuples_p22 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p22_tenant_id_source_derived_from_idx ON public.relation_tuples_p22 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2587,7 +2587,7 @@ CREATE INDEX relation_tuples_p22_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p22_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p22_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p22 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p22_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p22 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2595,7 +2595,7 @@ CREATE INDEX relation_tuples_p22_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p23_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p23_expires_at_idx ON public.relation_tuples_p23 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p23_expires_at_idx ON public.relation_tuples_p23 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2603,7 +2603,7 @@ CREATE INDEX relation_tuples_p23_expires_at_idx ON public.relation_tuples_p23 US
 -- Name: relation_tuples_p23_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p23_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p23 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p23_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p23 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2611,7 +2611,7 @@ CREATE INDEX relation_tuples_p23_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p23_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p23_tenant_id_source_derived_from_idx ON public.relation_tuples_p23 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p23_tenant_id_source_derived_from_idx ON public.relation_tuples_p23 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2619,7 +2619,7 @@ CREATE INDEX relation_tuples_p23_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p23_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p23_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p23 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p23_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p23 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2627,7 +2627,7 @@ CREATE INDEX relation_tuples_p23_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p24_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p24_expires_at_idx ON public.relation_tuples_p24 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p24_expires_at_idx ON public.relation_tuples_p24 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2635,7 +2635,7 @@ CREATE INDEX relation_tuples_p24_expires_at_idx ON public.relation_tuples_p24 US
 -- Name: relation_tuples_p24_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p24_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p24 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p24_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p24 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2643,7 +2643,7 @@ CREATE INDEX relation_tuples_p24_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p24_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p24_tenant_id_source_derived_from_idx ON public.relation_tuples_p24 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p24_tenant_id_source_derived_from_idx ON public.relation_tuples_p24 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2651,7 +2651,7 @@ CREATE INDEX relation_tuples_p24_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p24_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p24_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p24 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p24_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p24 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2659,7 +2659,7 @@ CREATE INDEX relation_tuples_p24_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p25_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p25_expires_at_idx ON public.relation_tuples_p25 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p25_expires_at_idx ON public.relation_tuples_p25 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2667,7 +2667,7 @@ CREATE INDEX relation_tuples_p25_expires_at_idx ON public.relation_tuples_p25 US
 -- Name: relation_tuples_p25_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p25_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p25 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p25_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p25 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2675,7 +2675,7 @@ CREATE INDEX relation_tuples_p25_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p25_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p25_tenant_id_source_derived_from_idx ON public.relation_tuples_p25 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p25_tenant_id_source_derived_from_idx ON public.relation_tuples_p25 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2683,7 +2683,7 @@ CREATE INDEX relation_tuples_p25_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p25_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p25_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p25 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p25_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p25 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2691,7 +2691,7 @@ CREATE INDEX relation_tuples_p25_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p26_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p26_expires_at_idx ON public.relation_tuples_p26 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p26_expires_at_idx ON public.relation_tuples_p26 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2699,7 +2699,7 @@ CREATE INDEX relation_tuples_p26_expires_at_idx ON public.relation_tuples_p26 US
 -- Name: relation_tuples_p26_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p26_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p26 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p26_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p26 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2707,7 +2707,7 @@ CREATE INDEX relation_tuples_p26_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p26_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p26_tenant_id_source_derived_from_idx ON public.relation_tuples_p26 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p26_tenant_id_source_derived_from_idx ON public.relation_tuples_p26 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2715,7 +2715,7 @@ CREATE INDEX relation_tuples_p26_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p26_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p26_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p26 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p26_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p26 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2723,7 +2723,7 @@ CREATE INDEX relation_tuples_p26_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p27_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p27_expires_at_idx ON public.relation_tuples_p27 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p27_expires_at_idx ON public.relation_tuples_p27 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2731,7 +2731,7 @@ CREATE INDEX relation_tuples_p27_expires_at_idx ON public.relation_tuples_p27 US
 -- Name: relation_tuples_p27_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p27_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p27 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p27_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p27 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2739,7 +2739,7 @@ CREATE INDEX relation_tuples_p27_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p27_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p27_tenant_id_source_derived_from_idx ON public.relation_tuples_p27 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p27_tenant_id_source_derived_from_idx ON public.relation_tuples_p27 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2747,7 +2747,7 @@ CREATE INDEX relation_tuples_p27_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p27_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p27_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p27 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p27_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p27 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2755,7 +2755,7 @@ CREATE INDEX relation_tuples_p27_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p28_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p28_expires_at_idx ON public.relation_tuples_p28 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p28_expires_at_idx ON public.relation_tuples_p28 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2763,7 +2763,7 @@ CREATE INDEX relation_tuples_p28_expires_at_idx ON public.relation_tuples_p28 US
 -- Name: relation_tuples_p28_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p28_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p28 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p28_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p28 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2771,7 +2771,7 @@ CREATE INDEX relation_tuples_p28_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p28_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p28_tenant_id_source_derived_from_idx ON public.relation_tuples_p28 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p28_tenant_id_source_derived_from_idx ON public.relation_tuples_p28 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2779,7 +2779,7 @@ CREATE INDEX relation_tuples_p28_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p28_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p28_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p28 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p28_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p28 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2787,7 +2787,7 @@ CREATE INDEX relation_tuples_p28_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p29_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p29_expires_at_idx ON public.relation_tuples_p29 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p29_expires_at_idx ON public.relation_tuples_p29 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2795,7 +2795,7 @@ CREATE INDEX relation_tuples_p29_expires_at_idx ON public.relation_tuples_p29 US
 -- Name: relation_tuples_p29_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p29_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p29 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p29_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p29 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2803,7 +2803,7 @@ CREATE INDEX relation_tuples_p29_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p29_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p29_tenant_id_source_derived_from_idx ON public.relation_tuples_p29 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p29_tenant_id_source_derived_from_idx ON public.relation_tuples_p29 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2811,7 +2811,7 @@ CREATE INDEX relation_tuples_p29_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p29_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p29_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p29 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p29_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p29 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2819,7 +2819,7 @@ CREATE INDEX relation_tuples_p29_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p2_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p2_expires_at_idx ON public.relation_tuples_p2 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p2_expires_at_idx ON public.relation_tuples_p2 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2827,7 +2827,7 @@ CREATE INDEX relation_tuples_p2_expires_at_idx ON public.relation_tuples_p2 USIN
 -- Name: relation_tuples_p2_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p2_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p2 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p2_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p2 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2835,7 +2835,7 @@ CREATE INDEX relation_tuples_p2_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p2_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p2_tenant_id_source_derived_from_idx ON public.relation_tuples_p2 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p2_tenant_id_source_derived_from_idx ON public.relation_tuples_p2 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2843,7 +2843,7 @@ CREATE INDEX relation_tuples_p2_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p2_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p2_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p2 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p2_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p2 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2851,7 +2851,7 @@ CREATE INDEX relation_tuples_p2_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p30_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p30_expires_at_idx ON public.relation_tuples_p30 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p30_expires_at_idx ON public.relation_tuples_p30 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2859,7 +2859,7 @@ CREATE INDEX relation_tuples_p30_expires_at_idx ON public.relation_tuples_p30 US
 -- Name: relation_tuples_p30_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p30_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p30 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p30_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p30 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2867,7 +2867,7 @@ CREATE INDEX relation_tuples_p30_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p30_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p30_tenant_id_source_derived_from_idx ON public.relation_tuples_p30 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p30_tenant_id_source_derived_from_idx ON public.relation_tuples_p30 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2875,7 +2875,7 @@ CREATE INDEX relation_tuples_p30_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p30_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p30_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p30 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p30_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p30 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2883,7 +2883,7 @@ CREATE INDEX relation_tuples_p30_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p31_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p31_expires_at_idx ON public.relation_tuples_p31 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p31_expires_at_idx ON public.relation_tuples_p31 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2891,7 +2891,7 @@ CREATE INDEX relation_tuples_p31_expires_at_idx ON public.relation_tuples_p31 US
 -- Name: relation_tuples_p31_tenant_id_object_type_object_id_relatio_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p31_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p31 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p31_tenant_id_object_type_object_id_relatio_idx ON public.relation_tuples_p31 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2899,7 +2899,7 @@ CREATE INDEX relation_tuples_p31_tenant_id_object_type_object_id_relatio_idx ON 
 -- Name: relation_tuples_p31_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p31_tenant_id_source_derived_from_idx ON public.relation_tuples_p31 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p31_tenant_id_source_derived_from_idx ON public.relation_tuples_p31 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2907,7 +2907,7 @@ CREATE INDEX relation_tuples_p31_tenant_id_source_derived_from_idx ON public.rel
 -- Name: relation_tuples_p31_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p31_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p31 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p31_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p31 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2915,7 +2915,7 @@ CREATE INDEX relation_tuples_p31_tenant_id_subject_type_subject_id_idx ON public
 -- Name: relation_tuples_p3_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p3_expires_at_idx ON public.relation_tuples_p3 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p3_expires_at_idx ON public.relation_tuples_p3 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2923,7 +2923,7 @@ CREATE INDEX relation_tuples_p3_expires_at_idx ON public.relation_tuples_p3 USIN
 -- Name: relation_tuples_p3_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p3_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p3 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p3_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p3 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2931,7 +2931,7 @@ CREATE INDEX relation_tuples_p3_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p3_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p3_tenant_id_source_derived_from_idx ON public.relation_tuples_p3 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p3_tenant_id_source_derived_from_idx ON public.relation_tuples_p3 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2939,7 +2939,7 @@ CREATE INDEX relation_tuples_p3_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p3_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p3_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p3 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p3_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p3 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2947,7 +2947,7 @@ CREATE INDEX relation_tuples_p3_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p4_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p4_expires_at_idx ON public.relation_tuples_p4 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p4_expires_at_idx ON public.relation_tuples_p4 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2955,7 +2955,7 @@ CREATE INDEX relation_tuples_p4_expires_at_idx ON public.relation_tuples_p4 USIN
 -- Name: relation_tuples_p4_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p4_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p4 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p4_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p4 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2963,7 +2963,7 @@ CREATE INDEX relation_tuples_p4_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p4_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p4_tenant_id_source_derived_from_idx ON public.relation_tuples_p4 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p4_tenant_id_source_derived_from_idx ON public.relation_tuples_p4 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -2971,7 +2971,7 @@ CREATE INDEX relation_tuples_p4_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p4_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p4_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p4 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p4_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p4 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -2979,7 +2979,7 @@ CREATE INDEX relation_tuples_p4_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p5_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p5_expires_at_idx ON public.relation_tuples_p5 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p5_expires_at_idx ON public.relation_tuples_p5 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -2987,7 +2987,7 @@ CREATE INDEX relation_tuples_p5_expires_at_idx ON public.relation_tuples_p5 USIN
 -- Name: relation_tuples_p5_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p5_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p5 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p5_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p5 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -2995,7 +2995,7 @@ CREATE INDEX relation_tuples_p5_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p5_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p5_tenant_id_source_derived_from_idx ON public.relation_tuples_p5 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p5_tenant_id_source_derived_from_idx ON public.relation_tuples_p5 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -3003,7 +3003,7 @@ CREATE INDEX relation_tuples_p5_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p5_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p5_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p5 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p5_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p5 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -3011,7 +3011,7 @@ CREATE INDEX relation_tuples_p5_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p6_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p6_expires_at_idx ON public.relation_tuples_p6 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p6_expires_at_idx ON public.relation_tuples_p6 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -3019,7 +3019,7 @@ CREATE INDEX relation_tuples_p6_expires_at_idx ON public.relation_tuples_p6 USIN
 -- Name: relation_tuples_p6_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p6_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p6 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p6_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p6 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -3027,7 +3027,7 @@ CREATE INDEX relation_tuples_p6_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p6_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p6_tenant_id_source_derived_from_idx ON public.relation_tuples_p6 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p6_tenant_id_source_derived_from_idx ON public.relation_tuples_p6 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -3035,7 +3035,7 @@ CREATE INDEX relation_tuples_p6_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p6_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p6_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p6 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p6_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p6 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -3043,7 +3043,7 @@ CREATE INDEX relation_tuples_p6_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p7_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p7_expires_at_idx ON public.relation_tuples_p7 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p7_expires_at_idx ON public.relation_tuples_p7 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -3051,7 +3051,7 @@ CREATE INDEX relation_tuples_p7_expires_at_idx ON public.relation_tuples_p7 USIN
 -- Name: relation_tuples_p7_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p7_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p7 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p7_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p7 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -3059,7 +3059,7 @@ CREATE INDEX relation_tuples_p7_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p7_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p7_tenant_id_source_derived_from_idx ON public.relation_tuples_p7 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p7_tenant_id_source_derived_from_idx ON public.relation_tuples_p7 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -3067,7 +3067,7 @@ CREATE INDEX relation_tuples_p7_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p7_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p7_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p7 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p7_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p7 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -3075,7 +3075,7 @@ CREATE INDEX relation_tuples_p7_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p8_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p8_expires_at_idx ON public.relation_tuples_p8 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p8_expires_at_idx ON public.relation_tuples_p8 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -3083,7 +3083,7 @@ CREATE INDEX relation_tuples_p8_expires_at_idx ON public.relation_tuples_p8 USIN
 -- Name: relation_tuples_p8_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p8_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p8 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p8_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p8 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -3091,7 +3091,7 @@ CREATE INDEX relation_tuples_p8_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p8_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p8_tenant_id_source_derived_from_idx ON public.relation_tuples_p8 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p8_tenant_id_source_derived_from_idx ON public.relation_tuples_p8 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -3099,7 +3099,7 @@ CREATE INDEX relation_tuples_p8_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p8_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p8_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p8 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p8_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p8 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 
@@ -3107,7 +3107,7 @@ CREATE INDEX relation_tuples_p8_tenant_id_subject_type_subject_id_idx ON public.
 -- Name: relation_tuples_p9_expires_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p9_expires_at_idx ON public.relation_tuples_p9 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
+CREATE INDEX IF NOT EXISTS relation_tuples_p9_expires_at_idx ON public.relation_tuples_p9 USING btree (expires_at) WHERE ((expires_at IS NOT NULL) AND (status = 'active'::text));
 
 
 
@@ -3115,7 +3115,7 @@ CREATE INDEX relation_tuples_p9_expires_at_idx ON public.relation_tuples_p9 USIN
 -- Name: relation_tuples_p9_tenant_id_object_type_object_id_relation_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p9_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p9 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p9_tenant_id_object_type_object_id_relation_idx ON public.relation_tuples_p9 USING btree (tenant_id, object_type, object_id, relation) WHERE (status = 'active'::text);
 
 
 
@@ -3123,7 +3123,7 @@ CREATE INDEX relation_tuples_p9_tenant_id_object_type_object_id_relation_idx ON 
 -- Name: relation_tuples_p9_tenant_id_source_derived_from_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p9_tenant_id_source_derived_from_idx ON public.relation_tuples_p9 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p9_tenant_id_source_derived_from_idx ON public.relation_tuples_p9 USING btree (tenant_id, source, derived_from) WHERE (source = 'derived'::text);
 
 
 
@@ -3131,7 +3131,7 @@ CREATE INDEX relation_tuples_p9_tenant_id_source_derived_from_idx ON public.rela
 -- Name: relation_tuples_p9_tenant_id_subject_type_subject_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX relation_tuples_p9_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p9 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS relation_tuples_p9_tenant_id_subject_type_subject_id_idx ON public.relation_tuples_p9 USING btree (tenant_id, subject_type, subject_id) WHERE (status = 'active'::text);
 
 
 

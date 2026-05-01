@@ -1,11 +1,13 @@
 # Per-tenant config — copy to terraform.tfvars (gitignored) and fill in.
 
-# Domain at the public DNS layer.
-domain    = "hims.alagappahospital.com"
-zone_name = "alagappahospital.com"
+# Domain at the public DNS layer. amh.org.in is currently empty
+# of app subdomains (only Google Workspace email is on it), so
+# `hims.amh.org.in` won't collide with anything.
+domain    = "hims.amh.org.in"
+zone_name = "amh.org.in"
 
 # Admin email (Let's Encrypt + super_admin role).
-admin_email = "ops@alagappahospital.com"
+admin_email = "ops@amh.org.in"
 
 # DigitalOcean SSH key (must already exist in the DO account).
 do_ssh_key_name      = "medbrains-deploy"

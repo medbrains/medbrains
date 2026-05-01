@@ -375,7 +375,7 @@ ALTER TABLE ONLY public.procedure_orders
 -- Name: idx_med_timeline_drug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_med_timeline_drug ON public.medication_timeline_events USING btree (tenant_id, patient_id, drug_name, effective_date);
+CREATE INDEX IF NOT EXISTS idx_med_timeline_drug ON public.medication_timeline_events USING btree (tenant_id, patient_id, drug_name, effective_date);
 
 
 
@@ -383,7 +383,7 @@ CREATE INDEX idx_med_timeline_drug ON public.medication_timeline_events USING bt
 -- Name: idx_med_timeline_enrollment; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_med_timeline_enrollment ON public.medication_timeline_events USING btree (enrollment_id) WHERE (enrollment_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_med_timeline_enrollment ON public.medication_timeline_events USING btree (enrollment_id) WHERE (enrollment_id IS NOT NULL);
 
 
 
@@ -391,7 +391,7 @@ CREATE INDEX idx_med_timeline_enrollment ON public.medication_timeline_events US
 -- Name: idx_med_timeline_patient_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_med_timeline_patient_date ON public.medication_timeline_events USING btree (tenant_id, patient_id, effective_date);
+CREATE INDEX IF NOT EXISTS idx_med_timeline_patient_date ON public.medication_timeline_events USING btree (tenant_id, patient_id, effective_date);
 
 
 
@@ -399,7 +399,7 @@ CREATE INDEX idx_med_timeline_patient_date ON public.medication_timeline_events 
 -- Name: idx_order_set_activation_items_activation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_activation_items_activation ON public.order_set_activation_items USING btree (activation_id);
+CREATE INDEX IF NOT EXISTS idx_order_set_activation_items_activation ON public.order_set_activation_items USING btree (activation_id);
 
 
 
@@ -407,7 +407,7 @@ CREATE INDEX idx_order_set_activation_items_activation ON public.order_set_activ
 -- Name: idx_order_set_activations_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_activations_encounter ON public.order_set_activations USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_order_set_activations_encounter ON public.order_set_activations USING btree (encounter_id);
 
 
 
@@ -415,7 +415,7 @@ CREATE INDEX idx_order_set_activations_encounter ON public.order_set_activations
 -- Name: idx_order_set_activations_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_activations_patient ON public.order_set_activations USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_order_set_activations_patient ON public.order_set_activations USING btree (patient_id);
 
 
 
@@ -423,7 +423,7 @@ CREATE INDEX idx_order_set_activations_patient ON public.order_set_activations U
 -- Name: idx_order_set_activations_template; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_activations_template ON public.order_set_activations USING btree (template_id);
+CREATE INDEX IF NOT EXISTS idx_order_set_activations_template ON public.order_set_activations USING btree (template_id);
 
 
 
@@ -431,7 +431,7 @@ CREATE INDEX idx_order_set_activations_template ON public.order_set_activations 
 -- Name: idx_order_set_template_items_template_sort; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_template_items_template_sort ON public.order_set_template_items USING btree (template_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_order_set_template_items_template_sort ON public.order_set_template_items USING btree (template_id, sort_order);
 
 
 
@@ -439,7 +439,7 @@ CREATE INDEX idx_order_set_template_items_template_sort ON public.order_set_temp
 -- Name: idx_order_set_templates_parent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_templates_parent ON public.order_set_templates USING btree (parent_template_id) WHERE (parent_template_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_order_set_templates_parent ON public.order_set_templates USING btree (parent_template_id) WHERE (parent_template_id IS NOT NULL);
 
 
 
@@ -447,7 +447,7 @@ CREATE INDEX idx_order_set_templates_parent ON public.order_set_templates USING 
 -- Name: idx_order_set_templates_tenant_context; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_templates_tenant_context ON public.order_set_templates USING btree (tenant_id, context);
+CREATE INDEX IF NOT EXISTS idx_order_set_templates_tenant_context ON public.order_set_templates USING btree (tenant_id, context);
 
 
 
@@ -455,7 +455,7 @@ CREATE INDEX idx_order_set_templates_tenant_context ON public.order_set_template
 -- Name: idx_order_set_templates_tenant_current_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_templates_tenant_current_active ON public.order_set_templates USING btree (tenant_id, is_current, is_active);
+CREATE INDEX IF NOT EXISTS idx_order_set_templates_tenant_current_active ON public.order_set_templates USING btree (tenant_id, is_current, is_active);
 
 
 
@@ -463,7 +463,7 @@ CREATE INDEX idx_order_set_templates_tenant_current_active ON public.order_set_t
 -- Name: idx_order_set_templates_trigger_diagnoses; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_order_set_templates_trigger_diagnoses ON public.order_set_templates USING gin (trigger_diagnoses);
+CREATE INDEX IF NOT EXISTS idx_order_set_templates_trigger_diagnoses ON public.order_set_templates USING gin (trigger_diagnoses);
 
 
 
@@ -471,7 +471,7 @@ CREATE INDEX idx_order_set_templates_trigger_diagnoses ON public.order_set_templ
 -- Name: idx_procedure_catalog_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_catalog_active ON public.procedure_catalog USING btree (tenant_id) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_procedure_catalog_active ON public.procedure_catalog USING btree (tenant_id) WHERE (is_active = true);
 
 
 
@@ -479,7 +479,7 @@ CREATE INDEX idx_procedure_catalog_active ON public.procedure_catalog USING btre
 -- Name: idx_procedure_catalog_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_catalog_tenant ON public.procedure_catalog USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_procedure_catalog_tenant ON public.procedure_catalog USING btree (tenant_id);
 
 
 
@@ -487,7 +487,7 @@ CREATE INDEX idx_procedure_catalog_tenant ON public.procedure_catalog USING btre
 -- Name: idx_procedure_orders_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_orders_encounter ON public.procedure_orders USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_procedure_orders_encounter ON public.procedure_orders USING btree (encounter_id);
 
 
 
@@ -495,7 +495,7 @@ CREATE INDEX idx_procedure_orders_encounter ON public.procedure_orders USING btr
 -- Name: idx_procedure_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_orders_patient ON public.procedure_orders USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_procedure_orders_patient ON public.procedure_orders USING btree (tenant_id, patient_id);
 
 
 
@@ -503,7 +503,7 @@ CREATE INDEX idx_procedure_orders_patient ON public.procedure_orders USING btree
 -- Name: idx_procedure_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_orders_status ON public.procedure_orders USING btree (tenant_id, status) WHERE (status = ANY (ARRAY['ordered'::text, 'scheduled'::text, 'in_progress'::text]));
+CREATE INDEX IF NOT EXISTS idx_procedure_orders_status ON public.procedure_orders USING btree (tenant_id, status) WHERE (status = ANY (ARRAY['ordered'::text, 'scheduled'::text, 'in_progress'::text]));
 
 
 
@@ -511,7 +511,7 @@ CREATE INDEX idx_procedure_orders_status ON public.procedure_orders USING btree 
 -- Name: idx_procedure_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_procedure_orders_tenant ON public.procedure_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_procedure_orders_tenant ON public.procedure_orders USING btree (tenant_id);
 
 
 
@@ -519,7 +519,7 @@ CREATE INDEX idx_procedure_orders_tenant ON public.procedure_orders USING btree 
 -- Name: order_basket_drafts_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX order_basket_drafts_encounter_idx ON public.order_basket_drafts USING btree (tenant_id, encounter_id);
+CREATE INDEX IF NOT EXISTS order_basket_drafts_encounter_idx ON public.order_basket_drafts USING btree (tenant_id, encounter_id);
 
 
 
@@ -527,7 +527,7 @@ CREATE INDEX order_basket_drafts_encounter_idx ON public.order_basket_drafts USI
 -- Name: order_basket_drafts_owner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX order_basket_drafts_owner_idx ON public.order_basket_drafts USING btree (tenant_id, owner_user_id);
+CREATE INDEX IF NOT EXISTS order_basket_drafts_owner_idx ON public.order_basket_drafts USING btree (tenant_id, owner_user_id);
 
 
 
@@ -535,7 +535,7 @@ CREATE INDEX order_basket_drafts_owner_idx ON public.order_basket_drafts USING b
 -- Name: order_basket_signatures_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX order_basket_signatures_encounter_idx ON public.order_basket_signatures USING btree (tenant_id, encounter_id, signed_at DESC);
+CREATE INDEX IF NOT EXISTS order_basket_signatures_encounter_idx ON public.order_basket_signatures USING btree (tenant_id, encounter_id, signed_at DESC);
 
 
 
@@ -543,7 +543,7 @@ CREATE INDEX order_basket_signatures_encounter_idx ON public.order_basket_signat
 -- Name: order_basket_signatures_patient_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX order_basket_signatures_patient_idx ON public.order_basket_signatures USING btree (tenant_id, patient_id, signed_at DESC) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS order_basket_signatures_patient_idx ON public.order_basket_signatures USING btree (tenant_id, patient_id, signed_at DESC) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -551,7 +551,7 @@ CREATE INDEX order_basket_signatures_patient_idx ON public.order_basket_signatur
 -- Name: order_basket_signatures_signed_by_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX order_basket_signatures_signed_by_idx ON public.order_basket_signatures USING btree (tenant_id, signed_by, signed_at DESC);
+CREATE INDEX IF NOT EXISTS order_basket_signatures_signed_by_idx ON public.order_basket_signatures USING btree (tenant_id, signed_by, signed_at DESC);
 
 
 

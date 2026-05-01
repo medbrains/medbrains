@@ -45,16 +45,17 @@ CREATE TABLE IF NOT EXISTS job_queue (
 );
 
 ALTER TABLE job_queue ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS job_queue_tenant ON job_queue;
 CREATE POLICY job_queue_tenant ON job_queue
     USING (tenant_id::text = current_setting('app.tenant_id', true))
     WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
-CREATE INDEX idx_job_queue_pending ON job_queue (status, priority, created_at)
+CREATE INDEX IF NOT EXISTS idx_job_queue_pending ON job_queue (status, priority, created_at)
     WHERE status = 'pending';
-CREATE INDEX idx_job_queue_retry ON job_queue (next_retry_at)
+CREATE INDEX IF NOT EXISTS idx_job_queue_retry ON job_queue (next_retry_at)
     WHERE status = 'failed' AND retry_count < max_retries;
-CREATE INDEX idx_job_queue_tenant ON job_queue (tenant_id, status);
-CREATE INDEX idx_job_queue_correlation ON job_queue (correlation_id);
+CREATE INDEX IF NOT EXISTS idx_job_queue_tenant ON job_queue (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_job_queue_correlation ON job_queue (correlation_id);
 
 -- ── scheduled_jobs ─────────────────────────────────────────────
 
@@ -76,14 +77,16 @@ CREATE TABLE IF NOT EXISTS scheduled_jobs (
 );
 
 ALTER TABLE scheduled_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS scheduled_jobs_tenant ON scheduled_jobs;
 CREATE POLICY scheduled_jobs_tenant ON scheduled_jobs
     USING (tenant_id::text = current_setting('app.tenant_id', true))
     WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
-CREATE INDEX idx_scheduled_jobs_next ON scheduled_jobs (next_run_at)
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next ON scheduled_jobs (next_run_at)
     WHERE is_active = true;
-CREATE INDEX idx_scheduled_jobs_tenant ON scheduled_jobs (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_tenant ON scheduled_jobs (tenant_id, is_active);
 
+DROP TRIGGER IF EXISTS trg_scheduled_jobs_updated_at ON scheduled_jobs;
 CREATE TRIGGER trg_scheduled_jobs_updated_at
     BEFORE UPDATE ON scheduled_jobs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();

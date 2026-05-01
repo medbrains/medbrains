@@ -265,7 +265,7 @@ ALTER TABLE ONLY public.medical_certificates
 -- Name: idx_doc_output_sigs_doc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doc_output_sigs_doc ON public.document_output_signatures USING btree (document_output_id);
+CREATE INDEX IF NOT EXISTS idx_doc_output_sigs_doc ON public.document_output_signatures USING btree (document_output_id);
 
 
 
@@ -273,7 +273,7 @@ CREATE INDEX idx_doc_output_sigs_doc ON public.document_output_signatures USING 
 -- Name: idx_document_outputs_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_document_outputs_category ON public.document_outputs USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_document_outputs_category ON public.document_outputs USING btree (tenant_id, category);
 
 
 
@@ -281,7 +281,7 @@ CREATE INDEX idx_document_outputs_category ON public.document_outputs USING btre
 -- Name: idx_document_outputs_doc_number; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_document_outputs_doc_number ON public.document_outputs USING btree (tenant_id, document_number);
+CREATE INDEX IF NOT EXISTS idx_document_outputs_doc_number ON public.document_outputs USING btree (tenant_id, document_number);
 
 
 
@@ -289,7 +289,7 @@ CREATE INDEX idx_document_outputs_doc_number ON public.document_outputs USING bt
 -- Name: idx_document_outputs_module; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_document_outputs_module ON public.document_outputs USING btree (tenant_id, module_code);
+CREATE INDEX IF NOT EXISTS idx_document_outputs_module ON public.document_outputs USING btree (tenant_id, module_code);
 
 
 
@@ -297,7 +297,7 @@ CREATE INDEX idx_document_outputs_module ON public.document_outputs USING btree 
 -- Name: idx_document_outputs_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_document_outputs_patient ON public.document_outputs USING btree (tenant_id, patient_id) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_document_outputs_patient ON public.document_outputs USING btree (tenant_id, patient_id) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -305,7 +305,7 @@ CREATE INDEX idx_document_outputs_patient ON public.document_outputs USING btree
 -- Name: idx_document_outputs_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_document_outputs_source ON public.document_outputs USING btree (tenant_id, source_table, source_id);
+CREATE INDEX IF NOT EXISTS idx_document_outputs_source ON public.document_outputs USING btree (tenant_id, source_table, source_id);
 
 
 
@@ -313,7 +313,7 @@ CREATE INDEX idx_document_outputs_source ON public.document_outputs USING btree 
 -- Name: idx_medical_certificates_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medical_certificates_encounter ON public.medical_certificates USING btree (encounter_id) WHERE (encounter_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_encounter ON public.medical_certificates USING btree (encounter_id) WHERE (encounter_id IS NOT NULL);
 
 
 
@@ -321,7 +321,7 @@ CREATE INDEX idx_medical_certificates_encounter ON public.medical_certificates U
 -- Name: idx_medical_certificates_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medical_certificates_patient ON public.medical_certificates USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_patient ON public.medical_certificates USING btree (tenant_id, patient_id);
 
 
 
@@ -329,7 +329,7 @@ CREATE INDEX idx_medical_certificates_patient ON public.medical_certificates USI
 -- Name: idx_medical_certificates_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medical_certificates_tenant ON public.medical_certificates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_tenant ON public.medical_certificates USING btree (tenant_id);
 
 
 

@@ -1,0 +1,194 @@
+# All operator commands in one file. Source = medbrains/infra/.env.
+# No manual exports, no -var flags.
+#
+# Tier-aware: builds + uploads what each tier needs.
+#   starter         → cargo build + pnpm build → upload binaries + SPA
+#   growth          → docker buildx push (or wait for CI) → image-only
+#   enterprise-k3s  → docker buildx push (ARM) + helm chart upload
+#   enterprise      → docker buildx push + helm chart upload
+#
+# Usage:
+#   make help
+
+ENV_FILE := ../../../../.env
+REPO_ROOT := ../../../../..
+
+# Auto-export every var in the env file when any target runs.
+include $(ENV_FILE)
+export
+
+# Tier comes from TF_VAR_tier (default "starter" if unset).
+TIER ?= $(TF_VAR_tier)
+TIER := $(if $(TIER),$(TIER),starter)
+
+GHCR_IMAGE ?= ghcr.io/domnicamalan/medbrains
+GHCR_TAG   ?= latest
+
+# Starter target: cross-compile from operator's mac (apple-darwin)
+# to the Linux EC2 host via cargo-zigbuild. No docker, no QEMU.
+# Default targets ARM (t4g.small Starter); override to
+# x86_64-unknown-linux-gnu if you switched to a t3.* instance.
+STARTER_TARGET ?= aarch64-unknown-linux-gnu
+
+.PHONY: help check init plan apply destroy outputs tail-app rebuild \
+        build build-starter build-image build-image-local kubeconfig \
+        helm-render helm-test pre-apply-backup
+
+help:
+	@echo "MedBrains standalone deploy targets (tier=$(TIER)):"
+	@echo "  make check             — verify env + creds before doing anything"
+	@echo "  make build             — tier-aware build (binaries OR docker image)"
+	@echo "  make build-image-local — multi-arch docker buildx → push to GHCR"
+	@echo "  make plan              — terraform plan"
+	@echo "  make apply             — terraform apply (provisions everything)"
+	@echo "  make rebuild           — build then apply"
+	@echo "  make outputs           — print tier outputs (public_endpoint / db / bucket)"
+	@echo "  make kubeconfig        — pull kubeconfig from k3s/EKS cluster to ./kubeconfig"
+	@echo "  make tail-app          — tail medbrains-server logs (tier-aware)"
+	@echo "  make helm-render       — render the helm chart locally for review"
+	@echo "  make helm-test         — helm lint + helm template (no apply)"
+	@echo "  make destroy           — tear down everything"
+
+check:
+	@test -f $(ENV_FILE) || { echo "ERROR: $(ENV_FILE) missing"; exit 1; }
+	@grep -q '^AWS_ACCESS_KEY_ID=' $(ENV_FILE) || { echo "ERROR: AWS_ACCESS_KEY_ID missing in $(ENV_FILE)"; exit 1; }
+	@grep -q '^AWS_SECRET_ACCESS_KEY=' $(ENV_FILE) || { echo "ERROR: AWS_SECRET_ACCESS_KEY missing in $(ENV_FILE)"; exit 1; }
+	@grep -q '^AWS_REGION=' $(ENV_FILE) || { echo "ERROR: AWS_REGION missing in $(ENV_FILE)"; exit 1; }
+	@grep -q '^GODADDY_API_KEY=' $(ENV_FILE) || { echo "ERROR: GODADDY_API_KEY missing in $(ENV_FILE)"; exit 1; }
+	@grep -q '^GODADDY_API_SECRET=' $(ENV_FILE) || { echo "ERROR: GODADDY_API_SECRET missing in $(ENV_FILE)"; exit 1; }
+	@grep -q '^TF_VAR_admin_email=' $(ENV_FILE) || { echo "ERROR: TF_VAR_admin_email missing in $(ENV_FILE)"; exit 1; }
+	@if [ "$(TIER)" = "starter" ] || [ "$(TIER)" = "enterprise-k3s" ]; then \
+		grep -q '^TF_VAR_aws_ssh_key_name=' $(ENV_FILE) || { echo "ERROR: TF_VAR_aws_ssh_key_name missing (required for tier=$(TIER))"; exit 1; }; \
+	fi
+	@if [ "$(TIER)" = "starter" ]; then \
+		command -v zig >/dev/null 2>&1 || { echo "ERROR: zig not installed. Run: brew install zig"; exit 1; }; \
+		command -v cargo-zigbuild >/dev/null 2>&1 || { echo "ERROR: cargo-zigbuild not installed. Run: cargo install cargo-zigbuild"; exit 1; }; \
+	fi
+	@echo "==> env OK ($(ENV_FILE)), tier=$(TIER)"
+
+# ── tier-aware build dispatcher ───────────────────────────────────────
+
+build:
+ifeq ($(TIER),starter)
+	@$(MAKE) -s build-starter
+else
+	@$(MAKE) -s build-image
+endif
+
+# Starter: cross-compile mac → linux x86_64 with cargo-zigbuild
+# (no docker, no QEMU). Output lands at
+# target/$(STARTER_TARGET)/release/, which is what the terraform
+# `binaries_dir` default points to.
+build-starter:
+	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-server
+	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-archive
+	cd $(REPO_ROOT) && pnpm --filter "@medbrains/types" --filter "@medbrains/utils" --filter "@medbrains/schemas" --filter "@medbrains/api" --filter "@medbrains/stores" --filter "@medbrains/expressions" --filter "@medbrains/crdt" build
+	cd $(REPO_ROOT) && pnpm --filter @medbrains/web exec vite build
+	@echo "==> starter build OK (target=$(STARTER_TARGET))"
+
+# Image-based tiers default: rely on the GHCR image already published
+# by CI. Use `make build-image-local` to bypass CI and build locally.
+build-image:
+	@echo "==> image-based tier — assuming $(GHCR_IMAGE):$(GHCR_TAG) is already in GHCR"
+	@echo "    (push to master triggers the multi-arch build. Or run \`make build-image-local\`.)"
+
+# Local build → push multi-arch image to GHCR. Useful for fast iteration
+# or when the operator's mac is ARM (apple silicon — no QEMU emulation).
+build-image-local:
+	@command -v docker >/dev/null || { echo "ERROR: docker not installed"; exit 1; }
+	@docker buildx version >/dev/null 2>&1 || { echo "ERROR: docker buildx not available"; exit 1; }
+	@test -n "$$GHCR_PUSH_TOKEN" || { echo "ERROR: set GHCR_PUSH_TOKEN in env (PAT with write:packages)"; exit 1; }
+	@test -n "$$GHCR_USERNAME" || { echo "ERROR: set GHCR_USERNAME in env"; exit 1; }
+	echo "$$GHCR_PUSH_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
+	docker buildx create --name medbrains-builder --use 2>/dev/null || docker buildx use medbrains-builder
+	cd $(REPO_ROOT) && docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--file medbrains/Dockerfile \
+		--tag $(GHCR_IMAGE):$(GHCR_TAG) \
+		--tag $(GHCR_IMAGE):$$(git rev-parse --short HEAD) \
+		--push \
+		medbrains/
+	@echo "==> pushed $(GHCR_IMAGE):$(GHCR_TAG) (amd64 + arm64)"
+
+# ── terraform ──────────────────────────────────────────────────────────
+
+init:
+	terraform init
+
+plan: check init
+	terraform plan
+
+apply: check init build pre-apply-backup
+	terraform apply -auto-approve
+	@echo
+	@echo "==> deploy complete (tier=$(TIER))"
+	@$(MAKE) -s outputs
+
+# Versioned safety-net backup taken BEFORE every terraform apply. On
+# the first ever apply the host doesn't exist yet — we no-op cleanly.
+# Backups land in the S3 bucket Object-Lock'd for 5y, so even if the
+# apply destroys data we can restore.
+pre-apply-backup:
+	@if [ ! -f terraform.tfstate ] || ! terraform state list 2>/dev/null | grep -q aws_instance.this; then \
+		echo "==> pre-apply-backup: no instance yet (initial deploy) — skipping"; \
+		exit 0; \
+	fi
+	@SSH_ENDPOINT=$$(terraform output -raw ssh_endpoint 2>/dev/null) && \
+	  BACKUP_BUCKET=$$(terraform output -raw backup_bucket 2>/dev/null) && \
+	  if [ -z "$$BACKUP_BUCKET" ] || [ "$$BACKUP_BUCKET" = "null" ]; then \
+	      echo "==> pre-apply-backup: no backup_bucket output (non-Starter tier?) — skipping"; \
+	      exit 0; \
+	  fi && \
+	  echo "==> pre-apply-backup: SSH $$SSH_ENDPOINT → s3://$$BACKUP_BUCKET" && \
+	  ssh -i $(TF_VAR_ssh_private_key_path) -o StrictHostKeyChecking=no $$SSH_ENDPOINT \
+	      "if systemctl is-active --quiet medbrains-pg-backup.timer 2>/dev/null && docker ps --format '{{.Names}}' | grep -q medbrains-postgres; then \
+	          echo '   running medbrains-pg-backup on host'; \
+	          sudo systemctl start medbrains-pg-backup.service && \
+	          sudo journalctl -u medbrains-pg-backup.service -n 5 --no-pager; \
+	      else \
+	          echo '   medbrains-pg-backup or postgres not running — nothing to back up'; \
+	      fi"
+
+rebuild: build
+	terraform apply -auto-approve
+
+destroy: check
+	terraform destroy
+
+outputs:
+	@terraform output -json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'{k:22}= {v[\"value\"]}') for k,v in d.items()]"
+
+# ── k8s helpers (k3s / EKS tiers) ──────────────────────────────────────
+
+kubeconfig:
+ifneq ($(filter $(TIER),enterprise-k3s enterprise),)
+	@SSH_ENDPOINT=$$(terraform output -raw public_endpoint) && \
+	  KEY="$(TF_VAR_ssh_private_key_path)" && \
+	  scp -i "$$KEY" -o StrictHostKeyChecking=no ubuntu@$$SSH_ENDPOINT:.kube/config ./kubeconfig && \
+	  sed -i.bak "s|server: https://127.0.0.1:6443|server: https://$$SSH_ENDPOINT:6443|" ./kubeconfig && \
+	  rm -f ./kubeconfig.bak && \
+	  echo "==> kubeconfig at ./kubeconfig — try \`KUBECONFIG=./kubeconfig kubectl get pods -A\`"
+else
+	@echo "tier=$(TIER) doesn't have a k8s cluster — skipping"
+endif
+
+tail-app:
+ifeq ($(TIER),starter)
+	@SSH_ENDPOINT=$$(terraform output -raw ssh_endpoint 2>/dev/null) && \
+	  ssh -i $(TF_VAR_ssh_private_key_path) $$SSH_ENDPOINT 'sudo journalctl -u medbrains-server -f'
+else
+	@$(MAKE) -s kubeconfig >/dev/null
+	KUBECONFIG=./kubeconfig kubectl -n medbrains logs -l app.kubernetes.io/name=medbrains-server -f --tail=100
+endif
+
+helm-render:
+	helm template medbrains $(REPO_ROOT)/medbrains/deploy/helm/medbrains-server/ \
+		--set database.url='postgres://x:y@host/db' \
+		--set ingress.host='$(TF_VAR_domain)'
+
+helm-test:
+	helm lint $(REPO_ROOT)/medbrains/deploy/helm/medbrains-server/ \
+		--set database.url='postgres://x:y@host/db'
+	helm template medbrains $(REPO_ROOT)/medbrains/deploy/helm/medbrains-server/ \
+		--set database.url='postgres://x:y@host/db' >/dev/null
+	@echo "==> helm chart OK"

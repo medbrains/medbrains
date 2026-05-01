@@ -1532,7 +1532,7 @@ ALTER TABLE ONLY public.restricted_drug_approvals
 -- Name: idx_adherence_enrollment_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adherence_enrollment_date ON public.adherence_records USING btree (tenant_id, enrollment_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_adherence_enrollment_date ON public.adherence_records USING btree (tenant_id, enrollment_id, event_date);
 
 
 
@@ -1540,7 +1540,7 @@ CREATE INDEX idx_adherence_enrollment_date ON public.adherence_records USING btr
 -- Name: idx_allergy_check_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_allergy_check_patient ON public.pharmacy_allergy_check_log USING btree (patient_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_allergy_check_patient ON public.pharmacy_allergy_check_log USING btree (patient_id, checked_at DESC);
 
 
 
@@ -1548,7 +1548,7 @@ CREATE INDEX idx_allergy_check_patient ON public.pharmacy_allergy_check_log USIN
 -- Name: idx_destruction_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_destruction_tenant ON public.pharmacy_destruction_log USING btree (tenant_id, destruction_date);
+CREATE INDEX IF NOT EXISTS idx_destruction_tenant ON public.pharmacy_destruction_log USING btree (tenant_id, destruction_date);
 
 
 
@@ -1556,7 +1556,7 @@ CREATE INDEX idx_destruction_tenant ON public.pharmacy_destruction_log USING btr
 -- Name: idx_drug_interactions_drug_a; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_interactions_drug_a ON public.drug_interactions USING btree (tenant_id, lower(drug_a_name));
+CREATE INDEX IF NOT EXISTS idx_drug_interactions_drug_a ON public.drug_interactions USING btree (tenant_id, lower(drug_a_name));
 
 
 
@@ -1564,7 +1564,7 @@ CREATE INDEX idx_drug_interactions_drug_a ON public.drug_interactions USING btre
 -- Name: idx_drug_interactions_drug_b; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_interactions_drug_b ON public.drug_interactions USING btree (tenant_id, lower(drug_b_name));
+CREATE INDEX IF NOT EXISTS idx_drug_interactions_drug_b ON public.drug_interactions USING btree (tenant_id, lower(drug_b_name));
 
 
 
@@ -1572,7 +1572,7 @@ CREATE INDEX idx_drug_interactions_drug_b ON public.drug_interactions USING btre
 -- Name: idx_drug_interactions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_interactions_tenant ON public.drug_interactions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_drug_interactions_tenant ON public.drug_interactions USING btree (tenant_id);
 
 
 
@@ -1580,7 +1580,7 @@ CREATE INDEX idx_drug_interactions_tenant ON public.drug_interactions USING btre
 -- Name: idx_kits_check; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_kits_check ON public.pharmacy_emergency_kits USING btree (next_check_due) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_kits_check ON public.pharmacy_emergency_kits USING btree (next_check_due) WHERE (status = 'active'::text);
 
 
 
@@ -1588,7 +1588,7 @@ CREATE INDEX idx_kits_check ON public.pharmacy_emergency_kits USING btree (next_
 -- Name: idx_pharma_pay_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharma_pay_date ON public.pharmacy_payment_transactions USING btree (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pharma_pay_date ON public.pharmacy_payment_transactions USING btree (tenant_id, created_at);
 
 
 
@@ -1596,7 +1596,7 @@ CREATE INDEX idx_pharma_pay_date ON public.pharmacy_payment_transactions USING b
 -- Name: idx_pharma_pay_pos; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharma_pay_pos ON public.pharmacy_payment_transactions USING btree (pos_sale_id) WHERE (pos_sale_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pharma_pay_pos ON public.pharmacy_payment_transactions USING btree (pos_sale_id) WHERE (pos_sale_id IS NOT NULL);
 
 
 
@@ -1604,7 +1604,7 @@ CREATE INDEX idx_pharma_pay_pos ON public.pharmacy_payment_transactions USING bt
 -- Name: idx_pharma_pay_recon; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharma_pay_recon ON public.pharmacy_payment_transactions USING btree (tenant_id, reconciliation_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_pharma_pay_recon ON public.pharmacy_payment_transactions USING btree (tenant_id, reconciliation_status, created_at);
 
 
 
@@ -1612,7 +1612,7 @@ CREATE INDEX idx_pharma_pay_recon ON public.pharmacy_payment_transactions USING 
 -- Name: idx_pharma_pay_upi; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharma_pay_upi ON public.pharmacy_payment_transactions USING btree (upi_transaction_id) WHERE (upi_transaction_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pharma_pay_upi ON public.pharmacy_payment_transactions USING btree (upi_transaction_id) WHERE (upi_transaction_id IS NOT NULL);
 
 
 
@@ -1620,7 +1620,7 @@ CREATE INDEX idx_pharma_pay_upi ON public.pharmacy_payment_transactions USING bt
 -- Name: idx_pharmacy_batches_tenant_catalog_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_batches_tenant_catalog_expiry ON public.pharmacy_batches USING btree (tenant_id, catalog_item_id, expiry_date);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_batches_tenant_catalog_expiry ON public.pharmacy_batches USING btree (tenant_id, catalog_item_id, expiry_date);
 
 
 
@@ -1628,7 +1628,7 @@ CREATE INDEX idx_pharmacy_batches_tenant_catalog_expiry ON public.pharmacy_batch
 -- Name: idx_pharmacy_batches_tenant_location; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_batches_tenant_location ON public.pharmacy_batches USING btree (tenant_id, store_location_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_batches_tenant_location ON public.pharmacy_batches USING btree (tenant_id, store_location_id);
 
 
 
@@ -1636,7 +1636,7 @@ CREATE INDEX idx_pharmacy_batches_tenant_location ON public.pharmacy_batches USI
 -- Name: idx_pharmacy_catalog_controlled; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_catalog_controlled ON public.pharmacy_catalog USING btree (tenant_id, is_controlled) WHERE (is_controlled = true);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_catalog_controlled ON public.pharmacy_catalog USING btree (tenant_id, is_controlled) WHERE (is_controlled = true);
 
 
 
@@ -1644,7 +1644,7 @@ CREATE INDEX idx_pharmacy_catalog_controlled ON public.pharmacy_catalog USING bt
 -- Name: idx_pharmacy_catalog_formulary; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_catalog_formulary ON public.pharmacy_catalog USING btree (tenant_id, formulary_status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_catalog_formulary ON public.pharmacy_catalog USING btree (tenant_id, formulary_status);
 
 
 
@@ -1652,7 +1652,7 @@ CREATE INDEX idx_pharmacy_catalog_formulary ON public.pharmacy_catalog USING btr
 -- Name: idx_pharmacy_catalog_schedule; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_catalog_schedule ON public.pharmacy_catalog USING btree (tenant_id, drug_schedule) WHERE (drug_schedule IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_catalog_schedule ON public.pharmacy_catalog USING btree (tenant_id, drug_schedule) WHERE (drug_schedule IS NOT NULL);
 
 
 
@@ -1660,7 +1660,7 @@ CREATE INDEX idx_pharmacy_catalog_schedule ON public.pharmacy_catalog USING btre
 -- Name: idx_pharmacy_catalog_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_catalog_tenant ON public.pharmacy_catalog USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_catalog_tenant ON public.pharmacy_catalog USING btree (tenant_id);
 
 
 
@@ -1668,7 +1668,7 @@ CREATE INDEX idx_pharmacy_catalog_tenant ON public.pharmacy_catalog USING btree 
 -- Name: idx_pharmacy_credit_notes_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_credit_notes_patient ON public.pharmacy_credit_notes USING btree (patient_id) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_credit_notes_patient ON public.pharmacy_credit_notes USING btree (patient_id) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -1676,7 +1676,7 @@ CREATE INDEX idx_pharmacy_credit_notes_patient ON public.pharmacy_credit_notes U
 -- Name: idx_pharmacy_credit_notes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_credit_notes_tenant ON public.pharmacy_credit_notes USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_credit_notes_tenant ON public.pharmacy_credit_notes USING btree (tenant_id, status);
 
 
 
@@ -1684,7 +1684,7 @@ CREATE INDEX idx_pharmacy_credit_notes_tenant ON public.pharmacy_credit_notes US
 -- Name: idx_pharmacy_credit_notes_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_credit_notes_vendor ON public.pharmacy_credit_notes USING btree (vendor_id) WHERE (vendor_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_credit_notes_vendor ON public.pharmacy_credit_notes USING btree (vendor_id) WHERE (vendor_id IS NOT NULL);
 
 
 
@@ -1692,7 +1692,7 @@ CREATE INDEX idx_pharmacy_credit_notes_vendor ON public.pharmacy_credit_notes US
 -- Name: idx_pharmacy_ndps_register_tenant_catalog; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_ndps_register_tenant_catalog ON public.pharmacy_ndps_register USING btree (tenant_id, catalog_item_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_ndps_register_tenant_catalog ON public.pharmacy_ndps_register USING btree (tenant_id, catalog_item_id, created_at);
 
 
 
@@ -1700,7 +1700,7 @@ CREATE INDEX idx_pharmacy_ndps_register_tenant_catalog ON public.pharmacy_ndps_r
 -- Name: idx_pharmacy_order_items_batch_stock; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_order_items_batch_stock ON public.pharmacy_order_items USING btree (batch_stock_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_order_items_batch_stock ON public.pharmacy_order_items USING btree (batch_stock_id);
 
 
 
@@ -1708,7 +1708,7 @@ CREATE INDEX idx_pharmacy_order_items_batch_stock ON public.pharmacy_order_items
 -- Name: idx_pharmacy_order_items_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_order_items_order ON public.pharmacy_order_items USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_order_items_order ON public.pharmacy_order_items USING btree (order_id);
 
 
 
@@ -1716,7 +1716,7 @@ CREATE INDEX idx_pharmacy_order_items_order ON public.pharmacy_order_items USING
 -- Name: idx_pharmacy_orders_dispensing_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_orders_dispensing_type ON public.pharmacy_orders USING btree (tenant_id, dispensing_type);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_dispensing_type ON public.pharmacy_orders USING btree (tenant_id, dispensing_type);
 
 
 
@@ -1724,7 +1724,7 @@ CREATE INDEX idx_pharmacy_orders_dispensing_type ON public.pharmacy_orders USING
 -- Name: idx_pharmacy_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_orders_patient ON public.pharmacy_orders USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_patient ON public.pharmacy_orders USING btree (tenant_id, patient_id);
 
 
 
@@ -1732,7 +1732,7 @@ CREATE INDEX idx_pharmacy_orders_patient ON public.pharmacy_orders USING btree (
 -- Name: idx_pharmacy_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_orders_status ON public.pharmacy_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_status ON public.pharmacy_orders USING btree (tenant_id, status);
 
 
 
@@ -1740,7 +1740,7 @@ CREATE INDEX idx_pharmacy_orders_status ON public.pharmacy_orders USING btree (t
 -- Name: idx_pharmacy_orders_store_location; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_orders_store_location ON public.pharmacy_orders USING btree (tenant_id, store_location_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_store_location ON public.pharmacy_orders USING btree (tenant_id, store_location_id);
 
 
 
@@ -1748,7 +1748,7 @@ CREATE INDEX idx_pharmacy_orders_store_location ON public.pharmacy_orders USING 
 -- Name: idx_pharmacy_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_orders_tenant ON public.pharmacy_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_tenant ON public.pharmacy_orders USING btree (tenant_id);
 
 
 
@@ -1756,7 +1756,7 @@ CREATE INDEX idx_pharmacy_orders_tenant ON public.pharmacy_orders USING btree (t
 -- Name: idx_pharmacy_returns_tenant_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_returns_tenant_status ON public.pharmacy_returns USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_returns_tenant_status ON public.pharmacy_returns USING btree (tenant_id, status);
 
 
 
@@ -1764,7 +1764,7 @@ CREATE INDEX idx_pharmacy_returns_tenant_status ON public.pharmacy_returns USING
 -- Name: idx_pharmacy_rx_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_rx_patient ON public.pharmacy_prescriptions USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_rx_patient ON public.pharmacy_prescriptions USING btree (tenant_id, patient_id);
 
 
 
@@ -1772,7 +1772,7 @@ CREATE INDEX idx_pharmacy_rx_patient ON public.pharmacy_prescriptions USING btre
 -- Name: idx_pharmacy_rx_prescription; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_rx_prescription ON public.pharmacy_prescriptions USING btree (prescription_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_rx_prescription ON public.pharmacy_prescriptions USING btree (prescription_id);
 
 
 
@@ -1780,7 +1780,7 @@ CREATE INDEX idx_pharmacy_rx_prescription ON public.pharmacy_prescriptions USING
 -- Name: idx_pharmacy_rx_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_rx_status ON public.pharmacy_prescriptions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_rx_status ON public.pharmacy_prescriptions USING btree (tenant_id, status);
 
 
 
@@ -1788,7 +1788,7 @@ CREATE INDEX idx_pharmacy_rx_status ON public.pharmacy_prescriptions USING btree
 -- Name: idx_pharmacy_stock_tx_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_stock_tx_item ON public.pharmacy_stock_transactions USING btree (catalog_item_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_stock_tx_item ON public.pharmacy_stock_transactions USING btree (catalog_item_id);
 
 
 
@@ -1796,7 +1796,7 @@ CREATE INDEX idx_pharmacy_stock_tx_item ON public.pharmacy_stock_transactions US
 -- Name: idx_pharmacy_store_assignments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_store_assignments_tenant ON public.pharmacy_store_assignments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_store_assignments_tenant ON public.pharmacy_store_assignments USING btree (tenant_id);
 
 
 
@@ -1804,7 +1804,7 @@ CREATE INDEX idx_pharmacy_store_assignments_tenant ON public.pharmacy_store_assi
 -- Name: idx_pharmacy_store_indents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_store_indents_tenant ON public.pharmacy_store_indents USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_store_indents_tenant ON public.pharmacy_store_indents USING btree (tenant_id, status);
 
 
 
@@ -1812,7 +1812,7 @@ CREATE INDEX idx_pharmacy_store_indents_tenant ON public.pharmacy_store_indents 
 -- Name: idx_pharmacy_transfer_requests_tenant_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_transfer_requests_tenant_status ON public.pharmacy_transfer_requests USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_transfer_requests_tenant_status ON public.pharmacy_transfer_requests USING btree (tenant_id, status);
 
 
 
@@ -1820,7 +1820,7 @@ CREATE INDEX idx_pharmacy_transfer_requests_tenant_status ON public.pharmacy_tra
 -- Name: idx_pos_sale_items; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pos_sale_items ON public.pharmacy_pos_sale_items USING btree (pos_sale_id);
+CREATE INDEX IF NOT EXISTS idx_pos_sale_items ON public.pharmacy_pos_sale_items USING btree (pos_sale_id);
 
 
 
@@ -1828,7 +1828,7 @@ CREATE INDEX idx_pos_sale_items ON public.pharmacy_pos_sale_items USING btree (p
 -- Name: idx_pos_sales_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pos_sales_date ON public.pharmacy_pos_sales USING btree (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pos_sales_date ON public.pharmacy_pos_sales USING btree (tenant_id, created_at);
 
 
 
@@ -1836,7 +1836,7 @@ CREATE INDEX idx_pos_sales_date ON public.pharmacy_pos_sales USING btree (tenant
 -- Name: idx_pos_sales_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pos_sales_patient ON public.pharmacy_pos_sales USING btree (patient_id) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pos_sales_patient ON public.pharmacy_pos_sales USING btree (patient_id) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -1844,7 +1844,7 @@ CREATE INDEX idx_pos_sales_patient ON public.pharmacy_pos_sales USING btree (pat
 -- Name: idx_prescription_items_prescription; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescription_items_prescription ON public.prescription_items USING btree (prescription_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_prescription ON public.prescription_items USING btree (prescription_id);
 
 
 
@@ -1852,7 +1852,7 @@ CREATE INDEX idx_prescription_items_prescription ON public.prescription_items US
 -- Name: idx_prescription_items_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescription_items_status ON public.prescription_items USING btree (tenant_id, item_status) WHERE (item_status <> 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_status ON public.prescription_items USING btree (tenant_id, item_status) WHERE (item_status <> 'active'::text);
 
 
 
@@ -1860,7 +1860,7 @@ CREATE INDEX idx_prescription_items_status ON public.prescription_items USING bt
 -- Name: idx_prescription_templates_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescription_templates_tenant ON public.prescription_templates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_templates_tenant ON public.prescription_templates USING btree (tenant_id);
 
 
 
@@ -1868,7 +1868,7 @@ CREATE INDEX idx_prescription_templates_tenant ON public.prescription_templates 
 -- Name: idx_prescription_templates_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescription_templates_user ON public.prescription_templates USING btree (tenant_id, created_by);
+CREATE INDEX IF NOT EXISTS idx_prescription_templates_user ON public.prescription_templates USING btree (tenant_id, created_by);
 
 
 
@@ -1876,7 +1876,7 @@ CREATE INDEX idx_prescription_templates_user ON public.prescription_templates US
 -- Name: idx_prescriptions_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_encounter ON public.prescriptions USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_encounter ON public.prescriptions USING btree (encounter_id);
 
 
 
@@ -1884,7 +1884,7 @@ CREATE INDEX idx_prescriptions_encounter ON public.prescriptions USING btree (en
 -- Name: idx_prescriptions_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_patient ON public.prescriptions USING btree (tenant_id, patient_id) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON public.prescriptions USING btree (tenant_id, patient_id) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -1892,7 +1892,7 @@ CREATE INDEX idx_prescriptions_patient ON public.prescriptions USING btree (tena
 -- Name: idx_prescriptions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_tenant ON public.prescriptions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_tenant ON public.prescriptions USING btree (tenant_id);
 
 
 
@@ -1900,7 +1900,7 @@ CREATE INDEX idx_prescriptions_tenant ON public.prescriptions USING btree (tenan
 -- Name: idx_pricing_tiers_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pricing_tiers_item ON public.pharmacy_pricing_tiers USING btree (catalog_item_id, tier_name);
+CREATE INDEX IF NOT EXISTS idx_pricing_tiers_item ON public.pharmacy_pricing_tiers USING btree (catalog_item_id, tier_name);
 
 
 
@@ -1908,7 +1908,7 @@ CREATE INDEX idx_pricing_tiers_item ON public.pharmacy_pricing_tiers USING btree
 -- Name: idx_recall_drug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_recall_drug ON public.pharmacy_drug_recalls USING btree (drug_id);
+CREATE INDEX IF NOT EXISTS idx_recall_drug ON public.pharmacy_drug_recalls USING btree (drug_id);
 
 
 
@@ -1916,7 +1916,7 @@ CREATE INDEX idx_recall_drug ON public.pharmacy_drug_recalls USING btree (drug_i
 -- Name: idx_recall_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_recall_tenant ON public.pharmacy_drug_recalls USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_recall_tenant ON public.pharmacy_drug_recalls USING btree (tenant_id, status);
 
 
 
@@ -1924,7 +1924,7 @@ CREATE INDEX idx_recall_tenant ON public.pharmacy_drug_recalls USING btree (tena
 -- Name: idx_restricted_drug_approvals_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_restricted_drug_approvals_encounter ON public.restricted_drug_approvals USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_restricted_drug_approvals_encounter ON public.restricted_drug_approvals USING btree (encounter_id);
 
 
 
@@ -1932,7 +1932,7 @@ CREATE INDEX idx_restricted_drug_approvals_encounter ON public.restricted_drug_a
 -- Name: idx_restricted_drug_approvals_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_restricted_drug_approvals_status ON public.restricted_drug_approvals USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_restricted_drug_approvals_status ON public.restricted_drug_approvals USING btree (tenant_id, status);
 
 
 
@@ -1940,7 +1940,7 @@ CREATE INDEX idx_restricted_drug_approvals_status ON public.restricted_drug_appr
 -- Name: idx_restricted_drug_approvals_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_restricted_drug_approvals_tenant ON public.restricted_drug_approvals USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_restricted_drug_approvals_tenant ON public.restricted_drug_approvals USING btree (tenant_id);
 
 
 
@@ -1948,7 +1948,7 @@ CREATE INDEX idx_restricted_drug_approvals_tenant ON public.restricted_drug_appr
 -- Name: idx_settlements_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_settlements_date ON public.pharmacy_day_settlements USING btree (tenant_id, settlement_date, counter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_settlements_date ON public.pharmacy_day_settlements USING btree (tenant_id, settlement_date, counter_id);
 
 
 
@@ -1956,7 +1956,7 @@ CREATE UNIQUE INDEX idx_settlements_date ON public.pharmacy_day_settlements USIN
 -- Name: idx_stock_recon_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_recon_item ON public.pharmacy_stock_reconciliation USING btree (catalog_item_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_recon_item ON public.pharmacy_stock_reconciliation USING btree (catalog_item_id, created_at DESC);
 
 
 
@@ -1964,7 +1964,7 @@ CREATE INDEX idx_stock_recon_item ON public.pharmacy_stock_reconciliation USING 
 -- Name: pharmacy_cash_drawers_cashier_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_cash_drawers_cashier_idx ON public.pharmacy_cash_drawers USING btree (tenant_id, cashier_user_id, opened_at DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_cash_drawers_cashier_idx ON public.pharmacy_cash_drawers USING btree (tenant_id, cashier_user_id, opened_at DESC);
 
 
 
@@ -1972,7 +1972,7 @@ CREATE INDEX pharmacy_cash_drawers_cashier_idx ON public.pharmacy_cash_drawers U
 -- Name: pharmacy_cash_drawers_open_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_cash_drawers_open_idx ON public.pharmacy_cash_drawers USING btree (tenant_id, pharmacy_location_id) WHERE (status = 'open'::text);
+CREATE INDEX IF NOT EXISTS pharmacy_cash_drawers_open_idx ON public.pharmacy_cash_drawers USING btree (tenant_id, pharmacy_location_id) WHERE (status = 'open'::text);
 
 
 
@@ -1980,7 +1980,7 @@ CREATE INDEX pharmacy_cash_drawers_open_idx ON public.pharmacy_cash_drawers USIN
 -- Name: pharmacy_cashier_overrides_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_cashier_overrides_type_idx ON public.pharmacy_cashier_overrides USING btree (tenant_id, override_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_cashier_overrides_type_idx ON public.pharmacy_cashier_overrides USING btree (tenant_id, override_type, created_at DESC);
 
 
 
@@ -1988,7 +1988,7 @@ CREATE INDEX pharmacy_cashier_overrides_type_idx ON public.pharmacy_cashier_over
 -- Name: pharmacy_cashier_overrides_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_cashier_overrides_user_idx ON public.pharmacy_cashier_overrides USING btree (tenant_id, cashier_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_cashier_overrides_user_idx ON public.pharmacy_cashier_overrides USING btree (tenant_id, cashier_user_id, created_at DESC);
 
 
 
@@ -1996,7 +1996,7 @@ CREATE INDEX pharmacy_cashier_overrides_user_idx ON public.pharmacy_cashier_over
 -- Name: pharmacy_counseling_order_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_counseling_order_idx ON public.pharmacy_counseling USING btree (tenant_id, pharmacy_order_id);
+CREATE INDEX IF NOT EXISTS pharmacy_counseling_order_idx ON public.pharmacy_counseling USING btree (tenant_id, pharmacy_order_id);
 
 
 
@@ -2004,7 +2004,7 @@ CREATE INDEX pharmacy_counseling_order_idx ON public.pharmacy_counseling USING b
 -- Name: pharmacy_coverage_checks_order_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_coverage_checks_order_idx ON public.pharmacy_coverage_checks USING btree (tenant_id, pharmacy_order_id);
+CREATE INDEX IF NOT EXISTS pharmacy_coverage_checks_order_idx ON public.pharmacy_coverage_checks USING btree (tenant_id, pharmacy_order_id);
 
 
 
@@ -2012,7 +2012,7 @@ CREATE INDEX pharmacy_coverage_checks_order_idx ON public.pharmacy_coverage_chec
 -- Name: pharmacy_drug_margin_top_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_drug_margin_top_idx ON public.pharmacy_drug_margin_daily USING btree (tenant_id, snapshot_date DESC, margin_total DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_drug_margin_top_idx ON public.pharmacy_drug_margin_daily USING btree (tenant_id, snapshot_date DESC, margin_total DESC);
 
 
 
@@ -2020,7 +2020,7 @@ CREATE INDEX pharmacy_drug_margin_top_idx ON public.pharmacy_drug_margin_daily U
 -- Name: pharmacy_free_dispensings_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_free_dispensings_idx ON public.pharmacy_free_dispensings USING btree (tenant_id, category, created_at DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_free_dispensings_idx ON public.pharmacy_free_dispensings USING btree (tenant_id, category, created_at DESC);
 
 
 
@@ -2028,7 +2028,7 @@ CREATE INDEX pharmacy_free_dispensings_idx ON public.pharmacy_free_dispensings U
 -- Name: pharmacy_petty_cash_drawer_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_petty_cash_drawer_idx ON public.pharmacy_petty_cash_vouchers USING btree (tenant_id, cash_drawer_id, status);
+CREATE INDEX IF NOT EXISTS pharmacy_petty_cash_drawer_idx ON public.pharmacy_petty_cash_vouchers USING btree (tenant_id, cash_drawer_id, status);
 
 
 
@@ -2036,7 +2036,7 @@ CREATE INDEX pharmacy_petty_cash_drawer_idx ON public.pharmacy_petty_cash_vouche
 -- Name: pharmacy_repeats_rx_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_repeats_rx_idx ON public.pharmacy_repeats USING btree (tenant_id, prescription_id, dispensed_at DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_repeats_rx_idx ON public.pharmacy_repeats USING btree (tenant_id, prescription_id, dispensed_at DESC);
 
 
 
@@ -2044,7 +2044,7 @@ CREATE INDEX pharmacy_repeats_rx_idx ON public.pharmacy_repeats USING btree (ten
 -- Name: pharmacy_substitutions_item_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_substitutions_item_idx ON public.pharmacy_substitutions USING btree (tenant_id, pharmacy_order_item_id);
+CREATE INDEX IF NOT EXISTS pharmacy_substitutions_item_idx ON public.pharmacy_substitutions USING btree (tenant_id, pharmacy_order_item_id);
 
 
 
@@ -2052,7 +2052,7 @@ CREATE INDEX pharmacy_substitutions_item_idx ON public.pharmacy_substitutions US
 -- Name: pharmacy_supplier_payments_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_supplier_payments_due_idx ON public.pharmacy_supplier_payments USING btree (tenant_id, due_date) WHERE (status = ANY (ARRAY['scheduled'::text, 'approved'::text]));
+CREATE INDEX IF NOT EXISTS pharmacy_supplier_payments_due_idx ON public.pharmacy_supplier_payments USING btree (tenant_id, due_date) WHERE (status = ANY (ARRAY['scheduled'::text, 'approved'::text]));
 
 
 
@@ -2060,7 +2060,7 @@ CREATE INDEX pharmacy_supplier_payments_due_idx ON public.pharmacy_supplier_paym
 -- Name: pharmacy_supplier_payments_supplier_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pharmacy_supplier_payments_supplier_idx ON public.pharmacy_supplier_payments USING btree (tenant_id, supplier_id, due_date DESC);
+CREATE INDEX IF NOT EXISTS pharmacy_supplier_payments_supplier_idx ON public.pharmacy_supplier_payments USING btree (tenant_id, supplier_id, due_date DESC);
 
 
 
@@ -2068,7 +2068,7 @@ CREATE INDEX pharmacy_supplier_payments_supplier_idx ON public.pharmacy_supplier
 -- Name: prescriptions_unsigned_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX prescriptions_unsigned_idx ON public.prescriptions USING btree (tenant_id, doctor_id) WHERE (NOT is_signed);
+CREATE INDEX IF NOT EXISTS prescriptions_unsigned_idx ON public.prescriptions USING btree (tenant_id, doctor_id) WHERE (NOT is_signed);
 
 
 

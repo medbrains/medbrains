@@ -523,7 +523,7 @@ ALTER TABLE ONLY public.utilization_reviews
 -- Name: idx_appeals_pa; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appeals_pa ON public.prior_auth_appeals USING btree (prior_auth_id);
+CREATE INDEX IF NOT EXISTS idx_appeals_pa ON public.prior_auth_appeals USING btree (prior_auth_id);
 
 
 
@@ -531,7 +531,7 @@ CREATE INDEX idx_appeals_pa ON public.prior_auth_appeals USING btree (prior_auth
 -- Name: idx_appeals_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appeals_status ON public.prior_auth_appeals USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_appeals_status ON public.prior_auth_appeals USING btree (tenant_id, status);
 
 
 
@@ -539,7 +539,7 @@ CREATE INDEX idx_appeals_status ON public.prior_auth_appeals USING btree (tenant
 -- Name: idx_appeals_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appeals_tenant ON public.prior_auth_appeals USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_appeals_tenant ON public.prior_auth_appeals USING btree (tenant_id);
 
 
 
@@ -547,7 +547,7 @@ CREATE INDEX idx_appeals_tenant ON public.prior_auth_appeals USING btree (tenant
 -- Name: idx_insurance_claims_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_insurance_claims_invoice ON public.insurance_claims USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_invoice ON public.insurance_claims USING btree (invoice_id);
 
 
 
@@ -555,7 +555,7 @@ CREATE INDEX idx_insurance_claims_invoice ON public.insurance_claims USING btree
 -- Name: idx_insurance_claims_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_insurance_claims_patient ON public.insurance_claims USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_patient ON public.insurance_claims USING btree (patient_id);
 
 
 
@@ -563,7 +563,7 @@ CREATE INDEX idx_insurance_claims_patient ON public.insurance_claims USING btree
 -- Name: idx_insurance_claims_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_insurance_claims_status ON public.insurance_claims USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_status ON public.insurance_claims USING btree (status);
 
 
 
@@ -571,7 +571,7 @@ CREATE INDEX idx_insurance_claims_status ON public.insurance_claims USING btree 
 -- Name: idx_insurance_claims_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_insurance_claims_tenant ON public.insurance_claims USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_tenant ON public.insurance_claims USING btree (tenant_id);
 
 
 
@@ -579,7 +579,7 @@ CREATE INDEX idx_insurance_claims_tenant ON public.insurance_claims USING btree 
 -- Name: idx_pa_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_created ON public.prior_auth_requests USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pa_created ON public.prior_auth_requests USING btree (tenant_id, created_at DESC);
 
 
 
@@ -587,7 +587,7 @@ CREATE INDEX idx_pa_created ON public.prior_auth_requests USING btree (tenant_id
 -- Name: idx_pa_docs_pa; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_docs_pa ON public.prior_auth_documents USING btree (prior_auth_id);
+CREATE INDEX IF NOT EXISTS idx_pa_docs_pa ON public.prior_auth_documents USING btree (prior_auth_id);
 
 
 
@@ -595,7 +595,7 @@ CREATE INDEX idx_pa_docs_pa ON public.prior_auth_documents USING btree (prior_au
 -- Name: idx_pa_docs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_docs_tenant ON public.prior_auth_documents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pa_docs_tenant ON public.prior_auth_documents USING btree (tenant_id);
 
 
 
@@ -603,7 +603,7 @@ CREATE INDEX idx_pa_docs_tenant ON public.prior_auth_documents USING btree (tena
 -- Name: idx_pa_expires; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_expires ON public.prior_auth_requests USING btree (tenant_id, expires_at) WHERE (expires_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pa_expires ON public.prior_auth_requests USING btree (tenant_id, expires_at) WHERE (expires_at IS NOT NULL);
 
 
 
@@ -611,7 +611,7 @@ CREATE INDEX idx_pa_expires ON public.prior_auth_requests USING btree (tenant_id
 -- Name: idx_pa_log_pa; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_log_pa ON public.prior_auth_status_log USING btree (prior_auth_id);
+CREATE INDEX IF NOT EXISTS idx_pa_log_pa ON public.prior_auth_status_log USING btree (prior_auth_id);
 
 
 
@@ -619,7 +619,7 @@ CREATE INDEX idx_pa_log_pa ON public.prior_auth_status_log USING btree (prior_au
 -- Name: idx_pa_log_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_log_tenant ON public.prior_auth_status_log USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pa_log_tenant ON public.prior_auth_status_log USING btree (tenant_id);
 
 
 
@@ -627,7 +627,7 @@ CREATE INDEX idx_pa_log_tenant ON public.prior_auth_status_log USING btree (tena
 -- Name: idx_pa_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_patient ON public.prior_auth_requests USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pa_patient ON public.prior_auth_requests USING btree (tenant_id, patient_id);
 
 
 
@@ -635,7 +635,7 @@ CREATE INDEX idx_pa_patient ON public.prior_auth_requests USING btree (tenant_id
 -- Name: idx_pa_rules_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_rules_active ON public.pa_requirement_rules USING btree (tenant_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_pa_rules_active ON public.pa_requirement_rules USING btree (tenant_id, is_active) WHERE (is_active = true);
 
 
 
@@ -643,7 +643,7 @@ CREATE INDEX idx_pa_rules_active ON public.pa_requirement_rules USING btree (ten
 -- Name: idx_pa_rules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_rules_tenant ON public.pa_requirement_rules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pa_rules_tenant ON public.pa_requirement_rules USING btree (tenant_id);
 
 
 
@@ -651,7 +651,7 @@ CREATE INDEX idx_pa_rules_tenant ON public.pa_requirement_rules USING btree (ten
 -- Name: idx_pa_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_status ON public.prior_auth_requests USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pa_status ON public.prior_auth_requests USING btree (tenant_id, status);
 
 
 
@@ -659,7 +659,7 @@ CREATE INDEX idx_pa_status ON public.prior_auth_requests USING btree (tenant_id,
 -- Name: idx_pa_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pa_tenant ON public.prior_auth_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pa_tenant ON public.prior_auth_requests USING btree (tenant_id);
 
 
 
@@ -667,7 +667,7 @@ CREATE INDEX idx_pa_tenant ON public.prior_auth_requests USING btree (tenant_id)
 -- Name: idx_patient_insurance_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_insurance_patient ON public.patient_insurance USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_insurance_patient ON public.patient_insurance USING btree (tenant_id, patient_id);
 
 
 
@@ -675,7 +675,7 @@ CREATE INDEX idx_patient_insurance_patient ON public.patient_insurance USING btr
 -- Name: idx_pre_auth_requests_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pre_auth_requests_patient ON public.pre_authorization_requests USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pre_auth_requests_patient ON public.pre_authorization_requests USING btree (tenant_id, patient_id);
 
 
 
@@ -683,7 +683,7 @@ CREATE INDEX idx_pre_auth_requests_patient ON public.pre_authorization_requests 
 -- Name: idx_pre_auth_requests_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pre_auth_requests_status ON public.pre_authorization_requests USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pre_auth_requests_status ON public.pre_authorization_requests USING btree (tenant_id, status);
 
 
 
@@ -691,7 +691,7 @@ CREATE INDEX idx_pre_auth_requests_status ON public.pre_authorization_requests U
 -- Name: idx_pre_auth_requests_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pre_auth_requests_tenant ON public.pre_authorization_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pre_auth_requests_tenant ON public.pre_authorization_requests USING btree (tenant_id);
 
 
 
@@ -699,7 +699,7 @@ CREATE INDEX idx_pre_auth_requests_tenant ON public.pre_authorization_requests U
 -- Name: idx_ur_communications_review; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ur_communications_review ON public.ur_payer_communications USING btree (tenant_id, review_id);
+CREATE INDEX IF NOT EXISTS idx_ur_communications_review ON public.ur_payer_communications USING btree (tenant_id, review_id);
 
 
 
@@ -707,7 +707,7 @@ CREATE INDEX idx_ur_communications_review ON public.ur_payer_communications USIN
 -- Name: idx_ur_conversions_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ur_conversions_admission ON public.ur_status_conversions USING btree (tenant_id, admission_id);
+CREATE INDEX IF NOT EXISTS idx_ur_conversions_admission ON public.ur_status_conversions USING btree (tenant_id, admission_id);
 
 
 
@@ -715,7 +715,7 @@ CREATE INDEX idx_ur_conversions_admission ON public.ur_status_conversions USING 
 -- Name: idx_ur_reviews_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ur_reviews_admission ON public.utilization_reviews USING btree (tenant_id, admission_id);
+CREATE INDEX IF NOT EXISTS idx_ur_reviews_admission ON public.utilization_reviews USING btree (tenant_id, admission_id);
 
 
 
@@ -723,7 +723,7 @@ CREATE INDEX idx_ur_reviews_admission ON public.utilization_reviews USING btree 
 -- Name: idx_ur_reviews_next_review; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ur_reviews_next_review ON public.utilization_reviews USING btree (tenant_id, next_review_date) WHERE (next_review_date IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_ur_reviews_next_review ON public.utilization_reviews USING btree (tenant_id, next_review_date) WHERE (next_review_date IS NOT NULL);
 
 
 
@@ -731,7 +731,7 @@ CREATE INDEX idx_ur_reviews_next_review ON public.utilization_reviews USING btre
 -- Name: idx_ur_reviews_outlier; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ur_reviews_outlier ON public.utilization_reviews USING btree (tenant_id, is_outlier) WHERE (is_outlier = true);
+CREATE INDEX IF NOT EXISTS idx_ur_reviews_outlier ON public.utilization_reviews USING btree (tenant_id, is_outlier) WHERE (is_outlier = true);
 
 
 
@@ -739,7 +739,7 @@ CREATE INDEX idx_ur_reviews_outlier ON public.utilization_reviews USING btree (t
 -- Name: idx_verifications_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_verifications_created ON public.insurance_verifications USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verifications_created ON public.insurance_verifications USING btree (tenant_id, created_at DESC);
 
 
 
@@ -747,7 +747,7 @@ CREATE INDEX idx_verifications_created ON public.insurance_verifications USING b
 -- Name: idx_verifications_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_verifications_patient ON public.insurance_verifications USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_verifications_patient ON public.insurance_verifications USING btree (tenant_id, patient_id);
 
 
 
@@ -755,7 +755,7 @@ CREATE INDEX idx_verifications_patient ON public.insurance_verifications USING b
 -- Name: idx_verifications_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_verifications_status ON public.insurance_verifications USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_verifications_status ON public.insurance_verifications USING btree (tenant_id, status);
 
 
 
@@ -763,7 +763,7 @@ CREATE INDEX idx_verifications_status ON public.insurance_verifications USING bt
 -- Name: idx_verifications_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_verifications_tenant ON public.insurance_verifications USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_verifications_tenant ON public.insurance_verifications USING btree (tenant_id);
 
 
 

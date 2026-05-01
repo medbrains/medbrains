@@ -71,7 +71,7 @@ ALTER TABLE ONLY public.audit_log
 -- Name: idx_audit_chain_verifications_invalid; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_chain_verifications_invalid ON public.audit_chain_verifications USING btree (tenant_id, started_at DESC) WHERE (valid = false);
+CREATE INDEX IF NOT EXISTS idx_audit_chain_verifications_invalid ON public.audit_chain_verifications USING btree (tenant_id, started_at DESC) WHERE (valid = false);
 
 
 
@@ -79,7 +79,7 @@ CREATE INDEX idx_audit_chain_verifications_invalid ON public.audit_chain_verific
 -- Name: idx_audit_chain_verifications_tenant_started; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_chain_verifications_tenant_started ON public.audit_chain_verifications USING btree (tenant_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_chain_verifications_tenant_started ON public.audit_chain_verifications USING btree (tenant_id, started_at DESC);
 
 
 
@@ -87,7 +87,7 @@ CREATE INDEX idx_audit_chain_verifications_tenant_started ON public.audit_chain_
 -- Name: idx_audit_log_action; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_action ON public.audit_log USING btree (tenant_id, action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON public.audit_log USING btree (tenant_id, action, created_at DESC);
 
 
 
@@ -95,7 +95,7 @@ CREATE INDEX idx_audit_log_action ON public.audit_log USING btree (tenant_id, ac
 -- Name: idx_audit_log_correlation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_correlation ON public.audit_log USING btree (correlation_id) WHERE (correlation_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_audit_log_correlation ON public.audit_log USING btree (correlation_id) WHERE (correlation_id IS NOT NULL);
 
 
 
@@ -103,7 +103,7 @@ CREATE INDEX idx_audit_log_correlation ON public.audit_log USING btree (correlat
 -- Name: idx_audit_log_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_created ON public.audit_log USING btree (tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON public.audit_log USING btree (tenant_id, created_at);
 
 
 
@@ -111,7 +111,7 @@ CREATE INDEX idx_audit_log_created ON public.audit_log USING btree (tenant_id, c
 -- Name: idx_audit_log_entity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_entity ON public.audit_log USING btree (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON public.audit_log USING btree (entity_type, entity_id);
 
 
 
@@ -119,7 +119,7 @@ CREATE INDEX idx_audit_log_entity ON public.audit_log USING btree (entity_type, 
 -- Name: idx_audit_log_entity_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_entity_type ON public.audit_log USING btree (tenant_id, entity_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity_type ON public.audit_log USING btree (tenant_id, entity_type, created_at DESC);
 
 
 
@@ -127,7 +127,7 @@ CREATE INDEX idx_audit_log_entity_type ON public.audit_log USING btree (tenant_i
 -- Name: idx_audit_log_module; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_module ON public.audit_log USING btree (tenant_id, module, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_module ON public.audit_log USING btree (tenant_id, module, created_at DESC);
 
 
 
@@ -135,7 +135,7 @@ CREATE INDEX idx_audit_log_module ON public.audit_log USING btree (tenant_id, mo
 -- Name: idx_audit_log_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_tenant ON public.audit_log USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON public.audit_log USING btree (tenant_id);
 
 
 
@@ -143,7 +143,7 @@ CREATE INDEX idx_audit_log_tenant ON public.audit_log USING btree (tenant_id);
 -- Name: idx_audit_log_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_user ON public.audit_log USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON public.audit_log USING btree (user_id);
 
 
 

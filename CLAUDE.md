@@ -230,6 +230,14 @@ medbrains/
 - Use `thiserror` for defining error types. Use `anyhow` only at application boundaries (main, route handlers).
 - Format with `cargo fmt` (rustfmt.toml enforces max_width=100, Unix newlines, crate-level import grouping).
 
+#### Cross-compilation
+
+- **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
+- Setup: `brew install zig && cargo install cargo-zigbuild`.
+- Canonical command: `cargo zigbuild --release --target=x86_64-unknown-linux-gnu -p <crate>`. Output lands at `target/x86_64-unknown-linux-gnu/release/`.
+- Build locally on the operator's mac, scp the ELF to the server. Never run `cargo build` on the production EC2 — keeps server CPU/RAM focused on serving requests, not compilation.
+- The deploy.sh script (`deploy.sh`) and the standalone-deploy `make build-starter` target both follow this pattern.
+
 ### SQL
 
 - **Runtime queries** via `sqlx::query_as::<_, T>()` — avoids compile-time DB dependency.

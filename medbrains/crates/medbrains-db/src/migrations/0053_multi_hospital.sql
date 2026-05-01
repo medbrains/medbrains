@@ -465,7 +465,7 @@ ALTER TABLE ONLY public.user_hospital_assignments
 -- Name: idx_brand_entities_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_brand_entities_tenant ON public.brand_entities USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_brand_entities_tenant ON public.brand_entities USING btree (tenant_id);
 
 
 
@@ -473,7 +473,7 @@ CREATE INDEX idx_brand_entities_tenant ON public.brand_entities USING btree (ten
 -- Name: idx_cross_hospital_appts_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cross_hospital_appts_booking ON public.cross_hospital_appointments USING btree (booking_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cross_hospital_appts_booking ON public.cross_hospital_appointments USING btree (booking_tenant_id);
 
 
 
@@ -481,7 +481,7 @@ CREATE INDEX idx_cross_hospital_appts_booking ON public.cross_hospital_appointme
 -- Name: idx_cross_hospital_appts_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cross_hospital_appts_patient ON public.cross_hospital_appointments USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_cross_hospital_appts_patient ON public.cross_hospital_appointments USING btree (patient_id);
 
 
 
@@ -489,7 +489,7 @@ CREATE INDEX idx_cross_hospital_appts_patient ON public.cross_hospital_appointme
 -- Name: idx_cross_hospital_appts_service; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cross_hospital_appts_service ON public.cross_hospital_appointments USING btree (service_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cross_hospital_appts_service ON public.cross_hospital_appointments USING btree (service_tenant_id);
 
 
 
@@ -497,7 +497,7 @@ CREATE INDEX idx_cross_hospital_appts_service ON public.cross_hospital_appointme
 -- Name: idx_group_drug_master; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_drug_master ON public.group_drug_master USING btree (group_id);
+CREATE INDEX IF NOT EXISTS idx_group_drug_master ON public.group_drug_master USING btree (group_id);
 
 
 
@@ -505,7 +505,7 @@ CREATE INDEX idx_group_drug_master ON public.group_drug_master USING btree (grou
 -- Name: idx_group_kpi_snapshots_group; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_kpi_snapshots_group ON public.group_kpi_snapshots USING btree (group_id, snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_group_kpi_snapshots_group ON public.group_kpi_snapshots USING btree (group_id, snapshot_date);
 
 
 
@@ -513,7 +513,7 @@ CREATE INDEX idx_group_kpi_snapshots_group ON public.group_kpi_snapshots USING b
 -- Name: idx_group_kpi_snapshots_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_kpi_snapshots_tenant ON public.group_kpi_snapshots USING btree (tenant_id, snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_group_kpi_snapshots_tenant ON public.group_kpi_snapshots USING btree (tenant_id, snapshot_date);
 
 
 
@@ -521,7 +521,7 @@ CREATE INDEX idx_group_kpi_snapshots_tenant ON public.group_kpi_snapshots USING 
 -- Name: idx_group_kpi_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_group_kpi_unique ON public.group_kpi_snapshots USING btree (group_id, tenant_id, snapshot_date, snapshot_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_kpi_unique ON public.group_kpi_snapshots USING btree (group_id, tenant_id, snapshot_date, snapshot_type);
 
 
 
@@ -529,7 +529,7 @@ CREATE UNIQUE INDEX idx_group_kpi_unique ON public.group_kpi_snapshots USING btr
 -- Name: idx_group_tariff_master; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_tariff_master ON public.group_tariff_master USING btree (group_id);
+CREATE INDEX IF NOT EXISTS idx_group_tariff_master ON public.group_tariff_master USING btree (group_id);
 
 
 
@@ -537,7 +537,7 @@ CREATE INDEX idx_group_tariff_master ON public.group_tariff_master USING btree (
 -- Name: idx_group_templates; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_templates ON public.group_templates USING btree (group_id, template_type);
+CREATE INDEX IF NOT EXISTS idx_group_templates ON public.group_templates USING btree (group_id, template_type);
 
 
 
@@ -545,7 +545,7 @@ CREATE INDEX idx_group_templates ON public.group_templates USING btree (group_id
 -- Name: idx_group_test_master; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_group_test_master ON public.group_test_master USING btree (group_id);
+CREATE INDEX IF NOT EXISTS idx_group_test_master ON public.group_test_master USING btree (group_id);
 
 
 
@@ -553,7 +553,7 @@ CREATE INDEX idx_group_test_master ON public.group_test_master USING btree (grou
 -- Name: idx_hospital_groups_code; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_hospital_groups_code ON public.hospital_groups USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_hospital_groups_code ON public.hospital_groups USING btree (code);
 
 
 
@@ -561,7 +561,7 @@ CREATE INDEX idx_hospital_groups_code ON public.hospital_groups USING btree (cod
 -- Name: idx_hospital_regions_group; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_hospital_regions_group ON public.hospital_regions USING btree (group_id);
+CREATE INDEX IF NOT EXISTS idx_hospital_regions_group ON public.hospital_regions USING btree (group_id);
 
 
 
@@ -569,7 +569,7 @@ CREATE INDEX idx_hospital_regions_group ON public.hospital_regions USING btree (
 -- Name: idx_stock_transfer_items; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_transfer_items ON public.inter_hospital_stock_transfer_items USING btree (transfer_id);
+CREATE INDEX IF NOT EXISTS idx_stock_transfer_items ON public.inter_hospital_stock_transfer_items USING btree (transfer_id);
 
 
 
@@ -577,7 +577,7 @@ CREATE INDEX idx_stock_transfer_items ON public.inter_hospital_stock_transfer_it
 -- Name: idx_stock_transfers_dest; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_transfers_dest ON public.inter_hospital_stock_transfers USING btree (dest_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_stock_transfers_dest ON public.inter_hospital_stock_transfers USING btree (dest_tenant_id);
 
 
 
@@ -585,7 +585,7 @@ CREATE INDEX idx_stock_transfers_dest ON public.inter_hospital_stock_transfers U
 -- Name: idx_stock_transfers_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_transfers_source ON public.inter_hospital_stock_transfers USING btree (source_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_stock_transfers_source ON public.inter_hospital_stock_transfers USING btree (source_tenant_id);
 
 
 
@@ -593,7 +593,7 @@ CREATE INDEX idx_stock_transfers_source ON public.inter_hospital_stock_transfers
 -- Name: idx_stock_transfers_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_transfers_status ON public.inter_hospital_stock_transfers USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_stock_transfers_status ON public.inter_hospital_stock_transfers USING btree (status);
 
 
 
@@ -601,7 +601,7 @@ CREATE INDEX idx_stock_transfers_status ON public.inter_hospital_stock_transfers
 -- Name: idx_user_hospital_assignments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_hospital_assignments_tenant ON public.user_hospital_assignments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_hospital_assignments_tenant ON public.user_hospital_assignments USING btree (tenant_id);
 
 
 
@@ -609,7 +609,7 @@ CREATE INDEX idx_user_hospital_assignments_tenant ON public.user_hospital_assign
 -- Name: idx_user_hospital_assignments_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_hospital_assignments_user ON public.user_hospital_assignments USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_hospital_assignments_user ON public.user_hospital_assignments USING btree (user_id);
 
 
 

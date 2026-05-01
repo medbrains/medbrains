@@ -1,0 +1,17 @@
+[Unit]
+Description=MedBrains daily postgres dump → S3 (versioned + Object Lock)
+After=docker.service medbrains-postgres.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=/etc/medbrains/.compose-env
+ExecStart=/usr/local/bin/medbrains-pg-backup
+StandardOutput=journal
+StandardError=journal
+# IAM instance profile gives this process s3:PutObject — no static creds.
+Environment="AWS_DEFAULT_REGION=ap-south-1"
+
+# No restart — the timer will fire again tomorrow if today fails.
+Restart=no

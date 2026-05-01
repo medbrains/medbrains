@@ -1,22 +1,90 @@
 terraform {
   required_version = ">= 1.7"
+  # Sub-modules declare their own required_providers. Dropping
+  # configuration_aliases here so an env that only uses one provider
+  # (e.g. AWS only) doesn't have to declare provider blocks for the
+  # ones it doesn't use.
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.50"
+    }
     digitalocean = {
-      source                = "digitalocean/digitalocean"
-      version               = "~> 2.0"
-      configuration_aliases = [digitalocean]
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
     }
   }
 }
 
 # ── Dispatcher: each sub-module enabled iff its provider_kind matches ──
 
+module "aws_ec2" {
+  count  = var.provider_kind == "aws-ec2" ? 1 : 0
+  source = "./aws-ec2"
+
+  hostname        = var.hostname
+  domain          = var.domain
+  admin_email     = var.admin_email
+  instance_type   = var.aws_instance_type
+  ami             = var.aws_ami
+  ssh_key_name    = var.aws_ssh_key_name
+  ssh_user        = var.ssh_user
+  ssh_private_key = var.ssh_private_key
+  binaries_dir    = var.binaries_dir
+  spa_dist_dir    = var.spa_dist_dir
+  deploy_kit_dir  = var.deploy_kit_dir
+  reset_pgdata    = var.reset_pgdata
+}
+
+module "aws_fargate" {
+  count  = var.provider_kind == "aws-fargate" ? 1 : 0
+  source = "./aws-fargate"
+
+  hostname               = var.hostname
+  domain                 = var.domain
+  admin_email            = var.admin_email
+  image_uri              = var.image_uri
+  fargate_task_cpu       = var.fargate_task_cpu
+  fargate_task_memory    = var.fargate_task_memory
+  rds_instance_class     = var.rds_instance_class
+  scale_to_zero_at_night = var.scale_to_zero_at_night
+  hot_to_cold_days       = var.hot_to_cold_days
+}
+
+module "aws_k3s" {
+  count  = var.provider_kind == "aws-k3s" ? 1 : 0
+  source = "./aws-k3s"
+
+  hostname           = var.hostname
+  domain             = var.domain
+  admin_email        = var.admin_email
+  instance_type      = var.aws_instance_type
+  ami                = var.aws_ami
+  ssh_key_name       = var.aws_ssh_key_name
+  ssh_user           = var.ssh_user
+  ssh_private_key    = var.ssh_private_key
+  image_uri          = var.image_uri
+  rds_instance_class = var.rds_instance_class
+  hot_to_cold_days   = var.hot_to_cold_days
+  helm_chart_dir     = var.helm_chart_dir
+  ghcr_pull_token    = var.ghcr_pull_token
+  github_username    = var.github_username
+}
+
+module "aws_eks" {
+  count  = var.provider_kind == "aws-eks" ? 1 : 0
+  source = "./aws-eks"
+
+  hostname         = var.hostname
+  domain           = var.domain
+  admin_email      = var.admin_email
+  image_uri        = var.image_uri
+  hot_to_cold_days = var.hot_to_cold_days
+}
+
 module "digitalocean" {
   count  = var.provider_kind == "digitalocean" ? 1 : 0
   source = "./digitalocean"
-  providers = {
-    digitalocean = digitalocean
-  }
 
   hostname        = var.hostname
   domain          = var.domain

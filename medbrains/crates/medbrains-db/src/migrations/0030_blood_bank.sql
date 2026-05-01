@@ -550,7 +550,7 @@ ALTER TABLE ONLY public.transfusions
 -- Name: idx_bb_bill_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_bill_patient ON public.bb_billing_items USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_bb_bill_patient ON public.bb_billing_items USING btree (tenant_id, patient_id);
 
 
 
@@ -558,7 +558,7 @@ CREATE INDEX idx_bb_bill_patient ON public.bb_billing_items USING btree (tenant_
 -- Name: idx_bb_bill_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_bill_status ON public.bb_billing_items USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bb_bill_status ON public.bb_billing_items USING btree (tenant_id, status);
 
 
 
@@ -566,7 +566,7 @@ CREATE INDEX idx_bb_bill_status ON public.bb_billing_items USING btree (tenant_i
 -- Name: idx_bb_bill_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_bill_tenant ON public.bb_billing_items USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_bill_tenant ON public.bb_billing_items USING btree (tenant_id);
 
 
 
@@ -574,7 +574,7 @@ CREATE INDEX idx_bb_bill_tenant ON public.bb_billing_items USING btree (tenant_i
 -- Name: idx_bb_cc_dev_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_cc_dev_tenant ON public.bb_cold_chain_devices USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_cc_dev_tenant ON public.bb_cold_chain_devices USING btree (tenant_id);
 
 
 
@@ -582,7 +582,7 @@ CREATE INDEX idx_bb_cc_dev_tenant ON public.bb_cold_chain_devices USING btree (t
 -- Name: idx_bb_cc_read_device; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_cc_read_device ON public.bb_cold_chain_readings USING btree (tenant_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_bb_cc_read_device ON public.bb_cold_chain_readings USING btree (tenant_id, device_id);
 
 
 
@@ -590,7 +590,7 @@ CREATE INDEX idx_bb_cc_read_device ON public.bb_cold_chain_readings USING btree 
 -- Name: idx_bb_cc_read_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_cc_read_tenant ON public.bb_cold_chain_readings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_cc_read_tenant ON public.bb_cold_chain_readings USING btree (tenant_id);
 
 
 
@@ -598,7 +598,7 @@ CREATE INDEX idx_bb_cc_read_tenant ON public.bb_cold_chain_readings USING btree 
 -- Name: idx_bb_cc_read_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_cc_read_time ON public.bb_cold_chain_readings USING btree (tenant_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bb_cc_read_time ON public.bb_cold_chain_readings USING btree (tenant_id, recorded_at DESC);
 
 
 
@@ -606,7 +606,7 @@ CREATE INDEX idx_bb_cc_read_time ON public.bb_cold_chain_readings USING btree (t
 -- Name: idx_bb_lookback_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_lookback_status ON public.bb_lookback_events USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bb_lookback_status ON public.bb_lookback_events USING btree (tenant_id, status);
 
 
 
@@ -614,7 +614,7 @@ CREATE INDEX idx_bb_lookback_status ON public.bb_lookback_events USING btree (te
 -- Name: idx_bb_lookback_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_lookback_tenant ON public.bb_lookback_events USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_lookback_tenant ON public.bb_lookback_events USING btree (tenant_id);
 
 
 
@@ -622,7 +622,7 @@ CREATE INDEX idx_bb_lookback_tenant ON public.bb_lookback_events USING btree (te
 -- Name: idx_bb_msbos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_msbos_tenant ON public.bb_msbos_guidelines USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_msbos_tenant ON public.bb_msbos_guidelines USING btree (tenant_id);
 
 
 
@@ -630,7 +630,7 @@ CREATE INDEX idx_bb_msbos_tenant ON public.bb_msbos_guidelines USING btree (tena
 -- Name: idx_bb_recruit_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_recruit_status ON public.bb_recruitment_campaigns USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bb_recruit_status ON public.bb_recruitment_campaigns USING btree (tenant_id, status);
 
 
 
@@ -638,7 +638,7 @@ CREATE INDEX idx_bb_recruit_status ON public.bb_recruitment_campaigns USING btre
 -- Name: idx_bb_recruit_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_recruit_tenant ON public.bb_recruitment_campaigns USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_recruit_tenant ON public.bb_recruitment_campaigns USING btree (tenant_id);
 
 
 
@@ -646,7 +646,7 @@ CREATE INDEX idx_bb_recruit_tenant ON public.bb_recruitment_campaigns USING btre
 -- Name: idx_bb_ret_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_ret_status ON public.bb_blood_returns USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bb_ret_status ON public.bb_blood_returns USING btree (tenant_id, status);
 
 
 
@@ -654,7 +654,7 @@ CREATE INDEX idx_bb_ret_status ON public.bb_blood_returns USING btree (tenant_id
 -- Name: idx_bb_ret_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bb_ret_tenant ON public.bb_blood_returns USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bb_ret_tenant ON public.bb_blood_returns USING btree (tenant_id);
 
 
 
@@ -662,7 +662,7 @@ CREATE INDEX idx_bb_ret_tenant ON public.bb_blood_returns USING btree (tenant_id
 -- Name: idx_blood_components_blood_group; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_components_blood_group ON public.blood_components USING btree (blood_group);
+CREATE INDEX IF NOT EXISTS idx_blood_components_blood_group ON public.blood_components USING btree (blood_group);
 
 
 
@@ -670,7 +670,7 @@ CREATE INDEX idx_blood_components_blood_group ON public.blood_components USING b
 -- Name: idx_blood_components_donation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_components_donation ON public.blood_components USING btree (donation_id);
+CREATE INDEX IF NOT EXISTS idx_blood_components_donation ON public.blood_components USING btree (donation_id);
 
 
 
@@ -678,7 +678,7 @@ CREATE INDEX idx_blood_components_donation ON public.blood_components USING btre
 -- Name: idx_blood_components_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_components_expiry ON public.blood_components USING btree (expiry_at);
+CREATE INDEX IF NOT EXISTS idx_blood_components_expiry ON public.blood_components USING btree (expiry_at);
 
 
 
@@ -686,7 +686,7 @@ CREATE INDEX idx_blood_components_expiry ON public.blood_components USING btree 
 -- Name: idx_blood_components_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_components_status ON public.blood_components USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_blood_components_status ON public.blood_components USING btree (status);
 
 
 
@@ -694,7 +694,7 @@ CREATE INDEX idx_blood_components_status ON public.blood_components USING btree 
 -- Name: idx_blood_components_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_components_tenant ON public.blood_components USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_blood_components_tenant ON public.blood_components USING btree (tenant_id);
 
 
 
@@ -702,7 +702,7 @@ CREATE INDEX idx_blood_components_tenant ON public.blood_components USING btree 
 -- Name: idx_blood_donations_donor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_donations_donor ON public.blood_donations USING btree (donor_id);
+CREATE INDEX IF NOT EXISTS idx_blood_donations_donor ON public.blood_donations USING btree (donor_id);
 
 
 
@@ -710,7 +710,7 @@ CREATE INDEX idx_blood_donations_donor ON public.blood_donations USING btree (do
 -- Name: idx_blood_donations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_donations_tenant ON public.blood_donations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_blood_donations_tenant ON public.blood_donations USING btree (tenant_id);
 
 
 
@@ -718,7 +718,7 @@ CREATE INDEX idx_blood_donations_tenant ON public.blood_donations USING btree (t
 -- Name: idx_blood_donors_blood_group; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_donors_blood_group ON public.blood_donors USING btree (blood_group);
+CREATE INDEX IF NOT EXISTS idx_blood_donors_blood_group ON public.blood_donors USING btree (blood_group);
 
 
 
@@ -726,7 +726,7 @@ CREATE INDEX idx_blood_donors_blood_group ON public.blood_donors USING btree (bl
 -- Name: idx_blood_donors_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_blood_donors_tenant ON public.blood_donors USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_blood_donors_tenant ON public.blood_donors USING btree (tenant_id);
 
 
 
@@ -734,7 +734,7 @@ CREATE INDEX idx_blood_donors_tenant ON public.blood_donors USING btree (tenant_
 -- Name: idx_crossmatch_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_crossmatch_patient ON public.crossmatch_requests USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_crossmatch_patient ON public.crossmatch_requests USING btree (patient_id);
 
 
 
@@ -742,7 +742,7 @@ CREATE INDEX idx_crossmatch_patient ON public.crossmatch_requests USING btree (p
 -- Name: idx_crossmatch_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_crossmatch_status ON public.crossmatch_requests USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_crossmatch_status ON public.crossmatch_requests USING btree (status);
 
 
 
@@ -750,7 +750,7 @@ CREATE INDEX idx_crossmatch_status ON public.crossmatch_requests USING btree (st
 -- Name: idx_crossmatch_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_crossmatch_tenant ON public.crossmatch_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_crossmatch_tenant ON public.crossmatch_requests USING btree (tenant_id);
 
 
 
@@ -758,7 +758,7 @@ CREATE INDEX idx_crossmatch_tenant ON public.crossmatch_requests USING btree (te
 -- Name: idx_transfusion_component; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transfusion_component ON public.transfusion_records USING btree (component_id);
+CREATE INDEX IF NOT EXISTS idx_transfusion_component ON public.transfusion_records USING btree (component_id);
 
 
 
@@ -766,7 +766,7 @@ CREATE INDEX idx_transfusion_component ON public.transfusion_records USING btree
 -- Name: idx_transfusion_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transfusion_patient ON public.transfusion_records USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_transfusion_patient ON public.transfusion_records USING btree (patient_id);
 
 
 
@@ -774,7 +774,7 @@ CREATE INDEX idx_transfusion_patient ON public.transfusion_records USING btree (
 -- Name: idx_transfusion_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transfusion_tenant ON public.transfusion_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_transfusion_tenant ON public.transfusion_records USING btree (tenant_id);
 
 
 
@@ -782,7 +782,7 @@ CREATE INDEX idx_transfusion_tenant ON public.transfusion_records USING btree (t
 -- Name: idx_transfusions_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_transfusions_admission ON public.transfusions USING btree (tenant_id, admission_id, transfusion_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transfusions_admission ON public.transfusions USING btree (tenant_id, admission_id, transfusion_date DESC);
 
 
 

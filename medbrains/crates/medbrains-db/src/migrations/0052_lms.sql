@@ -311,7 +311,7 @@ ALTER TABLE ONLY public.lms_quizzes
 -- Name: idx_lms_attempts_enrollment; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_attempts_enrollment ON public.lms_quiz_attempts USING btree (enrollment_id);
+CREATE INDEX IF NOT EXISTS idx_lms_attempts_enrollment ON public.lms_quiz_attempts USING btree (enrollment_id);
 
 
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_lms_attempts_enrollment ON public.lms_quiz_attempts USING btree
 -- Name: idx_lms_attempts_quiz; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_attempts_quiz ON public.lms_quiz_attempts USING btree (quiz_id);
+CREATE INDEX IF NOT EXISTS idx_lms_attempts_quiz ON public.lms_quiz_attempts USING btree (quiz_id);
 
 
 
@@ -327,7 +327,7 @@ CREATE INDEX idx_lms_attempts_quiz ON public.lms_quiz_attempts USING btree (quiz
 -- Name: idx_lms_certificates_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_certificates_expiry ON public.lms_certificates USING btree (tenant_id, expires_at) WHERE (expires_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_lms_certificates_expiry ON public.lms_certificates USING btree (tenant_id, expires_at) WHERE (expires_at IS NOT NULL);
 
 
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_lms_certificates_expiry ON public.lms_certificates USING btree 
 -- Name: idx_lms_certificates_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_certificates_user ON public.lms_certificates USING btree (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_lms_certificates_user ON public.lms_certificates USING btree (tenant_id, user_id);
 
 
 
@@ -343,7 +343,7 @@ CREATE INDEX idx_lms_certificates_user ON public.lms_certificates USING btree (t
 -- Name: idx_lms_courses_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_courses_active ON public.lms_courses USING btree (tenant_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_lms_courses_active ON public.lms_courses USING btree (tenant_id, is_active) WHERE (is_active = true);
 
 
 
@@ -351,7 +351,7 @@ CREATE INDEX idx_lms_courses_active ON public.lms_courses USING btree (tenant_id
 -- Name: idx_lms_courses_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_courses_category ON public.lms_courses USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_lms_courses_category ON public.lms_courses USING btree (tenant_id, category);
 
 
 
@@ -359,7 +359,7 @@ CREATE INDEX idx_lms_courses_category ON public.lms_courses USING btree (tenant_
 -- Name: idx_lms_courses_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_courses_tenant ON public.lms_courses USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lms_courses_tenant ON public.lms_courses USING btree (tenant_id);
 
 
 
@@ -367,7 +367,7 @@ CREATE INDEX idx_lms_courses_tenant ON public.lms_courses USING btree (tenant_id
 -- Name: idx_lms_enrollments_course; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_enrollments_course ON public.lms_enrollments USING btree (tenant_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_lms_enrollments_course ON public.lms_enrollments USING btree (tenant_id, course_id);
 
 
 
@@ -375,7 +375,7 @@ CREATE INDEX idx_lms_enrollments_course ON public.lms_enrollments USING btree (t
 -- Name: idx_lms_enrollments_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_enrollments_status ON public.lms_enrollments USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_lms_enrollments_status ON public.lms_enrollments USING btree (tenant_id, status);
 
 
 
@@ -383,7 +383,7 @@ CREATE INDEX idx_lms_enrollments_status ON public.lms_enrollments USING btree (t
 -- Name: idx_lms_enrollments_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_enrollments_user ON public.lms_enrollments USING btree (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_lms_enrollments_user ON public.lms_enrollments USING btree (tenant_id, user_id);
 
 
 
@@ -391,7 +391,7 @@ CREATE INDEX idx_lms_enrollments_user ON public.lms_enrollments USING btree (ten
 -- Name: idx_lms_modules_course; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_modules_course ON public.lms_course_modules USING btree (course_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_lms_modules_course ON public.lms_course_modules USING btree (course_id, sort_order);
 
 
 
@@ -399,7 +399,7 @@ CREATE INDEX idx_lms_modules_course ON public.lms_course_modules USING btree (co
 -- Name: idx_lms_path_courses; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_path_courses ON public.lms_learning_path_courses USING btree (path_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_lms_path_courses ON public.lms_learning_path_courses USING btree (path_id, sort_order);
 
 
 
@@ -407,7 +407,7 @@ CREATE INDEX idx_lms_path_courses ON public.lms_learning_path_courses USING btre
 -- Name: idx_lms_paths_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_paths_tenant ON public.lms_learning_paths USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lms_paths_tenant ON public.lms_learning_paths USING btree (tenant_id);
 
 
 
@@ -415,7 +415,7 @@ CREATE INDEX idx_lms_paths_tenant ON public.lms_learning_paths USING btree (tena
 -- Name: idx_lms_questions_quiz; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_questions_quiz ON public.lms_quiz_questions USING btree (quiz_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_lms_questions_quiz ON public.lms_quiz_questions USING btree (quiz_id, sort_order);
 
 
 
@@ -423,7 +423,7 @@ CREATE INDEX idx_lms_questions_quiz ON public.lms_quiz_questions USING btree (qu
 -- Name: idx_lms_quizzes_course; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lms_quizzes_course ON public.lms_quizzes USING btree (course_id);
+CREATE INDEX IF NOT EXISTS idx_lms_quizzes_course ON public.lms_quizzes USING btree (course_id);
 
 
 

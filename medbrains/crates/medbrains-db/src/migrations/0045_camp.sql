@@ -274,7 +274,7 @@ ALTER TABLE ONLY public.camps
 -- Name: idx_camp_bill_reg; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_bill_reg ON public.camp_billing_records USING btree (tenant_id, registration_id);
+CREATE INDEX IF NOT EXISTS idx_camp_bill_reg ON public.camp_billing_records USING btree (tenant_id, registration_id);
 
 
 
@@ -282,7 +282,7 @@ CREATE INDEX idx_camp_bill_reg ON public.camp_billing_records USING btree (tenan
 -- Name: idx_camp_bill_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_bill_tenant ON public.camp_billing_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_bill_tenant ON public.camp_billing_records USING btree (tenant_id);
 
 
 
@@ -290,7 +290,7 @@ CREATE INDEX idx_camp_bill_tenant ON public.camp_billing_records USING btree (te
 -- Name: idx_camp_fu_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_fu_date ON public.camp_followups USING btree (tenant_id, followup_date);
+CREATE INDEX IF NOT EXISTS idx_camp_fu_date ON public.camp_followups USING btree (tenant_id, followup_date);
 
 
 
@@ -298,7 +298,7 @@ CREATE INDEX idx_camp_fu_date ON public.camp_followups USING btree (tenant_id, f
 -- Name: idx_camp_fu_reg; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_fu_reg ON public.camp_followups USING btree (tenant_id, registration_id);
+CREATE INDEX IF NOT EXISTS idx_camp_fu_reg ON public.camp_followups USING btree (tenant_id, registration_id);
 
 
 
@@ -306,7 +306,7 @@ CREATE INDEX idx_camp_fu_reg ON public.camp_followups USING btree (tenant_id, re
 -- Name: idx_camp_fu_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_fu_tenant ON public.camp_followups USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_fu_tenant ON public.camp_followups USING btree (tenant_id);
 
 
 
@@ -314,7 +314,7 @@ CREATE INDEX idx_camp_fu_tenant ON public.camp_followups USING btree (tenant_id)
 -- Name: idx_camp_lab_reg; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_lab_reg ON public.camp_lab_samples USING btree (tenant_id, registration_id);
+CREATE INDEX IF NOT EXISTS idx_camp_lab_reg ON public.camp_lab_samples USING btree (tenant_id, registration_id);
 
 
 
@@ -322,7 +322,7 @@ CREATE INDEX idx_camp_lab_reg ON public.camp_lab_samples USING btree (tenant_id,
 -- Name: idx_camp_lab_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_lab_tenant ON public.camp_lab_samples USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_lab_tenant ON public.camp_lab_samples USING btree (tenant_id);
 
 
 
@@ -330,7 +330,7 @@ CREATE INDEX idx_camp_lab_tenant ON public.camp_lab_samples USING btree (tenant_
 -- Name: idx_camp_reg_camp; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_reg_camp ON public.camp_registrations USING btree (tenant_id, camp_id);
+CREATE INDEX IF NOT EXISTS idx_camp_reg_camp ON public.camp_registrations USING btree (tenant_id, camp_id);
 
 
 
@@ -338,7 +338,7 @@ CREATE INDEX idx_camp_reg_camp ON public.camp_registrations USING btree (tenant_
 -- Name: idx_camp_reg_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_reg_patient ON public.camp_registrations USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_camp_reg_patient ON public.camp_registrations USING btree (tenant_id, patient_id);
 
 
 
@@ -346,7 +346,7 @@ CREATE INDEX idx_camp_reg_patient ON public.camp_registrations USING btree (tena
 -- Name: idx_camp_reg_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_reg_tenant ON public.camp_registrations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_reg_tenant ON public.camp_registrations USING btree (tenant_id);
 
 
 
@@ -354,7 +354,7 @@ CREATE INDEX idx_camp_reg_tenant ON public.camp_registrations USING btree (tenan
 -- Name: idx_camp_scr_reg; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_scr_reg ON public.camp_screenings USING btree (tenant_id, registration_id);
+CREATE INDEX IF NOT EXISTS idx_camp_scr_reg ON public.camp_screenings USING btree (tenant_id, registration_id);
 
 
 
@@ -362,7 +362,7 @@ CREATE INDEX idx_camp_scr_reg ON public.camp_screenings USING btree (tenant_id, 
 -- Name: idx_camp_scr_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_scr_tenant ON public.camp_screenings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_scr_tenant ON public.camp_screenings USING btree (tenant_id);
 
 
 
@@ -370,7 +370,7 @@ CREATE INDEX idx_camp_scr_tenant ON public.camp_screenings USING btree (tenant_i
 -- Name: idx_camp_team_camp; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_team_camp ON public.camp_team_members USING btree (tenant_id, camp_id);
+CREATE INDEX IF NOT EXISTS idx_camp_team_camp ON public.camp_team_members USING btree (tenant_id, camp_id);
 
 
 
@@ -378,7 +378,7 @@ CREATE INDEX idx_camp_team_camp ON public.camp_team_members USING btree (tenant_
 -- Name: idx_camp_team_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camp_team_tenant ON public.camp_team_members USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camp_team_tenant ON public.camp_team_members USING btree (tenant_id);
 
 
 
@@ -386,7 +386,7 @@ CREATE INDEX idx_camp_team_tenant ON public.camp_team_members USING btree (tenan
 -- Name: idx_camps_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camps_date ON public.camps USING btree (tenant_id, scheduled_date DESC);
+CREATE INDEX IF NOT EXISTS idx_camps_date ON public.camps USING btree (tenant_id, scheduled_date DESC);
 
 
 
@@ -394,7 +394,7 @@ CREATE INDEX idx_camps_date ON public.camps USING btree (tenant_id, scheduled_da
 -- Name: idx_camps_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camps_status ON public.camps USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_camps_status ON public.camps USING btree (tenant_id, status);
 
 
 
@@ -402,7 +402,7 @@ CREATE INDEX idx_camps_status ON public.camps USING btree (tenant_id, status);
 -- Name: idx_camps_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_camps_tenant ON public.camps USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_camps_tenant ON public.camps USING btree (tenant_id);
 
 
 

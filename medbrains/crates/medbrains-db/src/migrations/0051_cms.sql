@@ -453,7 +453,7 @@ ALTER TABLE ONLY public.cms_tags
 -- Name: idx_cms_authors_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_authors_slug ON public.cms_authors USING btree (tenant_id, slug);
+CREATE INDEX IF NOT EXISTS idx_cms_authors_slug ON public.cms_authors USING btree (tenant_id, slug);
 
 
 
@@ -461,7 +461,7 @@ CREATE INDEX idx_cms_authors_slug ON public.cms_authors USING btree (tenant_id, 
 -- Name: idx_cms_authors_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_authors_tenant ON public.cms_authors USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_authors_tenant ON public.cms_authors USING btree (tenant_id);
 
 
 
@@ -469,7 +469,7 @@ CREATE INDEX idx_cms_authors_tenant ON public.cms_authors USING btree (tenant_id
 -- Name: idx_cms_authors_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_authors_user ON public.cms_authors USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_cms_authors_user ON public.cms_authors USING btree (user_id);
 
 
 
@@ -477,7 +477,7 @@ CREATE INDEX idx_cms_authors_user ON public.cms_authors USING btree (user_id);
 -- Name: idx_cms_categories_parent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_categories_parent ON public.cms_categories USING btree (parent_id);
+CREATE INDEX IF NOT EXISTS idx_cms_categories_parent ON public.cms_categories USING btree (parent_id);
 
 
 
@@ -485,7 +485,7 @@ CREATE INDEX idx_cms_categories_parent ON public.cms_categories USING btree (par
 -- Name: idx_cms_categories_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_categories_slug ON public.cms_categories USING btree (tenant_id, slug);
+CREATE INDEX IF NOT EXISTS idx_cms_categories_slug ON public.cms_categories USING btree (tenant_id, slug);
 
 
 
@@ -493,7 +493,7 @@ CREATE INDEX idx_cms_categories_slug ON public.cms_categories USING btree (tenan
 -- Name: idx_cms_categories_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_categories_tenant ON public.cms_categories USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_categories_tenant ON public.cms_categories USING btree (tenant_id);
 
 
 
@@ -501,7 +501,7 @@ CREATE INDEX idx_cms_categories_tenant ON public.cms_categories USING btree (ten
 -- Name: idx_cms_media_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_media_tenant ON public.cms_media USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_media_tenant ON public.cms_media USING btree (tenant_id);
 
 
 
@@ -509,7 +509,7 @@ CREATE INDEX idx_cms_media_tenant ON public.cms_media USING btree (tenant_id);
 -- Name: idx_cms_media_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_media_type ON public.cms_media USING btree (tenant_id, mime_type);
+CREATE INDEX IF NOT EXISTS idx_cms_media_type ON public.cms_media USING btree (tenant_id, mime_type);
 
 
 
@@ -517,7 +517,7 @@ CREATE INDEX idx_cms_media_type ON public.cms_media USING btree (tenant_id, mime
 -- Name: idx_cms_menus_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_menus_tenant ON public.cms_menus USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_menus_tenant ON public.cms_menus USING btree (tenant_id);
 
 
 
@@ -525,7 +525,7 @@ CREATE INDEX idx_cms_menus_tenant ON public.cms_menus USING btree (tenant_id);
 -- Name: idx_cms_pages_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_pages_slug ON public.cms_pages USING btree (tenant_id, slug);
+CREATE INDEX IF NOT EXISTS idx_cms_pages_slug ON public.cms_pages USING btree (tenant_id, slug);
 
 
 
@@ -533,7 +533,7 @@ CREATE INDEX idx_cms_pages_slug ON public.cms_pages USING btree (tenant_id, slug
 -- Name: idx_cms_pages_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_pages_tenant ON public.cms_pages USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_pages_tenant ON public.cms_pages USING btree (tenant_id);
 
 
 
@@ -541,7 +541,7 @@ CREATE INDEX idx_cms_pages_tenant ON public.cms_pages USING btree (tenant_id);
 -- Name: idx_cms_post_revisions; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_post_revisions ON public.cms_post_revisions USING btree (post_id);
+CREATE INDEX IF NOT EXISTS idx_cms_post_revisions ON public.cms_post_revisions USING btree (post_id);
 
 
 
@@ -549,7 +549,7 @@ CREATE INDEX idx_cms_post_revisions ON public.cms_post_revisions USING btree (po
 -- Name: idx_cms_post_tags_post; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_post_tags_post ON public.cms_post_tags USING btree (post_id);
+CREATE INDEX IF NOT EXISTS idx_cms_post_tags_post ON public.cms_post_tags USING btree (post_id);
 
 
 
@@ -557,7 +557,7 @@ CREATE INDEX idx_cms_post_tags_post ON public.cms_post_tags USING btree (post_id
 -- Name: idx_cms_post_tags_tag; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_post_tags_tag ON public.cms_post_tags USING btree (tag_id);
+CREATE INDEX IF NOT EXISTS idx_cms_post_tags_tag ON public.cms_post_tags USING btree (tag_id);
 
 
 
@@ -565,7 +565,7 @@ CREATE INDEX idx_cms_post_tags_tag ON public.cms_post_tags USING btree (tag_id);
 -- Name: idx_cms_post_views_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_post_views_date ON public.cms_post_views USING btree (post_id, viewed_at);
+CREATE INDEX IF NOT EXISTS idx_cms_post_views_date ON public.cms_post_views USING btree (post_id, viewed_at);
 
 
 
@@ -573,7 +573,7 @@ CREATE INDEX idx_cms_post_views_date ON public.cms_post_views USING btree (post_
 -- Name: idx_cms_post_views_post; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_post_views_post ON public.cms_post_views USING btree (post_id);
+CREATE INDEX IF NOT EXISTS idx_cms_post_views_post ON public.cms_post_views USING btree (post_id);
 
 
 
@@ -581,7 +581,7 @@ CREATE INDEX idx_cms_post_views_post ON public.cms_post_views USING btree (post_
 -- Name: idx_cms_posts_author; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_author ON public.cms_posts USING btree (author_id);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_author ON public.cms_posts USING btree (author_id);
 
 
 
@@ -589,7 +589,7 @@ CREATE INDEX idx_cms_posts_author ON public.cms_posts USING btree (author_id);
 -- Name: idx_cms_posts_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_category ON public.cms_posts USING btree (category_id);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_category ON public.cms_posts USING btree (category_id);
 
 
 
@@ -597,7 +597,7 @@ CREATE INDEX idx_cms_posts_category ON public.cms_posts USING btree (category_id
 -- Name: idx_cms_posts_featured; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_featured ON public.cms_posts USING btree (tenant_id, is_featured) WHERE (is_featured = true);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_featured ON public.cms_posts USING btree (tenant_id, is_featured) WHERE (is_featured = true);
 
 
 
@@ -605,7 +605,7 @@ CREATE INDEX idx_cms_posts_featured ON public.cms_posts USING btree (tenant_id, 
 -- Name: idx_cms_posts_published; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_published ON public.cms_posts USING btree (tenant_id, published_at) WHERE (status = 'published'::public.cms_post_status);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_published ON public.cms_posts USING btree (tenant_id, published_at) WHERE (status = 'published'::public.cms_post_status);
 
 
 
@@ -613,7 +613,7 @@ CREATE INDEX idx_cms_posts_published ON public.cms_posts USING btree (tenant_id,
 -- Name: idx_cms_posts_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_slug ON public.cms_posts USING btree (tenant_id, slug);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_slug ON public.cms_posts USING btree (tenant_id, slug);
 
 
 
@@ -621,7 +621,7 @@ CREATE INDEX idx_cms_posts_slug ON public.cms_posts USING btree (tenant_id, slug
 -- Name: idx_cms_posts_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_status ON public.cms_posts USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_status ON public.cms_posts USING btree (tenant_id, status);
 
 
 
@@ -629,7 +629,7 @@ CREATE INDEX idx_cms_posts_status ON public.cms_posts USING btree (tenant_id, st
 -- Name: idx_cms_posts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_posts_tenant ON public.cms_posts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_posts_tenant ON public.cms_posts USING btree (tenant_id);
 
 
 
@@ -637,7 +637,7 @@ CREATE INDEX idx_cms_posts_tenant ON public.cms_posts USING btree (tenant_id);
 -- Name: idx_cms_subscribers_email; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_subscribers_email ON public.cms_subscribers USING btree (tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_cms_subscribers_email ON public.cms_subscribers USING btree (tenant_id, email);
 
 
 
@@ -645,7 +645,7 @@ CREATE INDEX idx_cms_subscribers_email ON public.cms_subscribers USING btree (te
 -- Name: idx_cms_subscribers_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_subscribers_status ON public.cms_subscribers USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_cms_subscribers_status ON public.cms_subscribers USING btree (tenant_id, status);
 
 
 
@@ -653,7 +653,7 @@ CREATE INDEX idx_cms_subscribers_status ON public.cms_subscribers USING btree (t
 -- Name: idx_cms_subscribers_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_subscribers_tenant ON public.cms_subscribers USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_subscribers_tenant ON public.cms_subscribers USING btree (tenant_id);
 
 
 
@@ -661,7 +661,7 @@ CREATE INDEX idx_cms_subscribers_tenant ON public.cms_subscribers USING btree (t
 -- Name: idx_cms_tags_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_tags_slug ON public.cms_tags USING btree (tenant_id, slug);
+CREATE INDEX IF NOT EXISTS idx_cms_tags_slug ON public.cms_tags USING btree (tenant_id, slug);
 
 
 
@@ -669,7 +669,7 @@ CREATE INDEX idx_cms_tags_slug ON public.cms_tags USING btree (tenant_id, slug);
 -- Name: idx_cms_tags_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cms_tags_tenant ON public.cms_tags USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cms_tags_tenant ON public.cms_tags USING btree (tenant_id);
 
 
 

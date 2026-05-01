@@ -1,0 +1,14 @@
+apiVersion: v2
+name: medbrains-server
+description: Rust HTTP server + SPA for MedBrains HMS
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0"
+keywords:
+  - medbrains
+  - hospital
+  - hms
+maintainers:
+  - name: MedBrains
+    url: https://github.com/DomnicAmalan/MedBrains

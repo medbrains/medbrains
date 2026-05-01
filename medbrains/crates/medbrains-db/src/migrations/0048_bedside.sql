@@ -158,7 +158,7 @@ ALTER TABLE ONLY public.bedside_sessions
 -- Name: idx_bedside_fb_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_fb_admission ON public.bedside_realtime_feedback USING btree (tenant_id, admission_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_fb_admission ON public.bedside_realtime_feedback USING btree (tenant_id, admission_id);
 
 
 
@@ -166,7 +166,7 @@ CREATE INDEX idx_bedside_fb_admission ON public.bedside_realtime_feedback USING 
 -- Name: idx_bedside_fb_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_fb_tenant ON public.bedside_realtime_feedback USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_fb_tenant ON public.bedside_realtime_feedback USING btree (tenant_id);
 
 
 
@@ -174,7 +174,7 @@ CREATE INDEX idx_bedside_fb_tenant ON public.bedside_realtime_feedback USING btr
 -- Name: idx_bedside_fb_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_fb_time ON public.bedside_realtime_feedback USING btree (tenant_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bedside_fb_time ON public.bedside_realtime_feedback USING btree (tenant_id, submitted_at DESC);
 
 
 
@@ -182,7 +182,7 @@ CREATE INDEX idx_bedside_fb_time ON public.bedside_realtime_feedback USING btree
 -- Name: idx_bedside_req_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_req_admission ON public.bedside_nurse_requests USING btree (tenant_id, admission_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_req_admission ON public.bedside_nurse_requests USING btree (tenant_id, admission_id);
 
 
 
@@ -190,7 +190,7 @@ CREATE INDEX idx_bedside_req_admission ON public.bedside_nurse_requests USING bt
 -- Name: idx_bedside_req_pending; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_req_pending ON public.bedside_nurse_requests USING btree (tenant_id, status) WHERE (status = ANY (ARRAY['pending'::public.bedside_request_status, 'acknowledged'::public.bedside_request_status]));
+CREATE INDEX IF NOT EXISTS idx_bedside_req_pending ON public.bedside_nurse_requests USING btree (tenant_id, status) WHERE (status = ANY (ARRAY['pending'::public.bedside_request_status, 'acknowledged'::public.bedside_request_status]));
 
 
 
@@ -198,7 +198,7 @@ CREATE INDEX idx_bedside_req_pending ON public.bedside_nurse_requests USING btre
 -- Name: idx_bedside_req_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_req_status ON public.bedside_nurse_requests USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_bedside_req_status ON public.bedside_nurse_requests USING btree (tenant_id, status);
 
 
 
@@ -206,7 +206,7 @@ CREATE INDEX idx_bedside_req_status ON public.bedside_nurse_requests USING btree
 -- Name: idx_bedside_req_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_req_tenant ON public.bedside_nurse_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_req_tenant ON public.bedside_nurse_requests USING btree (tenant_id);
 
 
 
@@ -214,7 +214,7 @@ CREATE INDEX idx_bedside_req_tenant ON public.bedside_nurse_requests USING btree
 -- Name: idx_bedside_sess_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_sess_active ON public.bedside_sessions USING btree (tenant_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_bedside_sess_active ON public.bedside_sessions USING btree (tenant_id, is_active) WHERE (is_active = true);
 
 
 
@@ -222,7 +222,7 @@ CREATE INDEX idx_bedside_sess_active ON public.bedside_sessions USING btree (ten
 -- Name: idx_bedside_sess_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_sess_admission ON public.bedside_sessions USING btree (tenant_id, admission_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_sess_admission ON public.bedside_sessions USING btree (tenant_id, admission_id);
 
 
 
@@ -230,7 +230,7 @@ CREATE INDEX idx_bedside_sess_admission ON public.bedside_sessions USING btree (
 -- Name: idx_bedside_sess_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_sess_tenant ON public.bedside_sessions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_sess_tenant ON public.bedside_sessions USING btree (tenant_id);
 
 
 
@@ -238,7 +238,7 @@ CREATE INDEX idx_bedside_sess_tenant ON public.bedside_sessions USING btree (ten
 -- Name: idx_bedside_vid_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_vid_category ON public.bedside_education_videos USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_bedside_vid_category ON public.bedside_education_videos USING btree (tenant_id, category);
 
 
 
@@ -246,7 +246,7 @@ CREATE INDEX idx_bedside_vid_category ON public.bedside_education_videos USING b
 -- Name: idx_bedside_vid_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_vid_tenant ON public.bedside_education_videos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_vid_tenant ON public.bedside_education_videos USING btree (tenant_id);
 
 
 
@@ -254,7 +254,7 @@ CREATE INDEX idx_bedside_vid_tenant ON public.bedside_education_videos USING btr
 -- Name: idx_bedside_views_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_views_patient ON public.bedside_education_views USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_views_patient ON public.bedside_education_views USING btree (tenant_id, patient_id);
 
 
 
@@ -262,7 +262,7 @@ CREATE INDEX idx_bedside_views_patient ON public.bedside_education_views USING b
 -- Name: idx_bedside_views_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bedside_views_tenant ON public.bedside_education_views USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bedside_views_tenant ON public.bedside_education_views USING btree (tenant_id);
 
 
 

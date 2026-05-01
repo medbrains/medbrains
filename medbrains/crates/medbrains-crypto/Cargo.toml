@@ -17,6 +17,11 @@ thiserror = { workspace = true }
 # at message envelopes. josekit is a mature, audited Rust impl.
 josekit = "0.8"
 
+# josekit pulls in openssl-sys; force `vendored` so cross-compiles
+# (mac arm64 → linux arm64 via cargo-zigbuild) build OpenSSL from
+# source instead of requiring a cross-arch libssl-dev sysroot.
+openssl = { version = "0.10", features = ["vendored"] }
+
 # Base64url helpers + raw AES-GCM for the inner ABDM HIE payload
 # (NHCX uses JOSE end-to-end, but ABDM HIE wraps clinical Bundle
 # inside an additional encrypted blob keyed via ECDH).

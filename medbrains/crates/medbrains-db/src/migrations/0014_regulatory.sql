@@ -393,7 +393,7 @@ ALTER TABLE ONLY public.pcpndt_forms
 -- Name: idx_adr_reports_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adr_reports_patient ON public.adr_reports USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_adr_reports_patient ON public.adr_reports USING btree (tenant_id, patient_id);
 
 
 
@@ -401,7 +401,7 @@ CREATE INDEX idx_adr_reports_patient ON public.adr_reports USING btree (tenant_i
 -- Name: idx_adr_reports_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adr_reports_severity ON public.adr_reports USING btree (tenant_id, severity);
+CREATE INDEX IF NOT EXISTS idx_adr_reports_severity ON public.adr_reports USING btree (tenant_id, severity);
 
 
 
@@ -409,7 +409,7 @@ CREATE INDEX idx_adr_reports_severity ON public.adr_reports USING btree (tenant_
 -- Name: idx_adr_reports_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adr_reports_status ON public.adr_reports USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_adr_reports_status ON public.adr_reports USING btree (tenant_id, status);
 
 
 
@@ -417,7 +417,7 @@ CREATE INDEX idx_adr_reports_status ON public.adr_reports USING btree (tenant_id
 -- Name: idx_adr_reports_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_adr_reports_tenant ON public.adr_reports USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_adr_reports_tenant ON public.adr_reports USING btree (tenant_id);
 
 
 
@@ -425,7 +425,7 @@ CREATE INDEX idx_adr_reports_tenant ON public.adr_reports USING btree (tenant_id
 -- Name: idx_checklist_items_checklist; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_checklist_items_checklist ON public.compliance_checklist_items USING btree (checklist_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON public.compliance_checklist_items USING btree (checklist_id);
 
 
 
@@ -433,7 +433,7 @@ CREATE INDEX idx_checklist_items_checklist ON public.compliance_checklist_items 
 -- Name: idx_checklist_items_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_checklist_items_status ON public.compliance_checklist_items USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_status ON public.compliance_checklist_items USING btree (tenant_id, status);
 
 
 
@@ -441,7 +441,7 @@ CREATE INDEX idx_checklist_items_status ON public.compliance_checklist_items USI
 -- Name: idx_compliance_calendar_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_calendar_dept ON public.compliance_calendar USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_calendar_dept ON public.compliance_calendar USING btree (tenant_id, department_id);
 
 
 
@@ -449,7 +449,7 @@ CREATE INDEX idx_compliance_calendar_dept ON public.compliance_calendar USING bt
 -- Name: idx_compliance_calendar_due; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_calendar_due ON public.compliance_calendar USING btree (tenant_id, due_date);
+CREATE INDEX IF NOT EXISTS idx_compliance_calendar_due ON public.compliance_calendar USING btree (tenant_id, due_date);
 
 
 
@@ -457,7 +457,7 @@ CREATE INDEX idx_compliance_calendar_due ON public.compliance_calendar USING btr
 -- Name: idx_compliance_calendar_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_calendar_status ON public.compliance_calendar USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_compliance_calendar_status ON public.compliance_calendar USING btree (tenant_id, status);
 
 
 
@@ -465,7 +465,7 @@ CREATE INDEX idx_compliance_calendar_status ON public.compliance_calendar USING 
 -- Name: idx_compliance_calendar_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_calendar_tenant ON public.compliance_calendar USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_calendar_tenant ON public.compliance_calendar USING btree (tenant_id);
 
 
 
@@ -473,7 +473,7 @@ CREATE INDEX idx_compliance_calendar_tenant ON public.compliance_calendar USING 
 -- Name: idx_compliance_checklists_body; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_checklists_body ON public.compliance_checklists USING btree (tenant_id, accreditation_body);
+CREATE INDEX IF NOT EXISTS idx_compliance_checklists_body ON public.compliance_checklists USING btree (tenant_id, accreditation_body);
 
 
 
@@ -481,7 +481,7 @@ CREATE INDEX idx_compliance_checklists_body ON public.compliance_checklists USIN
 -- Name: idx_compliance_checklists_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_checklists_dept ON public.compliance_checklists USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_checklists_dept ON public.compliance_checklists USING btree (tenant_id, department_id);
 
 
 
@@ -489,7 +489,7 @@ CREATE INDEX idx_compliance_checklists_dept ON public.compliance_checklists USIN
 -- Name: idx_compliance_checklists_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_checklists_status ON public.compliance_checklists USING btree (tenant_id, overall_status);
+CREATE INDEX IF NOT EXISTS idx_compliance_checklists_status ON public.compliance_checklists USING btree (tenant_id, overall_status);
 
 
 
@@ -497,7 +497,7 @@ CREATE INDEX idx_compliance_checklists_status ON public.compliance_checklists US
 -- Name: idx_compliance_checklists_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_compliance_checklists_tenant ON public.compliance_checklists USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_checklists_tenant ON public.compliance_checklists USING btree (tenant_id);
 
 
 
@@ -505,7 +505,7 @@ CREATE INDEX idx_compliance_checklists_tenant ON public.compliance_checklists US
 -- Name: idx_frc_facility; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_frc_facility ON public.facility_regulatory_compliance USING btree (facility_id);
+CREATE INDEX IF NOT EXISTS idx_frc_facility ON public.facility_regulatory_compliance USING btree (facility_id);
 
 
 
@@ -513,7 +513,7 @@ CREATE INDEX idx_frc_facility ON public.facility_regulatory_compliance USING btr
 -- Name: idx_frc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_frc_tenant ON public.facility_regulatory_compliance USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_frc_tenant ON public.facility_regulatory_compliance USING btree (tenant_id);
 
 
 
@@ -521,7 +521,7 @@ CREATE INDEX idx_frc_tenant ON public.facility_regulatory_compliance USING btree
 -- Name: idx_mv_reports_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mv_reports_patient ON public.materiovigilance_reports USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_mv_reports_patient ON public.materiovigilance_reports USING btree (tenant_id, patient_id);
 
 
 
@@ -529,7 +529,7 @@ CREATE INDEX idx_mv_reports_patient ON public.materiovigilance_reports USING btr
 -- Name: idx_mv_reports_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mv_reports_status ON public.materiovigilance_reports USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mv_reports_status ON public.materiovigilance_reports USING btree (tenant_id, status);
 
 
 
@@ -537,7 +537,7 @@ CREATE INDEX idx_mv_reports_status ON public.materiovigilance_reports USING btre
 -- Name: idx_mv_reports_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mv_reports_tenant ON public.materiovigilance_reports USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mv_reports_tenant ON public.materiovigilance_reports USING btree (tenant_id);
 
 
 
@@ -545,7 +545,7 @@ CREATE INDEX idx_mv_reports_tenant ON public.materiovigilance_reports USING btre
 -- Name: idx_pcpndt_forms_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pcpndt_forms_patient ON public.pcpndt_forms USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pcpndt_forms_patient ON public.pcpndt_forms USING btree (tenant_id, patient_id);
 
 
 
@@ -553,7 +553,7 @@ CREATE INDEX idx_pcpndt_forms_patient ON public.pcpndt_forms USING btree (tenant
 -- Name: idx_pcpndt_forms_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pcpndt_forms_status ON public.pcpndt_forms USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pcpndt_forms_status ON public.pcpndt_forms USING btree (tenant_id, status);
 
 
 
@@ -561,7 +561,7 @@ CREATE INDEX idx_pcpndt_forms_status ON public.pcpndt_forms USING btree (tenant_
 -- Name: idx_pcpndt_forms_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pcpndt_forms_tenant ON public.pcpndt_forms USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pcpndt_forms_tenant ON public.pcpndt_forms USING btree (tenant_id);
 
 
 
