@@ -75,6 +75,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
+    "msw": "^2.14.2",
     "postcss": "^8.5.8",
     "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",
