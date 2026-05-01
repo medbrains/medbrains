@@ -128,6 +128,14 @@ pub async fn spawn_app() -> TestApp {
 
     let outbox_registry = Arc::new(medbrains_outbox::Registry::new());
 
+    // Postgres-native ReBAC backend keeps tests self-contained (no SpiceDB
+    // sidecar). Mirrors `main.rs` test/dev default.
+    let authz: Arc<dyn medbrains_authz::AuthzBackend> =
+        Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db.clone()));
+
+    let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
+        Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+
     let state = AppState {
         db: db.clone(),
         yottadb: None,
@@ -143,6 +151,8 @@ pub async fn spawn_app() -> TestApp {
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry,
         topology: topology_router,
+        authz,
+        secret_resolver,
     };
 
     let app = routes::build_router(state);

@@ -102,11 +102,25 @@ const TWILIO_API_BASE: &str = "https://api.twilio.com/2010-04-01/Accounts";
 #[derive(Debug)]
 pub struct SmsSendHandler {
     event_type: &'static str,
+    /// Override the Twilio REST base URL — used by integration tests
+    /// to point at a `wiremock` server. Production callers use `new()`,
+    /// which resolves to the canonical `TWILIO_API_BASE` constant.
+    api_base: Option<String>,
 }
 
 impl SmsSendHandler {
     pub const fn new(event_type: &'static str) -> Self {
-        Self { event_type }
+        Self { event_type, api_base: None }
+    }
+
+    /// Construct a handler that targets a custom REST base URL.
+    /// Tests pass a `wiremock::MockServer::uri()` here; production code
+    /// should use `new()`.
+    pub fn with_api_base(event_type: &'static str, api_base: impl Into<String>) -> Self {
+        Self {
+            event_type,
+            api_base: Some(api_base.into()),
+        }
     }
 }
 
@@ -191,7 +205,8 @@ impl Handler for SmsSendHandler {
             form.push(("From", from_number));
         }
 
-        let url = format!("{TWILIO_API_BASE}/{sid}/Messages.json");
+        let base = self.api_base.as_deref().unwrap_or(TWILIO_API_BASE);
+        let url = format!("{base}/{sid}/Messages.json");
         let resp = ctx
             .http_client
             .post(&url)

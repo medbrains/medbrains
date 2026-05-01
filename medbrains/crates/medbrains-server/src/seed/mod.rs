@@ -1,4 +1,5 @@
 mod bed_types;
+mod canonical_fixtures;
 mod charge_master;
 mod default_dashboard;
 mod demo_patients;
@@ -125,6 +126,12 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;
+
+    // Canonical fixture rows with hardcoded UUIDs — must run AFTER
+    // demo_patients so the dept + doctor + admin user FK refs exist.
+    // See `apps/web/e2e/helpers/canonical-seed.ts` for the matching
+    // UUID map used by smoke + Vitest tests.
+    canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await?;
 
     // Screen definitions removed — screen builder eradicated
     // (see migration 123_drop_builders.sql + RFC nuke-builders).
