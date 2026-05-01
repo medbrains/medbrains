@@ -429,6 +429,17 @@ pub async fn check_in_visitor(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Verify pass exists before insert to avoid 23503 FK error.
+    let pass_exists: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM visitor_passes WHERE id = $1 AND tenant_id = $2")
+            .bind(pass_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if pass_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
     let row = sqlx::query_as::<_, VisitorLog>(
         "INSERT INTO visitor_logs (tenant_id, pass_id, check_in_at, logged_by) \
          VALUES ($1, $2, now(), $3) RETURNING *",
