@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "MedBrains Patient",
+    "slug": "mobile-patient",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "bundleIdentifier": "com.medbrains.patient",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan device-pairing QR codes.",
+        "NSFaceIDUsageDescription": "Used to unlock the app with Face ID."
+      }
+    },
+    "android": {
+      "package": "com.medbrains.patient",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1F4332"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Used to scan device-pairing QR codes."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "title": "Edge Tunnel Health",
+  "uid": "medbrains-edge",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["medbrains", "edge", "headscale"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Tenants online",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(medbrains_edge_tunnel_up == 1)", "legendFormat": "online" },
+        { "expr": "count(medbrains_edge_tunnel_up == 0)", "legendFormat": "offline" }
+      ],
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "WSS sync RTT (per tenant)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, tenant_id) (rate(medbrains_edge_sync_rtt_seconds_bucket[5m])))",
+          "legendFormat": "{{tenant_id}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "AuthzCache hit ratio",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(medbrains_edge_authz_cache_hits_total[5m])) / (sum by (tenant_id) (rate(medbrains_edge_authz_cache_hits_total[5m])) + sum by (tenant_id) (rate(medbrains_edge_authz_cache_misses_total[5m])))",
+          "legendFormat": "{{tenant_id}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 }
+    }
+  ]
+}

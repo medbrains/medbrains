@@ -705,6 +705,9 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "devices.agents.manage", label: "Manage Bridge Agents", description: "Register and configure bridge agents", module: "devices" },
   { code: "devices.catalog.list", label: "Browse Adapter Catalog", description: "Browse available device adapters", module: "devices" },
   { code: "devices.catalog.manage", label: "Manage Adapter Catalog", description: "Add or edit adapter profiles", module: "devices" },
+  { code: "devices.pairing.token.create", label: "Mint Pairing Token", description: "Generate a one-time QR pairing token for a mobile/TV device", module: "devices" },
+  { code: "devices.pairing.paired.list", label: "List Paired Devices", description: "View devices paired into the tenant", module: "devices" },
+  { code: "devices.pairing.paired.revoke", label: "Revoke Paired Device", description: "Revoke a paired device's certificate, terminating its access", module: "devices" },
 
   // LMS
   { code: "lms.courses.list", label: "List Courses", description: "View LMS course catalog", module: "lms" },
@@ -1583,6 +1586,11 @@ export const P = {
     CATALOG: {
       LIST: "devices.catalog.list" as const,
       MANAGE: "devices.catalog.manage" as const,
+    },
+    PAIRING: {
+      TOKEN_CREATE: "devices.pairing.token.create" as const,
+      PAIRED_LIST: "devices.pairing.paired.list" as const,
+      PAIRED_REVOKE: "devices.pairing.paired.revoke" as const,
     },
   },
   LMS: {

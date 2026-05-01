@@ -821,15 +821,15 @@ pub async fn drug_timeline_with_labs(
          CASE WHEN v.systolic_bp IS NOT NULL \
               THEN v.systolic_bp::text || '/' || COALESCE(v.diastolic_bp::text, '-') \
               WHEN v.weight_kg IS NOT NULL THEN v.weight_kg::text \
-              ELSE v.heart_rate::text END AS value, \
-         COALESCE(v.systolic_bp, v.weight_kg, v.heart_rate::numeric) AS numeric_value, \
+              ELSE v.pulse::text END AS value, \
+         COALESCE(v.systolic_bp, v.weight_kg, v.pulse::numeric) AS numeric_value, \
          v.recorded_at \
          FROM vitals v \
          JOIN encounters e ON e.id = v.encounter_id \
          WHERE e.patient_id = $1 \
          AND ($2::date IS NULL OR v.recorded_at::date >= $2) \
          AND ($3::date IS NULL OR v.recorded_at::date <= $3) \
-         AND (v.systolic_bp IS NOT NULL OR v.weight_kg IS NOT NULL OR v.heart_rate IS NOT NULL) \
+         AND (v.systolic_bp IS NOT NULL OR v.weight_kg IS NOT NULL OR v.pulse IS NOT NULL) \
          ORDER BY v.recorded_at ASC",
     )
     .bind(patient_id)
@@ -1500,7 +1500,7 @@ pub async fn treatment_summary(
 
     // Patient demographics
     let patient = sqlx::query_as::<_, PatientDemographics>(
-        "SELECT full_name, uhid, date_of_birth, gender::text AS gender \
+        "SELECT (first_name || ' ' || last_name) AS full_name, uhid, date_of_birth, gender::text AS gender \
          FROM patients WHERE id = $1",
     )
     .bind(patient_id)

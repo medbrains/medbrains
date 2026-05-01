@@ -1,0 +1,43 @@
+{
+  "name": "@medbrains/mobile-shell",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cross-cutting React Native shell — auth flow, biometric/secret-store wiring, navigation chrome, offline bridge to medbrains-edge-rn. Consumed by every generated mobile/TV app.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@medbrains/edge-rn-bindings": "workspace:*",
+    "@medbrains/types": "workspace:*",
+    "@medbrains/ui-mobile": "workspace:*",
+    "zustand": "^5.0.11"
+  },
+  "peerDependencies": {
+    "@react-navigation/native": ">=7",
+    "@react-navigation/native-stack": ">=7",
+    "expo-camera": ">=15",
+    "expo-local-authentication": ">=14",
+    "expo-secure-store": ">=13",
+    "react": ">=19",
+    "react-native": ">=0.76",
+    "react-native-paper": ">=5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "react": "^19.2.4",
+    "react-native": "^0.84.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.0.0"
+  }
+}

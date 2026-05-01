@@ -8,6 +8,7 @@ license = "Apache-2.0"
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
+medbrains-offline-core = { path = "../medbrains-offline-core" }
 
 # Async runtime + WebSocket sync server
 tokio = { workspace = true }

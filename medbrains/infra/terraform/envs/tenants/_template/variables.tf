@@ -145,3 +145,82 @@ variable "bridge_artifact_url" {
   description = "Where the medbrains-bridge binary is hosted (S3 presigned or GitHub release URL)"
   default     = ""
 }
+
+# ── Shared cloud control-plane URLs ─────────────────────────────────
+# Services that live in the shared cloud control plane (one set
+# across all tenants). Variables so a group running an alternate
+# cloud apex (e.g. medbrains.in) can override without forking the
+# template.
+
+variable "cloud_apex_domain" {
+  type        = string
+  description = "Apex domain hosting the shared cloud control plane (headscale, event bus, etc.)."
+  default     = "medbrains.cloud"
+}
+
+variable "cloud_event_bus_url" {
+  type        = string
+  description = "Internal event bus URL the on-prem bridge publishes to. Defaults to https://api.<cloud_apex_domain>/internal/events when empty."
+  default     = ""
+}
+
+# ── DNS (modules/dns) ───────────────────────────────────────────────
+
+variable "provision_dns" {
+  type        = bool
+  description = "Whether terraform manages DNS records for this tenant. Set false if the tenant manages DNS out-of-band."
+  default     = true
+}
+
+variable "dns_provider" {
+  type        = string
+  description = "DNS backend: cloudflare | route53 | azure | google | digitalocean | namecheap | godaddy. Default godaddy — only provider we currently have credentials for."
+  default     = "godaddy"
+  validation {
+    condition = contains(
+      ["cloudflare", "route53", "azure", "google", "digitalocean", "namecheap", "godaddy"],
+      var.dns_provider
+    )
+    error_message = "dns_provider must be one of: cloudflare, route53, azure, google, digitalocean, namecheap, godaddy."
+  }
+}
+
+variable "dns_zone_name" {
+  type        = string
+  description = "Apex zone the tenant brings (e.g. acmehealthcare.com). Required when provision_dns = true. No shared default — each tenant supplies their own."
+  default     = ""
+  validation {
+    condition     = !var.provision_dns || length(var.dns_zone_name) > 0
+    error_message = "dns_zone_name is required when provision_dns = true."
+  }
+}
+
+variable "dns_record_subdomain" {
+  type        = string
+  description = "Subdomain prefix the tenant's records sit under (e.g. \"hospitals\" → headscale.hospitals.acmehealthcare.com). Empty = records at the apex."
+  default     = ""
+}
+
+variable "dns_azure_resource_group" {
+  type        = string
+  description = "Azure-only — resource group hosting the DNS zone."
+  default     = ""
+}
+
+variable "dns_google_project" {
+  type        = string
+  description = "Google-only — GCP project id hosting the managed zone."
+  default     = ""
+}
+
+variable "dns_google_managed_zone" {
+  type        = string
+  description = "Google-only — managed zone resource name."
+  default     = ""
+}
+
+variable "dns_namecheap_overwrite" {
+  type        = bool
+  description = "Namecheap-only — true = OVERWRITE mode (deletes existing records). Default false (MERGE)."
+  default     = false
+}

@@ -1920,7 +1920,7 @@ pub async fn staff_credentials(
          JOIN employees e ON e.id = ec.employee_id AND e.tenant_id = ec.tenant_id \
          WHERE ec.tenant_id = $1 \
            AND ec.expiry_date IS NOT NULL \
-           AND ec.expiry_date <= CURRENT_DATE + ($2::int || ' days')::interval \
+           AND ec.expiry_date <= CURRENT_DATE + ($2::text || ' days')::interval \
            AND ($3::uuid IS NULL OR e.department_id = $3) \
          ORDER BY ec.expiry_date ASC LIMIT 200",
     )

@@ -15,6 +15,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 use medbrains_server::{
     config::AppConfig,
     middleware::{
+        authz_write_guard::authz_write_guard,
         request_id::{MakeRequestUuid, request_id_header},
         system_state::SystemStateCache,
     },
@@ -304,6 +305,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
         .fallback_service(spa_fallback)
+        // Authz write guard self-scopes to /api/admin/{roles,users},
+        // /api/setup/{roles,users}, /api/sharing/* — denies mutations
+        // when the bridge marks the tunnel as offline.
+        .layer(axum::middleware::from_fn(authz_write_guard))
         .layer(hsts)
         .layer(no_frame)
         .layer(xss_filter)

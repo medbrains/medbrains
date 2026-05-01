@@ -32,7 +32,7 @@ struct AmaFormRow {
     ward_name: String,
     bed_number: String,
     diagnosis: String,
-    treating_doctor: String,
+    treating_doctor: Option<String>,
     ama_date: chrono::NaiveDate,
     ama_time: chrono::NaiveTime,
     patient_understands_risks: bool,
@@ -47,7 +47,7 @@ struct AmaFormRow {
     witness1_designation: Option<String>,
     witness2_name: Option<String>,
     witness2_designation: Option<String>,
-    doctor_name: String,
+    doctor_name: Option<String>,
     doctor_signature_obtained: bool,
     thumb_impression_taken: bool,
     interpreter_used: bool,
@@ -71,7 +71,7 @@ pub async fn get_ama_form_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
@@ -140,7 +140,7 @@ pub async fn get_ama_form_print_data(
         ward_name: row.ward_name,
         bed_number: row.bed_number,
         diagnosis: row.diagnosis,
-        treating_doctor: row.treating_doctor,
+        treating_doctor: row.treating_doctor.unwrap_or_default(),
         ama_date: row.ama_date.format("%d-%b-%Y").to_string(),
         ama_time: row.ama_time.format("%H:%M").to_string(),
         risks_explained,
@@ -156,7 +156,7 @@ pub async fn get_ama_form_print_data(
         witness1_designation: row.witness1_designation,
         witness2_name: row.witness2_name,
         witness2_designation: row.witness2_designation,
-        doctor_name: row.doctor_name,
+        doctor_name: row.doctor_name.unwrap_or_default(),
         doctor_signature_obtained: row.doctor_signature_obtained,
         thumb_impression_taken: row.thumb_impression_taken,
         interpreter_used: row.interpreter_used,
@@ -193,7 +193,7 @@ struct MlcRegisterRow {
     samples_handed_to: Option<String>,
     opinion: Option<String>,
     patient_condition_at_discharge: Option<String>,
-    examining_doctor: String,
+    examining_doctor: Option<String>,
     examined_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -302,7 +302,7 @@ pub async fn get_mlc_register_print_data(
         samples_handed_to: row.samples_handed_to,
         opinion: row.opinion,
         patient_condition_at_discharge: row.patient_condition_at_discharge,
-        examining_doctor: row.examining_doctor,
+        examining_doctor: row.examining_doctor.unwrap_or_default(),
         examined_at: row.examined_at.format("%d-%b-%Y %H:%M").to_string(),
     }))
 }
@@ -338,9 +338,9 @@ struct WoundCertRow {
     opinion_duration: Option<String>,
     opinion_disability: Option<String>,
     opinion_danger_to_life: Option<String>,
-    examining_doctor: String,
-    doctor_designation: String,
-    doctor_registration_number: String,
+    examining_doctor: Option<String>,
+    doctor_designation: Option<String>,
+    doctor_registration_number: Option<String>,
 }
 
 pub async fn get_wound_certificate_print_data(
@@ -467,9 +467,9 @@ pub async fn get_wound_certificate_print_data(
         opinion_duration: row.opinion_duration,
         opinion_disability: row.opinion_disability,
         opinion_danger_to_life: row.opinion_danger_to_life,
-        examining_doctor: row.examining_doctor,
-        doctor_designation: row.doctor_designation,
-        doctor_registration_number: row.doctor_registration_number,
+        examining_doctor: row.examining_doctor.unwrap_or_default(),
+        doctor_designation: row.doctor_designation.unwrap_or_default(),
+        doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
         signatures: super::signed_documents::to_print_signatures(wound_sigs),
     }))
 }
@@ -506,9 +506,9 @@ struct AgeEstimationRow {
     age_range_min: Option<i32>,
     age_range_max: Option<i32>,
     opinion_basis: String,
-    examining_doctor: String,
-    doctor_designation: String,
-    doctor_registration_number: String,
+    examining_doctor: Option<String>,
+    doctor_designation: Option<String>,
+    doctor_registration_number: Option<String>,
 }
 
 pub async fn get_age_estimation_print_data(
@@ -629,9 +629,9 @@ pub async fn get_age_estimation_print_data(
         age_range_min: row.age_range_min,
         age_range_max: row.age_range_max,
         opinion_basis: row.opinion_basis,
-        examining_doctor: row.examining_doctor,
-        doctor_designation: row.doctor_designation,
-        doctor_registration_number: row.doctor_registration_number,
+        examining_doctor: row.examining_doctor.unwrap_or_default(),
+        doctor_designation: row.doctor_designation.unwrap_or_default(),
+        doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
         signatures: super::signed_documents::to_print_signatures(age_sigs),
     }))
 }
@@ -665,9 +665,9 @@ struct DeathDeclRow {
     relatives_informed: bool,
     relative_name: Option<String>,
     relative_relationship: Option<String>,
-    declared_by: String,
-    doctor_designation: String,
-    doctor_registration_number: String,
+    declared_by: Option<String>,
+    doctor_designation: Option<String>,
+    doctor_registration_number: Option<String>,
     death_certificate_number: Option<String>,
 }
 
@@ -688,7 +688,7 @@ pub async fn get_death_declaration_print_data(
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.address::text AS address, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
            w.name AS ward_name, \
            l.name AS bed_number, \
@@ -763,9 +763,9 @@ pub async fn get_death_declaration_print_data(
         relatives_informed: row.relatives_informed,
         relative_name: row.relative_name,
         relative_relationship: row.relative_relationship,
-        declared_by: row.declared_by,
-        doctor_designation: row.doctor_designation,
-        doctor_registration_number: row.doctor_registration_number,
+        declared_by: row.declared_by.unwrap_or_default(),
+        doctor_designation: row.doctor_designation.unwrap_or_default(),
+        doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
         death_certificate_number: row.death_certificate_number,
         signatures: super::signed_documents::to_print_signatures(dd_sigs),
     }))
@@ -794,8 +794,8 @@ struct MlcDocRow {
     police_station: Option<String>,
     fir_number: Option<String>,
     court_case_number: Option<String>,
-    prepared_by: String,
-    verified_by: String,
+    prepared_by: Option<String>,
+    verified_by: Option<String>,
     prepared_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -819,25 +819,24 @@ pub async fn get_mlc_documentation_print_data(
            p.address::text AS address, \
            a.admitted_at::date AS admission_date, \
            a.discharged_at::date AS discharge_date, \
-           COALESCE(mlc.final_diagnosis, 'N/A') AS final_diagnosis, \
-           COALESCE(mlc.treatment_summary, 'N/A') AS treatment_summary, \
-           COALESCE(mlc.investigation_summary, 'N/A') AS investigation_summary, \
-           COALESCE(mlc.clinical_findings_at_discharge, 'N/A') AS clinical_findings_at_discharge, \
-           mlc.complications, \
-           COALESCE(mlc.prognosis, 'N/A') AS prognosis, \
-           mlc.permanent_disability, \
-           mlc.disability_percentage, \
+           COALESCE(mlc.medical_opinion, 'N/A') AS final_diagnosis, \
+           'N/A'::text AS treatment_summary, \
+           'N/A'::text AS investigation_summary, \
+           COALESCE(mlc.examination_findings, 'N/A') AS clinical_findings_at_discharge, \
+           NULL::text AS complications, \
+           'N/A'::text AS prognosis, \
+           NULL::text AS permanent_disability, \
+           NULL::text AS disability_percentage, \
            mlc.police_station, \
            mlc.fir_number, \
-           mlc.court_case_number, \
+           NULL::text AS court_case_number, \
            preparer.full_name AS prepared_by, \
-           verifier.full_name AS verified_by, \
+           NULL::text AS verified_by, \
            mlc.updated_at AS prepared_at \
          FROM mlc_cases mlc \
          JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
          LEFT JOIN admissions a ON a.id = mlc.admission_id AND a.tenant_id = mlc.tenant_id \
-         LEFT JOIN users preparer ON preparer.id = mlc.prepared_by_id \
-         LEFT JOIN users verifier ON verifier.id = mlc.verified_by_id \
+         LEFT JOIN users preparer ON preparer.id = mlc.registered_by \
          WHERE mlc.id = $1 AND mlc.tenant_id = $2",
     )
     .bind(case_id)
@@ -934,8 +933,8 @@ pub async fn get_mlc_documentation_print_data(
         samples_preserved,
         certificates_issued,
         important_dates,
-        prepared_by: row.prepared_by,
-        verified_by: row.verified_by,
+        prepared_by: row.prepared_by.unwrap_or_default(),
+        verified_by: row.verified_by.unwrap_or_default(),
         prepared_at: row.prepared_at.format("%d-%b-%Y %H:%M").to_string(),
         signatures: super::signed_documents::to_print_signatures(mlc_sigs),
     }))

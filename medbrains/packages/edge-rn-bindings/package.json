@@ -1,0 +1,22 @@
+{
+  "name": "@medbrains/edge-rn-bindings",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Placeholder for the TypeScript Turbo Module bindings emitted by @medbrains/uniffi-rn-plugin at host-app prebuild. Workspace consumers (mobile-shell) reference the type contract here; at runtime the plugin overwrites this package's lib/ with the real uniffi-bindgen-react-native output.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

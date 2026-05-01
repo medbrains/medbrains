@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "MedBrains Vendor",
+    "slug": "mobile-vendor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "bundleIdentifier": "com.medbrains.vendor",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan device-pairing QR codes.",
+        "NSFaceIDUsageDescription": "Used to unlock the app with Face ID."
+      }
+    },
+    "android": {
+      "package": "com.medbrains.vendor",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1F4332"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Used to scan device-pairing QR codes."
+        }
+      ],
+      [
+        "@medbrains/uniffi-rn-plugin",
+        {
+          "cratePath": "../../crates/medbrains-edge-rn",
+          "udlPath": "../../crates/medbrains-edge-rn/src/edge_rn.udl",
+          "iosTargets": ["aarch64-apple-ios", "aarch64-apple-ios-sim"],
+          "androidAbis": ["arm64-v8a", "armeabi-v7a", "x86_64"]
+        }
+      ]
+    ]
+  }
+}

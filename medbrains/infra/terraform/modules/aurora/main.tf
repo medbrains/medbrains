@@ -13,11 +13,11 @@
 #
 # Outputs: cluster_endpoint, proxy_endpoint, secret_master_arn
 
-variable "region"        { type = string }
-variable "environment"   { type = string }
-variable "vpc_id"        { type = string }
+variable "region" { type = string }
+variable "environment" { type = string }
+variable "vpc_id" { type = string }
 variable "db_subnet_ids" { type = list(string) }
-variable "kms_key_arn"   { type = string }
+variable "kms_key_arn" { type = string }
 variable "min_acu" {
   type        = number
   default     = 0
@@ -109,28 +109,45 @@ resource "aws_security_group" "aurora" {
   }
 }
 
+# Cluster parameter group — enables track_commit_timestamp, required
+# for SpiceDB's Watch API to stream relation changes (Phase 3 / Phase 9
+# of the hybrid roadmap). Static parameter, so a reboot is required if
+# this is toggled on an existing cluster — the module always sets it,
+# so a fresh cluster gets it for free.
+resource "aws_rds_cluster_parameter_group" "this" {
+  name   = "${local.cluster_id}-cpg"
+  family = "aurora-postgresql16"
+
+  parameter {
+    name         = "track_commit_timestamp"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+}
+
 resource "aws_rds_cluster" "this" {
-  cluster_identifier              = local.cluster_id
-  engine                          = "aurora-postgresql"
-  engine_version                  = "16.6"
-  engine_mode                     = "provisioned" # serverless v2 uses provisioned engine_mode
-  database_name                   = var.db_name
-  master_username                 = var.master_username
-  master_password                 = random_password.master.result
-  port                            = 5432
-  db_subnet_group_name            = aws_db_subnet_group.this.name
-  vpc_security_group_ids          = [aws_security_group.aurora.id]
-  storage_encrypted               = true
-  kms_key_id                      = var.kms_key_arn
+  cluster_identifier                  = local.cluster_id
+  engine                              = "aurora-postgresql"
+  engine_version                      = "16.6"
+  engine_mode                         = "provisioned" # serverless v2 uses provisioned engine_mode
+  database_name                       = var.db_name
+  master_username                     = var.master_username
+  master_password                     = random_password.master.result
+  port                                = 5432
+  db_subnet_group_name                = aws_db_subnet_group.this.name
+  vpc_security_group_ids              = [aws_security_group.aurora.id]
+  storage_encrypted                   = true
+  kms_key_id                          = var.kms_key_arn
   iam_database_authentication_enabled = true
-  backup_retention_period         = var.backup_retention_days
-  preferred_backup_window         = "16:00-17:00" # UTC = 21:30-22:30 IST off-peak
-  preferred_maintenance_window    = "sun:18:00-sun:19:00"
-  deletion_protection             = var.deletion_protection
-  enabled_cloudwatch_logs_exports = ["postgresql"]
-  copy_tags_to_snapshot           = true
-  skip_final_snapshot             = !var.deletion_protection
-  final_snapshot_identifier       = var.deletion_protection ? "${local.cluster_id}-final" : null
+  db_cluster_parameter_group_name     = aws_rds_cluster_parameter_group.this.name
+  backup_retention_period             = var.backup_retention_days
+  preferred_backup_window             = "16:00-17:00" # UTC = 21:30-22:30 IST off-peak
+  preferred_maintenance_window        = "sun:18:00-sun:19:00"
+  deletion_protection                 = var.deletion_protection
+  enabled_cloudwatch_logs_exports     = ["postgresql"]
+  copy_tags_to_snapshot               = true
+  skip_final_snapshot                 = !var.deletion_protection
+  final_snapshot_identifier           = var.deletion_protection ? "${local.cluster_id}-final" : null
 
   serverlessv2_scaling_configuration {
     min_capacity = var.min_acu
@@ -140,26 +157,26 @@ resource "aws_rds_cluster" "this" {
 
 # Writer instance — Serverless v2
 resource "aws_rds_cluster_instance" "writer" {
-  identifier         = "${local.cluster_id}-writer"
-  cluster_identifier = aws_rds_cluster.this.id
-  instance_class     = "db.serverless"
-  engine             = aws_rds_cluster.this.engine
-  engine_version     = aws_rds_cluster.this.engine_version
-  publicly_accessible = false
-  performance_insights_enabled = true
+  identifier                      = "${local.cluster_id}-writer"
+  cluster_identifier              = aws_rds_cluster.this.id
+  instance_class                  = "db.serverless"
+  engine                          = aws_rds_cluster.this.engine
+  engine_version                  = aws_rds_cluster.this.engine_version
+  publicly_accessible             = false
+  performance_insights_enabled    = true
   performance_insights_kms_key_id = var.kms_key_arn
   # In prod, set monitoring_interval = 60 + monitoring_role_arn for CloudWatch Enhanced Monitoring
 }
 
 # Reader replica (multi-AZ)
 resource "aws_rds_cluster_instance" "reader" {
-  count              = var.environment == "prod" ? 1 : 0
-  identifier         = "${local.cluster_id}-reader-${count.index}"
-  cluster_identifier = aws_rds_cluster.this.id
-  instance_class     = "db.serverless"
-  engine             = aws_rds_cluster.this.engine
-  engine_version     = aws_rds_cluster.this.engine_version
-  publicly_accessible = false
+  count                        = var.environment == "prod" ? 1 : 0
+  identifier                   = "${local.cluster_id}-reader-${count.index}"
+  cluster_identifier           = aws_rds_cluster.this.id
+  instance_class               = "db.serverless"
+  engine                       = aws_rds_cluster.this.engine
+  engine_version               = aws_rds_cluster.this.engine_version
+  publicly_accessible          = false
   performance_insights_enabled = true
 }
 
@@ -169,9 +186,9 @@ resource "aws_iam_role" "rds_proxy" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "rds.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -182,13 +199,13 @@ resource "aws_iam_role_policy" "rds_proxy_secrets" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
         Resource = aws_secretsmanager_secret.db_master.arn
       },
       {
-        Effect = "Allow"
-        Action = ["kms:Decrypt"]
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
         Resource = var.kms_key_arn
       }
     ]
@@ -261,6 +278,6 @@ output "secret_master_arn" {
 }
 
 output "cluster_resource_id" {
-  value = aws_rds_cluster.this.cluster_resource_id
+  value       = aws_rds_cluster.this.cluster_resource_id
   description = "Used in IAM policy to grant rds-db:connect for IAM auth"
 }

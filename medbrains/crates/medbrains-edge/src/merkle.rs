@@ -122,8 +122,7 @@ impl MerkleAudit {
         };
         let last_line = bytes
             .split(|&b| b == b'\n')
-            .filter(|s| !s.is_empty())
-            .last();
+            .rfind(|s| !s.is_empty());
         let Some(line) = last_line else {
             return Ok((zeros(), 0));
         };

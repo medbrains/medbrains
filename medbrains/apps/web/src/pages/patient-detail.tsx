@@ -56,6 +56,7 @@ import { PrescriptionViews } from "../components/Clinical";
 import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
 import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
+import { NotesPanel } from "../components/crdt/NotesPanel";
 import type {
   Patient,
   PrescriptionHistoryItem,
@@ -2085,6 +2086,9 @@ export function PatientDetailPage() {
           <Tabs.Tab value="packages" leftSection={<IconReportMedical size={14} />}>
             Packages
           </Tabs.Tab>
+          <Tabs.Tab value="notes" leftSection={<IconReportMedical size={14} />}>
+            Notes
+          </Tabs.Tab>
           <Tabs.Tab value="merge" leftSection={<IconGitMerge size={14} />}>
             Merge
           </Tabs.Tab>
@@ -2122,6 +2126,9 @@ export function PatientDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="packages">
           <ActivePackagesSection patientId={patient.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="notes">
+          <NotesPanel patientId={patient.id} label="Clinical Notes" />
         </Tabs.Panel>
         <Tabs.Panel value="merge">
           <MergeTab patient={patient} />

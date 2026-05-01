@@ -1,0 +1,196 @@
+// React Native bridge — UniFFI Interface Definition Language.
+//
+// Generates Kotlin (Android), Swift (iOS), and TypeScript (RN) bindings
+// for:
+//   - Loro CRDT operations (DocHandle) — mirrors web hooks
+//   - JWT verification (verify_jwt) — offline auth
+//   - ReBAC permission checks (AuthzCacheHandle) — offline permissions
+//   - JWT revocation cache (RevocationCacheHandle) — denial list
+//
+// The same wire format runs on web (via wasm), edge (server), and
+// mobile/TV (UniFFI). One protocol, multiple transports.
+
+namespace edge_rn {
+    /// Verify an Ed25519-signed JWT. The host hands the public key
+    /// and current time; we do signature + expiry only. Revocation
+    /// is a separate check via `RevocationCacheHandle::is_revoked`.
+    JwtOutcome verify_jwt(string token, sequence<u8> public_key_bytes, i64 now_unix, u64 clock_skew_secs);
+
+    /// True if the given (object_type, action) pair is on the
+    /// online-required denylist. Hosts call this before queuing a
+    /// write so they can show the right error UX before hitting
+    /// the AuthzCache.
+    boolean is_action_offline_required(string object_type, string action);
+};
+
+// ── Errors ─────────────────────────────────────────────────────────
+
+[Error]
+enum BridgeError {
+    "DocNotFound",
+    "InvalidUpdate",
+    "InvalidVersionVector",
+    "Loro",
+    "Serde",
+    "BadVerifyingKey",
+    "AuthzCache",
+    "RevocationCache",
+    "InvalidUuid",
+};
+
+// ── Loro CRDT bridge ───────────────────────────────────────────────
+
+dictionary AppendItem {
+    string json_value;
+};
+
+dictionary TextSnapshot {
+    string text;
+    sequence<u8> version_vector;
+};
+
+interface DocHandle {
+    [Throws=BridgeError]
+    constructor(string doc_id);
+
+    /// Apply a Loro update produced by another peer. Returns the
+    /// merged version vector so the caller can ack.
+    [Throws=BridgeError]
+    sequence<u8> apply_update(sequence<u8> update_bytes);
+
+    /// Export a delta since `their_vv` — what this peer needs to
+    /// catch up. Empty result means nothing new.
+    [Throws=BridgeError]
+    sequence<u8> export_since(sequence<u8> their_vv);
+
+    /// Append-only list operations (matches the web hook surface).
+    /// Returns the produced update bytes the caller pushes upstream.
+    [Throws=BridgeError]
+    sequence<u8> append_to_list(string container_name, AppendItem item);
+
+    [Throws=BridgeError]
+    sequence<string> list_entries(string container_name);
+
+    /// Free-form text container.
+    [Throws=BridgeError]
+    sequence<u8> set_text(string container_name, string new_text);
+
+    [Throws=BridgeError]
+    TextSnapshot read_text(string container_name);
+
+    /// Doc id this handle was opened for.
+    string doc_id();
+
+    /// Current version vector (for use as `since` in pulls).
+    [Throws=BridgeError]
+    sequence<u8> version_vector();
+};
+
+// ── JWT verification ───────────────────────────────────────────────
+
+dictionary JwtClaims {
+    string sub;            // user UUID
+    string tenant_id;      // tenant UUID
+    i64 iat;               // issued-at, unix seconds
+    i64 exp;               // expiry, unix seconds
+    sequence<string> department_ids;
+    sequence<string> permissions;
+    string? role;
+};
+
+[Enum]
+interface JwtOutcome {
+    Valid(JwtClaims claims);
+    Expired();
+    NotYetValid();
+    InvalidSignature();
+    Malformed(string reason);
+};
+
+// ── AuthzCache (ReBAC decision cache) ──────────────────────────────
+
+dictionary CacheKey {
+    string tenant_id;       // UUID
+    string user_id;         // UUID
+    string object_type;
+    string object_id;
+    string action;
+};
+
+[Enum]
+interface CacheSourceKind {
+    CloudFresh();
+    CloudCached();
+    JwtFallback();
+    OnlineRequiredDeny();
+};
+
+[Enum]
+interface DenyReasonKind {
+    CacheMissStrict();
+    JwtLacksPermission();
+    OnlineRequired();
+    Expired();
+};
+
+[Enum]
+interface CheckOutcome {
+    Allow(CacheSourceKind source);
+    Deny(DenyReasonKind reason);
+};
+
+[Enum]
+interface OfflinePolicyKind {
+    CacheOnly();
+    CacheThenJwt();
+    OnlineRequired();
+};
+
+interface AuthzCacheHandle {
+    /// Open / create a cache rooted at `path`. Capacity bounds the
+    /// in-memory LRU; sled persistence is unbounded.
+    [Throws=BridgeError]
+    constructor(string path, u32 capacity, u64 default_ttl_secs);
+
+    /// Pure offline lookup. JWT permissions are passed in case the
+    /// policy is `CacheThenJwt` and the cache misses.
+    [Throws=BridgeError]
+    CheckOutcome check_offline(CacheKey key, sequence<string> jwt_permissions, OfflinePolicyKind policy);
+
+    /// Insert or refresh a cache entry. Hosts call this when the
+    /// cloud has just answered, OR when a `CacheInvalidate` frame
+    /// arrives over the WSS sync protocol.
+    [Throws=BridgeError]
+    void record(CacheKey key, boolean allowed, CacheSourceKind source);
+
+    /// Drop entries pushed in `CacheInvalidate` frames.
+    [Throws=BridgeError]
+    void invalidate(sequence<CacheKey> keys);
+};
+
+// ── RevocationCache ────────────────────────────────────────────────
+
+interface RevocationCacheHandle {
+    [Throws=BridgeError]
+    constructor(string path, u32 capacity);
+
+    /// Record a revocation. Idempotent + monotonic — earlier
+    /// timestamps never overwrite later ones.
+    [Throws=BridgeError]
+    void record_revocation(string user_id, i64 revoked_at_unix);
+
+    /// True iff `user_id` has a revocation entry AND the JWT was
+    /// issued before that timestamp.
+    [Throws=BridgeError]
+    boolean is_revoked(string user_id, i64 jwt_iat_unix);
+
+    /// Largest revoked_at seen so far. Used as the `since` cursor
+    /// on the next pull from `/api/auth/revocations`.
+    i64 pull_window_max();
+
+    /// Drop a record (admin re-activated the user).
+    [Throws=BridgeError]
+    void forget(string user_id);
+
+    u32 len();
+};

@@ -1,0 +1,10 @@
+export { AuthProvider, useSecretStore } from "./auth-provider.js";
+export { useAuthStore } from "./auth-store.js";
+export { LoginScreen } from "./login-screen.js";
+export { BiometricEnrollmentPrompt } from "./biometric-enrollment-prompt.js";
+export { BiometricUnlockGate } from "./biometric-unlock-gate.js";
+export type { AuthProviderProps } from "./auth-provider.js";
+export type { AuthState } from "./auth-store.js";
+export type { LoginScreenProps } from "./login-screen.js";
+export type { BiometricEnrollmentPromptProps } from "./biometric-enrollment-prompt.js";
+export type { BiometricUnlockGateProps } from "./biometric-unlock-gate.js";

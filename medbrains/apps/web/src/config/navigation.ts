@@ -533,6 +533,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             icon: "IconPlug",
             requiredPermission: "devices.list",
           },
+          {
+            i18nKey: "pairedDevices",
+            path: "/admin/paired-devices",
+            icon: "IconQrcode",
+            requiredPermission: "devices.pairing.paired.list",
+          },
         ],
       },
     ],

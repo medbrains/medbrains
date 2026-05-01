@@ -41,6 +41,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "../../components";
+import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
 
 // ── Permission Tree Components ──────────────────────────────
 
@@ -860,6 +861,7 @@ export function RolesPage() {
   return (
     <div>
       <PageHeader title="Roles & Permissions" subtitle="Manage roles and assign permissions" />
+      <OfflineWriteBanner resource="role permission" />
 
       <Group justify="flex-end" mb="md">
         <Button

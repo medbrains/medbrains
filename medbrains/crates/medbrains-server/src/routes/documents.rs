@@ -1036,7 +1036,7 @@ pub async fn add_output_signature(
 pub async fn delete_output_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
+    Path((_output_id, sig_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
 
@@ -1044,7 +1044,7 @@ pub async fn delete_output_signature(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     sqlx::query("DELETE FROM document_output_signatures WHERE id = $1")
-        .bind(id)
+        .bind(sig_id)
         .execute(&mut *tx)
         .await?;
 

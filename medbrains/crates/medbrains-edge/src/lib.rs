@@ -59,9 +59,18 @@ pub mod doc_store;
 pub mod merkle;
 pub mod sync;
 
+// AuthzCache + ONLINE_REQUIRED_ACTIONS et al moved to
+// `medbrains-offline-core` in Phase A so mobile + TV can compile the
+// same logic. Re-exported here for back-compat with existing
+// `medbrains_edge::AuthzCache` callers.
+pub use medbrains_offline_core::{
+    AuthzCache, AuthzCacheError, CacheEntry, CacheKey, CacheMetrics, CacheSource, CheckOutcome,
+    DenyReason, ONLINE_REQUIRED_ACTIONS, OfflinePolicy,
+};
+
 pub use doc_store::DocStore;
 pub use merkle::MerkleAudit;
-pub use sync::{SyncServer, SyncServerError};
+pub use sync::{SessionContext, SyncServer, SyncServerError};
 
 /// Server-side handshake protocol version. Bumped on incompatible
 /// wire-format changes.

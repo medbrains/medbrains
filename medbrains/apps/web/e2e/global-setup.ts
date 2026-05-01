@@ -1,4 +1,5 @@
 import { test as setup, expect } from "@playwright/test";
+import { seedAllFixtures } from "./helpers/seed-fixtures";
 
 /**
  * Authenticate once and save browser storage state for reuse by all tests.
@@ -102,4 +103,25 @@ setup("authenticate as admin", async ({ page, request }) => {
 
   // Persist authenticated state
   await page.context().storageState({ path: "e2e/.auth/user.json" });
+
+  // Seed canonical fixtures so smoke + e2e tests hit real rows.
+  // Idempotent — skips entities that already exist.
+  const csrfToken = data.csrf_token ?? "";
+  if (csrfToken) {
+    const seedResult = await seedAllFixtures({
+      baseUrl: "http://127.0.0.1:3000",
+      csrfToken,
+      request,
+      verbose: process.env.E2E_SEED_VERBOSE === "1",
+    });
+    // eslint-disable-next-line no-console
+    console.log(
+      `[seed] created=${seedResult.created.length} reused=${seedResult.reused.length} failed=${seedResult.failed.length}`,
+    );
+    if (seedResult.failed.length > 0 && process.env.E2E_SEED_STRICT === "1") {
+      throw new Error(
+        `Seed failures (strict mode): ${seedResult.failed.map((f) => `${f.key}: ${f.reason}`).join("; ")}`,
+      );
+    }
+  }
 });

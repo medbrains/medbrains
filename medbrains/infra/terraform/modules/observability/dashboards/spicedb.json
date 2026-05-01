@@ -1,0 +1,40 @@
+{
+  "title": "SpiceDB Check Latency",
+  "uid": "medbrains-spicedb",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["medbrains", "spicedb", "authz"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Check API p50 / p95 / p99",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(spicedb_grpc_request_duration_seconds_bucket{grpc_method=\"CheckPermission\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(spicedb_grpc_request_duration_seconds_bucket{grpc_method=\"CheckPermission\"}[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(spicedb_grpc_request_duration_seconds_bucket{grpc_method=\"CheckPermission\"}[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Watch stream connections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "spicedb_watch_active_streams", "legendFormat": "{{instance}}" }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+    }
+  ]
+}

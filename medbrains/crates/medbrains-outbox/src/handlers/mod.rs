@@ -14,7 +14,9 @@
 //! Pipeline fallback (catches unregistered event_types):
 //! - `pipeline_fallback` — delegates to existing `events::dispatch_to_pipelines`
 
+pub mod abdm_hfr;
 pub mod abdm_stub;
+pub mod nhcx;
 pub mod email_stub;
 pub mod hl7_stub;
 pub mod pipeline_fallback;

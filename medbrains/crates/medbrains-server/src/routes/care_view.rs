@@ -217,7 +217,7 @@ pub async fn ward_patient_grid(
                    p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
                    p.uhid,
                    a.bed_id,
-                   bl.name AS bed_name,
+                   bl.bed_number AS bed_name,
                    a.ward_id,
                    w.name AS ward_name,
                    a.is_critical,
@@ -228,7 +228,7 @@ pub async fn ward_patient_grid(
                    a.expected_discharge_date
             FROM admissions a
             JOIN patients p ON p.id = a.patient_id
-            LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+            LEFT JOIN beds bl ON bl.id = a.bed_id
             LEFT JOIN wards w ON w.id = a.ward_id
             LEFT JOIN users doc ON doc.id = a.admitting_doctor
             LEFT JOIN users nurse ON nurse.id = a.primary_nurse_id
@@ -330,7 +330,7 @@ pub async fn my_tasks(
         "SELECT nt.id AS task_id,
                 nt.admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
-                bl.name AS bed_name,
+                bl.bed_number AS bed_name,
                 nt.description,
                 nt.category::text AS category,
                 nt.priority::text AS priority,
@@ -339,7 +339,7 @@ pub async fn my_tasks(
          FROM nursing_tasks nt
          JOIN admissions a ON a.id = nt.admission_id
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+         LEFT JOIN beds bl ON bl.id = a.bed_id
          WHERE nt.assigned_to = $1
            AND NOT nt.is_completed
            AND a.status = 'admitted'
@@ -360,7 +360,7 @@ pub async fn my_tasks(
         "SELECT m.id AS mar_id,
                 m.admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
-                bl.name AS bed_name,
+                bl.bed_number AS bed_name,
                 m.drug_name,
                 m.dose,
                 m.route,
@@ -370,7 +370,7 @@ pub async fn my_tasks(
          FROM ipd_medication_administration m
          JOIN admissions a ON a.id = m.admission_id
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+         LEFT JOIN beds bl ON bl.id = a.bed_id
          WHERE m.status = 'scheduled'
            AND a.status = 'admitted'
            AND (a.primary_nurse_id = $1 OR EXISTS (
@@ -408,7 +408,7 @@ pub async fn vitals_checklist(
     let rows = sqlx::query_as::<_, VitalsChecklistRow>(
         "SELECT a.id AS admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
-                bl.name AS bed_name,
+                bl.bed_number AS bed_name,
                 lv.last_vitals_at,
                 EXTRACT(EPOCH FROM (NOW() - lv.last_vitals_at)) / 3600 AS hours_since_last,
                 CASE WHEN lv.last_vitals_at IS NULL
@@ -416,7 +416,7 @@ pub async fn vitals_checklist(
                      THEN true ELSE false END AS vitals_due
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+         LEFT JOIN beds bl ON bl.id = a.bed_id
          LEFT JOIN LATERAL (
              SELECT MAX(v.recorded_at) AS last_vitals_at
              FROM vitals v WHERE v.encounter_id = a.encounter_id
@@ -456,15 +456,15 @@ pub async fn handover_summary(
     let base_patients = sqlx::query_as::<_, HandoverPatientBase>(
         "SELECT a.id AS admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
-                bl.name AS bed_name,
+                bl.bed_number AS bed_name,
                 a.is_critical,
                 a.isolation_required,
                 a.provisional_diagnosis
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+         LEFT JOIN beds bl ON bl.id = a.bed_id
          WHERE a.status = 'admitted' AND a.ward_id = $1
-         ORDER BY a.is_critical DESC, bl.name",
+         ORDER BY a.is_critical DESC, bl.bed_number",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
@@ -549,7 +549,7 @@ pub async fn discharge_readiness(
         "SELECT a.id AS admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
                 p.uhid,
-                bl.name AS bed_name,
+                bl.bed_number AS bed_name,
                 w.name AS ward_name,
                 a.expected_discharge_date,
                 COALESCE(tat.billing_cleared_at IS NOT NULL, false) AS billing_cleared,
@@ -570,7 +570,7 @@ pub async fn discharge_readiness(
                 END AS readiness_pct
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN bed_locations bl ON bl.id = a.bed_id
+         LEFT JOIN beds bl ON bl.id = a.bed_id
          LEFT JOIN wards w ON w.id = a.ward_id
          LEFT JOIN ipd_discharge_tat_logs tat ON tat.admission_id = a.id
          WHERE a.status = 'admitted'

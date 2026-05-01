@@ -65,6 +65,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "../components";
+import { TriagePanel } from "../components/crdt/TriagePanel";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -246,17 +247,57 @@ export function EmergencyPage() {
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="visits" leftSection={<IconUrgent size={16} />}>{t("erVisits")}</Tabs.Tab>
+          <Tabs.Tab value="triage" leftSection={<IconHeartbeat size={16} />}>Triage Log</Tabs.Tab>
           <Tabs.Tab value="codes" leftSection={<IconHeartbeat size={16} />}>{t("codeActivations")}</Tabs.Tab>
           <Tabs.Tab value="mlc" leftSection={<IconGavel size={16} />}>{t("mlcCases")}</Tabs.Tab>
           <Tabs.Tab value="mass-casualty" leftSection={<IconUsers size={16} />}>{t("massCasualty")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="visits"><VisitsTab canCreate={canCreateVisit} /></Tabs.Panel>
+        <Tabs.Panel value="triage" pt="md"><TriageLogTab /></Tabs.Panel>
         <Tabs.Panel value="codes"><CodesTab canCreate={canCreateCode} /></Tabs.Panel>
         <Tabs.Panel value="mlc"><MlcTab canCreate={canCreateMlc} /></Tabs.Panel>
         <Tabs.Panel value="mass-casualty"><MassCasualtyTab canCreate={canCreateMassCasualty} /></Tabs.Panel>
       </Tabs>
     </div>
+  );
+}
+
+// ── Triage Log Tab ──────────────────────────────────────
+//
+// CRDT-backed triage log: append-only ESI entries that survive a
+// WAN outage. Picks a visit from the live ER queue; the panel
+// below switches REST↔CRDT based on TenantConfigProvider.
+
+function TriageLogTab() {
+  const [visitId, setVisitId] = useState<string | null>(null);
+  const { data: visits = [] } = useQuery({
+    queryKey: ["er-visits"],
+    queryFn: () => api.listErVisits(),
+  });
+
+  const options = (visits as ErVisit[]).map((v) => ({
+    value: v.id,
+    label: `${v.visit_number} — ${v.chief_complaint ?? "No complaint"}`,
+  }));
+
+  return (
+    <Stack>
+      <Select
+        placeholder="Select an ER visit…"
+        data={options}
+        value={visitId}
+        onChange={setVisitId}
+        searchable
+        clearable
+        maxDropdownHeight={300}
+      />
+      {visitId ? (
+        <TriagePanel visitId={visitId} />
+      ) : (
+        <Text size="sm" c="dimmed">Pick a visit to record or review triage entries.</Text>
+      )}
+    </Stack>
   );
 }
 

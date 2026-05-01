@@ -4314,7 +4314,7 @@ pub async fn list_available_beds(
 
     let rows = sqlx::query_as::<_, AvailableBed>(
         "SELECT \
-           bs.location_id, \
+           bs.location_id AS bed_id, \
            l.name AS bed_number, \
            w.id AS ward_id, \
            w.name AS ward_name, \
@@ -4991,7 +4991,7 @@ pub async fn expected_discharges(
          WHERE a.tenant_id = $1 \
            AND a.status = 'admitted'::admission_status \
            AND a.expected_discharge_date IS NOT NULL \
-           AND a.expected_discharge_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '48 hours' \
+           AND a.expected_discharge_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTEGER '2' \
          ORDER BY a.expected_discharge_date ASC",
     )
     .bind(claims.tenant_id)

@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-native",
+    "types": ["react-native"],
+    "baseUrl": ".",
+    "paths": {
+      "@medbrains/api": ["../../packages/api/src"],
+      "@medbrains/mobile-shell": ["../../packages/mobile-shell/src"],
+      "@medbrains/types": ["../../packages/types/src"],
+      "@medbrains/ui-mobile": ["../../packages/ui-mobile/src"]
+    }
+  },
+  "include": ["src", "App.tsx"]
+}

@@ -1583,7 +1583,7 @@ pub async fn get_surgeon_caseload(
              AS avg_duration_minutes, \
            COUNT(CASE WHEN cr.complications IS NOT NULL AND cr.complications <> '' THEN 1 END)::BIGINT \
              AS complication_count, \
-           COUNT(CASE WHEN b.status = 'cancelled' THEN 1 END)::BIGINT AS cancellation_count \
+           COUNT(CASE WHEN b.status::text = 'cancelled' THEN 1 END)::BIGINT AS cancellation_count \
          FROM ot_case_records cr \
          JOIN ot_bookings b ON b.id = cr.booking_id AND b.tenant_id = cr.tenant_id \
          LEFT JOIN users u ON u.id = cr.surgeon_id \
@@ -1620,7 +1620,7 @@ pub async fn list_anesthesia_complications(
         "SELECT \
            cr.id AS case_id, \
            COALESCE(p.first_name || ' ' || p.last_name, 'Unknown') AS patient_name, \
-           cr.procedure_name, \
+           cr.procedure_performed AS procedure_name, \
            COALESCE(ar.anesthesia_type, 'unknown') AS anesthesia_type, \
            ar.complications, \
            ar.adverse_events, \

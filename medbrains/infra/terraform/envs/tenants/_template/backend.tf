@@ -32,9 +32,33 @@ terraform {
       version = "~> 5.50"
     }
     proxmox = {
-      source  = "bpg/proxmox"
-      version = "~> 0.101"
+      source                = "bpg/proxmox"
+      version               = "~> 0.101"
       configuration_aliases = [proxmox.onprem]
+    }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
+    }
+    namecheap = {
+      source  = "namecheap/namecheap"
+      version = "~> 2.0"
+    }
+    godaddy-dns = {
+      source  = "veksh/godaddy-dns"
+      version = "~> 0.3"
     }
   }
 }

@@ -19,6 +19,41 @@ provider "aws" {
   }
 }
 
+# ── DNS provider aliases ──────────────────────────────────────────────
+# Each provider reads its credentials from environment variables (see
+# modules/dns/README.md). Aliases let multiple DNS backends coexist in
+# one tenant env even though only one is selected at apply time.
+
+provider "aws" {
+  alias  = "dns"
+  region = var.aws_region
+}
+
+provider "cloudflare" {
+  alias = "tenant"
+}
+
+provider "azurerm" {
+  alias = "dns"
+  features {}
+}
+
+provider "google" {
+  alias = "dns"
+}
+
+provider "digitalocean" {
+  alias = "tenant"
+}
+
+provider "namecheap" {
+  alias = "tenant"
+}
+
+provider "godaddy-dns" {
+  alias = "tenant"
+}
+
 # A tenant-scoped IAM role the on-prem bridge agent assumes via OIDC
 # federation (Headscale → STS, federated identity provider out-of-
 # band). Lets the bridge call the cloud event bus + read its tenant's
@@ -34,19 +69,25 @@ data "aws_iam_policy_document" "bridge_assume" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = ["arn:aws:iam::aws:oidc-provider/headscale.medbrains.cloud"]
+      identifiers = ["arn:aws:iam::aws:oidc-provider/${local.headscale_oidc_host}"]
     }
     condition {
       test     = "StringEquals"
-      variable = "headscale.medbrains.cloud:sub"
+      variable = "${local.headscale_oidc_host}:sub"
       values   = ["tag:hospital-${var.tenant_id}"]
     }
   }
 }
 
+locals {
+  # Host portion of the headscale URL — used as the OIDC issuer
+  # identifier in IAM. Strip the scheme and any trailing slash.
+  headscale_oidc_host = replace(replace(var.headscale_url, "https://", ""), "/", "")
+}
+
 data "aws_iam_policy_document" "bridge" {
   statement {
-    sid    = "AuditArchive"
+    sid     = "AuditArchive"
     actions = ["s3:PutObject", "s3:GetObject"]
     resources = [
       "${var.cloud_audit_bucket_arn}/${var.tenant_id}/*"
@@ -119,4 +160,64 @@ output "preauth_key_path" {
 
 output "bridge_iam_role_arn" {
   value = aws_iam_role.bridge.arn
+}
+
+# ── Tenant DNS records (modules/dns) ──────────────────────────────────
+# Three records for every tenant — headscale ALB, bridge ALB, api.
+# Wired here so they share the cloud.tf provider context. Toggle off
+# with `provision_dns = false` if the tenant manages DNS out-of-band.
+
+locals {
+  dns_record_prefix = var.dns_record_subdomain == "" ? "" : "${var.dns_record_subdomain}."
+}
+
+module "tenant_dns" {
+  count  = var.provision_dns ? 1 : 0
+  source = "../../../modules/dns"
+
+  providers = {
+    cloudflare   = cloudflare.tenant
+    aws.dns      = aws.dns
+    azurerm.dns  = azurerm.dns
+    google.dns   = google.dns
+    digitalocean = digitalocean.tenant
+    namecheap    = namecheap.tenant
+    godaddy-dns  = godaddy-dns.tenant
+  }
+
+  provider_kind             = var.dns_provider
+  zone_name                 = var.dns_zone_name
+  tenant_id                 = var.tenant_id
+  azure_resource_group_name = var.dns_azure_resource_group
+  google_project            = var.dns_google_project
+  google_managed_zone       = var.dns_google_managed_zone
+  namecheap_overwrite       = var.dns_namecheap_overwrite
+
+  records = [
+    {
+      name = "${local.dns_record_prefix}headscale"
+      type = "CNAME"
+      # GoDaddy / similar registrars want a min TTL of 600s. Other
+      # providers downgrade transparently.
+      value = replace(var.headscale_url, "https://", "")
+      ttl   = 600
+    },
+    {
+      name  = "${local.dns_record_prefix}bridge-${var.tenant_id}"
+      type  = "CNAME"
+      value = "bridge.${var.dns_zone_name}"
+      ttl   = 600
+    },
+    {
+      name  = "${local.dns_record_prefix}api"
+      type  = "CNAME"
+      value = "api.${var.dns_zone_name}"
+      ttl   = 600
+    },
+  ]
+}
+
+output "tenant_dns_records_managed" {
+  description = "Number of DNS records managed by terraform for this tenant."
+  value       = var.provision_dns ? module.tenant_dns[0].managed_record_count : 0
 }

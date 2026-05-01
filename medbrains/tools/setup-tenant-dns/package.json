@@ -1,0 +1,10 @@
+{
+  "name": "@medbrains/setup-tenant-dns",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Interactive scaffolder that asks for tenant DNS config and writes infra/terraform/envs/tenants/<id>/terraform.tfvars + env.sh. Mirrors the create-mobile-app pattern; zero npm deps.",
+  "type": "module",
+  "bin": {
+    "medbrains-setup-tenant-dns": "./src/index.mjs"
+  }
+}

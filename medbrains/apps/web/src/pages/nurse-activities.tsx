@@ -18,6 +18,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { PageHeader } from "../components";
+import { HandoffPanel } from "../components/crdt/HandoffPanel";
+import { NursingNotesPanel } from "../components/crdt/NursingNotesPanel";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 interface MarRow {
@@ -70,6 +72,8 @@ export function NurseActivitiesPage() {
           <Tabs.Tab value="mar">MAR</Tabs.Tab>
           <Tabs.Tab value="io">Intake/Output</Tabs.Tab>
           <Tabs.Tab value="code-blue">Code Blue</Tabs.Tab>
+          <Tabs.Tab value="handoff">Handoff</Tabs.Tab>
+          <Tabs.Tab value="shift-notes">Shift Notes</Tabs.Tab>
           <Tabs.Tab value="other">Other</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="mar" pt="md">
@@ -81,12 +85,28 @@ export function NurseActivitiesPage() {
         <Tabs.Panel value="code-blue" pt="md">
           <CodeBlueTab />
         </Tabs.Panel>
+        <Tabs.Panel value="handoff" pt="md">
+          {/* shiftId is the active shift the nurse is logged into.
+              For now we use a stable per-day key; once the shift API
+              ships, swap in the real id from a useCurrentShift hook. */}
+          <HandoffPanel shiftId={dailyShiftId()} />
+        </Tabs.Panel>
+        <Tabs.Panel value="shift-notes" pt="md">
+          <NursingNotesPanel shiftId={dailyShiftId()} />
+        </Tabs.Panel>
         <Tabs.Panel value="other" pt="md">
           <OtherTab />
         </Tabs.Panel>
       </Tabs>
     </div>
   );
+}
+
+// Stable per-day shift id. Once the real shift roster API ships,
+// replace with `useCurrentShift().id`.
+function dailyShiftId(): string {
+  const d = new Date();
+  return `shift-${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 // ── MAR Tab ─────────────────────────────────────────────────────────

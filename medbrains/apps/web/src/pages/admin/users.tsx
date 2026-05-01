@@ -57,6 +57,7 @@ import {
 } from "@medbrains/types";
 import { DataTable, PageHeader, SelectLabel, CreateRoleModal, CreateDepartmentModal, StatusDot } from "../../components";
 import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
+import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { useCreateInline } from "../../hooks/useCreateInline";
 
@@ -1498,6 +1499,7 @@ export function UsersPage() {
           ) : undefined
         }
       />
+      <OfflineWriteBanner resource="user role / permission override" />
 
       <DataTable<SetupUser>
         columns={columns}

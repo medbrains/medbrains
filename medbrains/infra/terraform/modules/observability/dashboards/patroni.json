@@ -1,0 +1,33 @@
+{
+  "title": "Patroni Replication Lag",
+  "uid": "medbrains-patroni",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["medbrains", "patroni", "postgres"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Replication lag (bytes)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "patroni_xlog_replayed_location - on(instance) group_left patroni_xlog_received_location",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cluster role count",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "count(patroni_master)", "legendFormat": "primary" },
+        { "expr": "count(patroni_replica)", "legendFormat": "replica" }
+      ],
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 8 }
+    }
+  ]
+}
