@@ -43,3 +43,38 @@ tunnel_provider  = "headscale"          # "headscale" / "wss" / "none" (air-gapp
 
 # medbrains-bridge binary location
 bridge_artifact_url = "https://medbrains-prod-artifacts.s3.ap-south-1.amazonaws.com/bridge/v0.1.0/medbrains-bridge-arm64"
+
+# ── DNS (modules/dns) ───────────────────────────────────────────────
+# Each tenant brings its own apex domain — there is no shared default.
+#
+# provider_kind options:
+#   godaddy        ← default; only one we currently have credentials for
+#   cloudflare     ← future / preferred for new tenants once token issued
+#   route53 | azure | google | digitalocean | namecheap
+#
+# Required env vars by provider (export before `terraform plan/apply`):
+#   godaddy:    GODADDY_API_KEY, GODADDY_API_SECRET
+#   cloudflare: CLOUDFLARE_API_TOKEN
+#   route53:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (reuses cloud creds)
+#   azure:      ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
+#   google:     GOOGLE_APPLICATION_CREDENTIALS (path to service-account JSON)
+#   digital-o:  DIGITALOCEAN_TOKEN
+#   namecheap:  NAMECHEAP_USER_NAME / NAMECHEAP_API_USER / NAMECHEAP_API_KEY / NAMECHEAP_CLIENT_IP
+
+provision_dns        = true
+dns_provider         = "godaddy"
+dns_zone_name        = "acmehealthcare.com"   # ← tenant's own apex; no default
+dns_record_subdomain = ""                     # empty = at the apex; "hospitals" = headscale.hospitals.acmehealthcare.com
+
+# Provider-specific extras — only the matching one is read.
+# dns_azure_resource_group  = "rg-medbrains-dns"
+# dns_google_project        = "medbrains-prod"
+# dns_google_managed_zone   = "acmehealthcare-com"
+# dns_namecheap_overwrite   = false
+
+# GoDaddy API access pre-flight (must return 200, not 403):
+#   curl -H "Authorization: sso-key $GODADDY_API_KEY:$GODADDY_API_SECRET" \
+#        https://api.godaddy.com/v1/domains
+# 403 = account doesn't qualify (need 10+ domains or Discount Domain
+# Club Premier). Fall back to delegating NS to Cloudflare; see
+# modules/dns/README.md.
