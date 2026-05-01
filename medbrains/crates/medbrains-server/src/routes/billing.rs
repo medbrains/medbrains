@@ -5459,7 +5459,7 @@ pub async fn reverse_journal_entry(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Mark original as reversed
-    sqlx::query(
+    let updated = sqlx::query(
         "UPDATE journal_entries SET status = 'reversed' \
          WHERE id = $1 AND tenant_id = $2 AND status = 'posted'",
     )
@@ -5467,6 +5467,9 @@ pub async fn reverse_journal_entry(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     // Get original lines
     let original_lines = sqlx::query_as::<_, JournalEntryLine>(

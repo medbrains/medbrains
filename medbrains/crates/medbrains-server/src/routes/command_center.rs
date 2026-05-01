@@ -178,9 +178,9 @@ pub async fn department_load(
          FROM departments d \
          LEFT JOIN LATERAL ( \
            SELECT COUNT(*) AS total, \
-             COUNT(*) FILTER (WHERE l.status::text = 'occupied') AS occupied \
-           FROM locations l WHERE l.tenant_id = $1 \
-             AND l.department_id = d.id AND l.location_type::text = 'bed' \
+             COUNT(*) FILTER (WHERE b.is_occupied = true) AS occupied \
+           FROM beds b JOIN wards w ON w.id = b.ward_id \
+           WHERE b.tenant_id = $1 AND w.department_id = d.id \
          ) bed ON true \
          LEFT JOIN LATERAL ( \
            SELECT COUNT(*) AS depth, \
@@ -408,9 +408,10 @@ pub async fn get_discharge_blockers(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let pending_labs = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*) AS count FROM lab_orders \
-         WHERE tenant_id = $1 AND admission_id = $2 \
-         AND status::text NOT IN ('completed','cancelled')",
+        "SELECT COUNT(*) AS count FROM lab_orders lo \
+         JOIN admissions a ON a.encounter_id = lo.encounter_id \
+         WHERE lo.tenant_id = $1 AND a.id = $2 \
+         AND lo.status::text NOT IN ('completed','cancelled')",
     )
     .bind(claims.tenant_id)
     .bind(admission_id)
@@ -418,9 +419,10 @@ pub async fn get_discharge_blockers(
     .await?;
 
     let pending_pharmacy = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*) AS count FROM pharmacy_orders \
-         WHERE tenant_id = $1 AND admission_id = $2 \
-         AND status::text NOT IN ('dispensed','cancelled')",
+        "SELECT COUNT(*) AS count FROM pharmacy_orders po \
+         JOIN admissions a ON a.encounter_id = po.encounter_id \
+         WHERE po.tenant_id = $1 AND a.id = $2 \
+         AND po.status::text NOT IN ('dispensed','cancelled')",
     )
     .bind(claims.tenant_id)
     .bind(admission_id)
@@ -461,19 +463,17 @@ pub async fn bed_turnaround_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, BedTurnaroundRow>(
-        "SELECT l.id AS location_id, l.code AS location_code, \
+        "SELECT b.id AS location_id, COALESCE(b.bed_number, '') AS location_code, \
            COALESCE(w.name, '') AS ward_name, \
-           l.status::text AS status, \
-           l.updated_at AS discharge_at, \
+           CASE WHEN b.is_occupied THEN 'occupied' ELSE 'vacant' END AS status, \
+           b.created_at AS discharge_at, \
            NULL::timestamptz AS cleaning_started_at, \
            NULL::timestamptz AS cleaning_completed_at, \
            NULL::int4 AS turnaround_minutes \
-         FROM locations l \
-         LEFT JOIN locations w ON w.id = l.parent_id \
-         WHERE l.tenant_id = $1 \
-           AND l.location_type::text = 'bed' \
-           AND l.status::text IN ('vacant', 'under_maintenance', 'blocked') \
-         ORDER BY l.updated_at DESC \
+         FROM beds b \
+         LEFT JOIN wards w ON w.id = b.ward_id \
+         WHERE b.tenant_id = $1 AND b.is_occupied = false \
+         ORDER BY b.created_at DESC \
          LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -497,11 +497,11 @@ pub async fn turnaround_stats(
         "SELECT COALESCE(w.name, 'Unknown') AS ward_name, \
            0::float8 AS avg_turnaround_mins, \
            0::int4 AS max_turnaround_mins, \
-           COUNT(*) FILTER (WHERE l.status::text = 'vacant') AS beds_awaiting_cleaning, \
-           COUNT(*) FILTER (WHERE l.status::text = 'under_maintenance') AS beds_being_cleaned \
-         FROM locations l \
-         LEFT JOIN locations w ON w.id = l.parent_id \
-         WHERE l.tenant_id = $1 AND l.location_type::text = 'bed' \
+           COUNT(*) FILTER (WHERE b.is_occupied = false) AS beds_awaiting_cleaning, \
+           0::int8 AS beds_being_cleaned \
+         FROM beds b \
+         LEFT JOIN wards w ON w.id = b.ward_id \
+         WHERE b.tenant_id = $1 \
          GROUP BY w.name \
          ORDER BY w.name",
     )
@@ -865,16 +865,16 @@ pub async fn kpi_detail(
         "bed_occupancy" => {
             let rows = sqlx::query_as::<_, DepartmentLoadRow>(
                 "SELECT d.id AS department_id, d.name AS department_name, \
-                   COALESCE(COUNT(l.id), 0) AS bed_total, \
-                   COALESCE(COUNT(l.id) FILTER (WHERE l.status::text = 'occupied'), 0) \
+                   COALESCE(COUNT(b.id), 0) AS bed_total, \
+                   COALESCE(COUNT(b.id) FILTER (WHERE b.is_occupied = true), 0) \
                      AS bed_occupied, \
-                   CASE WHEN COUNT(l.id) = 0 THEN 0 \
-                     ELSE (COUNT(l.id) FILTER (WHERE l.status::text = 'occupied'))::float8 \
-                       * 100.0 / COUNT(l.id)::float8 END AS occupancy_pct, \
+                   CASE WHEN COUNT(b.id) = 0 THEN 0 \
+                     ELSE (COUNT(b.id) FILTER (WHERE b.is_occupied = true))::float8 \
+                       * 100.0 / COUNT(b.id)::float8 END AS occupancy_pct, \
                    0::int8 AS queue_depth, 0::float8 AS avg_wait_mins \
                  FROM departments d \
-                 LEFT JOIN locations l ON l.department_id = d.id \
-                   AND l.location_type::text = 'bed' AND l.tenant_id = $1 \
+                 LEFT JOIN wards w ON w.department_id = d.id AND w.tenant_id = $1 \
+                 LEFT JOIN beds b ON b.ward_id = w.id AND b.tenant_id = $1 \
                  WHERE d.tenant_id = $1 \
                  GROUP BY d.id, d.name ORDER BY d.name",
             )
