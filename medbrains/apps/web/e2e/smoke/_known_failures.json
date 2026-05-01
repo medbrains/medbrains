@@ -1,0 +1,5 @@
+{
+  "_doc": "Endpoints whose smoke test should skip with a reason. Key formats: 'METHOD /api/...' or '/api/...' (matches both methods). Add an entry while a 500 is being investigated; remove once fixed.",
+  "endpoints": {
+  }
+}
