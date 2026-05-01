@@ -1,0 +1,18 @@
+# Per-tenant config — copy to terraform.tfvars (gitignored) and fill in.
+
+# Domain at the public DNS layer.
+domain    = "hims.alagappahospital.com"
+zone_name = "alagappahospital.com"
+
+# Admin email (Let's Encrypt + super_admin role).
+admin_email = "ops@alagappahospital.com"
+
+# DigitalOcean SSH key (must already exist in the DO account).
+do_ssh_key_name      = "medbrains-deploy"
+ssh_private_key_path = "~/.ssh/medbrains-deploy"
+
+# Where the pre-built artefacts live on this operator's machine.
+# Adjust to your repo checkout path.
+binaries_dir   = "../../../../target/release"
+spa_dist_dir   = "../../../../apps/web/dist"
+deploy_kit_dir = "../../../../deploy/standalone"

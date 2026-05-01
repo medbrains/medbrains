@@ -1,0 +1,36 @@
+# MedBrains standalone — single-domain reverse proxy with auto Let's
+# Encrypt. Render this template to /etc/caddy/Caddyfile via the
+# install.sh script (replaces {{DOMAIN}} and {{ADMIN_EMAIL}}).
+#
+# Caddy 2 fetches + renews TLS certs automatically; no certbot
+# needed. ACME challenges run over port 80, served traffic over 443.
+
+{{DOMAIN}} {
+    encode gzip
+
+    # The Rust binary serves both the SPA static files (via STATIC_DIR)
+    # and the JSON API on /api/*. One reverse_proxy line covers both.
+    reverse_proxy 127.0.0.1:3000
+
+    tls {{ADMIN_EMAIL}}
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Loose default — tighten once we audit every script/style src.
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:;"
+    }
+
+    # Health probe bypass — useful for external monitors that don't
+    # need TLS-termination logging.
+    @health path /api/health
+    handle @health {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    # Caddy logs to systemd journal by default. To rotate to file,
+    # add a `log` directive below pointing at /var/log/caddy/.
+}
