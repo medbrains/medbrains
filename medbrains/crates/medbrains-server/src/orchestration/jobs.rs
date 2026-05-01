@@ -39,7 +39,10 @@ pub fn start_job_worker(pool: PgPool) {
 async fn job_worker_loop(pool: &PgPool, worker_id: &str) {
     loop {
         // Also pick up retryable failed jobs whose retry time has passed
-        promote_retryable_jobs(pool).await;
+        if !promote_retryable_jobs(pool).await {
+            // Schema not migrated — exit cleanly. Server stays up.
+            return;
+        }
 
         match claim_next_job(pool, worker_id).await {
             Ok(Some(job)) => {
@@ -63,11 +66,24 @@ async fn job_worker_loop(pool: &PgPool, worker_id: &str) {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             }
             Err(e) => {
+                if is_undefined_table(&e) {
+                    tracing::warn!(
+                        "orchestration job_queue table missing — worker {worker_id} disabled until next restart (run migrations to enable)"
+                    );
+                    return;
+                }
                 tracing::error!(error = %e, "job queue poll error");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         }
     }
+}
+
+/// Detect Postgres "undefined_table" (SQLSTATE 42P01) — schema not migrated.
+fn is_undefined_table(err: &sqlx::Error) -> bool {
+    err.as_database_error()
+        .and_then(|db| db.code())
+        .is_some_and(|c| c == "42P01")
 }
 
 /// Claim the next pending job using `FOR UPDATE SKIP LOCKED`.
@@ -233,7 +249,10 @@ async fn fail_job(pool: &PgPool, job_id: Uuid, error: &str, current_retry: i32, 
 }
 
 /// Promote retryable failed jobs back to pending when their retry time arrives.
-async fn promote_retryable_jobs(pool: &PgPool) {
+///
+/// Returns `false` if the `job_queue` relation is missing (schema not migrated)
+/// so the caller can exit the worker loop cleanly instead of spinning.
+async fn promote_retryable_jobs(pool: &PgPool) -> bool {
     let result = sqlx::query(
         "UPDATE job_queue \
          SET status = 'pending', locked_by = NULL, locked_at = NULL \
@@ -244,7 +263,17 @@ async fn promote_retryable_jobs(pool: &PgPool) {
     .execute(pool)
     .await;
 
-    if let Err(e) = result {
-        tracing::error!(error = %e, "failed to promote retryable jobs");
+    match result {
+        Ok(_) => true,
+        Err(e) if is_undefined_table(&e) => {
+            tracing::warn!(
+                "orchestration job_queue table missing — promote-retry skipped (run migrations to enable)"
+            );
+            false
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "failed to promote retryable jobs");
+            true
+        }
     }
 }

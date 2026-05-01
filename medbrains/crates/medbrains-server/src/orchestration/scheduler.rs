@@ -30,14 +30,31 @@ pub fn start_scheduler(pool: PgPool) {
     });
 }
 
-/// Main scheduler loop — runs until the process exits.
+/// Main scheduler loop — runs until the process exits or the
+/// `scheduled_jobs` table is missing (schema not migrated).
 async fn scheduler_loop(pool: &PgPool) {
     loop {
-        if let Err(e) = tick(pool).await {
-            tracing::error!(error = %e, "scheduler tick error");
+        match tick(pool).await {
+            Ok(_) => {}
+            Err(e) if is_undefined_table(&e) => {
+                tracing::warn!(
+                    "orchestration scheduled_jobs table missing — scheduler disabled until next restart (run migrations to enable)"
+                );
+                return;
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "scheduler tick error");
+            }
         }
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
+}
+
+/// Detect Postgres "undefined_table" (SQLSTATE 42P01) — schema not migrated.
+fn is_undefined_table(err: &sqlx::Error) -> bool {
+    err.as_database_error()
+        .and_then(|db| db.code())
+        .is_some_and(|c| c == "42P01")
 }
 
 /// Single scheduler tick — find due jobs and enqueue them.
