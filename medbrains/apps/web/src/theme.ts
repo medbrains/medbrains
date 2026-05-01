@@ -477,13 +477,32 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   return {
     variables: {
       "--mb-radius": t.radius?.xl ?? rem("16px"),
-      // Forest + Copper brand aliases
+      // ── Forest + Copper canonical tokens (per design system SKILL.md §2) ──
       "--fc-brand": p[5],
       "--fc-brand-hover": p[6],
       "--fc-brand-deep": p[7],
+      "--fc-ink": "#0F1412",
+      "--fc-sub": "#3e4a44",
+      "--fc-muted": "#8a938f",
+      "--fc-faint": "#c7ccc9",
+      "--fc-rule": "#e7ebe8",
+      "--fc-rule-soft": "#eef2f0",
+      "--fc-canvas": "#ffffff",
+      "--fc-panel": "#f7f8f6",
+      "--fc-surface": "#ffffff",
+      "--fc-tint": p[1],
+      "--fc-tint-2": p[2],
+      "--fc-outline": p[2],
       "--fc-copper": cop[5],
       "--fc-copper-tint": cop[1],
       "--fc-copper-deep": cop[7],
+      // ── Emergency code layer (NOT themeable — safety-critical) ──
+      "--code-blue": "#1E63B8",
+      "--code-red": "#C8102E",
+      "--code-pink": "#E24C94",
+      "--code-black": "#0a0a0a",
+      "--code-yellow": "#E6B422",
+      "--code-orange": "#E86A1F",
       // Font stacks
       "--font-display": FONT_DISPLAY,
       "--font-sans": FONT_SANS,

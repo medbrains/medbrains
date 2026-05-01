@@ -124,6 +124,37 @@ pub struct CreateConsultationRequest {
     pub review_of_systems: Option<serde_json::Value>,
     pub physical_examination: Option<serde_json::Value>,
     pub general_appearance: Option<String>,
+    /// Inline lab orders attached to this consultation. Each row is
+    /// inserted in the same transaction so a partial failure rolls
+    /// back the consultation as well. Saves the doctor a hop to the
+    /// Lab module.
+    #[serde(default)]
+    pub lab_orders: Vec<InlineLabOrder>,
+    /// Same as `lab_orders`, for radiology.
+    #[serde(default)]
+    pub radiology_orders: Vec<InlineRadiologyOrder>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InlineLabOrder {
+    pub test_id: Uuid,
+    #[serde(default)]
+    pub priority: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InlineRadiologyOrder {
+    pub modality_id: Uuid,
+    #[serde(default)]
+    pub body_part: Option<String>,
+    #[serde(default)]
+    pub clinical_indication: Option<String>,
+    #[serde(default)]
+    pub priority: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -224,6 +255,24 @@ pub async fn list_encounters(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC scope — only encounters caller has `view` on ─────
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        Some(
+            state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "encounter",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+                .unwrap_or_default(),
+        )
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -232,6 +281,18 @@ pub async fn list_encounters(
         "encounter_type = 'opd'".to_owned(),
     ];
     let mut bind_idx: usize = 2;
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            return Ok(Json(EncounterListResponse {
+                encounters: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     #[allow(clippy::items_after_statements, clippy::struct_field_names)]
     struct Bind {
@@ -302,6 +363,9 @@ pub async fn list_encounters(
             count_q = count_q.bind(d);
         }
     }
+    if let Some(ref ids) = visible_ids {
+        count_q = count_q.bind(ids.clone());
+    }
     let total = count_q.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -320,6 +384,9 @@ pub async fn list_encounters(
         if let Some(d) = b.date_val {
             data_q = data_q.bind(d);
         }
+    }
+    if let Some(ref ids) = visible_ids {
+        data_q = data_q.bind(ids.clone());
     }
     let encounters = data_q
         .bind(per_page)
@@ -461,6 +528,17 @@ pub async fn get_encounter(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Encounter>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    // ── ReBAC pre-check — must hold `view` on the specific encounter ──
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::NotFound);
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -936,6 +1014,17 @@ pub async fn create_consultation(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Resolve patient_id from the encounter so inline lab/radiology
+    // orders carry the right FK without a second client round-trip.
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
     let row = sqlx::query_as::<_, Consultation>(
         "INSERT INTO consultations \
          (tenant_id, encounter_id, doctor_id, chief_complaint, history, \
@@ -964,7 +1053,60 @@ pub async fn create_consultation(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Inline lab orders — same transaction, atomic with consultation.
+    for lab in &body.lab_orders {
+        let priority = lab.priority.as_deref().unwrap_or("routine");
+        sqlx::query(
+            "INSERT INTO lab_orders \
+             (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
+              status, priority, notes) \
+             VALUES ($1, $2, $3, $4, $5, 'ordered'::lab_order_status, \
+                     $6::lab_priority, $7)",
+        )
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .bind(patient_id)
+        .bind(lab.test_id)
+        .bind(claims.sub)
+        .bind(priority)
+        .bind(&lab.notes)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Inline radiology orders.
+    for rad in &body.radiology_orders {
+        let priority = rad.priority.as_deref().unwrap_or("routine");
+        sqlx::query(
+            "INSERT INTO radiology_orders \
+             (tenant_id, encounter_id, patient_id, modality_id, ordered_by, \
+              body_part, clinical_indication, priority, notes, \
+              contrast_required, status) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, 'requested')",
+        )
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .bind(patient_id)
+        .bind(rad.modality_id)
+        .bind(claims.sub)
+        .bind(&rad.body_part)
+        .bind(&rad.clinical_indication)
+        .bind(priority)
+        .bind(&rad.notes)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
+
+    tracing::info!(
+        encounter_id = %encounter_id,
+        consultation_id = %row.id,
+        labs = body.lab_orders.len(),
+        radiology = body.radiology_orders.len(),
+        "consultation: created with inline orders"
+    );
+
     Ok(Json(row))
 }
 

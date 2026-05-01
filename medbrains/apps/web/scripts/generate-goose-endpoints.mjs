@@ -102,39 +102,42 @@ function generate(routes) {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const filled = fillPath(path);
     // Hash suffix keeps function names unique even when the slugified
     // path collides (e.g. /security/incidents/{id} vs /security/incidents/{_}).
     const hash = stableHash(`${method} ${path}`);
     const ident = `t_${method.toLowerCase()}_${slug(path).slice(0, 70)}_${hash}`;
     const fnName = ident.length > 110 ? ident.slice(0, 110) : ident;
 
+    // Pass the template through `resolve_path` at runtime — substitutes
+    // `{name}` segments with cached resource IDs from Session.
+    const escTemplate = path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const resolveLine = `    let path = crate::resolve_path(user, "${escTemplate}").await;`;
+
     let body;
     switch (method) {
       case "GET":
-        body = `    let _ = crate::json_get(user, "${filled}").await?;`;
+        body = `${resolveLine}\n    let _ = crate::json_get(user, &path).await?;\n    Ok(())`;
         break;
       case "DELETE":
         body =
-          `    let _ = crate::json_request(user, goose::prelude::GooseMethod::Delete, "${filled}", None).await?;`;
+          `${resolveLine}\n    let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;\n    Ok(())`;
         break;
       case "POST":
-        body = `    crate::json_post(user, "${filled}", &serde_json::json!({})).await`;
+        body = `${resolveLine}\n    crate::json_post(user, &path, &serde_json::json!({})).await`;
         break;
       case "PUT":
-        body = `    crate::json_put(user, "${filled}", &serde_json::json!({})).await`;
+        body = `${resolveLine}\n    crate::json_put(user, &path, &serde_json::json!({})).await`;
         break;
       case "PATCH":
         body =
-          `    let _ = crate::json_request(user, goose::prelude::GooseMethod::Patch, "${filled}", Some(&serde_json::json!({}))).await?;`;
+          `${resolveLine}\n    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;\n    Ok(())`;
         break;
       default:
         continue;
     }
 
-    const trailing = method === "POST" || method === "PUT" ? "" : "\n    Ok(())";
     fns.push(
-      `async fn ${fnName}(user: &mut GooseUser) -> TransactionResult {\n${body}${trailing}\n}`,
+      `async fn ${fnName}(user: &mut GooseUser) -> TransactionResult {\n${body}\n}`,
     );
     regs.push(`        .register_transaction(transaction!(${fnName}))`);
   }
@@ -160,7 +163,7 @@ function emit(out) {
 use goose::prelude::*;
 
 // Helpers from main.rs — also bare-name imports for macro use.
-use crate::{init_session, login};
+use crate::{init_session, login, seed_cache};
 
 `;
 
@@ -170,6 +173,7 @@ use crate::{init_session, login};
         .set_wait_time(std::time::Duration::from_millis(50), std::time::Duration::from_millis(150))?
         .register_transaction(transaction!(init_session).set_on_start())
         .register_transaction(transaction!(login).set_on_start())
+        .register_transaction(transaction!(seed_cache).set_on_start())
 ${out.regs.join("\n")}
     )
 }

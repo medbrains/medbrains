@@ -46,7 +46,13 @@ pub async fn audit_layer(
         Method::POST | Method::PUT | Method::PATCH | Method::DELETE,
     );
 
-    if !is_state_change {
+    // GET on a *detail* route (path ends with /{uuid}) is also auditable —
+    // HIPAA §164.312(b) requires read-tracking for clinical resources.
+    // List endpoints (e.g. /api/patients) are skipped: too noisy and the
+    // scoped result already filters PHI by SpiceDB.
+    let is_detail_read = method == Method::GET && path_is_detail_route(request.uri().path());
+
+    if !is_state_change && !is_detail_read {
         return next.run(request).await;
     }
 
@@ -109,6 +115,21 @@ pub async fn audit_layer(
     });
 
     response
+}
+
+/// Path-shape check — true if the URL ends with a UUID-shaped segment,
+/// indicating a detail-route GET we should audit per HIPAA read-tracking.
+///
+/// Examples (true):  /api/patients/abc-1234..., /api/lab/orders/{id}
+/// Examples (false): /api/patients (list), /api/health, /api/auth/me
+fn path_is_detail_route(path: &str) -> bool {
+    let last = path.rsplit('/').next().unwrap_or("");
+    // UUID is 36 chars with dashes at fixed positions; cheap pre-filter.
+    last.len() == 36
+        && last.as_bytes()[8] == b'-'
+        && last.as_bytes()[13] == b'-'
+        && last.as_bytes()[18] == b'-'
+        && last.as_bytes()[23] == b'-'
 }
 
 /// Wraps the per-request correlation ID. Stored in request extensions so

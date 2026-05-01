@@ -8,6 +8,7 @@ import { notifications } from "@mantine/notifications";
 import {
   IconPlus, IconMail, IconStethoscope, IconAlertTriangle,
   IconMoodSad, IconStar, IconSettings, IconCheck, IconX,
+  IconCertificate, IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
@@ -20,6 +21,7 @@ import type { Column } from "../components/DataTable";
 import type {
   CommMessageRow, CommClinicalMessageRow, CommCriticalAlertRow,
   CommComplaintRow, CommFeedbackSurveyRow, CommTemplateRow,
+  DltTemplate, CreateDltTemplateRequest,
 } from "@medbrains/types";
 
 const CHANNEL_COLORS: Record<string, string> = { sms: "blue", whatsapp: "green", email: "violet", push: "orange", ivr: "cyan", portal: "teal" };
@@ -393,6 +395,7 @@ export function CommunicationsPage() {
           <Tabs.Tab value="alerts" leftSection={<IconAlertTriangle size={16} />}>Alerts</Tabs.Tab>
           <Tabs.Tab value="complaints" leftSection={<IconMoodSad size={16} />}>Complaints</Tabs.Tab>
           <Tabs.Tab value="feedback" leftSection={<IconStar size={16} />}>Feedback</Tabs.Tab>
+          <Tabs.Tab value="dlt" leftSection={<IconCertificate size={16} />}>DLT</Tabs.Tab>
           <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Config</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="messages" pt="md"><MessagesTab /></Tabs.Panel>
@@ -400,8 +403,207 @@ export function CommunicationsPage() {
         <Tabs.Panel value="alerts" pt="md"><AlertsTab /></Tabs.Panel>
         <Tabs.Panel value="complaints" pt="md"><ComplaintsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback" pt="md"><FeedbackTab /></Tabs.Panel>
+        <Tabs.Panel value="dlt" pt="md"><DltTab /></Tabs.Panel>
         <Tabs.Panel value="config" pt="md"><ConfigTab /></Tabs.Panel>
       </Tabs>
     </div>
   );
 }
+
+function DltTab() {
+  const qc = useQueryClient();
+  const canManage = useHasPermission("communications.dlt.manage");
+  const [opened, { open, close }] = useDisclosure(false);
+  const [form, setForm] = useState<Partial<CreateDltTemplateRequest>>({
+    category: "transactional",
+    language: "en",
+  });
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["dlt-templates"],
+    queryFn: () => api.listDltTemplates(),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (data: CreateDltTemplateRequest) => api.createDltTemplate(data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["dlt-templates"] });
+      close();
+      setForm({ category: "transactional", language: "en" });
+      notifications.show({ title: "Registered", message: "DLT template added", color: "green" });
+    },
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      api.updateDltTemplate(id, { is_active }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["dlt-templates"] }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.deleteDltTemplate(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["dlt-templates"] }),
+  });
+
+  const cols: Column<DltTemplate>[] = [
+    { key: "scope", label: "Scope", render: (r) => <Text ff="monospace" size="xs">{r.scope ?? "—"}</Text> },
+    { key: "template_id", label: "DLT ID", render: (r) => <Text ff="monospace" size="xs">{r.template_id}</Text> },
+    { key: "template_name", label: "Name", render: (r) => <Text size="sm">{r.template_name}</Text> },
+    { key: "sender_id", label: "Sender", render: (r) => <Badge variant="light">{r.sender_id}</Badge> },
+    { key: "category", label: "Category", render: (r) => <Badge size="sm" variant="light">{r.category}</Badge> },
+    { key: "language", label: "Lang", render: (r) => <Text size="xs">{r.language}</Text> },
+    {
+      key: "expires_at", label: "Expires",
+      render: (r) => <Text size="xs" c={r.expires_at && new Date(r.expires_at) < new Date() ? "red" : undefined}>{r.expires_at ?? "—"}</Text>,
+    },
+    {
+      key: "is_active", label: "Active",
+      render: (r) => canManage ? (
+        <Switch
+          checked={r.is_active}
+          onChange={(e) => toggleMut.mutate({ id: r.id, is_active: e.currentTarget.checked })}
+        />
+      ) : <Badge color={r.is_active ? "green" : "gray"}>{r.is_active ? "Active" : "Inactive"}</Badge>,
+    },
+    {
+      key: "actions", label: "",
+      render: (r) => canManage ? (
+        <Tooltip label="Delete"><ActionIcon color="red" variant="subtle" size="sm" onClick={() => deleteMut.mutate(r.id)}><IconTrash size={14} /></ActionIcon></Tooltip>
+      ) : null,
+    },
+  ];
+
+  return (
+    <Stack>
+      <Card withBorder padding="sm" radius="md">
+        <Text size="sm" c="dimmed">
+          India SMS regulation (TRAI TCCCPR 2018): every commercial / transactional SMS must
+          use a registered DLT template. The SMS dispatcher refuses to send when{" "}
+          <code>DLT_ENFORCE=true</code> and no active template matches the event scope.
+          Register one row per <strong>scope × language</strong>.
+        </Text>
+      </Card>
+      {canManage && (
+        <Group>
+          <Button leftSection={<IconPlus size={14} />} onClick={open}>Register Template</Button>
+        </Group>
+      )}
+      <DataTable columns={cols} data={rows} loading={isLoading} rowKey={(r) => r.id} />
+
+      <Drawer opened={opened} onClose={close} title="Register DLT Template" position="right" size="md">
+        <Stack>
+          <TextInput
+            label="DLT Template ID"
+            description="Issued by your DLT registrar (Jio/Airtel/VI/BSNL portal)"
+            required
+            value={form.template_id ?? ""}
+            onChange={(e) => setForm({ ...form, template_id: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Template Name"
+            required
+            value={form.template_name ?? ""}
+            onChange={(e) => setForm({ ...form, template_name: e.currentTarget.value })}
+          />
+          <Group grow>
+            <Select
+              label="Category"
+              data={[
+                { value: "transactional", label: "Transactional" },
+                { value: "service_implicit", label: "Service Implicit" },
+                { value: "service_explicit", label: "Service Explicit" },
+                { value: "promotional", label: "Promotional" },
+              ]}
+              value={form.category}
+              onChange={(v) => setForm({ ...form, category: v ?? "transactional" })}
+            />
+            <Select
+              label="Language"
+              data={[
+                { value: "en", label: "English" },
+                { value: "hi", label: "Hindi" },
+                { value: "ta", label: "Tamil" },
+                { value: "te", label: "Telugu" },
+                { value: "ml", label: "Malayalam" },
+                { value: "kn", label: "Kannada" },
+                { value: "mr", label: "Marathi" },
+                { value: "bn", label: "Bengali" },
+                { value: "gu", label: "Gujarati" },
+              ]}
+              value={form.language ?? "en"}
+              onChange={(v) => setForm({ ...form, language: v ?? "en" })}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Sender ID (Header)"
+              placeholder="MEDBRN"
+              required
+              value={form.sender_id ?? ""}
+              onChange={(e) => setForm({ ...form, sender_id: e.currentTarget.value.toUpperCase() })}
+            />
+            <TextInput
+              label="Entity ID (PE)"
+              required
+              value={form.entity_id ?? ""}
+              onChange={(e) => setForm({ ...form, entity_id: e.currentTarget.value })}
+            />
+          </Group>
+          <TextInput
+            label="Event Scope"
+            description="Internal hook, e.g. sms.appointment_confirmation"
+            placeholder="sms.appointment_confirmation"
+            value={form.scope ?? ""}
+            onChange={(e) => setForm({ ...form, scope: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Body Pattern"
+            description="With {#var#} placeholders — must match registered DLT body byte-for-byte"
+            required
+            minRows={4}
+            value={form.body_pattern ?? ""}
+            onChange={(e) => setForm({ ...form, body_pattern: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Variable count"
+            min={0}
+            max={20}
+            value={form.variable_count ?? 0}
+            onChange={(v) => setForm({ ...form, variable_count: Number(v) || 0 })}
+          />
+          <SimpleGrid cols={2}>
+            <TextInput
+              type="date"
+              label="Registered on"
+              value={form.registered_at ?? ""}
+              onChange={(e) => setForm({ ...form, registered_at: e.currentTarget.value || undefined })}
+            />
+            <TextInput
+              type="date"
+              label="Expires on"
+              value={form.expires_at ?? ""}
+              onChange={(e) => setForm({ ...form, expires_at: e.currentTarget.value || undefined })}
+            />
+          </SimpleGrid>
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={close}>Cancel</Button>
+            <Button
+              leftSection={<IconCheck size={14} />}
+              loading={createMut.isPending}
+              disabled={!form.template_id || !form.template_name || !form.body_pattern || !form.sender_id || !form.entity_id}
+              onClick={() => createMut.mutate(form as CreateDltTemplateRequest)}
+            >
+              Register
+            </Button>
+          </Group>
+        </Stack>
+      </Drawer>
+    </Stack>
+  );
+}
+

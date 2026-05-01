@@ -9,6 +9,7 @@
 
 pub mod code_executor;
 pub mod connectors;
+pub mod default_pipelines;
 pub mod jobs;
 pub mod lifecycle;
 pub mod registry;

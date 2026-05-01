@@ -325,6 +325,7 @@ export function AppLayout() {
 
       {/* ── Sidebar ── */}
       <AppShell.Navbar
+        data-testid="app-sidebar"
         p={isExpanded ? 8 : 0}
         className={isExpanded ? classes.navbarExpanded : classes.navbarRail}
       >

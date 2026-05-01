@@ -38,6 +38,10 @@ impl PgAuthzBackend {
 
 #[async_trait]
 impl AuthzBackend for PgAuthzBackend {
+    fn backend_name(&self) -> &'static str {
+        "postgres"
+    }
+
     async fn check(
         &self,
         ctx: &AuthzContext,

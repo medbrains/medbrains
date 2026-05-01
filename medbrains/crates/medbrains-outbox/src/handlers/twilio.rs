@@ -1,58 +1,112 @@
-//! Twilio SMS handler — covers all `sms.*` event types.
+//! Twilio SMS handler — real outbound via Twilio REST API.
 //!
-//! Sprint A spec §6 / hybrid roadmap Phase 8. Real HTTPS via reqwest
-//! + per-tenant SecretResolver lookup of:
-//!   - twilio-account-sid
-//!   - twilio-auth-token
-//!   - twilio-from-number
+//! Credentials resolved per-tenant via `ctx.secret_resolver`:
+//!   - `TWILIO_ACCOUNT_SID`  (required)
+//!   - `TWILIO_AUTH_TOKEN`   (required)
+//!   - `TWILIO_FROM_NUMBER`  (required, E.164 like `+91XXXXXXXXXX`)
+//!   - `TWILIO_MESSAGING_SERVICE_SID` (optional, used for DLT in India)
 //!
-//! Status-code map mirrors the Razorpay handler:
-//!   2xx                          → Ok
-//!   400 / 401 / 403 / 404 / 422  → Permanent (DLQ — operator action)
-//!   429 / 5xx / network / timeout → Transient (retry per Worker backoff)
+//! When any required secret is missing the handler logs at warn-level
+//! and returns Ok with `{stub: true, reason: "creds_unset"}` — keeps
+//! dev environments quiet without burying the error in DLQ.
 //!
-//! Twilio's Messages.json POST is naturally idempotent if you reuse
-//! the same Idempotency-Key header (or omit it and rely on outbox
-//! `event_id` for dedup at the worker layer). We send the
-//! `event_id` as the Idempotency-Key so a Transient-then-retry cycle
-//! converges to the same Twilio message_sid.
+//! Payload shape (any of these fields can be present):
+//!   { "to": "+91...", "body": "...", "template_id": "...", "dlt_template_id": "..." }
+//!
+//! Returns `{provider: "twilio", sid: "SM...", status: "queued"}` on success.
 
 use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
 
-const TWILIO_API_BASE: &str = "https://api.twilio.com/2010-04-01";
+/// Outcome of the DLT lookup. `rendered_body` is set when a template
+/// matched and we substituted variables. `template_id` is propagated
+/// to the success response for audit.
+#[derive(Debug, Default)]
+struct DltLookup {
+    rendered_body: Option<String>,
+    template_id: Option<String>,
+}
 
-/// `sms.*` handler — real HTTPS via reqwest.
-///
-/// One handler instance handles a single event_type (e.g.,
-/// `sms.appointment_reminder`, `sms.otp`, ...) so the registry can
-/// route by type cleanly. Default constructs hits production Twilio;
-/// tests use `with_api_base()` to point at a wiremock server.
+async fn render_with_dlt_template(
+    ctx: &HandlerCtx,
+    payload: &Value,
+) -> Result<DltLookup, HandlerError> {
+    let scope = payload.get("template_scope").and_then(Value::as_str);
+    let language = payload.get("language").and_then(Value::as_str);
+
+    let enforce_str = ctx
+        .secret_resolver
+        .get("DLT_ENFORCE")
+        .await
+        .unwrap_or_default();
+    let enforce = matches!(enforce_str.to_ascii_lowercase().as_str(), "1" | "true" | "yes");
+
+    let Some(scope) = scope else {
+        if enforce {
+            return Err(HandlerError::Permanent(
+                "DLT_ENFORCE=true but payload.template_scope missing".to_owned(),
+            ));
+        }
+        return Ok(DltLookup::default());
+    };
+
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT template_id, body_pattern FROM dlt_templates \
+         WHERE tenant_id = $1 AND scope = $2 AND is_active \
+           AND (expires_at IS NULL OR expires_at > CURRENT_DATE) \
+         ORDER BY (language = $3) DESC, language ASC LIMIT 1",
+    )
+    .bind(ctx.tenant_id)
+    .bind(scope)
+    .bind(language.unwrap_or("en"))
+    .fetch_optional(&ctx.pool)
+    .await
+    .map_err(|e| HandlerError::Transient(format!("dlt lookup: {e}")))?;
+
+    let Some((template_id, pattern)) = row else {
+        if enforce {
+            return Err(HandlerError::Permanent(format!(
+                "DLT_ENFORCE=true and no active template registered for scope '{scope}'"
+            )));
+        }
+        return Ok(DltLookup::default());
+    };
+
+    // Substitute {#var#} placeholders with values from
+    // payload.variables (object) — telcos accept the rendered text and
+    // verify it against the registered pattern at the gateway.
+    let mut rendered = pattern.clone();
+    if let Some(vars) = payload.get("variables").and_then(Value::as_object) {
+        for (k, v) in vars {
+            let placeholder = format!("{{#{k}#}}");
+            let value = match v {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                _ => continue,
+            };
+            rendered = rendered.replace(&placeholder, &value);
+        }
+    }
+
+    Ok(DltLookup {
+        rendered_body: Some(rendered),
+        template_id: Some(template_id),
+    })
+}
+
+const TWILIO_API_BASE: &str = "https://api.twilio.com/2010-04-01/Accounts";
+
 #[derive(Debug)]
 pub struct SmsSendHandler {
     event_type: &'static str,
-    api_base: Option<String>,
 }
 
 impl SmsSendHandler {
     pub const fn new(event_type: &'static str) -> Self {
-        Self {
-            event_type,
-            api_base: None,
-        }
-    }
-
-    pub fn with_api_base(event_type: &'static str, api_base: impl Into<String>) -> Self {
-        Self {
-            event_type,
-            api_base: Some(api_base.into()),
-        }
-    }
-
-    fn api_base(&self) -> &str {
-        self.api_base.as_deref().unwrap_or(TWILIO_API_BASE)
+        Self { event_type }
     }
 }
 
@@ -67,107 +121,131 @@ impl Handler for SmsSendHandler {
         ctx: &HandlerCtx,
         payload: &Value,
     ) -> Result<Value, HandlerError> {
-        let to = payload["to"]
-            .as_str()
-            .ok_or_else(|| HandlerError::Permanent("missing to (E.164 phone)".into()))?;
-        let body = payload["body"]
-            .as_str()
-            .ok_or_else(|| HandlerError::Permanent("missing body".into()))?;
-        if !to.starts_with('+') {
-            return Err(HandlerError::Permanent(format!(
-                "to must be E.164 with leading '+', got {to}"
-            )));
-        }
-        if body.is_empty() {
-            return Err(HandlerError::Permanent("body must not be empty".into()));
-        }
+        // Pull the recipient + body from the payload first; fail fast
+        // before contacting the credential resolver.
+        let to = payload
+            .get("to")
+            .and_then(Value::as_str)
+            .ok_or_else(|| HandlerError::Permanent("payload.to missing".to_owned()))?;
 
-        let account_sid = resolve_secret(ctx, "twilio-account-sid").await?;
-        let auth_token = resolve_secret(ctx, "twilio-auth-token").await?;
-        let from_number = resolve_secret(ctx, "twilio-from-number").await?;
+        // DLT template gate (India). If the payload carries a
+        // `template_scope`, look up the registered template and render
+        // the body from the pattern + provided variables. If the
+        // tenant has DLT enforcement on (`DLT_ENFORCE=true`) and we
+        // don't find a match, refuse to send — un-templated SMS gets
+        // dropped at the carrier and any send is wasted credits.
+        let dlt_lookup = render_with_dlt_template(ctx, payload).await?;
+        let body: String = if let Some(rendered) = dlt_lookup.rendered_body.clone() {
+            rendered
+        } else {
+            payload
+                .get("body")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    HandlerError::Permanent("payload.body or template_scope missing".to_owned())
+                })?
+                .to_owned()
+        };
 
-        let url = format!("{}/Accounts/{account_sid}/Messages.json", self.api_base());
+        // Resolve credentials. Missing → graceful stub mode (dev/CI).
+        let sid = match ctx.secret_resolver.get("TWILIO_ACCOUNT_SID").await {
+            Ok(v) if !v.is_empty() => v,
+            _ => {
+                tracing::warn!(
+                    tenant_id = %ctx.tenant_id,
+                    event_id = %ctx.event_id,
+                    "twilio: TWILIO_ACCOUNT_SID unset — running as stub"
+                );
+                return Ok(serde_json::json!({
+                    "provider": "twilio",
+                    "stub": true,
+                    "reason": "creds_unset",
+                }));
+            }
+        };
+        let token = ctx
+            .secret_resolver
+            .get("TWILIO_AUTH_TOKEN")
+            .await
+            .map_err(|e| HandlerError::Permanent(format!("TWILIO_AUTH_TOKEN: {e}")))?;
+        let from_number = ctx
+            .secret_resolver
+            .get("TWILIO_FROM_NUMBER")
+            .await
+            .map_err(|e| HandlerError::Permanent(format!("TWILIO_FROM_NUMBER: {e}")))?;
+        let messaging_service_sid = ctx
+            .secret_resolver
+            .get("TWILIO_MESSAGING_SERVICE_SID")
+            .await
+            .ok();
 
-        // Twilio Messages.json takes form-urlencoded.
-        let form = [
+        // Build form body. Use MessagingServiceSid when present (India DLT
+        // routing); fall back to From for international/dev.
+        let mut form: Vec<(&str, String)> = vec![
             ("To", to.to_owned()),
-            ("From", from_number),
-            ("Body", body.to_owned()),
+            ("Body", body.clone()),
         ];
+        if let Some(svc) = messaging_service_sid.filter(|s| !s.is_empty()) {
+            form.push(("MessagingServiceSid", svc));
+        } else {
+            form.push(("From", from_number));
+        }
 
+        let url = format!("{TWILIO_API_BASE}/{sid}/Messages.json");
         let resp = ctx
             .http_client
             .post(&url)
-            .basic_auth(&account_sid, Some(&auth_token))
-            // Twilio honors I-Idempotency-Token on Messages — pass
-            // the outbox event_id so retries collapse to one SMS.
-            .header("I-Idempotency-Token", ctx.event_id.to_string())
+            .basic_auth(&sid, Some(&token))
             .form(&form)
             .send()
             .await
-            .map_err(classify_reqwest_err)?;
+            .map_err(|e| HandlerError::Transient(format!("twilio http: {e}")))?;
 
         let status = resp.status();
-        if status.is_success() {
-            let resp_body: Value = resp
-                .json()
-                .await
-                .map_err(|e| HandlerError::Transient(format!("twilio parse: {e}")))?;
-            let sid = resp_body["sid"]
-                .as_str()
-                .ok_or_else(|| HandlerError::Permanent("twilio response missing sid".into()))?;
-            let twilio_status = resp_body["status"].as_str().unwrap_or("queued");
+        let body_text = resp
+            .text()
+            .await
+            .unwrap_or_else(|_| "<unreadable response>".to_owned());
 
+        if status.is_success() {
+            // Twilio returns the full Message resource; parse for `sid` + `status`.
+            let parsed: Value = serde_json::from_str(&body_text).unwrap_or_else(|_| Value::Null);
+            let sid = parsed
+                .get("sid")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_owned();
+            let twilio_status = parsed
+                .get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("queued")
+                .to_owned();
             tracing::info!(
                 tenant_id = %ctx.tenant_id,
                 event_id = %ctx.event_id,
-                event_type = self.event_type,
-                sid,
-                twilio_status,
-                "twilio.sms ok"
+                sid = %sid,
+                status = %twilio_status,
+                dlt_template = ?dlt_lookup.template_id,
+                "twilio: SMS dispatched"
             );
-
-            return Ok(serde_json::json!({
-                "sid":    sid,
+            Ok(serde_json::json!({
+                "provider": "twilio",
+                "sid": sid,
                 "status": twilio_status,
-                "to":     to,
-            }));
+                "dlt_template_id": dlt_lookup.template_id,
+            }))
+        } else if status.is_client_error() {
+            // 4xx — bad number, account suspended, body too long. DLQ.
+            Err(HandlerError::Permanent(format!(
+                "twilio {}: {body_text}",
+                status.as_u16()
+            )))
+        } else {
+            // 5xx / network — retry.
+            Err(HandlerError::Transient(format!(
+                "twilio {}: {body_text}",
+                status.as_u16()
+            )))
         }
-
-        // Non-2xx: classify
-        let body_text = resp.text().await.unwrap_or_default();
-        Err(classify_status(status, &body_text))
-    }
-}
-
-// ── helpers ────────────────────────────────────────────────────────
-
-async fn resolve_secret(ctx: &HandlerCtx, name: &str) -> Result<String, HandlerError> {
-    let env = std::env::var("MEDBRAINS_ENV").unwrap_or_else(|_| "dev".to_owned());
-    let key = format!("medbrains/{env}/{tenant}/{name}", tenant = ctx.tenant_id);
-    ctx.secret_resolver
-        .get(&key)
-        .await
-        .map_err(|e| HandlerError::Transient(format!("secret {name}: {e}")))
-}
-
-fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
-    if e.is_timeout() || e.is_connect() {
-        HandlerError::Transient(format!("network: {e}"))
-    } else if e.is_builder() {
-        HandlerError::Permanent(format!("request build: {e}"))
-    } else {
-        HandlerError::Transient(format!("reqwest: {e}"))
-    }
-}
-
-fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
-    let trimmed = body.chars().take(512).collect::<String>();
-    match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => {
-            HandlerError::Permanent(format!("twilio {status}: {trimmed}"))
-        }
-        429 | 500..=599 => HandlerError::Transient(format!("twilio {status}: {trimmed}")),
-        _ => HandlerError::Transient(format!("twilio unexpected {status}: {trimmed}")),
     }
 }

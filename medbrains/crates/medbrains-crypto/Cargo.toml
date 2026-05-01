@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-crypto"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+# JOSE primitives — JWE (RSA-OAEP-256 / ECDH-ES + A256GCM) and
+# JWS (RS256 / ES256). NHCX requires JWE; ABDM HIE requires JWE+JWS
+# at message envelopes. josekit is a mature, audited Rust impl.
+josekit = "0.8"
+
+# Base64url helpers + raw AES-GCM for the inner ABDM HIE payload
+# (NHCX uses JOSE end-to-end, but ABDM HIE wraps clinical Bundle
+# inside an additional encrypted blob keyed via ECDH).
+base64 = "0.22"
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2.workspace = true
+p256 = { version = "0.13", features = ["ecdh"] }
+rand = { version = "0.9" }

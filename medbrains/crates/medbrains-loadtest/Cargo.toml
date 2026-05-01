@@ -12,6 +12,7 @@ goose = "0.18"
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
 
 # Override workspace lints — load test tooling needs relaxed rules
 [lints.rust]

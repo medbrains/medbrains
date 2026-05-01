@@ -311,11 +311,41 @@ pub async fn list_orders(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC scope — only pharmacy orders caller has `view` on ─
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        Some(
+            state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "pharmacy_order",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+                .unwrap_or_default(),
+        )
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            return Ok(Json(OrderListResponse {
+                orders: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     #[allow(clippy::items_after_statements)]
     struct Bind {
@@ -353,6 +383,9 @@ pub async fn list_orders(
             cq = cq.bind(s.clone());
         }
     }
+    if let Some(ref ids) = visible_ids {
+        cq = cq.bind(ids.clone());
+    }
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -368,6 +401,9 @@ pub async fn list_orders(
         if let Some(ref s) = b.string_val {
             dq = dq.bind(s.clone());
         }
+    }
+    if let Some(ref ids) = visible_ids {
+        dq = dq.bind(ids.clone());
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
@@ -471,6 +507,17 @@ pub async fn get_order(
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
 
+    // ── ReBAC pre-check — must hold `view` on the pharmacy_order ─
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "pharmacy_order", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::NotFound);
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
@@ -510,6 +557,12 @@ pub async fn dispense_order(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
+    // (rules 65, 65A) — must be on a registered medical practitioner's
+    // prescription; Schedule X (NDPS Act) further requires a witnessed
+    // dispense and duplicate retained Rx.
+    enforce_schedule_compliance(&mut tx, &claims.tenant_id, id, body.witnessed_by).await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "UPDATE pharmacy_orders SET status = 'dispensed', \
@@ -715,6 +768,117 @@ pub async fn dispense_order(
 }
 
 // ══════════════════════════════════════════════════════════
+//  Schedule H/H1/X compliance enforcement
+// ══════════════════════════════════════════════════════════
+//
+// Drugs and Cosmetics Act 1940 + NDPS Act 1985:
+//   Schedule H   — Rx-only. Must be on a doctor's prescription.
+//   Schedule H1  — H plus mandatory register entry; pharmacist keeps
+//                  duplicate of the Rx for 3 years.
+//   Schedule X   — H1 plus dual signature (witness) and duplicate Rx
+//                  retained for 2 years; only doctors with
+//                  `can_prescribe_schedule_x` may issue.
+//
+// Returns AppError::BadRequest with the offending list when any item
+// fails the gate. Caller already holds an open transaction so the
+// rollback is automatic on error.
+
+async fn enforce_schedule_compliance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    order_id: Uuid,
+    witnessed_by: Option<Uuid>,
+) -> Result<(), AppError> {
+    let order: Option<(Option<Uuid>, Option<Uuid>, Uuid)> = sqlx::query_as(
+        "SELECT prescription_id, encounter_id, ordered_by \
+         FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some((prescription_id, encounter_id, ordered_by)) = order else {
+        return Err(AppError::NotFound);
+    };
+
+    let has_prescription = prescription_id.is_some() || encounter_id.is_some();
+
+    let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT c.name, c.drug_schedule::text \
+         FROM pharmacy_order_items oi \
+         JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id \
+         WHERE oi.order_id = $1 AND oi.tenant_id = $2 \
+           AND c.drug_schedule IS NOT NULL \
+           AND c.drug_schedule::text IN ('H', 'H1', 'X')",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    if scheduled_items.is_empty() {
+        return Ok(());
+    }
+
+    let mut blocks: Vec<String> = Vec::new();
+
+    // Anything Schedule H/H1/X requires a prescription source on the order.
+    if !has_prescription {
+        for (name, sched) in &scheduled_items {
+            blocks.push(format!(
+                "{name}: Schedule {} drug — no prescription / encounter linked to order",
+                sched.as_deref().unwrap_or("?")
+            ));
+        }
+    }
+
+    // Schedule X: dual signature + prescriber must be authorised.
+    let has_x = scheduled_items
+        .iter()
+        .any(|(_, s)| s.as_deref() == Some("X"));
+
+    if has_x {
+        if witnessed_by.is_none() {
+            blocks.push(
+                "Schedule X dispense requires a witness signature (witnessed_by)".to_owned(),
+            );
+        } else if witnessed_by == Some(ordered_by) {
+            blocks.push("Schedule X witness must differ from prescriber".to_owned());
+        }
+
+        let prescriber_authorised: Option<bool> = sqlx::query_scalar(
+            "SELECT can_prescribe_schedule_x FROM doctors \
+             WHERE user_id = $1 AND tenant_id = $2",
+        )
+        .bind(ordered_by)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        match prescriber_authorised {
+            Some(true) => {}
+            Some(false) => blocks.push(
+                "Schedule X prescriber lacks `can_prescribe_schedule_x` authorisation"
+                    .to_owned(),
+            ),
+            None => blocks.push(
+                "Schedule X prescriber not registered as a doctor in this hospital".to_owned(),
+            ),
+        }
+    }
+
+    if !blocks.is_empty() {
+        return Err(AppError::BadRequest(format!(
+            "Schedule H/H1/X gate failed: {}",
+            blocks.join("; ")
+        )));
+    }
+
+    Ok(())
+}
+
+// ══════════════════════════════════════════════════════════
 //  PUT /api/pharmacy/orders/{id}/cancel
 // ══════════════════════════════════════════════════════════
 
@@ -778,6 +942,40 @@ pub async fn validate_order(
             .await?;
 
             if let Some(drug) = cat {
+                // Schedule H/H1/X surface — block at validation if no prescription source
+                if let Some(sched) = drug.drug_schedule.as_deref() {
+                    if matches!(sched, "H" | "H1" | "X") {
+                        let order_meta: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
+                            "SELECT prescription_id, encounter_id FROM pharmacy_orders \
+                             WHERE id = $1 AND tenant_id = $2",
+                        )
+                        .bind(id)
+                        .bind(claims.tenant_id)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                        let has_rx = order_meta
+                            .as_ref()
+                            .map(|(p, e)| p.is_some() || e.is_some())
+                            .unwrap_or(false);
+                        if !has_rx {
+                            blocks.push(format!(
+                                "{}: Schedule {sched} drug — Rx / encounter required before dispense",
+                                drug.name
+                            ));
+                        } else if sched == "X" {
+                            warnings.push(format!(
+                                "{}: Schedule X — dual signature + duplicate Rx required at dispense",
+                                drug.name
+                            ));
+                        } else {
+                            warnings.push(format!(
+                                "{}: Schedule {sched} — pharmacist must retain Rx",
+                                drug.name
+                            ));
+                        }
+                    }
+                }
+
                 // Formulary check
                 if drug.formulary_status == "non_formulary" {
                     blocks.push(format!(

@@ -1,0 +1,677 @@
+// Specialised inputs — Forest + Copper
+// Tokens come from theme.ts global injection (--fc-*).
+
+// ── Shared label / hint ───────────────────────────────────────────
+.lbl {
+  display: block;
+  font: 500 12px var(--font-sans);
+  color: var(--fc-ink);
+  margin-bottom: 6px;
+  letter-spacing: 0.005em;
+
+  .req {
+    color: var(--code-red);
+    margin-left: 2px;
+  }
+}
+
+.hint {
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--fc-muted);
+  margin-top: 6px;
+
+  &.cop {
+    color: var(--fc-copper-deep);
+  }
+  &.err {
+    color: var(--code-red);
+  }
+  &.ok {
+    color: var(--fc-brand);
+  }
+
+  .pip {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+}
+
+@keyframes fcCursor {
+  50% {
+    opacity: 0;
+  }
+}
+
+// ── 1. UHID segmented ─────────────────────────────────────────────
+.uhid {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+
+  &:focus-within {
+    border-color: var(--fc-ink);
+  }
+
+  .seg {
+    padding: 12px 14px;
+    color: var(--fc-ink);
+    display: flex;
+    align-items: center;
+
+    & + .seg {
+      border-left: 1px solid var(--fc-rule);
+    }
+
+    &.fixed {
+      color: var(--fc-muted);
+      background: var(--fc-rule-soft);
+      font-weight: 500;
+    }
+
+    &.live {
+      padding-bottom: 11px;
+      border-bottom: 2px solid var(--fc-copper);
+      min-width: 90px;
+    }
+  }
+}
+
+.cur {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: var(--fc-ink);
+  margin-left: 1px;
+  vertical-align: middle;
+  animation: fcCursor 1s steps(2) infinite;
+}
+
+// ── 2. Vital sign ────────────────────────────────────────────────
+.vitalLbl {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+
+  .nm {
+    font: 500 11px var(--font-sans);
+    color: var(--fc-ink);
+  }
+  .rng {
+    font: 500 10px var(--font-mono);
+    color: var(--fc-muted);
+    letter-spacing: 0.06em;
+  }
+}
+
+.vital {
+  position: relative;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+
+  .num {
+    font: 400 28px/1 var(--font-display, "Fraunces", Georgia, serif);
+    color: var(--fc-ink);
+    font-feature-settings: "tnum";
+    min-width: 60px;
+    letter-spacing: -0.01em;
+  }
+  .unit {
+    font: 600 10px var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fc-muted);
+    background: var(--fc-rule-soft);
+    padding: 3px 7px;
+    border-radius: 3px;
+    align-self: center;
+  }
+  .zone {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 6px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(
+      90deg,
+      #d4d8d2 0% 18%,
+      var(--fc-tint-2) 18% 60%,
+      #f3e0a8 60% 80%,
+      #f1c08a 80% 92%,
+      #e0a59a 92% 100%
+    );
+  }
+  .marker {
+    position: absolute;
+    bottom: 3px;
+    width: 2px;
+    height: 9px;
+    background: var(--fc-ink);
+    border-radius: 1px;
+  }
+
+  &.warn {
+    .num {
+      color: var(--code-yellow);
+    }
+    .marker {
+      background: var(--code-yellow);
+    }
+  }
+  &.crit {
+    .num {
+      color: var(--code-red);
+    }
+    .marker {
+      background: var(--code-red);
+    }
+  }
+}
+
+// ── 3. Drug Rx composer ──────────────────────────────────────────
+.drugInput {
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  padding: 14px 16px;
+  min-height: 64px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+
+  &:focus-within {
+    border-color: var(--fc-ink);
+  }
+
+  .conn {
+    color: var(--fc-muted);
+    font-style: italic;
+    font-weight: 300;
+  }
+}
+
+.tok {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+
+  &.drug {
+    background: var(--fc-tint);
+    color: var(--fc-brand-deep);
+    border-color: #cdddd5;
+    font-weight: 600;
+  }
+  &.dose {
+    background: var(--fc-copper-tint);
+    color: var(--fc-copper-deep);
+    border-color: #e9d8a8;
+    font-feature-settings: "tnum";
+    font-family: var(--font-mono);
+  }
+  &.freq {
+    background: var(--fc-rule-soft);
+    color: var(--fc-ink);
+    font-family: var(--font-mono);
+  }
+  &.dur {
+    background: var(--fc-rule-soft);
+    color: var(--fc-muted);
+    font-family: var(--font-mono);
+  }
+}
+
+.allergyStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-copper);
+  border-left: 3px solid var(--fc-copper);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 12px;
+
+  .lab {
+    font: 600 9px var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fc-copper-deep);
+  }
+  .msg {
+    color: var(--fc-ink);
+    flex: 1;
+    b {
+      font-weight: 600;
+    }
+  }
+}
+
+// ── 4. Shift-aware time ──────────────────────────────────────────
+.timeline {
+  position: relative;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  padding: 18px 20px 24px;
+
+  .scale {
+    position: relative;
+    height: 32px;
+    margin-top: 6px;
+  }
+  .track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 14px;
+    height: 1px;
+    background: var(--fc-rule);
+  }
+  .tick {
+    position: absolute;
+    top: 8px;
+    width: 1px;
+    height: 14px;
+    background: var(--fc-rule);
+
+    &.major {
+      background: var(--fc-ink);
+      height: 18px;
+      top: 6px;
+    }
+  }
+  .tickLbl {
+    position: absolute;
+    top: 26px;
+    font: 500 9px var(--font-mono);
+    letter-spacing: 0.1em;
+    color: var(--fc-muted);
+    transform: translateX(-50%);
+  }
+  .shiftBand {
+    position: absolute;
+    top: 13px;
+    height: 3px;
+
+    &.day {
+      background: var(--fc-tint-2);
+    }
+    &.eve {
+      background: var(--fc-copper-tint);
+    }
+    &.night {
+      background: #2b2925;
+    }
+  }
+  .marker {
+    position: absolute;
+    top: 0;
+    width: 18px;
+    height: 30px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: grab;
+
+    .pin {
+      width: 1.5px;
+      height: 24px;
+      background: var(--fc-copper-deep);
+    }
+    .head {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--fc-copper);
+      border: 2px solid var(--fc-canvas);
+      margin-top: -4px;
+      box-shadow: 0 0 0 1px var(--fc-copper);
+    }
+    .val {
+      position: absolute;
+      top: -22px;
+      font: 500 11px var(--font-mono);
+      background: var(--fc-ink);
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 3px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      font-feature-settings: "tnum";
+
+      &::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: -3px;
+        transform: translateX(-50%) rotate(45deg);
+        width: 5px;
+        height: 5px;
+        background: var(--fc-ink);
+      }
+    }
+  }
+}
+
+.timelineLegend {
+  display: flex;
+  gap: 16px;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fc-muted);
+  margin-top: 12px;
+
+  .l {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    &::before {
+      content: "";
+      width: 14px;
+      height: 3px;
+      border-radius: 1px;
+    }
+    &.day::before {
+      background: var(--fc-tint-2);
+    }
+    &.eve::before {
+      background: var(--fc-copper-tint);
+    }
+    &.night::before {
+      background: #2b2925;
+    }
+  }
+}
+
+// ── 5. Body site ─────────────────────────────────────────────────
+.bsite {
+  display: flex;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  overflow: hidden;
+  align-items: stretch;
+
+  &:focus-within {
+    border-color: var(--fc-ink);
+  }
+
+  .pre {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--fc-rule-soft);
+    border-right: 1px solid var(--fc-rule);
+    font: 600 11px var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fc-muted);
+    gap: 6px;
+    cursor: pointer;
+    border: 0;
+
+    &:hover {
+      color: var(--fc-ink);
+    }
+
+    .chev {
+      width: 8px;
+      height: 8px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(45deg);
+      margin-bottom: 2px;
+    }
+  }
+
+  input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    padding: 12px 14px;
+    font: 400 14px var(--font-sans);
+    background: transparent;
+    color: var(--fc-ink);
+    min-width: 0;
+
+    &::placeholder {
+      color: var(--fc-faint);
+      font-style: italic;
+    }
+  }
+}
+
+.bsiteWrap {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(20, 30, 25, 0.08);
+  min-width: 160px;
+  font-size: 13px;
+  margin-top: 6px;
+  padding: 6px 0;
+  z-index: 10;
+  left: 0;
+
+  .item {
+    padding: 7px 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    color: var(--fc-ink);
+    background: transparent;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+
+    &:hover {
+      background: var(--fc-rule-soft);
+    }
+    &.on {
+      color: var(--fc-copper-deep);
+      font-weight: 600;
+    }
+    .k {
+      font: 500 10px var(--font-mono);
+      color: var(--fc-muted);
+    }
+  }
+}
+
+// ── 6. Allergy / danger ─────────────────────────────────────────
+.danger {
+  position: relative;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  display: flex;
+  align-items: stretch;
+
+  .markerBar {
+    width: 3px;
+    background: var(--fc-copper);
+    animation: dpulse 2.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  &.severe .markerBar {
+    background: var(--code-red);
+    animation-duration: 1.4s;
+  }
+
+  input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    padding: 14px 16px;
+    font: 400 14px var(--font-sans);
+    background: transparent;
+    color: var(--fc-ink);
+    min-width: 0;
+
+    &::placeholder {
+      color: var(--fc-faint);
+      font-style: italic;
+    }
+  }
+
+  .badge {
+    align-self: center;
+    margin-right: 14px;
+    font: 600 9px var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--fc-copper-tint);
+    color: var(--fc-copper-deep);
+  }
+
+  &.severe .badge {
+    background: #f3d3d3;
+    color: var(--code-red);
+  }
+}
+
+@keyframes dpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+// ── Vitals strip (instrument row) ────────────────────────────────
+.vitalsStrip {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), 1fr);
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+  overflow: hidden;
+
+  .vc {
+    padding: 14px 16px;
+    border-right: 1px solid var(--fc-rule-soft);
+    position: relative;
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    .k {
+      font: 500 10px var(--font-mono);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--fc-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+
+      .ref {
+        color: var(--fc-faint);
+        font-weight: 500;
+      }
+    }
+    .field {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .v {
+      font: 400 26px/1 var(--font-display, "Fraunces", Georgia, serif);
+      color: var(--fc-ink);
+      font-feature-settings: "tnum";
+      min-width: 50px;
+      border-bottom: 1px dashed var(--fc-rule);
+      padding-bottom: 3px;
+      letter-spacing: -0.01em;
+    }
+    &.entered .v {
+      border-bottom-color: var(--fc-ink);
+    }
+    &.warn .v {
+      color: var(--fc-copper-deep);
+      border-bottom-color: var(--fc-copper);
+    }
+    &.crit .v {
+      color: var(--code-red);
+      border-bottom-color: var(--code-red);
+    }
+    .empty {
+      color: var(--fc-faint);
+      font-style: italic;
+    }
+    .u {
+      font: 600 9px var(--font-mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--fc-muted);
+    }
+    .pulse {
+      position: absolute;
+      right: 14px;
+      top: 14px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--fc-copper);
+      box-shadow: 0 0 0 0 var(--fc-copper);
+      animation: fcPulse 1.6s infinite;
+    }
+  }
+}
+
+@keyframes fcPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(184, 146, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(184, 146, 74, 0);
+  }
+}

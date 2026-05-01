@@ -10,6 +10,8 @@ members = [
     "crates/medbrains-bridge",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
+    "crates/medbrains-crypto",
+    "crates/medbrains-fhir",
     "crates/medbrains-outbox",
     "crates/medbrains-db-topology",
     "crates/medbrains-edge",

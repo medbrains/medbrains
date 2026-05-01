@@ -196,6 +196,10 @@ fn relation_to_relname(rel: Relation) -> &'static str {
 
 #[async_trait]
 impl AuthzBackend for SpiceDbBackend {
+    fn backend_name(&self) -> &'static str {
+        "spicedb"
+    }
+
     async fn check(
         &self,
         ctx: &AuthzContext,
@@ -326,6 +330,74 @@ impl AuthzBackend for SpiceDbBackend {
         Ok(out)
     }
 
+    /// Bulk check N items in a single gRPC. Bypass roles short-circuit
+    /// to all-true. Map keys include the relation so callers can look
+    /// up `(object_type, Viewer, id)` separately from `(..., Editor, id)`.
+    async fn bulk_check(
+        &self,
+        ctx: &AuthzContext,
+        items: &[(String, Relation, Uuid)],
+    ) -> Result<std::collections::HashMap<(String, Relation, Uuid), bool>, AuthzError> {
+        let mut out = std::collections::HashMap::with_capacity(items.len());
+        if ctx.is_bypass {
+            for (object_type, relation, id) in items {
+                out.insert((object_type.clone(), *relation, *id), true);
+            }
+            return Ok(out);
+        }
+        if items.is_empty() {
+            return Ok(out);
+        }
+
+        let subject = Self::subject_for(ctx);
+        // Build a parallel index so we can map response order back to
+        // (object_type, relation, id) without re-parsing protobuf —
+        // SpiceDB documents that response.pairs ordering matches request items.
+        let req_items: Vec<v1::CheckBulkPermissionsRequestItem> = items
+            .iter()
+            .map(|(object_type, relation, id)| v1::CheckBulkPermissionsRequestItem {
+                resource: Some(v1::ObjectReference {
+                    object_type: object_type.clone(),
+                    object_id: id.to_string(),
+                }),
+                permission: relation_to_permission(*relation).to_owned(),
+                subject: Some(subject.clone()),
+                context: None,
+            })
+            .collect();
+
+        let req = v1::CheckBulkPermissionsRequest {
+            consistency: Some(v1::Consistency {
+                requirement: Some(v1::consistency::Requirement::FullyConsistent(true)),
+            }),
+            items: req_items,
+            with_tracing: false,
+        };
+
+        let mut client = (*self.client).clone();
+        let resp = client
+            .check_bulk_permissions(Request::new(req))
+            .await
+            .map_err(|e| AuthzError::Other(format!("check_bulk_permissions: {e}")))?
+            .into_inner();
+
+        use v1::check_permission_response::Permissionship;
+        for (i, pair) in resp.pairs.into_iter().enumerate() {
+            let Some((object_type, relation, id)) = items.get(i).cloned() else {
+                continue;
+            };
+            let allowed = match pair.response {
+                Some(v1::check_bulk_permissions_pair::Response::Item(item)) => matches!(
+                    Permissionship::try_from(item.permissionship),
+                    Ok(Permissionship::HasPermission | Permissionship::ConditionalPermission)
+                ),
+                _ => false,
+            };
+            out.insert((object_type, relation, id), allowed);
+        }
+        Ok(out)
+    }
+
     async fn write_tuple(
         &self,
         _ctx: &AuthzContext,
@@ -371,6 +443,43 @@ impl AuthzBackend for SpiceDbBackend {
         // doesn't need one back, but the trait demands a Uuid so we
         // return a deterministic hash of the (object,relation,subject).
         Ok(synthetic_tuple_id(object_type, object_id, &relation, &subject))
+    }
+
+    async fn revoke_specific(
+        &self,
+        _ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation: Relation,
+        subject: Subject,
+    ) -> Result<(), AuthzError> {
+        // Inline copy of the inherent `revoke_specific` (kept for
+        // backward-compat — handlers that already had a typed
+        // `&SpiceDbBackend` reference can keep using it).
+        let relationship = v1::Relationship {
+            resource: Some(v1::ObjectReference {
+                object_type: object_type.to_owned(),
+                object_id: object_id.to_string(),
+            }),
+            relation: relation_to_relname(relation).to_owned(),
+            subject: Some(Self::subject_to_ref(&subject)),
+            optional_caveat: None,
+            optional_expires_at: None,
+        };
+        let req = v1::WriteRelationshipsRequest {
+            updates: vec![v1::RelationshipUpdate {
+                operation: TupleOp::Delete as i32,
+                relationship: Some(relationship),
+            }],
+            optional_preconditions: vec![],
+            optional_transaction_metadata: None,
+        };
+        let mut client = (*self.client).clone();
+        client
+            .write_relationships(Request::new(req))
+            .await
+            .map_err(|e| AuthzError::Other(format!("revoke_specific: {e}")))?;
+        Ok(())
     }
 
     async fn revoke_tuple(

@@ -550,3 +550,52 @@ pub async fn create_node_template(
 
     Ok(Json(template))
 }
+
+#[derive(Debug, serde::Serialize)]
+pub struct DefaultPipelineRow {
+    pub event_type: &'static str,
+    pub description: &'static str,
+    pub disabled_for_tenant: bool,
+}
+
+/// `GET /api/integration/default-pipelines` — exposes the hardcoded
+/// Rust `DEFAULT_SUBSCRIBERS` list joined with the per-tenant
+/// `default_pipelines.disabled` setting. Read-only — operators
+/// edit via tenant_settings, not here.
+pub async fn list_default_pipelines(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<DefaultPipelineRow>>, AppError> {
+    require_permission(&claims, permissions::integration::LIST)?;
+
+    let disabled: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND scope = 'default_pipelines' AND key = 'disabled' \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await?
+    .flatten();
+
+    let disabled_set: std::collections::HashSet<String> = disabled
+        .as_ref()
+        .and_then(serde_json::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let rows = crate::orchestration::default_pipelines::DEFAULT_SUBSCRIBERS
+        .iter()
+        .map(|(et, desc)| DefaultPipelineRow {
+            event_type: et,
+            description: desc,
+            disabled_for_tenant: disabled_set.contains(*et),
+        })
+        .collect();
+
+    Ok(Json(rows))
+}

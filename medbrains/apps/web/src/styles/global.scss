@@ -260,8 +260,12 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ── INPUTS — pill shape, subtle border → glow on focus ───────
+// ── INPUTS — Forest+Copper standard (per design components-inputs)
 // ═══════════════════════════════════════════════════════════════
+//
+// Design spec: 6px radius, 1px hairline, 10x12 padding, ink border
+// on focus (no glow). Inter Tight 14px. Matches preview/components-
+// inputs.html `.std input` exactly.
 
 .mantine-TextInput-input,
 .mantine-Textarea-input,
@@ -270,20 +274,54 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 .mantine-PasswordInput-innerInput,
 .mantine-Select-input,
 .mantine-DateInput-input,
-.mantine-MultiSelect-input {
-  background: var(--mb-input-bg);
-  border-color: var(--mb-border);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+.mantine-DatePickerInput-input,
+.mantine-TimeInput-input,
+.mantine-MultiSelect-input,
+.mantine-Autocomplete-input,
+.mantine-TagsInput-input {
+  background: var(--fc-canvas);
+  border-color: var(--fc-rule);
+  border-radius: 6px;
+  color: var(--fc-ink);
+  transition: border-color 0.12s ease;
+
+  &::placeholder {
+    color: var(--fc-faint);
+  }
 
   &:hover {
-    border-color: var(--mb-text-faint);
+    border-color: var(--fc-faint);
   }
 
   &:focus,
   &:focus-within {
-    border-color: var(--mb-focus-ring);
-    box-shadow: 0 0 0 3px var(--mantine-color-primary-light);
+    border-color: var(--fc-ink);
+    box-shadow: none;
   }
+
+  &[data-error="true"],
+  &[aria-invalid="true"] {
+    border-color: var(--code-red);
+  }
+}
+
+// Input labels — Inter Tight 12/500 per design `.lbl`
+.mantine-InputWrapper-label,
+.mantine-Input-label {
+  font-weight: 500;
+  color: var(--fc-ink);
+  letter-spacing: 0.005em;
+
+  // Required asterisk → code-red, per design
+  .mantine-InputWrapper-required {
+    color: var(--code-red);
+    margin-left: 2px;
+  }
+}
+
+// Error message — code-red, per design `.hint.err`
+.mantine-InputWrapper-error {
+  color: var(--code-red);
 }
 
 // ═══════════════════════════════════════════════════════════════

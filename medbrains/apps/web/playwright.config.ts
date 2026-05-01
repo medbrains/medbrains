@@ -64,6 +64,14 @@ export default defineConfig({
       dependencies: ["setup"],
     },
 
+    // Layer 6 — RBAC matrix (REST-only, multi-role login per spec)
+    {
+      name: "rbac",
+      testMatch: /rbac\/.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+
     // Layer 5 — End-to-end journeys (hybrid UI + REST)
     {
       name: "journeys",
@@ -83,7 +91,7 @@ export default defineConfig({
         storageState: "e2e/.auth/user.json",
       },
       dependencies: ["setup"],
-      testIgnore: /(mock|smoke\/api|crud|forms|analytics)\/.*\.spec\.ts/,
+      testIgnore: /(mock|smoke\/api|crud|forms|analytics|rbac)\/.*\.spec\.ts/,
     },
 
     {

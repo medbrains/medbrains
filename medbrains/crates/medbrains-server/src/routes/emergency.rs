@@ -490,7 +490,66 @@ pub async fn create_code_activation(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    // ── Break-glass — auto-grant 4h `code_blue_team` group membership ─
+    // Activator gets temporary clinical-override access. Membership
+    // expires automatically; the SpiceDB Watch consumer (M5) bumps
+    // perm_version when expiry fires so the JWT is re-issued without
+    // the elevated grant.
+    let break_glass_expiry = chrono::Utc::now() + chrono::Duration::hours(4);
+    let group_id: Option<uuid::Uuid> = sqlx::query_scalar(
+        "SELECT id FROM access_groups \
+         WHERE tenant_id = $1 AND code = 'code_blue_team' AND is_active = true",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(gid) = group_id {
+        sqlx::query(
+            "INSERT INTO access_group_members (group_id, user_id, tenant_id, added_by, expires_at) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (group_id, user_id) DO UPDATE SET \
+               expires_at = GREATEST(access_group_members.expires_at, EXCLUDED.expires_at), \
+               added_by = EXCLUDED.added_by",
+        )
+        .bind(gid)
+        .bind(claims.sub)
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
+        .bind(break_glass_expiry)
+        .execute(&mut *tx)
+        .await?;
+
+        // Bump perm_version so the JWT picks up the new group on next
+        // request (existing middleware verifies).
+        sqlx::query("UPDATE users SET perm_version = perm_version + 1 WHERE id = $1")
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+    }
+
     tx.commit().await?;
+
+    // Emit the SpiceDB tuple (best-effort — failures logged, backfill catches up).
+    if let Some(gid) = group_id {
+        if let Err(e) = state
+            .authz
+            .write_tuple(
+                &crate::middleware::authorization::authz_context(&claims),
+                "access_group",
+                gid,
+                medbrains_authz::Relation::Viewer, // mapped to "member" via relation_to_relname
+                medbrains_authz::Subject::User(claims.sub),
+                Some(break_glass_expiry),
+                Some("break_glass_code_blue".to_owned()),
+            )
+            .await
+        {
+            tracing::warn!(error = %e, user = %claims.sub,
+                "rebac: failed to write code_blue_team#member tuple — backfill will retry");
+        }
+    }
+
     Ok(Json(row))
 }
 

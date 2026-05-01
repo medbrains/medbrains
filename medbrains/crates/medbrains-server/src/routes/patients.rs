@@ -47,10 +47,20 @@ pub struct ListPatientsQuery {
 
 #[derive(Debug, Serialize)]
 pub struct PatientListResponse {
-    pub patients: Vec<Patient>,
+    pub patients: Vec<PatientWithPerms>,
     pub total: i64,
     pub page: i64,
     pub per_page: i64,
+}
+
+/// Patient row with the embedded `_perms` block. Frontend reads
+/// `_perms.edit` / `_perms.delete` etc. via `useResourcePerm(row)`.
+#[derive(Debug, Serialize)]
+pub struct PatientWithPerms {
+    #[serde(flatten)]
+    pub patient: Patient,
+    #[serde(rename = "_perms")]
+    pub perms: medbrains_core::perms_block::PermsBlock,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -447,12 +457,52 @@ pub async fn list_patients(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC filter — only show patients the caller has `view` on ─
+    // Bypass roles (super_admin, hospital_admin) skip the lookup
+    // entirely; they see every row in their tenant.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        let result = state
+            .authz
+            .list_accessible(
+                &authz_ctx,
+                "patient",
+                medbrains_authz::Relation::Viewer,
+            )
+            .await;
+        match &result {
+            Ok(ids) => tracing::info!(count = ids.len(), user = %authz_ctx.user_id,
+                "rebac: list_accessible(patient) returned"),
+            Err(e) => tracing::error!(error = %e, user = %authz_ctx.user_id,
+                "rebac: list_accessible(patient) FAILED"),
+        }
+        Some(result.unwrap_or_default())
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     // Build dynamic WHERE conditions
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
+
+    // Inject the visible-id filter as a UUID array if not bypass.
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            // Non-bypass user with zero visible patients — short-circuit
+            // to an empty page without hitting the DB.
+            return Ok(Json(PatientListResponse {
+                patients: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     // We collect bind values as strings/bools to apply later via a
     // single dynamic query. For simplicity, we build the SQL string and
@@ -553,6 +603,9 @@ pub async fn list_patients(
             count_query = count_query.bind(bv);
         }
     }
+    if let Some(ref ids) = visible_ids {
+        count_query = count_query.bind(ids.clone());
+    }
     let total: i64 = count_query.fetch_one(&mut *tx).await?;
 
     // Data query
@@ -570,13 +623,72 @@ pub async fn list_patients(
             data_query = data_query.bind(bv);
         }
     }
-    let patients = data_query
+    if let Some(ref ids) = visible_ids {
+        data_query = data_query.bind(ids.clone());
+    }
+    let patients_raw = data_query
         .bind(per_page)
         .bind(offset)
         .fetch_all(&mut *tx)
         .await?;
 
     tx.commit().await?;
+
+    // ── Compute _perms for each row in one bulk_check round-trip ──
+    // 5 relations × N rows = single gRPC for SpiceDB; falls back to
+    // per-row check() for the Postgres backend.
+    let perm_items: Vec<(String, medbrains_authz::Relation, uuid::Uuid)> = patients_raw
+        .iter()
+        .flat_map(|p| {
+            let id = p.id;
+            [
+                ("patient".to_owned(), medbrains_authz::Relation::Viewer, id),
+                ("patient".to_owned(), medbrains_authz::Relation::Editor, id),
+                ("patient".to_owned(), medbrains_authz::Relation::Owner, id),
+            ]
+        })
+        .collect();
+    let perms_map = if patients_raw.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        state
+            .authz
+            .bulk_check(&authz_ctx, &perm_items)
+            .await
+            .unwrap_or_default()
+    };
+
+    let patients: Vec<PatientWithPerms> = patients_raw
+        .into_iter()
+        .map(|p| {
+            let id = p.id;
+            let perms = if authz_ctx.is_bypass {
+                medbrains_core::perms_block::PermsBlock::all()
+            } else {
+                medbrains_core::perms_block::PermsBlock {
+                    view: perms_map
+                        .get(&("patient".to_owned(), medbrains_authz::Relation::Viewer, id))
+                        .copied()
+                        .unwrap_or(false),
+                    edit: perms_map
+                        .get(&("patient".to_owned(), medbrains_authz::Relation::Editor, id))
+                        .copied()
+                        .unwrap_or(false),
+                    delete: perms_map
+                        .get(&("patient".to_owned(), medbrains_authz::Relation::Owner, id))
+                        .copied()
+                        .unwrap_or(false),
+                    // share == owner in our schema; same lookup
+                    share: perms_map
+                        .get(&("patient".to_owned(), medbrains_authz::Relation::Owner, id))
+                        .copied()
+                        .unwrap_or(false),
+                    approve: false,
+                }
+            };
+            PatientWithPerms { patient: p, perms }
+        })
+        .collect();
 
     Ok(Json(PatientListResponse {
         patients,
@@ -757,6 +869,19 @@ pub async fn get_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Patient>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+
+    // ── ReBAC pre-check — must hold `view` on the specific patient ──
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        // Return 404 not 403 — don't leak existence to unauthorized users.
+        return Err(AppError::NotFound);
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
@@ -798,6 +923,17 @@ pub async fn update_patient(
     Json(body): Json<UpdatePatientRequest>,
 ) -> Result<Json<Patient>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+
+    // ── ReBAC pre-check — must hold `editor` on the specific patient ──
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Editor, "patient", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
 
     // Validate field-level write access
     let restricted = field_access::resolve_restricted_fields(

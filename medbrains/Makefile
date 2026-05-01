@@ -111,7 +111,10 @@ check-ui-api: ## Verify UI pages ↔ API method coverage
 check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
-check-all: check-api check-ui-api check-types check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
+	python3 ../scripts/check_nav_drift.py
+
+check-all: check-api check-ui-api check-types check-nav-drift check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 

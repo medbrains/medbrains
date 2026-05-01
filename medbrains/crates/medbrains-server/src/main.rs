@@ -113,16 +113,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If unset (or connection fails), we silently fall back to the
     // Postgres-native AuthzPgBackend so dev environments without
     // SpiceDB running still boot. Production deploys always set these.
+    eprintln!("[boot] SPICEDB_ENDPOINT={:?}", std::env::var("SPICEDB_ENDPOINT").ok());
     let authz: Arc<dyn medbrains_authz::AuthzBackend> = match std::env::var("SPICEDB_ENDPOINT") {
         Ok(endpoint) => {
             let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
             match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await
             {
                 Ok(client) => {
+                    eprintln!("[boot] rebac: USING SpiceDB at {endpoint}");
                     tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
                     Arc::new(client)
                 }
                 Err(e) => {
+                    eprintln!("[boot] rebac: SpiceDB connect FAILED ({e}); using Postgres fallback");
                     tracing::warn!(error = %e, endpoint = %endpoint,
                         "rebac: SpiceDB connect failed, falling back to Postgres backend");
                     Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db_pool.clone()))
@@ -130,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Err(_) => {
+            eprintln!("[boot] rebac: SPICEDB_ENDPOINT unset; using Postgres fallback");
             tracing::warn!(
                 "rebac: SPICEDB_ENDPOINT unset, using Postgres-native authz backend"
             );
@@ -137,7 +141,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // ── SpiceDB Watch consumer — bumps users.perm_version when tuples change ──
+    // Without this, revoking a permission only takes effect at JWT expiry.
+    // With it, the change propagates within ~1 s of the SpiceDB write.
+    if let Ok(spicedb_endpoint) = std::env::var("SPICEDB_ENDPOINT") {
+        let watch_token =
+            std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+        let watch_db = db_pool.clone();
+        tokio::spawn(async move {
+            medbrains_authz::watch::run_user_watcher(
+                spicedb_endpoint,
+                watch_token,
+                move |user_ids| {
+                    let db = watch_db.clone();
+                    async move {
+                        let res = sqlx::query(
+                            "UPDATE users \
+                             SET perm_version = perm_version + 1, updated_at = now() \
+                             WHERE id = ANY($1::uuid[])",
+                        )
+                        .bind(&user_ids)
+                        .execute(&db)
+                        .await;
+                        match res {
+                            Ok(r) => tracing::debug!(
+                                bumped = r.rows_affected(),
+                                "watch: bumped perm_version"
+                            ),
+                            Err(e) => tracing::warn!(
+                                error = %e,
+                                "watch: perm_version bump failed"
+                            ),
+                        }
+                    }
+                },
+            )
+            .await;
+        });
+        tracing::info!("watch consumer spawned");
+    }
+
     // Build shared state
+    let state_secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
+        Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+
     let state = AppState {
         db: db_pool.clone(),
         yottadb,
@@ -150,6 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         outbox: outbox_registry.clone(),
         topology: topology_router,
         authz,
+        secret_resolver: state_secret_resolver,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -199,13 +247,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         HeaderName::from_static("cache-control"),
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
     );
+    // Tightened CSP — blocks plugins, iframes, web workers from CDNs,
+    // forces HTTPS for any nested loads. Same allow-list as before
+    // for the frontend SPA.
     let csp = SetResponseHeaderLayer::overriding(
         HeaderName::from_static("content-security-policy"),
         HeaderValue::from_static(
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-             img-src 'self' data: blob:; connect-src 'self'; \
-             frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
+            "default-src 'self'; \
+             script-src 'self'; \
+             style-src 'self' 'unsafe-inline'; \
+             img-src 'self' data: blob:; \
+             font-src 'self' data:; \
+             connect-src 'self'; \
+             worker-src 'self' blob:; \
+             manifest-src 'self'; \
+             object-src 'none'; \
+             frame-src 'none'; \
+             frame-ancestors 'none'; \
+             base-uri 'self'; \
+             form-action 'self'; \
+             upgrade-insecure-requests",
         ),
+    );
+
+    // Referrer-Policy — never leak full URL paths to third parties.
+    let referrer_policy = SetResponseHeaderLayer::overriding(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+
+    // Permissions-Policy — disable powerful browser APIs the app doesn't use.
+    let permissions_policy = SetResponseHeaderLayer::overriding(
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static(
+            "camera=(), microphone=(), geolocation=(), payment=(), \
+             usb=(), magnetometer=(), accelerometer=(), gyroscope=(), \
+             interest-cohort=()",
+        ),
+    );
+
+    // Cross-Origin-Opener-Policy — isolates the browsing context so
+    // window.opener attacks from popups can't reach back into our app.
+    let coop = SetResponseHeaderLayer::overriding(
+        HeaderName::from_static("cross-origin-opener-policy"),
+        HeaderValue::from_static("same-origin"),
     );
 
     // Static file serving — SPA fallback for frontend dist
@@ -230,6 +315,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(no_sniff)
         .layer(no_cache)
         .layer(csp)
+        .layer(referrer_policy)
+        .layer(permissions_policy)
+        .layer(coop)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
@@ -291,7 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// that delegates to `events::dispatch_to_pipelines` for everything else.
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::handlers::{
-        abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio,
+        abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio, whatsapp,
     };
     use medbrains_outbox::Registry;
 
@@ -311,12 +399,28 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.cds_critical_interaction"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
 
-    // SMTP / ABDM / TPA / HL7 stubs (Phase 1 — log only, return Ok)
+    // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
+    registry.register(email_stub::SmtpSendHandler::new("email.appointment_confirmation"));
+    registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
+    registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
+    registry.register(email_stub::SmtpSendHandler::new("email.refund_notification"));
+    registry.register(email_stub::SmtpSendHandler::new("email.dunning_notice"));
+
+    // WhatsApp — Meta Cloud API (falls back to stub if creds unset).
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_confirmation"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_reminder_24h"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_reminder_2h"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.discharge_summary"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.lab_report_ready"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.payment_link"));
+    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.vaccination_reminder"));
     registry.register(abdm_stub::VerifyAbhaHandler);
     registry.register(abdm_stub::HieBundlePushHandler);
     registry.register(tpa_stub::PreauthSubmitHandler);
+    registry.register(tpa_stub::ClaimSubmitHandler);
+    registry.register(tpa_stub::CoverageEligibilityHandler);
     registry.register(hl7_stub::CriticalValueHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.

@@ -48,39 +48,19 @@ pub async fn dispatch_to_pipelines(
     event_type: &str,
     payload: &Value,
 ) -> Result<(), AppError> {
-    let trigger_match = serde_json::json!({ "event_type": event_type });
-
-    let pipelines: Vec<PipelineMatch> = sqlx::query_as::<_, PipelineMatch>(
-        "SELECT id, version, nodes, edges \
-         FROM integration_pipelines \
-         WHERE tenant_id = $1 \
-           AND status = 'active' \
-           AND trigger_type = 'internal_event' \
-           AND trigger_config @> $2",
+    // **Architecture decision (RFC):** dynamic `integration_pipelines`
+    // dispatch is removed. Cross-module pipelines are hardcoded Rust
+    // in `default_pipelines.rs` — version-controlled, code-reviewed,
+    // tested. Tenant variants live in `tenant_settings`.
+    //
+    // The DB pipeline runtime (`execute_pipeline_safe`, `walk_pipeline`,
+    // etc.) is kept around because `routes/integration.rs::execute_pipeline`
+    // still uses it for the manual "run a pipeline ad-hoc" admin tool;
+    // that path is deprecated and will be removed in a follow-up.
+    crate::orchestration::default_pipelines::dispatch_default_pipelines(
+        pool, tenant_id, user_id, event_type, payload,
     )
-    .bind(tenant_id)
-    .bind(&trigger_match)
-    .fetch_all(pool)
-    .await?;
-
-    if pipelines.is_empty() {
-        return Ok(());
-    }
-
-    for pipeline in &pipelines {
-        let result =
-            execute_pipeline_safe(pool, tenant_id, user_id, pipeline, event_type, payload).await;
-
-        if let Err(e) = result {
-            tracing::warn!(
-                pipeline_id = %pipeline.id,
-                event_type,
-                error = %e,
-                "pipeline execution failed — continuing"
-            );
-        }
-    }
-
+    .await;
     Ok(())
 }
 

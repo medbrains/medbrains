@@ -117,11 +117,41 @@ pub async fn list_orders(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // ── ReBAC scope — only radiology orders caller has `view` on ─
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+        None
+    } else {
+        Some(
+            state
+                .authz
+                .list_accessible(
+                    &authz_ctx,
+                    "radiology_order",
+                    medbrains_authz::Relation::Viewer,
+                )
+                .await
+                .unwrap_or_default(),
+        )
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
+    if let Some(ref ids) = visible_ids {
+        if ids.is_empty() {
+            return Ok(Json(OrderListResponse {
+                orders: Vec::new(),
+                total: 0,
+                page,
+                per_page,
+            }));
+        }
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
+        bind_idx += 1;
+    }
 
     #[allow(clippy::items_after_statements)]
     struct Bind {
@@ -175,6 +205,9 @@ pub async fn list_orders(
             cq = cq.bind(s.clone());
         }
     }
+    if let Some(ref ids) = visible_ids {
+        cq = cq.bind(ids.clone());
+    }
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -190,6 +223,9 @@ pub async fn list_orders(
         if let Some(ref s) = b.string_val {
             dq = dq.bind(s.clone());
         }
+    }
+    if let Some(ref ids) = visible_ids {
+        dq = dq.bind(ids.clone());
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
@@ -272,6 +308,17 @@ pub async fn get_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+
+    // ── ReBAC pre-check — must hold `view` on the radiology_order ─
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "radiology_order", id)
+        .await
+        .unwrap_or(false);
+    if !allowed {
+        return Err(AppError::NotFound);
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;

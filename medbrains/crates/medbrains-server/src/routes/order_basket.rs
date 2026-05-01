@@ -347,6 +347,345 @@ pub async fn sign_basket(
 }
 
 // ══════════════════════════════════════════════════════════
+//  POST /api/orders/basket/preview-cost
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct PreviewCostRequest {
+    pub items: Vec<BasketItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PreviewCostLine {
+    pub item_index: usize,
+    pub kind: &'static str,
+    pub label: String,
+    pub unit_price: Decimal,
+    pub quantity: Decimal,
+    pub line_total: Decimal,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PreviewCostResponse {
+    pub lines: Vec<PreviewCostLine>,
+    pub subtotal: Decimal,
+    pub estimated_tax: Decimal,
+    pub estimated_total: Decimal,
+    pub preauth_threshold: Decimal,
+    pub exceeds_preauth: bool,
+}
+
+/// Best-effort cost estimate for a basket. Drug pricing is taken
+/// directly from the basket item (already populated by the picker).
+/// Lab + radiology pricing is looked up from the test/modality master.
+pub async fn preview_cost(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<PreviewCostRequest>,
+) -> Result<Json<PreviewCostResponse>, AppError> {
+    require_permission(&claims, permissions::order_basket::SIGN)?;
+
+    if body.items.len() > MAX_BASKET_ITEMS {
+        return Err(AppError::BadRequest(format!(
+            "basket exceeds {MAX_BASKET_ITEMS}-item limit"
+        )));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut lines = Vec::with_capacity(body.items.len());
+    let mut subtotal = Decimal::ZERO;
+
+    for (idx, item) in body.items.iter().enumerate() {
+        let line = match item {
+            BasketItem::Drug(it) => {
+                let qty = Decimal::from(it.quantity);
+                let total = it.unit_price * qty;
+                PreviewCostLine {
+                    item_index: idx,
+                    kind: "drug",
+                    label: it.drug_name.clone(),
+                    unit_price: it.unit_price,
+                    quantity: qty,
+                    line_total: total,
+                    source: "basket_item",
+                }
+            }
+            BasketItem::Lab(it) => {
+                let row: Option<(String, Option<Decimal>)> = sqlx::query_as(
+                    "SELECT name, COALESCE(price, 0) FROM lab_test_catalog \
+                     WHERE id = $1 AND tenant_id = $2",
+                )
+                .bind(it.test_id)
+                .bind(claims.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+                let (label, price) = row.unwrap_or_else(|| (format!("Lab {}", it.test_id), None));
+                let unit_price = price.unwrap_or(Decimal::ZERO);
+                PreviewCostLine {
+                    item_index: idx,
+                    kind: "lab",
+                    label,
+                    unit_price,
+                    quantity: Decimal::ONE,
+                    line_total: unit_price,
+                    source: "lab_test_catalog",
+                }
+            }
+            BasketItem::Radiology(it) => {
+                let row: Option<(String, Option<Decimal>)> = sqlx::query_as(
+                    "SELECT name, COALESCE(base_price, 0) FROM radiology_modalities \
+                     WHERE id = $1 AND tenant_id = $2",
+                )
+                .bind(it.modality_id)
+                .bind(claims.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+                let (label, price) =
+                    row.unwrap_or_else(|| (format!("Radiology {}", it.modality_id), None));
+                let unit_price = price.unwrap_or(Decimal::ZERO);
+                PreviewCostLine {
+                    item_index: idx,
+                    kind: "radiology",
+                    label,
+                    unit_price,
+                    quantity: Decimal::ONE,
+                    line_total: unit_price,
+                    source: "radiology_modalities",
+                }
+            }
+            BasketItem::Procedure(_) => PreviewCostLine {
+                item_index: idx,
+                kind: "procedure",
+                label: "Procedure (priced at billing)".to_owned(),
+                unit_price: Decimal::ZERO,
+                quantity: Decimal::ONE,
+                line_total: Decimal::ZERO,
+                source: "deferred",
+            },
+            BasketItem::Diet(_) => PreviewCostLine {
+                item_index: idx,
+                kind: "diet",
+                label: "Diet order (no charge)".to_owned(),
+                unit_price: Decimal::ZERO,
+                quantity: Decimal::ONE,
+                line_total: Decimal::ZERO,
+                source: "n/a",
+            },
+            BasketItem::Referral(_) => PreviewCostLine {
+                item_index: idx,
+                kind: "referral",
+                label: "Referral (no charge)".to_owned(),
+                unit_price: Decimal::ZERO,
+                quantity: Decimal::ONE,
+                line_total: Decimal::ZERO,
+                source: "n/a",
+            },
+        };
+        subtotal += line.line_total;
+        lines.push(line);
+    }
+
+    tx.commit().await?;
+
+    // Tax + pre-auth threshold come from tenant_settings; fall back to
+    // sensible defaults so the preview always renders something useful.
+    let tax_pct: Decimal = lookup_setting_decimal(&state, &claims.tenant_id, "billing.tax_pct")
+        .await
+        .unwrap_or_else(|| Decimal::new(0, 0));
+    let preauth_threshold: Decimal =
+        lookup_setting_decimal(&state, &claims.tenant_id, "insurance.preauth_threshold")
+            .await
+            .unwrap_or_else(|| Decimal::new(50_000, 0));
+
+    let estimated_tax = subtotal * tax_pct / Decimal::new(100, 0);
+    let estimated_total = subtotal + estimated_tax;
+
+    Ok(Json(PreviewCostResponse {
+        lines,
+        subtotal,
+        estimated_tax,
+        estimated_total,
+        preauth_threshold,
+        exceeds_preauth: estimated_total > preauth_threshold,
+    }))
+}
+
+async fn lookup_setting_decimal(
+    state: &AppState,
+    tenant_id: &Uuid,
+    key: &str,
+) -> Option<Decimal> {
+    let val: Option<Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND key = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(key)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    val.and_then(|v| match v {
+        Value::Number(n) => n.as_f64().and_then(|f| Decimal::try_from(f).ok()),
+        Value::String(s) => s.parse::<Decimal>().ok(),
+        _ => None,
+    })
+}
+
+// ══════════════════════════════════════════════════════════
+//  GET /api/orders/basket/previous/{patient_id}
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct CarryForwardQuery {
+    pub exclude_encounter_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CarryForwardItem {
+    pub kind: &'static str,
+    pub label: String,
+    pub source_encounter_id: Uuid,
+    pub source_order_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub item: Value,
+}
+
+/// Returns drug/lab/radiology orders from the patient's most recent
+/// previous encounter, shaped as basket items the user can re-add.
+/// `exclude_encounter_id` is the current encounter (don't carry from
+/// itself).
+pub async fn carry_forward(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(patient_id): Path<Uuid>,
+    axum::extract::Query(q): axum::extract::Query<CarryForwardQuery>,
+) -> Result<Json<Vec<CarryForwardItem>>, AppError> {
+    require_permission(&claims, permissions::order_basket::DRAFT)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let prev_enc: Option<(Uuid, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT id, created_at FROM encounters \
+         WHERE tenant_id = $1 AND patient_id = $2 \
+           AND ($3::UUID IS NULL OR id <> $3) \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(q.exclude_encounter_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some((prev_id, _)) = prev_enc else {
+        tx.commit().await?;
+        return Ok(Json(Vec::new()));
+    };
+
+    let mut out: Vec<CarryForwardItem> = Vec::new();
+
+    // Pharmacy prescriptions
+    let drugs = sqlx::query_as::<_, (Uuid, Uuid, String, String, String, String, Option<i32>, DateTime<Utc>)>(
+        "SELECT id, drug_id, drug_name, dose, frequency, route, duration_days, created_at \
+         FROM pharmacy_prescriptions \
+         WHERE tenant_id = $1 AND encounter_id = $2 \
+         ORDER BY created_at DESC LIMIT 20",
+    )
+    .bind(claims.tenant_id)
+    .bind(prev_id)
+    .fetch_all(&mut *tx)
+    .await
+    .unwrap_or_default();
+
+    for (id, drug_id, drug_name, dose, frequency, route, duration_days, created_at) in drugs {
+        out.push(CarryForwardItem {
+            kind: "drug",
+            label: format!("{drug_name} {dose}"),
+            source_encounter_id: prev_id,
+            source_order_id: id,
+            created_at,
+            item: json!({
+                "kind": "drug",
+                "drug_id": drug_id,
+                "drug_name": drug_name,
+                "dose": dose,
+                "frequency": frequency,
+                "route": route,
+                "duration_days": duration_days,
+                "quantity": 1,
+                "unit_price": "0",
+            }),
+        });
+    }
+
+    // Lab orders
+    let labs = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
+        "SELECT lo.id, lo.test_id, COALESCE(lt.name, '?'), lo.priority, lo.created_at \
+         FROM lab_orders lo \
+         LEFT JOIN lab_test_catalog lt ON lt.id = lo.test_id \
+         WHERE lo.tenant_id = $1 AND lo.encounter_id = $2 \
+         ORDER BY lo.created_at DESC LIMIT 20",
+    )
+    .bind(claims.tenant_id)
+    .bind(prev_id)
+    .fetch_all(&mut *tx)
+    .await
+    .unwrap_or_default();
+
+    for (id, test_id, name, priority, created_at) in labs {
+        out.push(CarryForwardItem {
+            kind: "lab",
+            label: name,
+            source_encounter_id: prev_id,
+            source_order_id: id,
+            created_at,
+            item: json!({
+                "kind": "lab",
+                "test_id": test_id,
+                "priority": priority,
+            }),
+        });
+    }
+
+    // Radiology orders
+    let rads = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
+        "SELECT ro.id, ro.modality_id, COALESCE(rm.name, '?'), ro.body_part, ro.created_at \
+         FROM radiology_orders ro \
+         LEFT JOIN radiology_modalities rm ON rm.id = ro.modality_id \
+         WHERE ro.tenant_id = $1 AND ro.encounter_id = $2 \
+         ORDER BY ro.created_at DESC LIMIT 10",
+    )
+    .bind(claims.tenant_id)
+    .bind(prev_id)
+    .fetch_all(&mut *tx)
+    .await
+    .unwrap_or_default();
+
+    for (id, modality_id, name, body_part, created_at) in rads {
+        out.push(CarryForwardItem {
+            kind: "radiology",
+            label: name,
+            source_encounter_id: prev_id,
+            source_order_id: id,
+            created_at,
+            item: json!({
+                "kind": "radiology",
+                "modality_id": modality_id,
+                "body_part": body_part,
+            }),
+        });
+    }
+
+    tx.commit().await?;
+    Ok(Json(out))
+}
+
+// ══════════════════════════════════════════════════════════
 //  Drafts CRUD
 // ══════════════════════════════════════════════════════════
 

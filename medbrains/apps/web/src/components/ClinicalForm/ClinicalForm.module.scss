@@ -1,0 +1,125 @@
+// Clinical form — Forest + Copper enterprise pattern.
+// Mirrors design preview/components-inputs.html `.form-clinical` exactly.
+
+.form {
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-rule);
+  border-radius: 6px;
+}
+
+.head {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--fc-rule-soft);
+
+  h3 {
+    font: 400 22px/1.1 var(--font-display, "Fraunces", Georgia, serif);
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--fc-ink);
+
+    em {
+      font-style: italic;
+      color: var(--fc-copper-deep);
+      font-weight: 300;
+    }
+  }
+}
+
+.sub {
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fc-muted);
+  margin-top: 4px;
+}
+
+.section {
+  border-bottom: 1px solid var(--fc-rule-soft);
+
+  &:last-of-type {
+    border-bottom: 0;
+  }
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 22px 0;
+
+  .num {
+    font: 500 10px var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fc-muted);
+  }
+  .name {
+    font: 600 13px var(--font-sans);
+    letter-spacing: 0.005em;
+    color: var(--fc-ink);
+  }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  padding: 14px 22px;
+  align-items: baseline;
+  gap: 24px;
+
+  & + .row {
+    border-top: 1px solid var(--fc-rule-soft);
+  }
+
+  .lhs {
+    font: 500 14px var(--font-display, "Fraunces", Georgia, serif);
+    font-style: italic;
+    color: var(--fc-muted);
+    padding-top: 10px;
+
+    .req {
+      color: var(--code-red);
+      font-style: normal;
+      margin-left: 2px;
+    }
+  }
+
+  // Stack stretching for nested grid content
+  .rhs {
+    min-width: 0;
+  }
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  background: var(--fc-panel);
+  border-top: 1px solid var(--fc-rule);
+  border-radius: 0 0 6px 6px;
+}
+
+.meta {
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fc-muted);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+// Responsive: collapse 200px label column on small screens
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+
+    .lhs {
+      padding-top: 0;
+    }
+  }
+}

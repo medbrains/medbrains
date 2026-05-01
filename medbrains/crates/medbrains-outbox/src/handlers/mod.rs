@@ -1,11 +1,12 @@
-//! Built-in handlers for Sprint A.
+//! Built-in handlers for outbound integrations.
 //!
 //! Real handlers (typed, hit external partners):
-//! - `razorpay` — payment.create_order, payment.refund
-//! - `twilio`   — sms.* event types
+//! - `razorpay`  — payment.create_order, payment.refund
+//! - `twilio`    — sms.* (real Twilio REST; falls back to stub when creds unset)
+//! - `email_stub` — email.* (SendGrid HTTP API; SES pending SigV4)
+//! - `whatsapp`  — whatsapp.* (Meta Cloud API)
 //!
 //! Stubs (Phase 1 — log only, return Ok; Phase 2 wires real protocol):
-//! - `email_stub`     — email.* (SMTP)
 //! - `abdm_stub`      — abdm.verify_abha, abdm.hie_bundle_push
 //! - `tpa_stub`       — tpa.preauth_submit
 //! - `hl7_stub`       — lab.critical_value_notify, hl7.*
@@ -22,3 +23,4 @@ pub mod pipeline_fallback;
 pub mod razorpay;
 pub mod tpa_stub;
 pub mod twilio;
+pub mod whatsapp;
