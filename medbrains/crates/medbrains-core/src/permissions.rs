@@ -522,6 +522,10 @@ pub mod communications {
     pub mod config {
         pub const MANAGE: &str = "communications.config.manage";
     }
+    pub mod dlt {
+        pub const LIST: &str = "communications.dlt.list";
+        pub const MANAGE: &str = "communications.dlt.manage";
+    }
 }
 
 pub mod camp {

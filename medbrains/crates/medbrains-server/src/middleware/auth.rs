@@ -13,12 +13,21 @@ use sqlx::PgPool;
 use crate::{error::AppError, state::AppState};
 
 /// JWT claims embedded in every authenticated request.
+///
+/// `permissions` is **NOT** part of the wire JWT — that field is
+/// populated post-decode by the auth middleware via a lookup keyed on
+/// `(role, perm_version)`. Inlining 100+ permission codes inflated the
+/// access-token cookie past Chrome's 4 KB cap.
+///
+/// `#[serde(skip_serializing, default)]` keeps the field out of the
+/// JWT payload but lets the rest of the codebase keep reading
+/// `claims.permissions` unchanged.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: Uuid,
     pub tenant_id: Uuid,
     pub role: String,
-    #[serde(default)]
+    #[serde(skip_serializing, default)]
     pub permissions: Vec<String>,
     #[serde(default)]
     pub department_ids: Vec<Uuid>,
@@ -51,8 +60,9 @@ pub async fn auth_middleware(
         .map(str::to_owned);
 
     if let Some(ref token) = cookie_token {
-        let claims = decode_and_validate(token, &state.jwt_decoding_key)?;
+        let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
+        hydrate_permissions(&state.db, &mut claims).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
         request.extensions_mut().insert(claims);
         return Ok(next.run(request).await);
@@ -66,8 +76,9 @@ pub async fn auth_middleware(
         .and_then(|v| v.strip_prefix("Bearer "));
 
     if let Some(token) = bearer_token {
-        let claims = decode_and_validate(token, &state.jwt_decoding_key)?;
+        let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
+        hydrate_permissions(&state.db, &mut claims).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
         request.extensions_mut().insert(claims);
         return Ok(next.run(request).await);
@@ -114,6 +125,29 @@ pub fn decode_jwt(token: &str, key: &DecodingKey) -> Result<Claims, jsonwebtoken
     validation.set_required_spec_claims(&["exp", "sub"]);
     let data = decode::<Claims>(token, key, &validation)?;
     Ok(data.claims)
+}
+
+/// Populate `claims.permissions` by resolving (role, access_matrix)
+/// against the `roles` table. Called by the auth middleware after JWT
+/// decode + perm_version verification — the JWT itself no longer
+/// carries the permission list (it's too big for Chrome's 4 KB cookie
+/// cap when fine-grained perms are involved).
+///
+/// Bypass roles (super_admin / hospital_admin) keep an empty vector
+/// here; `require_permission` short-circuits them anyway.
+async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), AppError> {
+    if claims.role == "super_admin" || claims.role == "hospital_admin" {
+        return Ok(());
+    }
+    let perms = crate::routes::auth::resolve_permissions(
+        db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    claims.permissions = perms;
+    Ok(())
 }
 
 /// Reject tokens whose `perm_version` is stale.

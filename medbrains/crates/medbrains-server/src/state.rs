@@ -45,6 +45,10 @@ pub struct AppState {
     /// access checks: `state.authz.check(&ctx, Relation::Viewer, "patient", id)`.
     /// See `crates/medbrains-authz` and `infra/spicedb/schema.zed`.
     pub authz: Arc<dyn AuthzBackend>,
+    /// Per-tenant secrets resolver — used by webhook handlers
+    /// (NHCX callback, ABDM consent CM webhooks) that arrive without
+    /// a JWT and need to look up tenant crypto material.
+    pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
 }
 
 impl std::fmt::Debug for AppState {

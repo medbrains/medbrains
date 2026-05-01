@@ -113,7 +113,8 @@ pub async fn login(
         sub: row.id,
         tenant_id: row.tenant_id,
         role: row.role.clone(),
-        permissions: permissions.clone(),
+        // permissions are resolved per-request by middleware, not embedded.
+        permissions: Vec::new(),
         department_ids,
         perm_version: row.perm_version,
         exp: (now + chrono::Duration::minutes(15)).timestamp() as usize,
@@ -447,7 +448,8 @@ pub async fn refresh_token(
         sub: row.user_id,
         tenant_id: row.tenant_id,
         role: row.role.clone(),
-        permissions: permissions.clone(),
+        // permissions are resolved per-request by middleware, not embedded.
+        permissions: Vec::new(),
         department_ids,
         perm_version: row.perm_version,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
@@ -769,7 +771,7 @@ pub async fn change_password(
 /// 3. effective = (`role_perms` ∪ extra) - denied
 ///
 /// `super_admin` and `hospital_admin` get an empty list (they bypass checks).
-async fn resolve_permissions(
+pub async fn resolve_permissions(
     db: &PgPool,
     tenant_id: Uuid,
     user_id: Uuid,

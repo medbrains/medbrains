@@ -26,6 +26,7 @@ interface DataTableProps<T> {
   rowKey: (row: T) => string;
   toolbar?: ReactNode;
   rowStyle?: (row: T) => CSSProperties | undefined;
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
@@ -44,6 +45,7 @@ export function DataTable<T>({
   rowKey,
   toolbar,
   rowStyle,
+  onRowClick,
 }: DataTableProps<T>) {
   const startItem = (page - 1) * perPage + 1;
   const endItem = Math.min(page * perPage, total ?? data.length);
@@ -135,7 +137,14 @@ export function DataTable<T>({
           {headerRow}
           <Table.Tbody>
             {data.map((row) => (
-              <Table.Tr key={rowKey(row)} style={rowStyle?.(row)}>
+              <Table.Tr
+                key={rowKey(row)}
+                style={{
+                  ...rowStyle?.(row),
+                  cursor: onRowClick ? "pointer" : undefined,
+                }}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((col) => (
                   <Table.Td key={col.key}>{col.render(row)}</Table.Td>
                 ))}

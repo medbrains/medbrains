@@ -25,10 +25,13 @@ pub mod cssd;
 pub mod dashboard;
 pub mod devices;
 pub mod diet;
+pub mod dlt;
 pub mod documents;
 pub mod emergency;
 pub mod facilities;
+pub mod fhir;
 pub mod front_office;
+pub mod nhcx_callback;
 pub mod geo;
 pub mod health;
 pub mod housekeeping;
@@ -140,6 +143,12 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .route("/api/health", get(health::health_check))
         .route("/api/auth/refresh", post(auth::refresh_token))
+        // NHCX async-response webhook — gateway authenticates via JWS,
+        // not bearer token, so this lives on the public router.
+        .route(
+            "/api/integrations/nhcx/callback",
+            post(nhcx_callback::receive_callback),
+        )
         // Onboarding — public endpoints
         .route("/api/onboarding/status", get(onboarding::status))
         .route("/api/onboarding/init", post(onboarding::init))
@@ -190,6 +199,32 @@ pub fn build_router(state: AppState) -> Router {
         // Auth
         .route("/api/auth/me", get(auth::me))
         .route("/api/access/manifest", get(access::get_manifest))
+        .route(
+            "/api/access-groups",
+            get(setup::list_access_groups).post(setup::create_access_group),
+        )
+        .route(
+            "/api/access-groups/{id}",
+            put(setup::update_access_group).delete(setup::delete_access_group),
+        )
+        .route(
+            "/api/access-groups/{id}/members",
+            get(setup::list_access_group_members).post(setup::add_access_group_member),
+        )
+        .route(
+            "/api/access-groups/{group_id}/members/{user_id}",
+            delete(setup::remove_access_group_member),
+        )
+        .route(
+            "/api/setup/users/{id}/visible-screens",
+            get(setup::list_visible_screens),
+        )
+        // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
+        .route("/api/fhir/metadata", get(fhir::metadata))
+        .route("/api/fhir/Patient/{id}", get(fhir::read_patient))
+        .route("/api/fhir/Patient/{id}/$everything", get(fhir::patient_everything))
+        .route("/api/fhir/Encounter/{id}", get(fhir::read_encounter))
+        .route("/api/debug/authz-probe", get(health::authz_probe))
         // ── Sharing API (manual per-resource grants) ─────────
         .route(
             "/api/sharing/grants",
@@ -1202,6 +1237,20 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/billing/bank-transactions/{id}/match",
             post(billing::match_bank_transaction),
+        )
+        // ── TPA reconciliation (priority #4) ─────────────
+        .route(
+            "/api/billing/bank-transactions/auto-match",
+            post(billing::auto_match_bank_transactions),
+        )
+        .route(
+            "/api/billing/insurance-receivables/aging",
+            get(billing::insurance_receivables_aging),
+        )
+        // NHCX webhook history — read-only audit log of received callbacks
+        .route(
+            "/api/integrations/nhcx/callbacks",
+            get(nhcx_callback::list_callbacks),
         )
         // ── Billing Phase 3 — TDS ───────────────────────
         .route(
@@ -2527,6 +2576,10 @@ pub fn build_router(state: AppState) -> Router {
             get(schema_registry::get_event_schema),
         )
         // ── Integration Hub ──────────────────────────────
+        .route(
+            "/api/integration/default-pipelines",
+            get(integration::list_default_pipelines),
+        )
         .route(
             "/api/integration/pipelines",
             get(integration::list_pipelines).post(integration::create_pipeline),
@@ -3887,6 +3940,15 @@ pub fn build_router(state: AppState) -> Router {
             "/api/communications/templates/{id}",
             put(communications::update_template),
         )
+        // DLT template registry — India SMS compliance
+        .route(
+            "/api/communications/dlt-templates",
+            get(dlt::list_templates).post(dlt::create_template),
+        )
+        .route(
+            "/api/communications/dlt-templates/{id}",
+            put(dlt::update_template).delete(dlt::delete_template),
+        )
         .route(
             "/api/communications/messages",
             get(communications::list_messages).post(communications::create_message),
@@ -4503,6 +4565,14 @@ pub fn build_router(state: AppState) -> Router {
             get(order_basket::get_draft)
                 .put(order_basket::save_draft)
                 .delete(order_basket::delete_draft),
+        )
+        .route(
+            "/api/orders/basket/preview-cost",
+            post(order_basket::preview_cost),
+        )
+        .route(
+            "/api/orders/basket/previous/{patient_id}",
+            get(order_basket::carry_forward),
         )
         // ── Doctor Activities ───────────────────────────────
         .route(

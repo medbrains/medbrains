@@ -1421,10 +1421,17 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
   const [showTpa, setShowTpa] = useState(false);
   const [form, setForm] = useState<Partial<CreateInsuranceClaimRequest>>({ claim_type: "cashless" });
   const [tpaForm, setTpaForm] = useState<Partial<CreateTpaRateCardRequest>>({});
+  const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
     queryFn: () => api.listInsuranceClaims(),
+  });
+
+  const { data: nhcxCallbacks = [] } = useQuery({
+    queryKey: ["nhcx-callbacks", detailClaim?.id],
+    queryFn: () => api.listNhcxCallbacks({ matched_id: detailClaim?.id }),
+    enabled: !!detailClaim,
   });
 
   const createMutation = useMutation({
@@ -1573,7 +1580,19 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
           )}
         </>
       )}
-      <DataTable columns={columns} data={claims} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={claims}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        onRowClick={(row) => setDetailClaim(row)}
+      />
+
+      <ClaimDetailDrawer
+        claim={detailClaim}
+        callbacks={nhcxCallbacks}
+        onClose={() => setDetailClaim(null)}
+      />
 
       <Text fw={600} mt="lg">TPA Rate Cards</Text>
       {canCreate && (
@@ -1616,6 +1635,156 @@ const AUTO_BILLING_KEYS = [
   { key: "auto_charge_radiology", label: "Radiology Exams", description: "Auto-charge when a radiology order is completed" },
   { key: "auto_charge_ipd_room", label: "IPD Room Charges", description: "Auto-charge room/bed fees on patient discharge" },
 ] as const;
+
+interface NhcxCallbackRow {
+  id: string;
+  received_at: string;
+  correlation_id: string | null;
+  sender_code: string | null;
+  callback_type: string | null;
+  verification_status: string;
+  decrypted_payload: unknown;
+}
+
+function ClaimDetailDrawer({
+  claim,
+  callbacks,
+  onClose,
+}: {
+  claim: InsuranceClaim | null;
+  callbacks: NhcxCallbackRow[];
+  onClose: () => void;
+}) {
+  return (
+    <Drawer
+      opened={!!claim}
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={
+        claim ? (
+          <Group gap="xs">
+            <Text fw={600}>{claim.insurance_provider}</Text>
+            <Badge size="sm" variant="light">
+              {claim.claim_number ?? claim.id.slice(0, 8)}
+            </Badge>
+          </Group>
+        ) : (
+          "Claim"
+        )
+      }
+    >
+      {claim && (
+        <Stack gap="md">
+          <SimpleGrid cols={2} spacing="xs">
+            <Text size="xs" c="dimmed">Status</Text>
+            <Text size="sm">{claim.status.replace(/_/g, " ")}</Text>
+            <Text size="xs" c="dimmed">Type</Text>
+            <Text size="sm">{claim.claim_type}</Text>
+            <Text size="xs" c="dimmed">Pre-auth</Text>
+            <Text size="sm">{claim.pre_auth_amount ? `₹${claim.pre_auth_amount}` : "—"}</Text>
+            <Text size="xs" c="dimmed">Approved</Text>
+            <Text size="sm">{claim.approved_amount ? `₹${claim.approved_amount}` : "—"}</Text>
+            <Text size="sm" c="dimmed">Settled</Text>
+            <Text size="sm">{claim.settled_amount ? `₹${claim.settled_amount}` : "—"}</Text>
+            <Text size="xs" c="dimmed">TPA</Text>
+            <Text size="sm">{claim.tpa_name ?? "—"}</Text>
+            <Text size="xs" c="dimmed">Submitted</Text>
+            <Text size="sm">{claim.submitted_at ? new Date(claim.submitted_at).toLocaleString() : "—"}</Text>
+          </SimpleGrid>
+
+          <Card withBorder padding="sm" radius="md">
+            <Text fw={600} size="sm" mb="xs">NHCX exchange</Text>
+            {claim.nhcx_correlation_id ? (
+              <Stack gap={4}>
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Correlation ID</Text>
+                  <Text size="xs" ff="monospace">{claim.nhcx_correlation_id}</Text>
+                </Group>
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>API call ID</Text>
+                  <Text size="xs" ff="monospace">{claim.nhcx_api_call_id ?? "—"}</Text>
+                </Group>
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Recipient code</Text>
+                  <Text size="xs" ff="monospace">{claim.nhcx_recipient_code ?? "—"}</Text>
+                </Group>
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Last response at</Text>
+                  <Text size="xs">
+                    {claim.nhcx_response_at
+                      ? new Date(claim.nhcx_response_at).toLocaleString()
+                      : "—"}
+                  </Text>
+                </Group>
+                {claim.nhcx_response_payload != null && (
+                  <Card withBorder padding="xs" radius="sm" mt="xs" bg="gray.0">
+                    <Text size="xs" c="dimmed" mb={4}>Decrypted response payload</Text>
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        maxHeight: 220,
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {JSON.stringify(claim.nhcx_response_payload, null, 2)}
+                    </pre>
+                  </Card>
+                )}
+              </Stack>
+            ) : (
+              <Text size="sm" c="dimmed">
+                Not yet exchanged with NHCX gateway.
+              </Text>
+            )}
+          </Card>
+
+          <Card withBorder padding="sm" radius="md">
+            <Group justify="space-between" mb="xs">
+              <Text fw={600} size="sm">Webhook callbacks</Text>
+              <Badge variant="light">{callbacks.length}</Badge>
+            </Group>
+            {callbacks.length === 0 ? (
+              <Text size="sm" c="dimmed">No callbacks received yet.</Text>
+            ) : (
+              <Table verticalSpacing={4} fz="xs">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>When</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Sender</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {callbacks.map((cb) => (
+                    <Table.Tr key={cb.id}>
+                      <Table.Td>{new Date(cb.received_at).toLocaleString()}</Table.Td>
+                      <Table.Td>{cb.callback_type ?? "—"}</Table.Td>
+                      <Table.Td>{cb.sender_code ?? "—"}</Table.Td>
+                      <Table.Td>
+                        <Badge
+                          size="xs"
+                          variant="light"
+                          color={cb.verification_status === "verified" ? "green" : "orange"}
+                        >
+                          {cb.verification_status}
+                        </Badge>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
+          </Card>
+        </Stack>
+      )}
+    </Drawer>
+  );
+}
 
 function BillingSettingsTab() {
   const queryClient = useQueryClient();
@@ -3252,6 +3421,28 @@ function BankReconTab() {
     onError: () => notifications.show({ title: "Error", message: "Auto-reconcile failed", color: "danger" }),
   });
 
+  // TPA recon (priority #4) — matches unmatched credits to insurance_claims
+  // by reference / claim_number / amount-window heuristics.
+  const autoMatchTpaMut = useMutation({
+    mutationFn: () => api.autoMatchBankTransactions(),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["insurance-receivables-aging"] });
+      notifications.show({
+        title: "TPA Auto-match",
+        message: `${res.matched} matched · ${res.variance_flagged} variance · ${res.still_unmatched} unmatched`,
+        color: "success",
+      });
+    },
+    onError: () =>
+      notifications.show({ title: "Error", message: "TPA auto-match failed", color: "danger" }),
+  });
+
+  const { data: insAging = [] } = useQuery({
+    queryKey: ["insurance-receivables-aging"],
+    queryFn: () => api.listInsuranceReceivablesAging(),
+  });
+
   const reconStatusColors: Record<string, string> = {
     unmatched: "orange", matched: "success", discrepancy: "danger", excluded: "slate",
   };
@@ -3299,6 +3490,15 @@ function BankReconTab() {
               <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => autoReconMut.mutate()} loading={autoReconMut.isPending}>
                 Auto-Reconcile
               </Button>
+              <Button
+                variant="light"
+                color="grape"
+                leftSection={<IconRefresh size={16} />}
+                onClick={() => autoMatchTpaMut.mutate()}
+                loading={autoMatchTpaMut.isPending}
+              >
+                TPA Auto-match
+              </Button>
               <Button leftSection={<IconUpload size={16} />} onClick={openImport}>
                 Import Transactions
               </Button>
@@ -3306,6 +3506,42 @@ function BankReconTab() {
           )}
         </Group>
       </Group>
+
+      {insAging.length > 0 && (
+        <Card withBorder>
+          <Text fw={600} mb="xs">Insurance Receivables Aging (per payer)</Text>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>TPA</Table.Th>
+                <Table.Th ta="right">Claims</Table.Th>
+                <Table.Th ta="right">0-30 days</Table.Th>
+                <Table.Th ta="right">30-60</Table.Th>
+                <Table.Th ta="right">60-90</Table.Th>
+                <Table.Th ta="right">90+</Table.Th>
+                <Table.Th ta="right">Total Outstanding</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {insAging.map((b) => (
+                <Table.Tr key={b.tpa_name ?? "—"}>
+                  <Table.Td>{b.tpa_name ?? "—"}</Table.Td>
+                  <Table.Td ta="right">{b.claim_count}</Table.Td>
+                  <Table.Td ta="right">₹{Number(b.bucket_0_30).toLocaleString()}</Table.Td>
+                  <Table.Td ta="right">₹{Number(b.bucket_30_60).toLocaleString()}</Table.Td>
+                  <Table.Td ta="right">₹{Number(b.bucket_60_90).toLocaleString()}</Table.Td>
+                  <Table.Td ta="right" c="red">
+                    ₹{Number(b.bucket_90_plus).toLocaleString()}
+                  </Table.Td>
+                  <Table.Td ta="right" fw={600}>
+                    ₹{Number(b.total_outstanding).toLocaleString()}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Card>
+      )}
 
       <DataTable columns={columns} data={bankTxns ?? []} loading={isLoading} page={page} totalPages={Math.ceil((bankTxns?.length ?? 0) / 20) || 1} onPageChange={setPage} rowKey={(r) => r.id} />
 

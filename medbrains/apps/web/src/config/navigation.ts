@@ -492,6 +492,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.roles.list",
           },
           {
+            i18nKey: "groups",
+            path: "/admin/groups",
+            icon: "IconUsersGroup",
+            requiredPermission: "admin.users.list",
+          },
+          {
             i18nKey: "settings",
             path: "/admin/settings",
             icon: "IconSettings",

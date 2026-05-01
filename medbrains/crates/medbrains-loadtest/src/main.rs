@@ -9,6 +9,7 @@
 
 use goose::prelude::*;
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -23,12 +24,32 @@ mod generated;
 /// per virtual user via `seed_cache` and reused across iterations.
 #[derive(Debug, Default)]
 pub(crate) struct Session {
-    csrf_token: Option<String>,
-    drug_id: Option<String>,
-    drug_name: Option<String>,
-    lab_test_id: Option<String>,
-    opd_dept_id: Option<String>,
-    ipd_dept_id: Option<String>,
+    pub csrf_token: Option<String>,
+    // Master / catalog IDs (read from list endpoints).
+    pub drug_id: Option<String>,
+    pub drug_name: Option<String>,
+    pub lab_test_id: Option<String>,
+    pub opd_dept_id: Option<String>,
+    pub ipd_dept_id: Option<String>,
+    // Per-user resources created at start so generated transactions
+    // hit a real {id} instead of a placeholder UUID.
+    pub patient_id: Option<String>,
+    pub encounter_id: Option<String>,
+    pub prescription_id: Option<String>,
+    pub lab_order_id: Option<String>,
+    pub pharmacy_order_id: Option<String>,
+    pub invoice_id: Option<String>,
+    pub admission_id: Option<String>,
+    pub bed_id: Option<String>,
+    pub ward_id: Option<String>,
+    pub user_id: Option<String>,
+    pub role_id: Option<String>,
+    pub tenant_id: Option<String>,
+    // Universal cache: parent collection URL → first row's id discovered
+    // by `lookup_first_id`. Populated lazily so the AllEndpoints
+    // resolver can substitute `{id}` for paths whose parent has at
+    // least one seeded row.
+    pub discovered: HashMap<String, Option<String>>,
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -375,41 +396,435 @@ async fn read_relations(user: &mut GooseUser) -> TransactionResult {
 // departments). Subsequent flow transactions reuse them so each iteration
 // only stresses the operational endpoints, not the lookup ones.
 
-async fn seed_cache(user: &mut GooseUser) -> TransactionResult {
+pub(crate) async fn seed_cache(user: &mut GooseUser) -> TransactionResult {
+    // ── 1. Cache master IDs from list endpoints ─────────────
     let depts = json_get(user, "/api/setup/departments").await?;
     let drugs = json_get(user, "/api/pharmacy/catalog").await?;
     let tests = json_get(user, "/api/lab/catalog").await?;
+    let beds = json_get(user, "/api/ipd/beds/available").await?;
+    let users_list = json_get(user, "/api/setup/users").await?;
+    let roles_list = json_get(user, "/api/setup/roles").await?;
+    let me = json_get(user, "/api/auth/me").await?;
 
-    let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
-    let mut s = session.lock().await;
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let mut s = session.lock().await;
 
-    if let Some(arr) = depts.as_ref().and_then(|v| v.as_array()) {
-        s.opd_dept_id = first_id_matching(arr, &["opd", "general", "consultation"]);
-        s.ipd_dept_id =
-            first_id_matching(arr, &["ipd", "medicine", "ward", "inpatient"])
+        if let Some(arr) = depts.as_ref().and_then(|v| v.as_array()) {
+            s.opd_dept_id = first_id_matching(arr, &["opd", "general", "consultation"]);
+            s.ipd_dept_id = first_id_matching(arr, &["ipd", "medicine", "ward", "inpatient"])
                 .or_else(|| s.opd_dept_id.clone());
+        }
+        if let Some(first) = drugs.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+            s.drug_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+            s.drug_name = first.get("name").and_then(|v| v.as_str()).map(str::to_owned);
+        }
+        if let Some(first) = tests.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+            s.lab_test_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+        }
+        if let Some(first) = beds.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+            s.bed_id = first
+                .get("location_id")
+                .or_else(|| first.get("id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
+            s.ward_id = first
+                .get("ward_id")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
+        }
+        if let Some(first) = users_list
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+        {
+            s.user_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+        }
+        if let Some(first) = roles_list
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+        {
+            s.role_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+        }
+        if let Some(obj) = me.as_ref() {
+            if s.user_id.is_none() {
+                s.user_id = obj.get("id").and_then(|v| v.as_str()).map(str::to_owned);
+            }
+            s.tenant_id = obj.get("tenant_id").and_then(|v| v.as_str()).map(str::to_owned);
+        }
     }
-    if let Some(arr) = drugs.as_ref().and_then(|v| v.as_array())
-        && let Some(first) = arr.first()
-    {
-        s.drug_id = first
-            .get("id")
-            .and_then(|v| v.as_str())
-            .map(str::to_owned);
-        s.drug_name = first
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(str::to_owned);
-    }
-    if let Some(arr) = tests.as_ref().and_then(|v| v.as_array())
-        && let Some(first) = arr.first()
-    {
-        s.lab_test_id = first
-            .get("id")
-            .and_then(|v| v.as_str())
-            .map(str::to_owned);
-    }
+
+    // ── 2. Bootstrap a real patient + downstream resources ──
+    // Each is wrapped so a failure on one (e.g. missing dept seed)
+    // doesn't kill the whole on_start; the placeholder UUID falls
+    // back to 404 just like before for that sub-tree only.
+    bootstrap_patient(user).await;
+    bootstrap_encounter(user).await;
+    bootstrap_invoice(user).await;
+    bootstrap_lab_order(user).await;
+    bootstrap_pharmacy_order(user).await;
+    bootstrap_admission(user).await;
     Ok(())
+}
+
+async fn bootstrap_patient(user: &mut GooseUser) {
+    if let Ok(Some(id)) = create_patient_inline(user).await {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.patient_id = Some(id);
+    }
+}
+
+async fn bootstrap_encounter(user: &mut GooseUser) {
+    let patient_id = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.patient_id.clone()
+    };
+    let Some(pid) = patient_id else { return };
+    if let Ok(Some(eid)) = create_encounter_inline(user, &pid).await {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.encounter_id = Some(eid);
+    }
+}
+
+async fn bootstrap_invoice(user: &mut GooseUser) {
+    let (patient_id, encounter_id) = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let s = session.lock().await;
+        (s.patient_id.clone(), s.encounter_id.clone())
+    };
+    let (Some(pid), Some(eid)) = (patient_id, encounter_id) else { return };
+    let resp = json_request(
+        user,
+        GooseMethod::Post,
+        "/api/billing/invoices",
+        Some(&json!({ "patient_id": pid, "encounter_id": eid })),
+    )
+    .await;
+    if let Ok(Some(v)) = resp
+        && let Some(id) = v.get("id").and_then(|v| v.as_str())
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.invoice_id = Some(id.to_owned());
+    }
+}
+
+async fn bootstrap_lab_order(user: &mut GooseUser) {
+    let (patient_id, encounter_id, test_id) = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let s = session.lock().await;
+        (
+            s.patient_id.clone(),
+            s.encounter_id.clone(),
+            s.lab_test_id.clone(),
+        )
+    };
+    let (Some(pid), Some(eid), Some(tid)) = (patient_id, encounter_id, test_id) else {
+        return;
+    };
+    let resp = json_request(
+        user,
+        GooseMethod::Post,
+        "/api/lab/orders",
+        Some(&json!({
+            "patient_id": pid,
+            "encounter_id": eid,
+            "test_id": tid,
+            "priority": "routine",
+        })),
+    )
+    .await;
+    if let Ok(Some(v)) = resp
+        && let Some(id) = v.get("id").and_then(|v| v.as_str())
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.lab_order_id = Some(id.to_owned());
+    }
+}
+
+async fn bootstrap_pharmacy_order(user: &mut GooseUser) {
+    let (patient_id, encounter_id, drug_id, drug_name) = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let s = session.lock().await;
+        (
+            s.patient_id.clone(),
+            s.encounter_id.clone(),
+            s.drug_id.clone(),
+            s.drug_name.clone(),
+        )
+    };
+    let (Some(pid), Some(eid), Some(did), Some(dname)) =
+        (patient_id, encounter_id, drug_id, drug_name)
+    else {
+        return;
+    };
+    let resp = json_request(
+        user,
+        GooseMethod::Post,
+        "/api/pharmacy/orders",
+        Some(&json!({
+            "patient_id": pid,
+            "encounter_id": eid,
+            "dispensing_type": "prescription",
+            "items": [{
+                "catalog_item_id": did,
+                "drug_name": dname,
+                "quantity": 5,
+                "unit_price": 1,
+            }],
+        })),
+    )
+    .await;
+    if let Ok(Some(v)) = resp
+        && let Some(id) = v
+            .get("order")
+            .and_then(|o| o.get("id"))
+            .and_then(|v| v.as_str())
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.pharmacy_order_id = Some(id.to_owned());
+    }
+}
+
+async fn bootstrap_admission(user: &mut GooseUser) {
+    let (patient_id, ipd_dept_id, bed_id) = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let s = session.lock().await;
+        (s.patient_id.clone(), s.ipd_dept_id.clone(), s.bed_id.clone())
+    };
+    let Some(pid) = patient_id else { return };
+    let Some(did) = ipd_dept_id else { return };
+    let body = if let Some(bed) = bed_id {
+        json!({
+            "patient_id": pid,
+            "department_id": did,
+            "bed_id": bed,
+            "admission_source": "opd",
+        })
+    } else {
+        json!({
+            "patient_id": pid,
+            "department_id": did,
+            "admission_source": "opd",
+        })
+    };
+    let resp = json_request(user, GooseMethod::Post, "/api/ipd/admissions", Some(&body)).await;
+    if let Ok(Some(v)) = resp
+        && let Some(id) = v
+            .get("admission")
+            .and_then(|a| a.get("id"))
+            .and_then(|v| v.as_str())
+    {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.admission_id = Some(id.to_owned());
+    }
+}
+
+/// Substitute `{name}` placeholders in a path template with real IDs.
+///
+/// Resolution order per `{name}` segment:
+///   1. Static cache: if the name maps to a bootstrapped resource
+///      (`patient_id`, `encounter_id`, etc.), use that.
+///   2. Generic `{id}` / `{_}`: derive the parent collection URL by
+///      stripping everything from `/{id}` onward, GET that URL, take
+///      `.id` of the first row, cache under `Session.discovered`.
+///   3. Date / period defaults for query path params.
+///   4. Placeholder UUID fallback (preserves the old smoke-test
+///      behavior — endpoint 404s but goose still records latency).
+pub(crate) async fn resolve_path(user: &mut GooseUser, template: &str) -> String {
+    let placeholder_uuid = "00000000-0000-0000-0000-000000000000";
+
+    // Walk the template, collecting ordered (literal | placeholder) segments.
+    let segments = parse_segments(template);
+
+    let mut resolved_values: Vec<String> = Vec::new();
+    for seg in &segments {
+        if let Segment::Placeholder(name) = seg {
+            // 1. Static cache (short-lived lock).
+            let cached = {
+                let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+                let s = session.lock().await;
+                lookup_static(&s, name, template)
+            };
+            if let Some(v) = cached {
+                resolved_values.push(v);
+                continue;
+            }
+
+            // 2. Generic {id}/{_}: discover via parent collection.
+            if matches!(name.as_str(), "id" | "_") {
+                if let Some(parent) = parent_url_for_id(template) {
+                    let already = {
+                        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+                        let s = session.lock().await;
+                        s.discovered.get(&parent).cloned()
+                    };
+                    let discovered = match already {
+                        Some(prior) => prior,
+                        None => {
+                            let result = lookup_first_id(user, &parent).await;
+                            let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+                            let mut s = session.lock().await;
+                            s.discovered.insert(parent, result.clone());
+                            result
+                        }
+                    };
+                    if let Some(id) = discovered {
+                        resolved_values.push(id);
+                        continue;
+                    }
+                }
+            }
+
+            // 3. Date / period defaults.
+            if let Some(default) = static_default(name) {
+                resolved_values.push(default);
+                continue;
+            }
+
+            // 4. Placeholder fallback.
+            resolved_values.push(placeholder_uuid.to_owned());
+        }
+    }
+
+    // Stitch literals + resolved placeholders back together.
+    let mut out = String::with_capacity(template.len() + 32);
+    let mut idx = 0;
+    for seg in &segments {
+        match seg {
+            Segment::Literal(s) => out.push_str(s),
+            Segment::Placeholder(_) => {
+                out.push_str(&resolved_values[idx]);
+                idx += 1;
+            }
+        }
+    }
+    out
+}
+
+#[derive(Debug)]
+enum Segment {
+    Literal(String),
+    Placeholder(String),
+}
+
+fn parse_segments(template: &str) -> Vec<Segment> {
+    let mut segs = Vec::new();
+    let mut buf = String::new();
+    let mut chars = template.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '{' {
+            if !buf.is_empty() {
+                segs.push(Segment::Literal(std::mem::take(&mut buf)));
+            }
+            let mut name = String::new();
+            for nc in chars.by_ref() {
+                if nc == '}' {
+                    break;
+                }
+                name.push(nc);
+            }
+            segs.push(Segment::Placeholder(name));
+        } else {
+            buf.push(c);
+        }
+    }
+    if !buf.is_empty() {
+        segs.push(Segment::Literal(buf));
+    }
+    segs
+}
+
+fn lookup_static(s: &Session, name: &str, template: &str) -> Option<String> {
+    match name {
+        "patient_id" => s.patient_id.clone(),
+        "encounter_id" => s.encounter_id.clone(),
+        "prescription_id" | "rx_id" => s.prescription_id.clone(),
+        "lab_order_id" => s.lab_order_id.clone(),
+        "pharmacy_order_id" => s.pharmacy_order_id.clone(),
+        "invoice_id" => s.invoice_id.clone(),
+        "admission_id" => s.admission_id.clone(),
+        "bed_id" | "location_id" => s.bed_id.clone(),
+        "ward_id" => s.ward_id.clone(),
+        "user_id" | "employee_id" => s.user_id.clone(),
+        "role_id" => s.role_id.clone(),
+        "tenant_id" => s.tenant_id.clone(),
+        "drug_id" | "catalog_item_id" => s.drug_id.clone(),
+        "test_id" | "lab_test_id" => s.lab_test_id.clone(),
+        "department_id" | "dept_id" => {
+            if template.contains("/ipd/") {
+                s.ipd_dept_id.clone()
+            } else {
+                s.opd_dept_id.clone()
+            }
+        }
+        _ => None,
+    }
+}
+
+fn static_default(name: &str) -> Option<String> {
+    match name {
+        "from_date" | "from" => Some(date_n_days_ago(30)),
+        "to_date" | "to" => Some(date_n_days_ago(0)),
+        "year" => Some(current_year()),
+        "period" => Some(format!("{}-Q1", current_year())),
+        "month" => Some("01".to_owned()),
+        "n" | "limit" | "page" => Some("10".to_owned()),
+        _ => None,
+    }
+}
+
+/// Strip the trailing `/{id}/...` so we can call the parent collection.
+/// `/api/lab/orders/{id}/cancel` → `/api/lab/orders`.
+fn parent_url_for_id(template: &str) -> Option<String> {
+    template
+        .split("/{id}")
+        .next()
+        .or_else(|| template.split("/{_}").next())
+        .map(str::to_owned)
+        .filter(|s| s.len() > 4 && s != template)
+}
+
+/// GET the parent URL and pick `.id` from the first array element, or
+/// from a paginated `{ data: [...] }` / `{ results: [...] }` envelope.
+async fn lookup_first_id(user: &mut GooseUser, parent: &str) -> Option<String> {
+    let value = json_get(user, parent).await.ok().flatten()?;
+    extract_first_id(&value)
+}
+
+fn extract_first_id(value: &serde_json::Value) -> Option<String> {
+    let arr = if let Some(a) = value.as_array() {
+        Some(a.clone())
+    } else if let Some(obj) = value.as_object() {
+        for key in &["data", "results", "items", "rows", "records"] {
+            if let Some(arr) = obj.get(*key).and_then(|v| v.as_array()) {
+                return arr
+                    .first()
+                    .and_then(|v| v.get("id"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned);
+            }
+        }
+        None
+    } else {
+        None
+    };
+    arr.as_ref()
+        .and_then(|a| a.first())
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+}
+
+fn date_n_days_ago(n: i64) -> String {
+    use chrono::Duration;
+    (chrono::Utc::now() - Duration::days(n))
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
+fn current_year() -> String {
+    chrono::Utc::now().format("%Y").to_string()
 }
 
 fn first_id_matching(arr: &[serde_json::Value], needles: &[&str]) -> Option<String> {

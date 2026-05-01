@@ -1,6 +1,5 @@
-import { Box, Button, Grid, Group, Paper, Select, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import { Box, Button, Grid, Select, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { useForm, Controller } from "react-hook-form";
 import type {
   BloodGroup,
   CreatePatientRequest,
@@ -11,6 +10,9 @@ import type {
   RegistrationSource,
   RegistrationType,
 } from "@medbrains/types";
+import { Controller, useForm } from "react-hook-form";
+import { ClinicalForm, FormRow, FormSection } from "../ClinicalForm";
+import { AllergyField } from "../inputs";
 
 export interface PatientRegisterFormInitialValues {
   prefix?: string;
@@ -31,6 +33,7 @@ export interface PatientRegisterFormInitialValues {
   guardian_name?: string;
   guardian_relation?: string;
   category?: PatientCategory;
+  known_allergies?: string;
 }
 
 interface PatientRegisterFormProps {
@@ -67,6 +70,7 @@ interface FormValues {
   is_medico_legal?: boolean;
   mlc_number?: string;
   is_vip?: boolean;
+  known_allergies?: string;
   // Address
   line1?: string;
   city?: string;
@@ -119,31 +123,6 @@ const categoryOptions: { value: PatientCategory; label: string }[] = [
   { value: "charity", label: "Charity" },
 ];
 
-function SectionHeader({ eyebrow, title, hint }: { eyebrow: string; title: string; hint?: string }) {
-  return (
-    <Stack gap={2} mb="xs">
-      <Text
-        size="xs"
-        fw={500}
-        tt="uppercase"
-        ff="JetBrains Mono, monospace"
-        c="dimmed"
-        style={{ letterSpacing: "0.14em" }}
-      >
-        {eyebrow}
-      </Text>
-      <Text fw={600} size="md">
-        {title}
-      </Text>
-      {hint && (
-        <Text size="xs" c="dimmed">
-          {hint}
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
 export function PatientRegisterForm({
   quickMode = false,
   isSubmitting,
@@ -152,7 +131,12 @@ export function PatientRegisterForm({
   onCancel,
   initialValues,
 }: PatientRegisterFormProps) {
-  const { register, control, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<FormValues>({
     defaultValues: {
       gender: initialValues?.gender ?? "unknown",
       prefix: initialValues?.prefix,
@@ -172,6 +156,7 @@ export function PatientRegisterForm({
       guardian_name: initialValues?.guardian_name,
       guardian_relation: initialValues?.guardian_relation,
       category: initialValues?.category,
+      known_allergies: initialValues?.known_allergies,
     },
   });
 
@@ -182,6 +167,10 @@ export function PatientRegisterForm({
     if (values.state) address.state = values.state;
     if (values.postal_code) address.postal_code = values.postal_code;
     if (values.country) address.country = values.country;
+
+    const attributes: Record<string, unknown> = {};
+    const allergies = values.known_allergies?.trim();
+    if (allergies) attributes.known_allergies = allergies;
 
     const req: CreatePatientRequest = {
       first_name: values.first_name,
@@ -209,50 +198,69 @@ export function PatientRegisterForm({
       mlc_number: values.mlc_number || undefined,
       is_vip: values.is_vip || undefined,
       address: Object.keys(address).length > 0 ? address : null,
+      attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
     };
     void onSubmit(req);
   };
 
+  const isEdit = submitLabel.toLowerCase().includes("save");
+
   return (
     <Box maw={960} mx="auto">
-      <form onSubmit={handleSubmit(submit)}>
-        <Stack gap="lg">
-          <Paper p="lg" radius="md" withBorder>
-            <SectionHeader eyebrow="Section 01" title="Identity" />
+      <ClinicalForm
+        title={isEdit ? "Edit patient" : "Patient registration"}
+        titleAccent={isEdit ? undefined : "— OPD"}
+        subtitle={
+          isEdit ? "Update demographic, contact, and clinical-safety fields" : "New patient intake"
+        }
+        onSubmit={handleSubmit(submit)}
+        footerMeta={isEdit ? "Changes are not saved until you click Save" : "Auto-saved as draft"}
+        actions={
+          <>
+            <Button variant="default" onClick={onCancel} type="button">
+              Cancel
+            </Button>
+            <Button type="submit" loading={isSubmitting}>
+              {submitLabel}
+            </Button>
+          </>
+        }
+      >
+        <FormSection num="01" name="Identity">
+          <FormRow label="Name" required>
             <Grid>
               <Grid.Col span={{ base: 12, sm: 2 }}>
-                <TextInput label="Prefix" placeholder="Mr / Ms / Dr" {...register("prefix")} />
+                <TextInput placeholder="Prefix" {...register("prefix")} />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
-                  label="First name"
-                  required
-                  placeholder="Given name"
+                  placeholder="First name"
                   error={errors.first_name?.message}
                   {...register("first_name", { required: "First name required" })}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
-                <TextInput label="Middle name" {...register("middle_name")} />
+                <TextInput placeholder="Middle" {...register("middle_name")} />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
                 <TextInput
-                  label="Last name"
-                  required
-                  placeholder="Family name"
+                  placeholder="Last name"
                   error={errors.last_name?.message}
                   {...register("last_name", { required: "Last name required" })}
                 />
               </Grid.Col>
+            </Grid>
+          </FormRow>
 
-              <Grid.Col span={{ base: 12, sm: 4 }}>
+          <FormRow label="Date of birth · sex" required>
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
                 <Controller
                   control={control}
                   name="date_of_birth"
                   render={({ field }) => (
                     <DateInput
-                      label="Date of birth"
-                      placeholder="Select date"
+                      placeholder="DD / MM / YYYY"
                       value={field.value ?? null}
                       onChange={(v) => field.onChange(v ? new Date(v) : null)}
                       clearable
@@ -261,15 +269,13 @@ export function PatientRegisterForm({
                   )}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 4 }}>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
                 <Controller
                   control={control}
                   name="gender"
                   rules={{ required: "Gender required" }}
                   render={({ field }) => (
                     <Select
-                      label="Gender"
-                      required
                       data={genderOptions}
                       value={field.value}
                       onChange={(v) => v && field.onChange(v)}
@@ -278,71 +284,100 @@ export function PatientRegisterForm({
                   )}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 4 }}>
-                <Controller
-                  control={control}
-                  name="blood_group"
-                  render={({ field }) => (
-                    <Select
-                      label="Blood group"
-                      placeholder="Select"
-                      data={bloodGroupOptions}
-                      value={field.value ?? null}
-                      onChange={(v) => field.onChange(v ?? undefined)}
-                      clearable
-                    />
-                  )}
-                />
-              </Grid.Col>
             </Grid>
-          </Paper>
+          </FormRow>
 
-          <Paper p="lg" radius="md" withBorder>
-            <SectionHeader eyebrow="Section 02" title="Contact" />
+          <FormRow label="Blood group">
+            <Controller
+              control={control}
+              name="blood_group"
+              render={({ field }) => (
+                <Select
+                  placeholder="Unknown"
+                  data={bloodGroupOptions}
+                  value={field.value ?? null}
+                  onChange={(v) => field.onChange(v ?? undefined)}
+                  clearable
+                />
+              )}
+            />
+          </FormRow>
+        </FormSection>
+
+        <FormSection num="02" name="Contact">
+          <FormRow label="Phone" required>
             <Grid>
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <TextInput
-                  label="Phone (primary)"
-                  required
                   placeholder="+91 xxxxxxxxxx"
                   error={errors.phone?.message}
                   {...register("phone", { required: "Phone required" })}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput label="Phone (alternate)" {...register("phone_secondary")} />
-              </Grid.Col>
-              <Grid.Col span={12}>
-                <TextInput label="Email" type="email" placeholder="patient@example.com" {...register("email")} />
+                <TextInput placeholder="Alternate phone" {...register("phone_secondary")} />
               </Grid.Col>
             </Grid>
-          </Paper>
+          </FormRow>
 
-          {!quickMode && (
-            <>
-              <Paper p="lg" radius="md" withBorder>
-                <SectionHeader
-                  eyebrow="Section 03"
-                  title="Family & Background"
-                  hint="Optional — helps with kin-of-record, religious dietary, and follow-up"
-                />
+          <FormRow label="Email">
+            <TextInput type="email" placeholder="patient@example.com" {...register("email")} />
+          </FormRow>
+        </FormSection>
+
+        <FormSection num="03" name="Allergies">
+          <FormRow label="Known allergies" required>
+            <Controller
+              control={control}
+              name="known_allergies"
+              render={({ field }) => {
+                const v = (field.value ?? "").trim();
+                const has = v.length > 0;
+                const isNkda = v.toLowerCase() === "nkda";
+                return (
+                  <AllergyField
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Type known allergies, or 'NKDA' for no known drug allergies"
+                    severity={has ? "watch" : "blocking"}
+                    badgeLabel={has ? (isNkda ? "NKDA" : "Logged") : "Required"}
+                    hint={
+                      has
+                        ? undefined
+                        : "Code-Red pulse: blocking field — required before any prescription can be issued"
+                    }
+                  />
+                );
+              }}
+            />
+          </FormRow>
+        </FormSection>
+
+        {!quickMode && (
+          <>
+            <FormSection num="04" name="Family & background">
+              <FormRow label="Father's name">
+                <TextInput {...register("father_name")} />
+              </FormRow>
+              <FormRow label="Guardian">
                 <Grid>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="Father's name" {...register("father_name")} />
+                  <Grid.Col span={{ base: 12, sm: 8 }}>
+                    <TextInput placeholder="Name" {...register("guardian_name")} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="Guardian name" {...register("guardian_name")} />
+                    <TextInput placeholder="Relation" {...register("guardian_relation")} />
                   </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="Guardian relation" {...register("guardian_relation")} />
-                  </Grid.Col>
+                </Grid>
+              </FormRow>
+              <FormRow label="Marital · religion · occupation">
+                <Grid>
                   <Grid.Col span={{ base: 12, sm: 4 }}>
                     <Controller
                       control={control}
                       name="marital_status"
                       render={({ field }) => (
                         <Select
-                          label="Marital status"
+                          placeholder="Marital"
                           data={maritalStatusOptions}
                           value={field.value ?? null}
                           onChange={(v) => field.onChange(v ?? undefined)}
@@ -352,79 +387,62 @@ export function PatientRegisterForm({
                     />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="Religion" {...register("religion")} />
+                    <TextInput placeholder="Religion" {...register("religion")} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="Occupation" {...register("occupation")} />
+                    <TextInput placeholder="Occupation" {...register("occupation")} />
                   </Grid.Col>
                 </Grid>
-              </Paper>
+              </FormRow>
+            </FormSection>
 
-              <Paper p="lg" radius="md" withBorder>
-                <SectionHeader eyebrow="Section 04" title="Address" />
-                <Grid>
-                  <Grid.Col span={12}>
-                    <Textarea
-                      label="Address line"
-                      placeholder="House / street / locality"
-                      autosize
-                      minRows={2}
-                      {...register("line1")}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="City" {...register("city")} />
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput label="State" {...register("state")} />
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 6, sm: 2 }}>
-                    <TextInput label="Postal code" {...register("postal_code")} />
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 6, sm: 2 }}>
-                    <TextInput label="Country" defaultValue="India" {...register("country")} />
-                  </Grid.Col>
-                </Grid>
-              </Paper>
-
-              <Paper p="lg" radius="md" withBorder>
-                <SectionHeader
-                  eyebrow="Section 05"
-                  title="Registration"
-                  hint="Determines billing scheme and queue routing"
+            <FormSection num="05" name="Address">
+              <FormRow label="Street">
+                <Textarea
+                  placeholder="House / street / locality"
+                  autosize
+                  minRows={2}
+                  {...register("line1")}
                 />
+              </FormRow>
+              <FormRow label="City · state · pin">
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <Controller
-                      control={control}
-                      name="category"
-                      render={({ field }) => (
-                        <Select
-                          label="Patient category"
-                          placeholder="General"
-                          data={categoryOptions}
-                          value={field.value ?? null}
-                          onChange={(v) => field.onChange(v ?? undefined)}
-                          clearable
-                        />
-                      )}
-                    />
+                    <TextInput placeholder="City" {...register("city")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 4 }}>
+                    <TextInput placeholder="State" {...register("state")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 2 }}>
+                    <TextInput placeholder="Pin" {...register("postal_code")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 2 }}>
+                    <TextInput defaultValue="India" {...register("country")} />
                   </Grid.Col>
                 </Grid>
-              </Paper>
-            </>
-          )}
+              </FormRow>
+            </FormSection>
 
-          <Group justify="flex-end" mt="xs">
-            <Button variant="default" onClick={onCancel} type="button" size="md">
-              Cancel
-            </Button>
-            <Button type="submit" loading={isSubmitting} size="md">
-              {submitLabel}
-            </Button>
-          </Group>
-        </Stack>
-      </form>
+            <FormSection num="06" name="Registration">
+              <FormRow label="Patient category">
+                <Controller
+                  control={control}
+                  name="category"
+                  render={({ field }) => (
+                    <Select
+                      placeholder="General"
+                      data={categoryOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      clearable
+                    />
+                  )}
+                />
+              </FormRow>
+            </FormSection>
+          </>
+        )}
+      </ClinicalForm>
     </Box>
   );
 }

@@ -196,6 +196,10 @@ fn relation_to_relname(rel: Relation) -> &'static str {
 
 #[async_trait]
 impl AuthzBackend for SpiceDbBackend {
+    fn backend_name(&self) -> &'static str {
+        "spicedb"
+    }
+
     async fn check(
         &self,
         ctx: &AuthzContext,

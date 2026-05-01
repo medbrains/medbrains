@@ -306,6 +306,11 @@ pub struct InsuranceClaim {
     pub is_secondary: bool,
     pub primary_claim_id: Option<Uuid>,
     pub tpa_rate_plan_id: Option<Uuid>,
+    pub nhcx_correlation_id: Option<Uuid>,
+    pub nhcx_api_call_id: Option<Uuid>,
+    pub nhcx_recipient_code: Option<String>,
+    pub nhcx_response_payload: Option<serde_json::Value>,
+    pub nhcx_response_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

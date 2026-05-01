@@ -56,6 +56,7 @@ import {
   buildPermissionTree,
 } from "@medbrains/types";
 import { DataTable, PageHeader, SelectLabel, CreateRoleModal, CreateDepartmentModal, StatusDot } from "../../components";
+import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { useCreateInline } from "../../hooks/useCreateInline";
 
@@ -1350,10 +1351,9 @@ export function UsersPage() {
     staleTime: 60_000,
   });
 
-  const openCreate = () => {
-    setEditingUser(null);
-    setModalOpen(true);
-  };
+  // Create flow uses the new 4-tab Stepper drawer; edit flow keeps the modal.
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const openCreate = () => setCreateDrawerOpen(true);
 
   const openEdit = (user: SetupUser) => {
     setEditingUser(user);
@@ -1518,6 +1518,11 @@ export function UsersPage() {
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
         editingUser={editingUser}
+      />
+
+      <UserCreateDrawer
+        opened={createDrawerOpen}
+        onClose={() => setCreateDrawerOpen(false)}
       />
 
       <DeleteUserModal

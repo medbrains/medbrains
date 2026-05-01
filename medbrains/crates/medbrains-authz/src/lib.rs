@@ -16,6 +16,7 @@ pub mod caveat;
 pub mod error;
 pub mod registry;
 pub mod relations;
+pub mod watch;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,12 @@ pub struct AuthzContext {
 /// Backend trait — Postgres in production, in-memory in tests.
 #[async_trait]
 pub trait AuthzBackend: Send + Sync {
+    /// Diagnostic — returns "spicedb" or "postgres" so the health
+    /// endpoint can surface which resolver is in use.
+    fn backend_name(&self) -> &'static str {
+        "unknown"
+    }
+
     /// "Does subject hold relation on object?" — the hot path.
     /// Caller passes the AuthzContext from JWT + the target object.
     async fn check(

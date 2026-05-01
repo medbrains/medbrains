@@ -4767,3 +4767,298 @@ pub async fn delete_brand_entity(
     tx.commit().await?;
     Ok(Json(serde_json::json!({"status": "deactivated"})))
 }
+
+// ── Access Groups (read-only listing for the user-create drawer) ─────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AccessGroupRow {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_active: bool,
+}
+
+/// List access_groups for the current tenant. Used by the user-create
+/// drawer (Groups tab) and the Groups admin page.
+pub async fn list_access_groups(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<AccessGroupRow>>, AppError> {
+    require_permission(&claims, permissions::admin::users::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let rows = sqlx::query_as::<_, AccessGroupRow>(
+        "SELECT id, tenant_id, code, name, description, is_active \
+         FROM access_groups WHERE tenant_id = $1 AND is_active = true ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertAccessGroupRequest {
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+pub async fn create_access_group(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpsertAccessGroupRequest>,
+) -> Result<Json<AccessGroupRow>, AppError> {
+    require_permission(&claims, permissions::admin::users::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let row = sqlx::query_as::<_, AccessGroupRow>(
+        "INSERT INTO access_groups (tenant_id, code, name, description, is_active) \
+         VALUES ($1, $2, $3, $4, true) \
+         RETURNING id, tenant_id, code, name, description, is_active",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.code.trim())
+    .bind(body.name.trim())
+    .bind(body.description.as_deref())
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn update_access_group(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+    Json(body): Json<UpsertAccessGroupRequest>,
+) -> Result<Json<AccessGroupRow>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let row = sqlx::query_as::<_, AccessGroupRow>(
+        "UPDATE access_groups SET name = $3, description = $4, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING id, tenant_id, code, name, description, is_active",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.name.trim())
+    .bind(body.description.as_deref())
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn delete_access_group(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::DELETE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    sqlx::query(
+        "UPDATE access_groups SET is_active = false, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({"status": "deactivated"})))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AccessGroupMemberRow {
+    pub user_id: Uuid,
+    pub username: String,
+    pub full_name: String,
+    pub role: String,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+pub async fn list_access_group_members(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+) -> Result<Json<Vec<AccessGroupMemberRow>>, AppError> {
+    require_permission(&claims, permissions::admin::users::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let rows = sqlx::query_as::<_, AccessGroupMemberRow>(
+        "SELECT u.id AS user_id, u.username, u.full_name, u.role::text AS role, m.expires_at \
+         FROM access_group_members m \
+         JOIN users u ON u.id = m.user_id \
+         WHERE m.group_id = $1 AND u.tenant_id = $2 \
+         ORDER BY u.full_name",
+    )
+    .bind(group_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddAccessGroupMemberRequest {
+    pub user_id: Uuid,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+pub async fn add_access_group_member(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+    Json(body): Json<AddAccessGroupMemberRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    sqlx::query(
+        "INSERT INTO access_group_members (group_id, user_id, expires_at) \
+         VALUES ($1, $2, $3) \
+         ON CONFLICT (group_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at",
+    )
+    .bind(group_id)
+    .bind(body.user_id)
+    .bind(body.expires_at)
+    .execute(&mut *tx)
+    .await?;
+    // Bump perm_version so the user's outstanding JWT is invalidated.
+    sqlx::query("UPDATE users SET perm_version = perm_version + 1 WHERE id = $1")
+        .bind(body.user_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    // Mirror to SpiceDB if configured. Failures are non-fatal — the
+    // Watch consumer will eventually pick up tuple changes via a
+    // separate path; group → user perm filtering still works at the
+    // PgAuthzBackend fallback.
+    let ctx = crate::middleware::authorization::authz_context(&claims);
+    let _ = state
+        .authz
+        .write_tuple(
+            &ctx,
+            "access_group",
+            group_id,
+            medbrains_authz::Relation::Editor, // mapped → "member" in schema
+            medbrains_authz::Subject::User(body.user_id),
+            body.expires_at,
+            None,
+        )
+        .await;
+
+    Ok(Json(serde_json::json!({"status": "added"})))
+}
+
+// ── Screen registry — visible screens per user ────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct VisibleScreen {
+    pub code: &'static str,
+    pub label: &'static str,
+    pub route: &'static str,
+    pub module: &'static str,
+    pub required_permission: Option<&'static str>,
+    pub icon: &'static str,
+}
+
+/// Returns the subset of `access::SCREENS` the user can navigate to,
+/// given their resolved permission set. Used by the user-create
+/// drawer (Step 4 — pre-fill from role) and the override drawer.
+pub async fn list_visible_screens(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(user_id): axum::extract::Path<Uuid>,
+) -> Result<Json<Vec<VisibleScreen>>, AppError> {
+    require_permission(&claims, permissions::admin::users::LIST)?;
+
+    // Pull the target user's role to resolve the effective permission set.
+    let target_role: Option<String> = sqlx::query_scalar(
+        "SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let role = target_role.ok_or(AppError::NotFound)?;
+
+    // Bypass roles see everything.
+    let is_bypass = role == "super_admin" || role == "hospital_admin";
+    let perms: std::collections::HashSet<String> = if is_bypass {
+        std::collections::HashSet::new()
+    } else {
+        crate::routes::auth::resolve_permissions(&state.db, claims.tenant_id, user_id, &role)
+            .await?
+            .into_iter()
+            .collect()
+    };
+
+    let visible: Vec<VisibleScreen> = medbrains_core::access::screens::SCREENS
+        .iter()
+        .filter(|s| {
+            if is_bypass {
+                return true;
+            }
+            match s.required_permission {
+                None => true,
+                Some(p) => perms.contains(p),
+            }
+        })
+        .map(|s| VisibleScreen {
+            code: s.code,
+            label: s.label,
+            route: s.route,
+            module: s.module,
+            required_permission: s.required_permission,
+            icon: s.icon,
+        })
+        .collect();
+
+    Ok(Json(visible))
+}
+
+pub async fn remove_access_group_member(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path((group_id, user_id)): axum::extract::Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    sqlx::query("DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2")
+        .bind(group_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("UPDATE users SET perm_version = perm_version + 1 WHERE id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    let ctx = crate::middleware::authorization::authz_context(&claims);
+    let _ = state
+        .authz
+        .revoke_specific(
+            &ctx,
+            "access_group",
+            group_id,
+            medbrains_authz::Relation::Editor,
+            medbrains_authz::Subject::User(user_id),
+        )
+        .await;
+
+    Ok(Json(serde_json::json!({"status": "removed"})))
+}

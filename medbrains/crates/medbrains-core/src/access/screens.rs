@@ -61,7 +61,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "ICU",
         route: "/icu",
         module: "icu",
-        required_permission: Some("icu.list"),
+        required_permission: Some("icu.flowsheets.list"),
         icon: "IconHeartbeat",
     },
     ScreenDef {
@@ -93,7 +93,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Blood Bank",
         route: "/blood-bank",
         module: "blood_bank",
-        required_permission: Some("blood_bank.list"),
+        required_permission: Some("blood_bank.donors.list"),
         icon: "IconDroplet",
     },
     ScreenDef {
@@ -101,7 +101,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Pharmacy",
         route: "/pharmacy",
         module: "pharmacy",
-        required_permission: Some("pharmacy.orders.list"),
+        required_permission: Some("pharmacy.prescriptions.list"),
         icon: "IconPill",
     },
     ScreenDef {
@@ -125,7 +125,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Procurement",
         route: "/procurement",
         module: "procurement",
-        required_permission: Some("procurement.list"),
+        required_permission: Some("procurement.vendors.list"),
         icon: "IconTruck",
     },
     ScreenDef {
@@ -133,7 +133,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Diet & Kitchen",
         route: "/diet-kitchen",
         module: "diet",
-        required_permission: Some("diet.list"),
+        required_permission: Some("diet.orders.list"),
         icon: "IconSalad",
     },
     ScreenDef {
@@ -141,7 +141,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "CSSD",
         route: "/cssd",
         module: "cssd",
-        required_permission: Some("cssd.list"),
+        required_permission: Some("cssd.instruments.list"),
         icon: "IconStack2",
     },
     ScreenDef {
@@ -149,7 +149,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Quality",
         route: "/quality",
         module: "quality",
-        required_permission: Some("quality.list"),
+        required_permission: Some("quality.indicators.list"),
         icon: "IconCertificate",
     },
     ScreenDef {
@@ -157,7 +157,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Infection Control",
         route: "/infection-control",
         module: "infection_control",
-        required_permission: Some("infection_control.list"),
+        required_permission: Some("infection_control.surveillance.list"),
         icon: "IconVirus",
     },
     ScreenDef {
@@ -165,7 +165,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Regulatory",
         route: "/regulatory",
         module: "regulatory",
-        required_permission: Some("regulatory.list"),
+        required_permission: Some("regulatory.dashboard.view"),
         icon: "IconShield",
     },
     ScreenDef {
@@ -173,7 +173,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Front Office",
         route: "/front-office",
         module: "front_office",
-        required_permission: Some("front_office.list"),
+        required_permission: Some("front_office.queue.list"),
         icon: "IconBuildingCommunity",
     },
     ScreenDef {
@@ -181,7 +181,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Facilities",
         route: "/facilities",
         module: "facilities",
-        required_permission: Some("facilities.list"),
+        required_permission: Some("facilities.gas.list"),
         icon: "IconBuildingBank",
     },
     ScreenDef {
@@ -189,7 +189,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "HR",
         route: "/hr",
         module: "hr",
-        required_permission: Some("hr.list"),
+        required_permission: Some("hr.employees.list"),
         icon: "IconUserCog",
     },
     ScreenDef {
@@ -197,7 +197,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Consent",
         route: "/consent",
         module: "consent",
-        required_permission: Some("consent.list"),
+        required_permission: Some("consent.templates.list"),
         icon: "IconWriting",
     },
     ScreenDef {
@@ -213,7 +213,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "LMS",
         route: "/lms",
         module: "lms",
-        required_permission: Some("lms.list"),
+        required_permission: Some("lms.my_learning.view"),
         icon: "IconBook",
     },
     ScreenDef {
@@ -237,7 +237,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Groups",
         route: "/admin/groups",
         module: "admin",
-        required_permission: Some("admin.groups.list"),
+        required_permission: Some("admin.users.list"),
         icon: "IconUsersGroup",
     },
     ScreenDef {
@@ -249,19 +249,11 @@ pub const SCREENS: &[ScreenDef] = &[
         icon: "IconPlug",
     },
     ScreenDef {
-        code: "admin-doctors",
-        label: "Doctors",
-        route: "/admin/doctors",
-        module: "admin",
-        required_permission: Some("admin.users.list"),
-        icon: "IconStethoscope",
-    },
-    ScreenDef {
         code: "admin-devices",
         label: "Devices",
         route: "/admin/devices",
         module: "admin",
-        required_permission: Some("admin.devices.list"),
+        required_permission: Some("devices.list"),
         icon: "IconDevices",
     },
     ScreenDef {
@@ -269,7 +261,7 @@ pub const SCREENS: &[ScreenDef] = &[
         label: "Settings",
         route: "/admin/settings",
         module: "admin",
-        required_permission: None,
+        required_permission: Some("admin.settings.general.manage"),
         icon: "IconSettings",
     },
 ];

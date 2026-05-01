@@ -23,6 +23,9 @@ import type {
   CommFeedbackSurveyRow,
   CommMessageRow,
   CommTemplateRow,
+  DltTemplate,
+  CreateDltTemplateRequest,
+  UpdateDltTemplateRequest,
   AmbulanceDriverRow,
   AmbulanceMaintenanceRow,
   AmbulanceRow,
@@ -2286,6 +2289,70 @@ export const api = {
   // Setup — users
   listSetupUsers: () => request<SetupUser[]>("/setup/users"),
   listDoctors: () => request<SetupUser[]>("/setup/doctors"),
+  /** List access_groups (read-only) — for user-create drawer + admin page. */
+  listAccessGroups: () =>
+    request<
+      Array<{
+        id: string;
+        tenant_id: string;
+        code: string;
+        name: string;
+        description: string | null;
+        is_active: boolean;
+      }>
+    >("/access-groups"),
+
+  createAccessGroup: (data: { code: string; name: string; description?: string }) =>
+    request<{
+      id: string;
+      tenant_id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      is_active: boolean;
+    }>("/access-groups", { method: "POST", body: JSON.stringify(data) }),
+
+  updateAccessGroup: (
+    id: string,
+    data: { code: string; name: string; description?: string },
+  ) =>
+    request<{
+      id: string;
+      tenant_id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      is_active: boolean;
+    }>(`/access-groups/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteAccessGroup: (id: string) =>
+    request<{ status: string }>(`/access-groups/${id}`, { method: "DELETE" }),
+
+  listAccessGroupMembers: (groupId: string) =>
+    request<
+      Array<{
+        user_id: string;
+        username: string;
+        full_name: string;
+        role: string;
+        expires_at: string | null;
+      }>
+    >(`/access-groups/${groupId}/members`),
+
+  addAccessGroupMember: (
+    groupId: string,
+    data: { user_id: string; expires_at?: string | null },
+  ) =>
+    request<{ status: string }>(`/access-groups/${groupId}/members`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  removeAccessGroupMember: (groupId: string, userId: string) =>
+    request<{ status: string }>(`/access-groups/${groupId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+
   createSetupUser: (data: {
     username: string;
     email: string;
@@ -2297,6 +2364,10 @@ export const api = {
     qualification?: string;
     consultation_fee?: number;
     department_ids?: string[];
+    /** Access-group memberships — each id must exist in `access_groups`. */
+    group_ids?: string[];
+    /** `{ extra: string[], denied: string[], field_access?: ..., widget_access?: ... }` */
+    access_matrix?: Record<string, unknown>;
   }) =>
     request<SetupUser>("/setup/users", {
       method: "POST",
@@ -3364,6 +3435,38 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /**
+   * NHCX webhook receipt log. Optional filters: correlation_id (specific
+   * gateway exchange) or matched_id (specific local claim/preauth row).
+   */
+  listNhcxCallbacks: (params?: { correlation_id?: string; matched_id?: string; limit?: number }) => {
+    const qs = params
+      ? `?${new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)]),
+        )}`
+      : "";
+    return request<
+      Array<{
+        id: string;
+        tenant_id: string | null;
+        received_at: string;
+        correlation_id: string | null;
+        api_call_id: string | null;
+        sender_code: string | null;
+        recipient_code: string | null;
+        callback_type: string | null;
+        raw_envelope: unknown;
+        decrypted_payload: unknown;
+        verification_status: string;
+        matched_table: string | null;
+        matched_id: string | null;
+        error_detail: string | null;
+      }>
+    >(`/integrations/nhcx/callbacks${qs}`);
+  },
+
   // -- Auto Billing --
   triggerAutoCharge: (data: ManualAutoChargeRequest) =>
     request<ManualAutoChargeResponse>("/billing/auto-charge", {
@@ -3604,6 +3707,34 @@ export const api = {
     request<AutoReconcileResponse>("/billing/bank-transactions/auto-reconcile", {
       method: "POST",
     }),
+
+  /**
+   * TPA recon (priority #4) — match unmatched bank credits to
+   * insurance_claims via reference / claim_number / amount-window
+   * heuristics. Returns counts; full results visible in the bank
+   * transactions list with `matched_claim_id` populated.
+   */
+  autoMatchBankTransactions: () =>
+    request<{
+      processed: number;
+      matched: number;
+      variance_flagged: number;
+      still_unmatched: number;
+    }>("/billing/bank-transactions/auto-match", { method: "POST" }),
+
+  /** Insurance receivables aging buckets per payer. */
+  listInsuranceReceivablesAging: () =>
+    request<
+      Array<{
+        tpa_name: string | null;
+        bucket_0_30: number;
+        bucket_30_60: number;
+        bucket_60_90: number;
+        bucket_90_plus: number;
+        total_outstanding: number;
+        claim_count: number;
+      }>
+    >("/billing/insurance-receivables/aging"),
 
   // -- Billing Phase 3: TDS --
   listTdsDeductions: (params?: Record<string, string>) => {
@@ -5059,6 +5190,24 @@ export const api = {
 
   // ── Communication Hub ──────────────────────────────────
 
+  /** DLT (India SMS) template registry. */
+  listDltTemplates: () =>
+    request<DltTemplate[]>("/communications/dlt-templates"),
+  createDltTemplate: (data: CreateDltTemplateRequest) =>
+    request<DltTemplate>("/communications/dlt-templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateDltTemplate: (id: string, data: UpdateDltTemplateRequest) =>
+    request<DltTemplate>(`/communications/dlt-templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteDltTemplate: (id: string) =>
+    request<{ deleted: boolean }>(`/communications/dlt-templates/${id}`, {
+      method: "DELETE",
+    }),
+
   listCommTemplates: (params?: { channel?: string; template_type?: string; is_active?: boolean }) => {
     const sp = new URLSearchParams();
     if (params?.channel) sp.set("channel", params.channel);
@@ -5531,6 +5680,20 @@ export const api = {
     }),
 
   // ── Integration Hub ────────────────────────────────────
+
+  /**
+   * Built-in (Rust hardcoded) default pipelines. Read-only —
+   * operators disable individual subscribers via tenant_settings,
+   * not by editing this list.
+   */
+  listDefaultPipelines: () =>
+    request<
+      Array<{
+        event_type: string;
+        description: string;
+        disabled_for_tenant: boolean;
+      }>
+    >("/integration/default-pipelines"),
 
   listPipelines: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
@@ -11035,6 +11198,41 @@ export const api = {
     request<{ deleted: boolean }>(`/orders/basket/drafts/${encodeURIComponent(encounterId)}`, {
       method: "DELETE",
     }),
+  previewBasketCost: (data: { items: unknown[] }) =>
+    request<{
+      lines: Array<{
+        item_index: number;
+        kind: string;
+        label: string;
+        unit_price: string;
+        quantity: string;
+        line_total: string;
+        source: string;
+      }>;
+      subtotal: string;
+      estimated_tax: string;
+      estimated_total: string;
+      preauth_threshold: string;
+      exceeds_preauth: boolean;
+    }>("/orders/basket/preview-cost", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  carryForwardBasket: (patientId: string, excludeEncounterId?: string) => {
+    const qs = excludeEncounterId
+      ? `?exclude_encounter_id=${encodeURIComponent(excludeEncounterId)}`
+      : "";
+    return request<
+      Array<{
+        kind: string;
+        label: string;
+        source_encounter_id: string;
+        source_order_id: string;
+        created_at: string;
+        item: unknown;
+      }>
+    >(`/orders/basket/previous/${encodeURIComponent(patientId)}${qs}`);
+  },
 
   // ── Doctor Activities ─────────────────────────────────────
   adminListDoctors: (params?: {

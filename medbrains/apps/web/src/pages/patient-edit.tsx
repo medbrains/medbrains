@@ -1,9 +1,9 @@
 import { Group, Loader, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
 import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 import { PageHeader } from "../components";
 import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
@@ -114,6 +114,10 @@ export function PatientEditPage() {
           guardian_name: patient.guardian_name ?? undefined,
           guardian_relation: patient.guardian_relation ?? undefined,
           category: patient.category ?? undefined,
+          known_allergies:
+            (
+              patient.attributes as Record<string, unknown> | null | undefined
+            )?.known_allergies?.toString() ?? undefined,
         }}
       />
     </Stack>

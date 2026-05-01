@@ -93,6 +93,52 @@ export async function ensureAuthenticated(page: Page) {
 }
 
 /**
+ * Authenticate as an arbitrary seeded user (not just admin). Sets
+ * cookies + localStorage so the SPA loads as that role on the next nav.
+ *
+ * Pass `password` explicitly because the test fixtures use mixed defaults
+ * (admin123 / doctor123 / test123).
+ */
+export async function loginAsRole(
+  page: Page,
+  username: string,
+  password: string,
+) {
+  // Wipe any cookies inherited from `storageState` (admin's session) so
+  // the new role's tokens don't co-exist with admin's. Without this,
+  // browser cookie precedence can resolve to admin → /api/auth/me
+  // returns admin's perms → sidebar renders as if super_admin.
+  await page.context().clearCookies();
+
+  // Use the page context's own request — cookies from the response are
+  // stored automatically against the request's origin without the
+  // 4KB-per-cookie size cap that `context.addCookies()` enforces.
+  const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+    data: { username, password },
+  });
+  if (!resp.ok()) {
+    throw new Error(`loginAsRole(${username}) → ${resp.status()}`);
+  }
+  const data = await resp.json();
+
+  await page.goto("/login");
+  await page.evaluate(
+    (user) => {
+      // Wipe any persisted state from a prior test (admin's sessionStorage
+      // perm-cache leaks through `storageState` and would override the
+      // /api/auth/me response on hydration).
+      sessionStorage.clear();
+      localStorage.removeItem("perm-cache");
+      localStorage.setItem(
+        "auth-storage",
+        JSON.stringify({ state: { user }, version: 0 }),
+      );
+    },
+    data.user,
+  );
+}
+
+/**
  * Navigate to a page path, re-authenticating if redirected to login.
  */
 export async function navigateTo(page: Page, path: string) {

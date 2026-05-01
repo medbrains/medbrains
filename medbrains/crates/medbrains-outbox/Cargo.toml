@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
+medbrains-crypto = { path = "../medbrains-crypto" }
 
 async-trait = "0.1"
 chrono = { workspace = true }

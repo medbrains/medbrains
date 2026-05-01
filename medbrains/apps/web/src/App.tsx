@@ -73,15 +73,16 @@ const MaternityPage = lazy(() => import("./pages/specialty/maternity").then((m) 
 const OtherSpecialtiesPage = lazy(() => import("./pages/specialty/other").then((m) => ({ default: m.OtherSpecialtiesPage })));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
+const GroupsPage = lazy(() => import("./pages/admin/groups"));
 const SettingsPage = lazy(() => import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })));
 const IntegrationHubPage = lazy(() => import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })));
-const IntegrationBuilderPage = lazy(() => import("./pages/admin/integration-builder").then((m) => ({ default: m.IntegrationBuilderPage })));
 const TvDisplaysPage = lazy(() => import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })));
 const DoctorSchedulesPage = lazy(() => import("./pages/admin/doctor-schedules").then((m) => ({ default: m.DoctorSchedulesPage })));
 const AnalyticsPage = lazy(() => import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
 const DocumentsPage = lazy(() => import("./pages/documents").then((m) => ({ default: m.DocumentsPage })));
 const DevicesPage = lazy(() => import("./pages/admin/devices").then((m) => ({ default: m.DevicesPage })));
+const ComponentsInputsPage = lazy(() => import("./pages/components-inputs").then((m) => ({ default: m.ComponentsInputsPage })));
 
 export function App() {
   return (
@@ -107,6 +108,7 @@ export function App() {
             }
           >
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="components-inputs" element={<ComponentsInputsPage />} />
             <Route path="patients" element={<PatientsPage />} />
             <Route path="patients/:id" element={<PatientDetailPage />} />
             <Route path="opd" element={<OpdPage />} />
@@ -167,14 +169,21 @@ export function App() {
               <Route index element={<Navigate to="users" replace />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="roles" element={<RolesPage />} />
+              <Route path="groups" element={<GroupsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="device-integrations"
                 element={<Navigate to="/admin/settings#device-integrations" replace />}
               />
               <Route path="integration-hub" element={<IntegrationHubPage />} />
-              <Route path="integration-builder" element={<IntegrationBuilderPage />} />
-              <Route path="integration-builder/:id" element={<IntegrationBuilderPage />} />
+              <Route
+                path="integration-builder"
+                element={<Navigate to="/admin/integration-hub" replace />}
+              />
+              <Route
+                path="integration-builder/:id"
+                element={<Navigate to="/admin/integration-hub" replace />}
+              />
               <Route path="tv-displays" element={<TvDisplaysPage />} />
               <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
               <Route path="documents" element={<DocumentsPage />} />

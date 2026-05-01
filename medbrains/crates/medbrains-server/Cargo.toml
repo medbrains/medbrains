@@ -11,6 +11,8 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-yottadb = { path = "../medbrains-yottadb" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-fhir = { path = "../medbrains-fhir" }
+medbrains-crypto = { path = "../medbrains-crypto" }
 medbrains-db-topology = { path = "../medbrains-db-topology" }
 async-trait = "0.1"
 axum = { workspace = true }

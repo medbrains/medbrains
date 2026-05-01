@@ -6,12 +6,11 @@ import {
   Group,
   Select,
   Stack,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { Controller, useForm } from "react-hook-form";
 import type {
   BloodGroup,
   CreatePatientRequest,
@@ -22,6 +21,8 @@ import type {
   RegistrationSource,
   RegistrationType,
 } from "@medbrains/types";
+import { Controller, useForm } from "react-hook-form";
+import { AllergyField } from "./inputs";
 
 interface PatientRegistrationFormProps {
   quickMode?: boolean;
@@ -60,6 +61,7 @@ interface FormShape {
   city: string;
   state: string;
   pincode: string;
+  known_allergies: string;
 }
 
 const DEFAULTS: FormShape = {
@@ -91,6 +93,7 @@ const DEFAULTS: FormShape = {
   city: "",
   state: "",
   pincode: "",
+  known_allergies: "",
 };
 
 const PREFIX_OPTIONS = ["Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Master", "Miss"];
@@ -188,6 +191,10 @@ function buildRequest(values: FormShape): CreatePatientRequest {
   if (values.state) address.state = values.state;
   if (values.pincode) address.pincode = values.pincode;
 
+  const attributes: Record<string, unknown> = {};
+  const allergies = values.known_allergies.trim();
+  if (allergies) attributes.known_allergies = allergies;
+
   return {
     prefix: values.prefix || undefined,
     first_name: values.first_name.trim(),
@@ -214,6 +221,7 @@ function buildRequest(values: FormShape): CreatePatientRequest {
     is_medico_legal: values.is_medico_legal || undefined,
     mlc_number: values.mlc_number || undefined,
     is_vip: values.is_vip || undefined,
+    attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
   };
 }
 
@@ -224,7 +232,12 @@ export function PatientRegistrationForm({
   onCancel,
   submitLabel = "Register",
 }: PatientRegistrationFormProps) {
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<FormShape>({
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<FormShape>({
     defaultValues: DEFAULTS,
   });
 
@@ -236,14 +249,22 @@ export function PatientRegistrationForm({
     <form onSubmit={submit} noValidate>
       <Stack gap="lg">
         <div>
-          <Title order={5} mb="xs">Identity</Title>
+          <Title order={5} mb="xs">
+            Identity
+          </Title>
           <Grid>
             <Grid.Col span={{ base: 12, sm: 2 }}>
               <Controller
                 name="prefix"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Prefix" data={PREFIX_OPTIONS} value={field.value || null} onChange={(v) => field.onChange(v ?? "")} clearable />
+                  <Select
+                    label="Prefix"
+                    data={PREFIX_OPTIONS}
+                    value={field.value || null}
+                    onChange={(v) => field.onChange(v ?? "")}
+                    clearable
+                  />
                 )}
               />
             </Grid.Col>
@@ -251,9 +272,17 @@ export function PatientRegistrationForm({
               <Controller
                 name="first_name"
                 control={control}
-                rules={{ required: "First name required", minLength: { value: 1, message: "First name required" } }}
+                rules={{
+                  required: "First name required",
+                  minLength: { value: 1, message: "First name required" },
+                }}
                 render={({ field }) => (
-                  <TextInput label="First Name" required {...field} error={errors.first_name?.message} />
+                  <TextInput
+                    label="First Name"
+                    required
+                    {...field}
+                    error={errors.first_name?.message}
+                  />
                 )}
               />
             </Grid.Col>
@@ -272,7 +301,12 @@ export function PatientRegistrationForm({
                 control={control}
                 rules={{ required: "Last name required" }}
                 render={({ field }) => (
-                  <TextInput label="Last Name" required {...field} error={errors.last_name?.message} />
+                  <TextInput
+                    label="Last Name"
+                    required
+                    {...field}
+                    error={errors.last_name?.message}
+                  />
                 )}
               />
             </Grid.Col>
@@ -289,14 +323,22 @@ export function PatientRegistrationForm({
         </div>
 
         <div>
-          <Title order={5} mb="xs">Demographics</Title>
+          <Title order={5} mb="xs">
+            Demographics
+          </Title>
           <Grid>
             <Grid.Col span={{ base: 12, sm: 4 }}>
               <Controller
                 name="date_of_birth"
                 control={control}
                 render={({ field }) => (
-                  <DateInput label="Date of Birth" value={field.value} onChange={(v) => field.onChange(v as unknown as Date | null)} maxDate={new Date()} clearable />
+                  <DateInput
+                    label="Date of Birth"
+                    value={field.value}
+                    onChange={(v) => field.onChange(v as unknown as Date | null)}
+                    maxDate={new Date()}
+                    clearable
+                  />
                 )}
               />
             </Grid.Col>
@@ -305,7 +347,13 @@ export function PatientRegistrationForm({
                 name="gender"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Gender" required data={GENDER_OPTIONS} value={field.value} onChange={(v) => field.onChange(v as Gender)} />
+                  <Select
+                    label="Gender"
+                    required
+                    data={GENDER_OPTIONS}
+                    value={field.value}
+                    onChange={(v) => field.onChange(v as Gender)}
+                  />
                 )}
               />
             </Grid.Col>
@@ -316,7 +364,13 @@ export function PatientRegistrationForm({
                     name="marital_status"
                     control={control}
                     render={({ field }) => (
-                      <Select label="Marital Status" data={MARITAL_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as MaritalStatus | null) ?? "")} clearable />
+                      <Select
+                        label="Marital Status"
+                        data={MARITAL_OPTIONS}
+                        value={field.value || null}
+                        onChange={(v) => field.onChange((v as MaritalStatus | null) ?? "")}
+                        clearable
+                      />
                     )}
                   />
                 </Grid.Col>
@@ -332,7 +386,13 @@ export function PatientRegistrationForm({
                     name="blood_group"
                     control={control}
                     render={({ field }) => (
-                      <Select label="Blood Group" data={BLOOD_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as BloodGroup | null) ?? "")} clearable />
+                      <Select
+                        label="Blood Group"
+                        data={BLOOD_OPTIONS}
+                        value={field.value || null}
+                        onChange={(v) => field.onChange((v as BloodGroup | null) ?? "")}
+                        clearable
+                      />
                     )}
                   />
                 </Grid.Col>
@@ -349,7 +409,9 @@ export function PatientRegistrationForm({
         </div>
 
         <div>
-          <Title order={5} mb="xs">Contact</Title>
+          <Title order={5} mb="xs">
+            Contact
+          </Title>
           <Grid>
             <Grid.Col span={{ base: 12, sm: 6 }}>
               <Controller
@@ -377,7 +439,9 @@ export function PatientRegistrationForm({
               <Controller
                 name="email"
                 control={control}
-                rules={{ pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Invalid email" } }}
+                rules={{
+                  pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Invalid email" },
+                }}
                 render={({ field }) => (
                   <TextInput label="Email" type="email" {...field} error={errors.email?.message} />
                 )}
@@ -386,10 +450,40 @@ export function PatientRegistrationForm({
           </Grid>
         </div>
 
+        <div>
+          <Title order={5} mb="xs">
+            Known allergies <span style={{ color: "var(--code-red)" }}>*</span>
+          </Title>
+          <Controller
+            name="known_allergies"
+            control={control}
+            render={({ field }) => {
+              const hasValue = field.value.trim().length > 0;
+              const isNkda = field.value.trim().toLowerCase() === "nkda";
+              return (
+                <AllergyField
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Type known allergies, or 'NKDA' for no known drug allergies"
+                  severity={hasValue ? "watch" : "blocking"}
+                  badgeLabel={hasValue ? (isNkda ? "NKDA" : "Logged") : "Required"}
+                  hint={
+                    hasValue
+                      ? undefined
+                      : "Code-Red pulse: blocking field — required before any prescription can be issued"
+                  }
+                />
+              );
+            }}
+          />
+        </div>
+
         {!quickMode && (
           <>
             <div>
-              <Title order={5} mb="xs">Family</Title>
+              <Title order={5} mb="xs">
+                Family
+              </Title>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <Controller
@@ -416,23 +510,39 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Title order={5} mb="xs">Address</Title>
+              <Title order={5} mb="xs">
+                Address
+              </Title>
               <Grid>
                 <Grid.Col span={12}>
                   <Controller
                     name="address_line"
                     control={control}
-                    render={({ field }) => <Textarea label="Address" autosize minRows={2} {...field} />}
+                    render={({ field }) => (
+                      <Textarea label="Address" autosize minRows={2} {...field} />
+                    )}
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <Controller name="city" control={control} render={({ field }) => <TextInput label="City" {...field} />} />
+                  <Controller
+                    name="city"
+                    control={control}
+                    render={({ field }) => <TextInput label="City" {...field} />}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <Controller name="state" control={control} render={({ field }) => <TextInput label="State" {...field} />} />
+                  <Controller
+                    name="state"
+                    control={control}
+                    render={({ field }) => <TextInput label="State" {...field} />}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <Controller name="pincode" control={control} render={({ field }) => <TextInput label="Pincode" {...field} />} />
+                  <Controller
+                    name="pincode"
+                    control={control}
+                    render={({ field }) => <TextInput label="Pincode" {...field} />}
+                  />
                 </Grid.Col>
               </Grid>
             </div>
@@ -440,14 +550,21 @@ export function PatientRegistrationForm({
         )}
 
         <div>
-          <Title order={5} mb="xs">Registration</Title>
+          <Title order={5} mb="xs">
+            Registration
+          </Title>
           <Grid>
             <Grid.Col span={{ base: 12, sm: 3 }}>
               <Controller
                 name="category"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Category" data={CATEGORY_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as PatientCategory | null) ?? "")} />
+                  <Select
+                    label="Category"
+                    data={CATEGORY_OPTIONS}
+                    value={field.value || null}
+                    onChange={(v) => field.onChange((v as PatientCategory | null) ?? "")}
+                  />
                 )}
               />
             </Grid.Col>
@@ -456,7 +573,12 @@ export function PatientRegistrationForm({
                 name="registration_type"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Type" data={REG_TYPE_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as RegistrationType | null) ?? "")} />
+                  <Select
+                    label="Type"
+                    data={REG_TYPE_OPTIONS}
+                    value={field.value || null}
+                    onChange={(v) => field.onChange((v as RegistrationType | null) ?? "")}
+                  />
                 )}
               />
             </Grid.Col>
@@ -465,7 +587,12 @@ export function PatientRegistrationForm({
                 name="registration_source"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Source" data={REG_SOURCE_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as RegistrationSource | null) ?? "")} />
+                  <Select
+                    label="Source"
+                    data={REG_SOURCE_OPTIONS}
+                    value={field.value || null}
+                    onChange={(v) => field.onChange((v as RegistrationSource | null) ?? "")}
+                  />
                 )}
               />
             </Grid.Col>
@@ -474,7 +601,13 @@ export function PatientRegistrationForm({
                 name="financial_class"
                 control={control}
                 render={({ field }) => (
-                  <Select label="Financial Class" data={FINANCIAL_OPTIONS} value={field.value || null} onChange={(v) => field.onChange((v as FinancialClass | null) ?? "")} clearable />
+                  <Select
+                    label="Financial Class"
+                    data={FINANCIAL_OPTIONS}
+                    value={field.value || null}
+                    onChange={(v) => field.onChange((v as FinancialClass | null) ?? "")}
+                    clearable
+                  />
                 )}
               />
             </Grid.Col>
@@ -483,20 +616,30 @@ export function PatientRegistrationForm({
 
         {!quickMode && (
           <div>
-            <Title order={5} mb="xs">Flags</Title>
+            <Title order={5} mb="xs">
+              Flags
+            </Title>
             <Group>
               <Controller
                 name="is_vip"
                 control={control}
                 render={({ field }) => (
-                  <Checkbox label="VIP patient" checked={field.value} onChange={(e) => field.onChange(e.currentTarget.checked)} />
+                  <Checkbox
+                    label="VIP patient"
+                    checked={field.value}
+                    onChange={(e) => field.onChange(e.currentTarget.checked)}
+                  />
                 )}
               />
               <Controller
                 name="is_medico_legal"
                 control={control}
                 render={({ field }) => (
-                  <Checkbox label="Medico-Legal Case (MLC)" checked={field.value} onChange={(e) => field.onChange(e.currentTarget.checked)} />
+                  <Checkbox
+                    label="Medico-Legal Case (MLC)"
+                    checked={field.value}
+                    onChange={(e) => field.onChange(e.currentTarget.checked)}
+                  />
                 )}
               />
               {isMlc && (

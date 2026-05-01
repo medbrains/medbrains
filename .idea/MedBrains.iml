@@ -11,6 +11,13 @@
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-bridge/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-server/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-proxy/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/apps/edge/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-authz/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-authz/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-db-topology/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-edge/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-outbox/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-outbox/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/medbrains/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -464,17 +464,21 @@ pub async fn list_patients(
     let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
-        Some(
-            state
-                .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "patient",
-                    medbrains_authz::Relation::Viewer,
-                )
-                .await
-                .unwrap_or_default(),
-        )
+        let result = state
+            .authz
+            .list_accessible(
+                &authz_ctx,
+                "patient",
+                medbrains_authz::Relation::Viewer,
+            )
+            .await;
+        match &result {
+            Ok(ids) => tracing::info!(count = ids.len(), user = %authz_ctx.user_id,
+                "rebac: list_accessible(patient) returned"),
+            Err(e) => tracing::error!(error = %e, user = %authz_ctx.user_id,
+                "rebac: list_accessible(patient) FAILED"),
+        }
+        Some(result.unwrap_or_default())
     };
 
     let mut tx = state.db.begin().await?;

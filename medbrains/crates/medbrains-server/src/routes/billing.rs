@@ -7059,3 +7059,273 @@ pub async fn update_auto_concession_rules(
     tx.commit().await?;
     Ok(Json(AutoConcessionRulesResponse { rules: body.rules }))
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  TPA bank-statement reconciliation (priority #4)
+// ══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize)]
+pub struct AutoMatchResponse {
+    pub processed: i64,
+    pub matched: i64,
+    pub variance_flagged: i64,
+    pub still_unmatched: i64,
+}
+
+/// Walk every `unmatched` credit on `bank_transactions` and try to
+/// match it to one or more `insurance_claims`. Match strategies, in
+/// priority order (first hit wins per credit):
+///
+/// 1. **Reference number == claim_number** (exact UTR match).
+/// 2. **Description contains a known claim_number** (regex extract).
+/// 3. **Approved-amount window** — credit ± 1 INR matches a claim
+///    with `approved_amount` and `status='approved'` for a known TPA
+///    name appearing in the description. Lower confidence so we flag
+///    `recon_status='discrepancy'` for human review.
+///
+/// Variance: when matched, if `credit_amount < approved_amount`, set
+/// `variance_amount = approved_amount - credit_amount` and
+/// `recon_status='discrepancy'` so the cashier follows up with the TPA.
+pub async fn auto_match_bank_transactions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<AutoMatchResponse>, AppError> {
+    require_permission(&claims, permissions::billing::bank_recon::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Pull unmatched credits only (debits aren't TPA settlements).
+    let unmatched: Vec<UnmatchedCredit> = sqlx::query_as::<_, UnmatchedCredit>(
+        "SELECT id, transaction_date, credit_amount, reference_number, description \
+         FROM bank_transactions \
+         WHERE tenant_id = $1 AND recon_status = 'unmatched' AND credit_amount > 0",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut matched = 0i64;
+    let mut variance_flagged = 0i64;
+    let processed = unmatched.len() as i64;
+
+    for txn in &unmatched {
+        // Strategy 1 — exact reference match against claim_number.
+        let claim_by_ref: Option<(Uuid, rust_decimal::Decimal, Option<rust_decimal::Decimal>)> =
+            if let Some(reference) = &txn.reference_number {
+                sqlx::query_as(
+                    "SELECT id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
+                     FROM insurance_claims \
+                     WHERE tenant_id = $1 AND claim_number = $2 LIMIT 1",
+                )
+                .bind(claims.tenant_id)
+                .bind(reference)
+                .fetch_optional(&mut *tx)
+                .await?
+            } else {
+                None
+            };
+
+        // Strategy 2 — description contains claim_number (CLM-XXXX pattern).
+        let claim = if claim_by_ref.is_some() {
+            claim_by_ref
+        } else if let Some(desc) = &txn.description {
+            let candidate = extract_claim_number_from_description(desc);
+            if let Some(num) = candidate {
+                sqlx::query_as(
+                    "SELECT id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
+                     FROM insurance_claims \
+                     WHERE tenant_id = $1 AND claim_number = $2 LIMIT 1",
+                )
+                .bind(claims.tenant_id)
+                .bind(num)
+                .fetch_optional(&mut *tx)
+                .await?
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Strategy 3 — amount window (low confidence, flag discrepancy).
+        let (claim, low_confidence) = if claim.is_some() {
+            (claim, false)
+        } else {
+            let by_amount: Option<(Uuid, rust_decimal::Decimal, Option<rust_decimal::Decimal>)> =
+                sqlx::query_as(
+                    "SELECT id, approved_amount::NUMERIC, settled_amount \
+                     FROM insurance_claims \
+                     WHERE tenant_id = $1 AND status = 'approved' \
+                       AND approved_amount IS NOT NULL \
+                       AND ABS(approved_amount - $2) < 1 \
+                     ORDER BY submitted_at DESC LIMIT 1",
+                )
+                .bind(claims.tenant_id)
+                .bind(txn.credit_amount)
+                .fetch_optional(&mut *tx)
+                .await?;
+            (by_amount, true)
+        };
+
+        let Some((claim_id, approved, prior_settled)) = claim else {
+            continue;
+        };
+
+        let variance = approved - txn.credit_amount;
+        let new_recon_status = if variance.abs() < rust_decimal::Decimal::ONE && !low_confidence {
+            "matched"
+        } else {
+            variance_flagged += 1;
+            "discrepancy"
+        };
+
+        let new_settled = prior_settled
+            .unwrap_or(rust_decimal::Decimal::ZERO)
+            + txn.credit_amount;
+
+        // Update the bank_transaction row.
+        sqlx::query(
+            "UPDATE bank_transactions \
+             SET matched_claim_id = $1, recon_status = $2::recon_status, \
+                 variance_amount = $3, matched_at = now(), matched_by = $4, \
+                 auto_match_score = $5 \
+             WHERE id = $6 AND tenant_id = $7",
+        )
+        .bind(claim_id)
+        .bind(new_recon_status)
+        .bind(variance)
+        .bind(claims.sub)
+        .bind::<f32>(if low_confidence { 0.5 } else { 1.0 })
+        .bind(txn.id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Insert allocation row.
+        sqlx::query(
+            "INSERT INTO bank_transaction_claim_allocations \
+             (tenant_id, bank_transaction_id, claim_id, allocated_amount, created_by) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (bank_transaction_id, claim_id) DO NOTHING",
+        )
+        .bind(claims.tenant_id)
+        .bind(txn.id)
+        .bind(claim_id)
+        .bind(txn.credit_amount)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+
+        // Update the claim's settled_amount.
+        sqlx::query(
+            "UPDATE insurance_claims \
+             SET settled_amount = $1, settled_at = COALESCE(settled_at, now()), \
+                 status = CASE WHEN ABS($1 - approved_amount) < 1 THEN 'settled' \
+                              ELSE status END, \
+                 updated_at = now() \
+             WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(new_settled)
+        .bind(claim_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        matched += 1;
+    }
+
+    tx.commit().await?;
+
+    Ok(Json(AutoMatchResponse {
+        processed,
+        matched,
+        variance_flagged,
+        still_unmatched: processed - matched,
+    }))
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct UnmatchedCredit {
+    id: Uuid,
+    #[allow(dead_code)]
+    transaction_date: chrono::NaiveDate,
+    credit_amount: rust_decimal::Decimal,
+    reference_number: Option<String>,
+    description: Option<String>,
+}
+
+fn extract_claim_number_from_description(desc: &str) -> Option<String> {
+    // Common claim-number shapes: "CLM-2026-12345" or "CLAIM 123456".
+    // We accept any alphanumeric token of length 6-30 prefixed by
+    // "CLM" or "CLAIM" (case-insensitive).
+    let upper = desc.to_uppercase();
+    for prefix in ["CLM-", "CLM ", "CLAIM-", "CLAIM "] {
+        if let Some(start) = upper.find(prefix) {
+            let after = &desc[start + prefix.len()..];
+            let candidate: String = after
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '-')
+                .collect();
+            if candidate.len() >= 4 {
+                return Some(format!("{}{}", &prefix.replace(' ', ""), candidate));
+            }
+        }
+    }
+    None
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PayerAgingBucket {
+    pub tpa_name: Option<String>,
+    pub bucket_0_30: rust_decimal::Decimal,
+    pub bucket_30_60: rust_decimal::Decimal,
+    pub bucket_60_90: rust_decimal::Decimal,
+    pub bucket_90_plus: rust_decimal::Decimal,
+    pub total_outstanding: rust_decimal::Decimal,
+    pub claim_count: i64,
+}
+
+/// `GET /api/billing/insurance-receivables/aging` — outstanding
+/// per-payer broken into 0-30 / 30-60 / 60-90 / 90+ day buckets.
+/// Outstanding = approved - settled, only for claims still 'approved'
+/// (not 'settled').
+pub async fn insurance_receivables_aging(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<PayerAgingBucket>>, AppError> {
+    require_permission(&claims, permissions::billing::bank_recon::LIST)?;
+
+    let rows = sqlx::query_as::<_, PayerAgingBucket>(
+        "SELECT \
+            tpa_name, \
+            COALESCE(SUM(CASE WHEN age_days <= 30 THEN outstanding ELSE 0 END), 0) \
+                AS bucket_0_30, \
+            COALESCE(SUM(CASE WHEN age_days BETWEEN 31 AND 60 THEN outstanding ELSE 0 END), 0) \
+                AS bucket_30_60, \
+            COALESCE(SUM(CASE WHEN age_days BETWEEN 61 AND 90 THEN outstanding ELSE 0 END), 0) \
+                AS bucket_60_90, \
+            COALESCE(SUM(CASE WHEN age_days > 90 THEN outstanding ELSE 0 END), 0) \
+                AS bucket_90_plus, \
+            COALESCE(SUM(outstanding), 0) AS total_outstanding, \
+            COUNT(*) AS claim_count \
+         FROM ( \
+             SELECT \
+                 tpa_name, \
+                 COALESCE(approved_amount, 0) - COALESCE(settled_amount, 0) AS outstanding, \
+                 EXTRACT(DAY FROM now() - submitted_at)::INT AS age_days \
+             FROM insurance_claims \
+             WHERE tenant_id = $1 \
+               AND status NOT IN ('settled', 'rejected', 'cancelled') \
+               AND approved_amount IS NOT NULL \
+               AND COALESCE(approved_amount, 0) > COALESCE(settled_amount, 0) \
+         ) sub \
+         GROUP BY tpa_name \
+         ORDER BY total_outstanding DESC",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(rows))
+}

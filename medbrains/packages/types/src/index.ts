@@ -4046,6 +4046,11 @@ export interface InsuranceClaim {
   is_secondary: boolean;
   primary_claim_id: string | null;
   tpa_rate_plan_id: string | null;
+  nhcx_correlation_id: string | null;
+  nhcx_api_call_id: string | null;
+  nhcx_recipient_code: string | null;
+  nhcx_response_payload: unknown | null;
+  nhcx_response_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -20152,6 +20157,52 @@ export type CommAlertStatus = "triggered" | "acknowledged" | "escalated" | "reso
 export type CommComplaintStatus = "open" | "assigned" | "in_progress" | "pending_review" | "resolved" | "closed" | "reopened";
 export type CommComplaintSource = "walk_in" | "phone" | "email" | "portal" | "kiosk" | "social_media" | "google_review";
 export type CommFeedbackType = "bedside" | "post_discharge" | "nps" | "department" | "kiosk";
+
+export interface DltTemplate {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  template_name: string;
+  category: string;
+  sender_id: string;
+  entity_id: string;
+  body_pattern: string;
+  variable_count: number;
+  scope: string | null;
+  language: string;
+  is_active: boolean;
+  registered_at: string | null;
+  expires_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDltTemplateRequest {
+  template_id: string;
+  template_name: string;
+  category: string;
+  sender_id: string;
+  entity_id: string;
+  body_pattern: string;
+  variable_count?: number;
+  scope?: string;
+  language?: string;
+  registered_at?: string;
+  expires_at?: string;
+  notes?: string;
+}
+
+export interface UpdateDltTemplateRequest {
+  template_name?: string;
+  body_pattern?: string;
+  variable_count?: number;
+  scope?: string;
+  language?: string;
+  is_active?: boolean;
+  expires_at?: string;
+  notes?: string;
+}
 
 export interface CommTemplateRow {
   id: string; tenant_id: string; template_name: string; template_code: string;

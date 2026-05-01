@@ -30,6 +30,243 @@ const DEMO_DOCTORS: &[DemoDoctor] = &[
     },
 ];
 
+struct DemoRoleUser {
+    username: &'static str,
+    full_name: &'static str,
+    email: &'static str,
+    role: &'static str,
+    dept_code: Option<&'static str>,
+}
+
+/// One demo user per major non-doctor role for RBAC tests.
+/// Password: test123 for all.
+const DEMO_ROLE_USERS: &[DemoRoleUser] = &[
+    DemoRoleUser {
+        username: "nurse_anita",
+        full_name: "Nurse Anita Joseph",
+        email: "nurse_anita@medbrains.local",
+        role: "nurse",
+        dept_code: Some("GEN-MEDICINE"),
+    },
+    DemoRoleUser {
+        username: "lab_suresh",
+        full_name: "Suresh Lab-Tech",
+        email: "lab_suresh@medbrains.local",
+        role: "lab_technician",
+        dept_code: Some("PATHOLOGY"),
+    },
+    DemoRoleUser {
+        username: "pharm_kavita",
+        full_name: "Kavita Pharmacist",
+        email: "pharm_kavita@medbrains.local",
+        role: "pharmacist",
+        dept_code: Some("PHARMACY"),
+    },
+    DemoRoleUser {
+        username: "billing_raj",
+        full_name: "Raj Billing-Clerk",
+        email: "billing_raj@medbrains.local",
+        role: "billing_clerk",
+        dept_code: Some("BILLING-DEPT"),
+    },
+    DemoRoleUser {
+        username: "recept_meera",
+        full_name: "Meera Receptionist",
+        email: "recept_meera@medbrains.local",
+        role: "receptionist",
+        dept_code: Some("GEN-MEDICINE"),
+    },
+    DemoRoleUser {
+        username: "radio_vikram",
+        full_name: "Dr. Vikram Radiologist",
+        email: "radio_vikram@medbrains.local",
+        role: "doctor",
+        dept_code: Some("RADIOLOGY"),
+    },
+    DemoRoleUser {
+        username: "audit_neha",
+        full_name: "Neha Audit-Officer",
+        email: "audit_neha@medbrains.local",
+        role: "audit_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "hosp_admin_demo",
+        full_name: "Demo Hospital Admin",
+        email: "hosp_admin@medbrains.local",
+        role: "hospital_admin",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "mrd_sanjay",
+        full_name: "Sanjay MRD-Officer",
+        email: "mrd_sanjay@medbrains.local",
+        role: "mrd_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "canteen_lata",
+        full_name: "Lata Canteen-Staff",
+        email: "canteen_lata@medbrains.local",
+        role: "canteen_staff",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "dietitian_anu",
+        full_name: "Anu Dietitian",
+        email: "dietitian_anu@medbrains.local",
+        role: "dietitian",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "security_pradeep",
+        full_name: "Pradeep Security-Guard",
+        email: "security_pradeep@medbrains.local",
+        role: "security_guard",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "biomed_arvind",
+        full_name: "Arvind Biomed-Engineer",
+        email: "biomed_arvind@medbrains.local",
+        role: "biomed_engineer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "amb_gopal",
+        full_name: "Gopal Ambulance-Driver",
+        email: "amb_gopal@medbrains.local",
+        role: "ambulance_driver",
+        dept_code: Some("EMERGENCY"),
+    },
+    DemoRoleUser {
+        username: "radio_tech_sita",
+        full_name: "Sita Radiology-Tech",
+        email: "radio_tech_sita@medbrains.local",
+        role: "radiology_tech",
+        dept_code: Some("RADIOLOGY"),
+    },
+    DemoRoleUser {
+        username: "cssd_ramesh",
+        full_name: "Ramesh CSSD-Tech",
+        email: "cssd_ramesh@medbrains.local",
+        role: "cssd_technician",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "bb_tech_divya",
+        full_name: "Divya Blood-Bank-Tech",
+        email: "bb_divya@medbrains.local",
+        role: "blood_bank_tech",
+        dept_code: Some("PATHOLOGY"),
+    },
+    DemoRoleUser {
+        username: "fo_priti",
+        full_name: "Priti Front-Office",
+        email: "fo_priti@medbrains.local",
+        role: "front_office_staff",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "ic_dr_kavya",
+        full_name: "Dr. Kavya Infection-Control",
+        email: "ic_kavya@medbrains.local",
+        role: "infection_control_officer",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "proc_amit",
+        full_name: "Amit Procurement",
+        email: "proc_amit@medbrains.local",
+        role: "procurement_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "store_naveen",
+        full_name: "Naveen Store-Keeper",
+        email: "store_naveen@medbrains.local",
+        role: "store_keeper",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "hr_deepika",
+        full_name: "Deepika HR-Officer",
+        email: "hr_deepika@medbrains.local",
+        role: "hr_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "camp_rohit",
+        full_name: "Rohit Camp-Coordinator",
+        email: "camp_rohit@medbrains.local",
+        role: "camp_coordinator",
+        dept_code: None,
+    },
+    DemoRoleUser {
+        username: "ins_nidhi",
+        full_name: "Nidhi Insurance-Officer",
+        email: "ins_nidhi@medbrains.local",
+        role: "insurance_officer",
+        dept_code: Some("BILLING-DEPT"),
+    },
+    DemoRoleUser {
+        username: "ot_staff_jaya",
+        full_name: "Jaya OT-Staff",
+        email: "ot_jaya@medbrains.local",
+        role: "ot_staff",
+        dept_code: Some("ANESTHESIOLOGY"),
+    },
+    DemoRoleUser {
+        username: "quality_dr_ashish",
+        full_name: "Dr. Ashish Quality-Officer",
+        email: "quality_ashish@medbrains.local",
+        role: "quality_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "case_mgr_seema",
+        full_name: "Seema Case-Manager",
+        email: "case_seema@medbrains.local",
+        role: "case_manager",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "ur_dr_prakash",
+        full_name: "Dr. Prakash UR-Reviewer",
+        email: "ur_prakash@medbrains.local",
+        role: "utilization_reviewer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "facilities_mohan",
+        full_name: "Mohan Facilities-Manager",
+        email: "facilities_mohan@medbrains.local",
+        role: "facilities_manager",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "occ_dr_gita",
+        full_name: "Dr. Gita Occ-Health",
+        email: "occ_gita@medbrains.local",
+        role: "occ_health_officer",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "sched_admin_bina",
+        full_name: "Bina Scheduling-Admin",
+        email: "sched_bina@medbrains.local",
+        role: "scheduling_admin",
+        dept_code: Some("HOSP-ADMIN"),
+    },
+    DemoRoleUser {
+        username: "housekeep_lila",
+        full_name: "Lila Housekeeping",
+        email: "hk_lila@medbrains.local",
+        role: "housekeeping_staff",
+        dept_code: None,
+    },
+];
+
 struct DemoPatient {
     uhid: &'static str,
     first: &'static str,
@@ -123,6 +360,47 @@ pub(super) async fn seed_demo_patients(
     }
 
     tracing::info!("Seeded {} demo doctors", DEMO_DOCTORS.len());
+
+    // ── Seed demo role users (idempotent) ──────────────────
+    let role_user_salt = SaltString::generate(&mut OsRng);
+    let role_user_hash = argon2
+        .hash_password(b"test123", &role_user_salt)
+        .map_err(|e| format!("password hash error: {e}"))?
+        .to_string();
+
+    for user in DEMO_ROLE_USERS {
+        let dept_id: Option<uuid::Uuid> = if let Some(code) = user.dept_code {
+            sqlx::query_scalar(
+                "SELECT id FROM departments WHERE tenant_id = $1 AND code = $2",
+            )
+            .bind(tenant_id)
+            .bind(code)
+            .fetch_optional(&mut *tx)
+            .await?
+        } else {
+            None
+        };
+
+        let dept_array: Vec<uuid::Uuid> = dept_id.map(|d| vec![d]).unwrap_or_default();
+
+        sqlx::query(
+            "INSERT INTO users \
+             (tenant_id, username, email, password_hash, full_name, role, department_ids) \
+             VALUES ($1, $2, $3, $4, $5, $6::user_role, $7) \
+             ON CONFLICT (tenant_id, username) DO NOTHING",
+        )
+        .bind(tenant_id)
+        .bind(user.username)
+        .bind(user.email)
+        .bind(&role_user_hash)
+        .bind(user.full_name)
+        .bind(user.role)
+        .bind(&dept_array)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tracing::info!("Seeded {} demo role users", DEMO_ROLE_USERS.len());
 
     // Check if demo patients already exist
     let count: i64 = sqlx::query_scalar(

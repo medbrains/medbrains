@@ -85,7 +85,7 @@ services:
       retries: 10
 
   spicedb_migrate:
-    image: authzed/spicedb:v1.39.1
+    image: authzed/spicedb:v1.50.0
     command: >
       datastore migrate head
       --datastore-engine=postgres
@@ -96,7 +96,7 @@ services:
     restart: "no"
 
   spicedb:
-    image: authzed/spicedb:v1.39.1
+    image: authzed/spicedb:v1.50.0
     command: >
       serve
       --grpc-preshared-key=devsecret
