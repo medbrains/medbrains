@@ -1572,7 +1572,7 @@ pub async fn get_package_bill_print_data(
            pb.created_at AS bill_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at AS admission_date, \
            a.discharged_at AS discharge_date, \
            pkg.name AS package_name, \

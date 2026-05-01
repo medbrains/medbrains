@@ -1081,7 +1081,7 @@ pub async fn get_fall_risk_assessment_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            COALESCE(fr.history_of_falling, 0) AS history_of_falling, \
@@ -1196,7 +1196,7 @@ pub async fn get_pressure_ulcer_risk_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            COALESCE(pr.sensory_perception, 4) AS sensory_perception, \
@@ -1422,8 +1422,8 @@ pub async fn get_transfusion_requisition_print_data(
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.blood_group::text AS blood_group, \
-           p.rh_factor::text AS rh_factor, \
-           a.admission_number, \
+           '+'::text AS rh_factor, \
+           a.id::text AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            tr.id AS request_id, \

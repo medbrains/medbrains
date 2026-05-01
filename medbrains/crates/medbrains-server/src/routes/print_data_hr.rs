@@ -724,7 +724,7 @@ pub async fn get_visitor_register_print_data(
             purpose,
             d.name as visiting_department,
             u.full_name as visiting_person,
-            p.full_name as patient_name,
+            (p.first_name || ' ' || p.last_name) as patient_name,
             p.uhid as patient_uhid,
             v.in_time,
             v.out_time,

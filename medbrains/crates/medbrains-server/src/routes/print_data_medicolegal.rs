@@ -71,7 +71,7 @@ pub async fn get_ama_form_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
@@ -688,7 +688,7 @@ pub async fn get_death_declaration_print_data(
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.address::text AS address, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
            w.name AS ward_name, \
            l.name AS bed_number, \
@@ -819,25 +819,24 @@ pub async fn get_mlc_documentation_print_data(
            p.address::text AS address, \
            a.admitted_at::date AS admission_date, \
            a.discharged_at::date AS discharge_date, \
-           COALESCE(mlc.final_diagnosis, 'N/A') AS final_diagnosis, \
-           COALESCE(mlc.treatment_summary, 'N/A') AS treatment_summary, \
-           COALESCE(mlc.investigation_summary, 'N/A') AS investigation_summary, \
-           COALESCE(mlc.clinical_findings_at_discharge, 'N/A') AS clinical_findings_at_discharge, \
-           mlc.complications, \
-           COALESCE(mlc.prognosis, 'N/A') AS prognosis, \
-           mlc.permanent_disability, \
-           mlc.disability_percentage, \
+           COALESCE(mlc.medical_opinion, 'N/A') AS final_diagnosis, \
+           'N/A'::text AS treatment_summary, \
+           'N/A'::text AS investigation_summary, \
+           COALESCE(mlc.examination_findings, 'N/A') AS clinical_findings_at_discharge, \
+           NULL::text AS complications, \
+           'N/A'::text AS prognosis, \
+           NULL::text AS permanent_disability, \
+           NULL::text AS disability_percentage, \
            mlc.police_station, \
            mlc.fir_number, \
-           mlc.court_case_number, \
+           NULL::text AS court_case_number, \
            preparer.full_name AS prepared_by, \
-           verifier.full_name AS verified_by, \
+           NULL::text AS verified_by, \
            mlc.updated_at AS prepared_at \
          FROM mlc_cases mlc \
          JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
          LEFT JOIN admissions a ON a.id = mlc.admission_id AND a.tenant_id = mlc.tenant_id \
-         LEFT JOIN users preparer ON preparer.id = mlc.prepared_by_id \
-         LEFT JOIN users verifier ON verifier.id = mlc.verified_by_id \
+         LEFT JOIN users preparer ON preparer.id = mlc.registered_by \
          WHERE mlc.id = $1 AND mlc.tenant_id = $2",
     )
     .bind(case_id)

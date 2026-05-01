@@ -770,7 +770,7 @@ pub async fn get_transfusion_reaction_print_data(
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.blood_group::text AS blood_group, \
-           p.rh_factor::text AS rh_factor, \
+           '+'::text AS rh_factor, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            tr.transfusion_date, \

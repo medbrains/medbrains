@@ -60,7 +60,7 @@ pub async fn get_case_sheet_cover_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            a.admitted_at AS admission_date, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
@@ -168,7 +168,7 @@ pub async fn get_preop_assessment_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            COALESCE(pa.planned_procedure, 'Surgery') AS planned_surgery, \
            COALESCE(pa.surgery_date, CURRENT_DATE) AS surgery_date, \
            surgeon.full_name AS surgeon_name, \
@@ -790,7 +790,7 @@ pub async fn get_postop_orders_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            s.surgery_date, \
            s.procedure_name, \
            surgeon.full_name AS surgeon_name, \
@@ -958,7 +958,7 @@ pub async fn get_transfusion_monitoring_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           a.admission_number, \
+           a.id::text AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            t.id AS transfusion_id, \
