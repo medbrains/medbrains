@@ -32,4 +32,5 @@ pub mod seed;
 pub mod services;
 pub mod signing;
 pub mod state;
+pub mod storage_archive;
 pub mod validation;

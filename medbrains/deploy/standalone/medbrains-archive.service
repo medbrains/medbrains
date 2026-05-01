@@ -1,0 +1,18 @@
+[Unit]
+Description=MedBrains storage tier sweeper (one-shot)
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=medbrains-server.service
+Requires=medbrains-server.service
+
+[Service]
+Type=oneshot
+User=medbrains
+Group=medbrains
+EnvironmentFile=/etc/medbrains/env
+ExecStart=/usr/local/bin/medbrains-archive
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/medbrains

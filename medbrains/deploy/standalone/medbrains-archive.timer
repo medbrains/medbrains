@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily storage tier sweep
+Documentation=https://github.com/DomnicAmalan/MedBrains
+
+[Timer]
+# Daily at 02:00 local time. RandomizedDelaySec staggers if multiple
+# tenants land on the same VM (no-op for single-server pilots).
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=300
+Persistent=true
+Unit=medbrains-archive.service
+
+[Install]
+WantedBy=timers.target
