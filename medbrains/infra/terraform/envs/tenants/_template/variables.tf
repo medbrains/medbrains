@@ -145,3 +145,21 @@ variable "bridge_artifact_url" {
   description = "Where the medbrains-bridge binary is hosted (S3 presigned or GitHub release URL)"
   default     = ""
 }
+
+# ── Shared cloud control-plane URLs ─────────────────────────────────
+# Services that live in the shared cloud control plane (one set
+# across all tenants). Variables so a group running an alternate
+# cloud apex (e.g. medbrains.in) can override without forking the
+# template.
+
+variable "cloud_apex_domain" {
+  type        = string
+  description = "Apex domain hosting the shared cloud control plane (headscale, event bus, etc.)."
+  default     = "medbrains.cloud"
+}
+
+variable "cloud_event_bus_url" {
+  type        = string
+  description = "Internal event bus URL the on-prem bridge publishes to. Defaults to https://api.<cloud_apex_domain>/internal/events when empty."
+  default     = ""
+}

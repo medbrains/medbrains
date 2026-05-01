@@ -34,14 +34,20 @@ data "aws_iam_policy_document" "bridge_assume" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = ["arn:aws:iam::aws:oidc-provider/headscale.medbrains.cloud"]
+      identifiers = ["arn:aws:iam::aws:oidc-provider/${local.headscale_oidc_host}"]
     }
     condition {
       test     = "StringEquals"
-      variable = "headscale.medbrains.cloud:sub"
+      variable = "${local.headscale_oidc_host}:sub"
       values   = ["tag:hospital-${var.tenant_id}"]
     }
   }
+}
+
+locals {
+  # Host portion of the headscale URL — used as the OIDC issuer
+  # identifier in IAM. Strip the scheme and any trailing slash.
+  headscale_oidc_host = replace(replace(var.headscale_url, "https://", ""), "/", "")
 }
 
 data "aws_iam_policy_document" "bridge" {

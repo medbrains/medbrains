@@ -35,7 +35,7 @@ resource "null_resource" "register_tenant_tag" {
       # filemode = "database" config; we use file mode for git
       # auditability per the headscale module).
       echo "[hybrid-tenant-template] add this line to headscale-acl.hujson under tagOwners:"
-      echo "    \"tag:hospital-${var.tenant_id}\": [\"medbrains-admin@medbrains.cloud\"],"
+      echo "    \"tag:hospital-${var.tenant_id}\": [\"medbrains-admin@${var.cloud_apex_domain}\"],"
     EOT
   }
 

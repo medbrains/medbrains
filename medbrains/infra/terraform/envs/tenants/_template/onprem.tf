@@ -60,7 +60,7 @@ module "bridge_proxmox" {
   headscale_preauth_key  = file("/tmp/medbrains-${var.tenant_id}-preauth.json")
   headscale_node_tag     = "tag:hospital-${var.tenant_id}-bridge"
   k3s_server_ip          = module.k3s_proxmox[0].server_ip
-  cloud_event_bus_url    = "https://api.medbrains.cloud/internal/events"
+  cloud_event_bus_url    = coalesce(var.cloud_event_bus_url, "https://api.${var.cloud_apex_domain}/internal/events")
   bridge_artifact_url    = var.bridge_artifact_url
 }
 
