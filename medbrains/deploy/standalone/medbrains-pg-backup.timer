@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily MedBrains postgres backup → S3
+Requires=medbrains-pg-backup.service
+
+[Timer]
+# 02:30 UTC = 08:00 IST. Same window as DLM EBS snapshot.
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+Unit=medbrains-pg-backup.service
+
+[Install]
+WantedBy=timers.target

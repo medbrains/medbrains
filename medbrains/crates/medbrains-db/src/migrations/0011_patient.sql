@@ -709,7 +709,7 @@ ALTER TABLE ONLY public.patients
 -- Name: idx_feedback_doctor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_feedback_doctor ON public.patient_feedback USING btree (doctor_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_doctor ON public.patient_feedback USING btree (doctor_id);
 
 
 
@@ -717,7 +717,7 @@ CREATE INDEX idx_feedback_doctor ON public.patient_feedback USING btree (doctor_
 -- Name: idx_feedback_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_feedback_encounter ON public.patient_feedback USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_encounter ON public.patient_feedback USING btree (encounter_id);
 
 
 
@@ -725,7 +725,7 @@ CREATE INDEX idx_feedback_encounter ON public.patient_feedback USING btree (enco
 -- Name: idx_feedback_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_feedback_tenant ON public.patient_feedback USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_tenant ON public.patient_feedback USING btree (tenant_id);
 
 
 
@@ -733,7 +733,7 @@ CREATE INDEX idx_feedback_tenant ON public.patient_feedback USING btree (tenant_
 -- Name: idx_outcome_targets_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outcome_targets_patient ON public.patient_outcome_targets USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_outcome_targets_patient ON public.patient_outcome_targets USING btree (tenant_id, patient_id);
 
 
 
@@ -741,7 +741,7 @@ CREATE INDEX idx_outcome_targets_patient ON public.patient_outcome_targets USING
 -- Name: idx_patient_abha_links_abha; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_abha_links_abha ON public.patient_abha_links USING btree (abha_number);
+CREATE INDEX IF NOT EXISTS idx_patient_abha_links_abha ON public.patient_abha_links USING btree (abha_number);
 
 
 
@@ -749,7 +749,7 @@ CREATE INDEX idx_patient_abha_links_abha ON public.patient_abha_links USING btre
 -- Name: idx_patient_addresses_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_addresses_patient ON public.patient_addresses USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_addresses_patient ON public.patient_addresses USING btree (tenant_id, patient_id);
 
 
 
@@ -757,7 +757,7 @@ CREATE INDEX idx_patient_addresses_patient ON public.patient_addresses USING btr
 -- Name: idx_patient_allergies_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_allergies_patient ON public.patient_allergies USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_allergies_patient ON public.patient_allergies USING btree (tenant_id, patient_id);
 
 
 
@@ -765,7 +765,7 @@ CREATE INDEX idx_patient_allergies_patient ON public.patient_allergies USING btr
 -- Name: idx_patient_contacts_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_contacts_patient ON public.patient_contacts USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_contacts_patient ON public.patient_contacts USING btree (tenant_id, patient_id);
 
 
 
@@ -773,7 +773,7 @@ CREATE INDEX idx_patient_contacts_patient ON public.patient_contacts USING btree
 -- Name: idx_patient_documents_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_documents_patient ON public.patient_documents USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_documents_patient ON public.patient_documents USING btree (tenant_id, patient_id);
 
 
 
@@ -781,7 +781,7 @@ CREATE INDEX idx_patient_documents_patient ON public.patient_documents USING btr
 -- Name: idx_patient_education_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_education_patient ON public.patient_education USING btree (tenant_id, patient_id, provided_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patient_education_patient ON public.patient_education USING btree (tenant_id, patient_id, provided_at DESC);
 
 
 
@@ -789,7 +789,7 @@ CREATE INDEX idx_patient_education_patient ON public.patient_education USING btr
 -- Name: idx_patient_family_links_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_family_links_patient ON public.patient_family_links USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_family_links_patient ON public.patient_family_links USING btree (tenant_id, patient_id);
 
 
 
@@ -797,7 +797,7 @@ CREATE INDEX idx_patient_family_links_patient ON public.patient_family_links USI
 -- Name: idx_patient_family_links_related; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_family_links_related ON public.patient_family_links USING btree (tenant_id, related_patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_family_links_related ON public.patient_family_links USING btree (tenant_id, related_patient_id);
 
 
 
@@ -805,7 +805,7 @@ CREATE INDEX idx_patient_family_links_related ON public.patient_family_links USI
 -- Name: idx_patient_identifiers_hash; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_identifiers_hash ON public.patient_identifiers USING btree (tenant_id, id_type, id_number_hash);
+CREATE INDEX IF NOT EXISTS idx_patient_identifiers_hash ON public.patient_identifiers USING btree (tenant_id, id_type, id_number_hash);
 
 
 
@@ -813,7 +813,7 @@ CREATE INDEX idx_patient_identifiers_hash ON public.patient_identifiers USING bt
 -- Name: idx_patient_identifiers_number; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_identifiers_number ON public.patient_identifiers USING btree (tenant_id, id_type, id_number);
+CREATE INDEX IF NOT EXISTS idx_patient_identifiers_number ON public.patient_identifiers USING btree (tenant_id, id_type, id_number);
 
 
 
@@ -821,7 +821,7 @@ CREATE INDEX idx_patient_identifiers_number ON public.patient_identifiers USING 
 -- Name: idx_patient_identifiers_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_identifiers_patient ON public.patient_identifiers USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_identifiers_patient ON public.patient_identifiers USING btree (tenant_id, patient_id);
 
 
 
@@ -829,7 +829,7 @@ CREATE INDEX idx_patient_identifiers_patient ON public.patient_identifiers USING
 -- Name: idx_patient_transfers_dest; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_transfers_dest ON public.patient_transfers USING btree (dest_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_patient_transfers_dest ON public.patient_transfers USING btree (dest_tenant_id);
 
 
 
@@ -837,7 +837,7 @@ CREATE INDEX idx_patient_transfers_dest ON public.patient_transfers USING btree 
 -- Name: idx_patient_transfers_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_transfers_patient ON public.patient_transfers USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_transfers_patient ON public.patient_transfers USING btree (patient_id);
 
 
 
@@ -845,7 +845,7 @@ CREATE INDEX idx_patient_transfers_patient ON public.patient_transfers USING btr
 -- Name: idx_patient_transfers_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_transfers_source ON public.patient_transfers USING btree (source_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_patient_transfers_source ON public.patient_transfers USING btree (source_tenant_id);
 
 
 
@@ -853,7 +853,7 @@ CREATE INDEX idx_patient_transfers_source ON public.patient_transfers USING btre
 -- Name: idx_patient_transfers_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_transfers_status ON public.patient_transfers USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_patient_transfers_status ON public.patient_transfers USING btree (status);
 
 
 
@@ -861,7 +861,7 @@ CREATE INDEX idx_patient_transfers_status ON public.patient_transfers USING btre
 -- Name: idx_patients_abha; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_abha ON public.patients USING btree (abha_id) WHERE (abha_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_patients_abha ON public.patients USING btree (abha_id) WHERE (abha_id IS NOT NULL);
 
 
 
@@ -869,7 +869,7 @@ CREATE INDEX idx_patients_abha ON public.patients USING btree (abha_id) WHERE (a
 -- Name: idx_patients_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_created_by ON public.patients USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_patients_created_by ON public.patients USING btree (created_by);
 
 
 
@@ -877,7 +877,7 @@ CREATE INDEX idx_patients_created_by ON public.patients USING btree (created_by)
 -- Name: idx_patients_dob; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_dob ON public.patients USING btree (tenant_id, date_of_birth);
+CREATE INDEX IF NOT EXISTS idx_patients_dob ON public.patients USING btree (tenant_id, date_of_birth);
 
 
 
@@ -885,7 +885,7 @@ CREATE INDEX idx_patients_dob ON public.patients USING btree (tenant_id, date_of
 -- Name: idx_patients_first_name_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_first_name_trgm ON public.patients USING gin (first_name public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_patients_first_name_trgm ON public.patients USING gin (first_name public.gin_trgm_ops);
 
 
 
@@ -893,7 +893,7 @@ CREATE INDEX idx_patients_first_name_trgm ON public.patients USING gin (first_na
 -- Name: idx_patients_fulltext; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_fulltext ON public.patients USING gin (to_tsvector('english'::regconfig, ((((((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)) || ' '::text) || COALESCE(phone, ''::text)) || ' '::text) || COALESCE(uhid, ''::text))));
+CREATE INDEX IF NOT EXISTS idx_patients_fulltext ON public.patients USING gin (to_tsvector('english'::regconfig, ((((((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)) || ' '::text) || COALESCE(phone, ''::text)) || ' '::text) || COALESCE(uhid, ''::text))));
 
 
 
@@ -901,7 +901,7 @@ CREATE INDEX idx_patients_fulltext ON public.patients USING gin (to_tsvector('en
 -- Name: idx_patients_last_name_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_last_name_trgm ON public.patients USING gin (last_name public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_patients_last_name_trgm ON public.patients USING gin (last_name public.gin_trgm_ops);
 
 
 
@@ -909,7 +909,7 @@ CREATE INDEX idx_patients_last_name_trgm ON public.patients USING gin (last_name
 -- Name: idx_patients_mpi_block; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_mpi_block ON public.patients USING btree (tenant_id, date_of_birth, "substring"(first_name, 1, 3));
+CREATE INDEX IF NOT EXISTS idx_patients_mpi_block ON public.patients USING btree (tenant_id, date_of_birth, "substring"(first_name, 1, 3));
 
 
 
@@ -917,7 +917,7 @@ CREATE INDEX idx_patients_mpi_block ON public.patients USING btree (tenant_id, d
 -- Name: idx_patients_phone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_phone ON public.patients USING btree (tenant_id, phone);
+CREATE INDEX IF NOT EXISTS idx_patients_phone ON public.patients USING btree (tenant_id, phone);
 
 
 
@@ -925,7 +925,7 @@ CREATE INDEX idx_patients_phone ON public.patients USING btree (tenant_id, phone
 -- Name: idx_patients_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patients_tenant ON public.patients USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_patients_tenant ON public.patients USING btree (tenant_id);
 
 
 
@@ -933,7 +933,7 @@ CREATE INDEX idx_patients_tenant ON public.patients USING btree (tenant_id);
 -- Name: idx_reminders_doctor_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reminders_doctor_date ON public.patient_reminders USING btree (doctor_id, reminder_date);
+CREATE INDEX IF NOT EXISTS idx_reminders_doctor_date ON public.patient_reminders USING btree (doctor_id, reminder_date);
 
 
 
@@ -941,7 +941,7 @@ CREATE INDEX idx_reminders_doctor_date ON public.patient_reminders USING btree (
 -- Name: idx_reminders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reminders_patient ON public.patient_reminders USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_patient ON public.patient_reminders USING btree (patient_id);
 
 
 
@@ -949,7 +949,7 @@ CREATE INDEX idx_reminders_patient ON public.patient_reminders USING btree (pati
 -- Name: idx_reminders_status_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reminders_status_date ON public.patient_reminders USING btree (status, reminder_date);
+CREATE INDEX IF NOT EXISTS idx_reminders_status_date ON public.patient_reminders USING btree (status, reminder_date);
 
 
 
@@ -957,7 +957,7 @@ CREATE INDEX idx_reminders_status_date ON public.patient_reminders USING btree (
 -- Name: idx_reminders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reminders_tenant ON public.patient_reminders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_tenant ON public.patient_reminders USING btree (tenant_id);
 
 
 

@@ -158,7 +158,7 @@ ALTER TABLE ONLY public.visitor_registrations
 -- Name: idx_enquiry_logs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_enquiry_logs_tenant ON public.enquiry_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_logs_tenant ON public.enquiry_logs USING btree (tenant_id);
 
 
 
@@ -166,7 +166,7 @@ CREATE INDEX idx_enquiry_logs_tenant ON public.enquiry_logs USING btree (tenant_
 -- Name: idx_visiting_hours_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visiting_hours_tenant ON public.visiting_hours USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visiting_hours_tenant ON public.visiting_hours USING btree (tenant_id);
 
 
 
@@ -174,7 +174,7 @@ CREATE INDEX idx_visiting_hours_tenant ON public.visiting_hours USING btree (ten
 -- Name: idx_visitor_logs_pass; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_logs_pass ON public.visitor_logs USING btree (pass_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_logs_pass ON public.visitor_logs USING btree (pass_id);
 
 
 
@@ -182,7 +182,7 @@ CREATE INDEX idx_visitor_logs_pass ON public.visitor_logs USING btree (pass_id);
 -- Name: idx_visitor_logs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_logs_tenant ON public.visitor_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_logs_tenant ON public.visitor_logs USING btree (tenant_id);
 
 
 
@@ -190,7 +190,7 @@ CREATE INDEX idx_visitor_logs_tenant ON public.visitor_logs USING btree (tenant_
 -- Name: idx_visitor_passes_registration; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_passes_registration ON public.visitor_passes USING btree (registration_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_passes_registration ON public.visitor_passes USING btree (registration_id);
 
 
 
@@ -198,7 +198,7 @@ CREATE INDEX idx_visitor_passes_registration ON public.visitor_passes USING btre
 -- Name: idx_visitor_passes_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_passes_status ON public.visitor_passes USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_visitor_passes_status ON public.visitor_passes USING btree (status);
 
 
 
@@ -206,7 +206,7 @@ CREATE INDEX idx_visitor_passes_status ON public.visitor_passes USING btree (sta
 -- Name: idx_visitor_passes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_passes_tenant ON public.visitor_passes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_passes_tenant ON public.visitor_passes USING btree (tenant_id);
 
 
 
@@ -214,7 +214,7 @@ CREATE INDEX idx_visitor_passes_tenant ON public.visitor_passes USING btree (ten
 -- Name: idx_visitor_registrations_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_registrations_patient ON public.visitor_registrations USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_registrations_patient ON public.visitor_registrations USING btree (patient_id);
 
 
 
@@ -222,7 +222,7 @@ CREATE INDEX idx_visitor_registrations_patient ON public.visitor_registrations U
 -- Name: idx_visitor_registrations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_visitor_registrations_tenant ON public.visitor_registrations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_registrations_tenant ON public.visitor_registrations USING btree (tenant_id);
 
 
 

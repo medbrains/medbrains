@@ -4,7 +4,7 @@
 #   3. medbrains-uploads-<region>        : patient uploads (PHI), Glacier after 90d
 #   4. medbrains-tf-state-<region>       : managed by bootstrap module
 
-variable "region"      { type = string }
+variable "region" { type = string }
 variable "environment" { type = string }
 variable "kms_key_arns" {
   type = object({

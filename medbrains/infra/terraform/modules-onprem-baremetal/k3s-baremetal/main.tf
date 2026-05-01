@@ -82,9 +82,9 @@ resource "local_file" "inventory" {
 
 resource "null_resource" "server" {
   triggers = {
-    server_host  = var.server_host
-    k3s_version  = var.k3s_version
-    inventory    = local_file.inventory.content
+    server_host = var.server_host
+    k3s_version = var.k3s_version
+    inventory   = local_file.inventory.content
   }
 
   provisioner "local-exec" {

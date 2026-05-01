@@ -1383,7 +1383,7 @@ ALTER TABLE ONLY public.tpa_rate_cards
 -- Name: idx_advance_adjustments_advance; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_advance_adjustments_advance ON public.advance_adjustments USING btree (tenant_id, advance_id);
+CREATE INDEX IF NOT EXISTS idx_advance_adjustments_advance ON public.advance_adjustments USING btree (tenant_id, advance_id);
 
 
 
@@ -1391,7 +1391,7 @@ CREATE INDEX idx_advance_adjustments_advance ON public.advance_adjustments USING
 -- Name: idx_advance_adjustments_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_advance_adjustments_invoice ON public.advance_adjustments USING btree (tenant_id, invoice_id);
+CREATE INDEX IF NOT EXISTS idx_advance_adjustments_invoice ON public.advance_adjustments USING btree (tenant_id, invoice_id);
 
 
 
@@ -1399,7 +1399,7 @@ CREATE INDEX idx_advance_adjustments_invoice ON public.advance_adjustments USING
 -- Name: idx_bad_debt_write_offs_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bad_debt_write_offs_invoice ON public.bad_debt_write_offs USING btree (tenant_id, invoice_id);
+CREATE INDEX IF NOT EXISTS idx_bad_debt_write_offs_invoice ON public.bad_debt_write_offs USING btree (tenant_id, invoice_id);
 
 
 
@@ -1407,7 +1407,7 @@ CREATE INDEX idx_bad_debt_write_offs_invoice ON public.bad_debt_write_offs USING
 -- Name: idx_bad_debt_write_offs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bad_debt_write_offs_tenant ON public.bad_debt_write_offs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bad_debt_write_offs_tenant ON public.bad_debt_write_offs USING btree (tenant_id);
 
 
 
@@ -1415,7 +1415,7 @@ CREATE INDEX idx_bad_debt_write_offs_tenant ON public.bad_debt_write_offs USING 
 -- Name: idx_bank_transactions_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bank_transactions_date ON public.bank_transactions USING btree (tenant_id, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_date ON public.bank_transactions USING btree (tenant_id, transaction_date);
 
 
 
@@ -1423,7 +1423,7 @@ CREATE INDEX idx_bank_transactions_date ON public.bank_transactions USING btree 
 -- Name: idx_bank_transactions_recon; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bank_transactions_recon ON public.bank_transactions USING btree (tenant_id, recon_status);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_recon ON public.bank_transactions USING btree (tenant_id, recon_status);
 
 
 
@@ -1431,7 +1431,7 @@ CREATE INDEX idx_bank_transactions_recon ON public.bank_transactions USING btree
 -- Name: idx_bank_transactions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bank_transactions_tenant ON public.bank_transactions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_tenant ON public.bank_transactions USING btree (tenant_id);
 
 
 
@@ -1439,7 +1439,7 @@ CREATE INDEX idx_bank_transactions_tenant ON public.bank_transactions USING btre
 -- Name: idx_billing_audit_log_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_audit_log_date ON public.billing_audit_log USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_billing_audit_log_date ON public.billing_audit_log USING btree (tenant_id, created_at DESC);
 
 
 
@@ -1447,7 +1447,7 @@ CREATE INDEX idx_billing_audit_log_date ON public.billing_audit_log USING btree 
 -- Name: idx_billing_audit_log_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_audit_log_invoice ON public.billing_audit_log USING btree (tenant_id, invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_audit_log_invoice ON public.billing_audit_log USING btree (tenant_id, invoice_id);
 
 
 
@@ -1455,7 +1455,7 @@ CREATE INDEX idx_billing_audit_log_invoice ON public.billing_audit_log USING btr
 -- Name: idx_billing_audit_log_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_audit_log_tenant ON public.billing_audit_log USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_billing_audit_log_tenant ON public.billing_audit_log USING btree (tenant_id);
 
 
 
@@ -1463,7 +1463,7 @@ CREATE INDEX idx_billing_audit_log_tenant ON public.billing_audit_log USING btre
 -- Name: idx_billing_concessions_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_concessions_invoice ON public.billing_concessions USING btree (tenant_id, invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_concessions_invoice ON public.billing_concessions USING btree (tenant_id, invoice_id);
 
 
 
@@ -1471,7 +1471,7 @@ CREATE INDEX idx_billing_concessions_invoice ON public.billing_concessions USING
 -- Name: idx_billing_concessions_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_concessions_patient ON public.billing_concessions USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_billing_concessions_patient ON public.billing_concessions USING btree (tenant_id, patient_id);
 
 
 
@@ -1479,7 +1479,7 @@ CREATE INDEX idx_billing_concessions_patient ON public.billing_concessions USING
 -- Name: idx_billing_concessions_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_concessions_status ON public.billing_concessions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_billing_concessions_status ON public.billing_concessions USING btree (tenant_id, status);
 
 
 
@@ -1487,7 +1487,7 @@ CREATE INDEX idx_billing_concessions_status ON public.billing_concessions USING 
 -- Name: idx_billing_concessions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_concessions_tenant ON public.billing_concessions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_billing_concessions_tenant ON public.billing_concessions USING btree (tenant_id);
 
 
 
@@ -1495,7 +1495,7 @@ CREATE INDEX idx_billing_concessions_tenant ON public.billing_concessions USING 
 -- Name: idx_billing_package_items_package; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_package_items_package ON public.billing_package_items USING btree (package_id);
+CREATE INDEX IF NOT EXISTS idx_billing_package_items_package ON public.billing_package_items USING btree (package_id);
 
 
 
@@ -1503,7 +1503,7 @@ CREATE INDEX idx_billing_package_items_package ON public.billing_package_items U
 -- Name: idx_billing_packages_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_packages_tenant ON public.billing_packages USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_billing_packages_tenant ON public.billing_packages USING btree (tenant_id);
 
 
 
@@ -1511,7 +1511,7 @@ CREATE INDEX idx_billing_packages_tenant ON public.billing_packages USING btree 
 -- Name: idx_charge_master_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_charge_master_tenant ON public.charge_master USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_charge_master_tenant ON public.charge_master USING btree (tenant_id);
 
 
 
@@ -1519,7 +1519,7 @@ CREATE INDEX idx_charge_master_tenant ON public.charge_master USING btree (tenan
 -- Name: idx_corporate_enrollments_corporate; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_corporate_enrollments_corporate ON public.corporate_enrollments USING btree (tenant_id, corporate_id);
+CREATE INDEX IF NOT EXISTS idx_corporate_enrollments_corporate ON public.corporate_enrollments USING btree (tenant_id, corporate_id);
 
 
 
@@ -1527,7 +1527,7 @@ CREATE INDEX idx_corporate_enrollments_corporate ON public.corporate_enrollments
 -- Name: idx_corporate_enrollments_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_corporate_enrollments_patient ON public.corporate_enrollments USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_corporate_enrollments_patient ON public.corporate_enrollments USING btree (tenant_id, patient_id);
 
 
 
@@ -1535,7 +1535,7 @@ CREATE INDEX idx_corporate_enrollments_patient ON public.corporate_enrollments U
 -- Name: idx_credit_notes_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_credit_notes_invoice ON public.credit_notes USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_invoice ON public.credit_notes USING btree (invoice_id);
 
 
 
@@ -1543,7 +1543,7 @@ CREATE INDEX idx_credit_notes_invoice ON public.credit_notes USING btree (invoic
 -- Name: idx_credit_notes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_credit_notes_tenant ON public.credit_notes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_tenant ON public.credit_notes USING btree (tenant_id);
 
 
 
@@ -1551,7 +1551,7 @@ CREATE INDEX idx_credit_notes_tenant ON public.credit_notes USING btree (tenant_
 -- Name: idx_credit_patients_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_credit_patients_status ON public.credit_patients USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_credit_patients_status ON public.credit_patients USING btree (tenant_id, status);
 
 
 
@@ -1559,7 +1559,7 @@ CREATE INDEX idx_credit_patients_status ON public.credit_patients USING btree (t
 -- Name: idx_credit_patients_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_credit_patients_tenant ON public.credit_patients USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credit_patients_tenant ON public.credit_patients USING btree (tenant_id);
 
 
 
@@ -1567,7 +1567,7 @@ CREATE INDEX idx_credit_patients_tenant ON public.credit_patients USING btree (t
 -- Name: idx_day_end_closes_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_day_end_closes_date ON public.day_end_closes USING btree (tenant_id, close_date);
+CREATE INDEX IF NOT EXISTS idx_day_end_closes_date ON public.day_end_closes USING btree (tenant_id, close_date);
 
 
 
@@ -1575,7 +1575,7 @@ CREATE INDEX idx_day_end_closes_date ON public.day_end_closes USING btree (tenan
 -- Name: idx_day_end_closes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_day_end_closes_tenant ON public.day_end_closes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_day_end_closes_tenant ON public.day_end_closes USING btree (tenant_id);
 
 
 
@@ -1583,7 +1583,7 @@ CREATE INDEX idx_day_end_closes_tenant ON public.day_end_closes USING btree (ten
 -- Name: idx_erp_export_log_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_erp_export_log_tenant ON public.erp_export_log USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_erp_export_log_tenant ON public.erp_export_log USING btree (tenant_id);
 
 
 
@@ -1591,7 +1591,7 @@ CREATE INDEX idx_erp_export_log_tenant ON public.erp_export_log USING btree (ten
 -- Name: idx_exchange_rates_lookup; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_exchange_rates_lookup ON public.exchange_rates USING btree (tenant_id, from_currency, to_currency, effective_date DESC);
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_lookup ON public.exchange_rates USING btree (tenant_id, from_currency, to_currency, effective_date DESC);
 
 
 
@@ -1599,7 +1599,7 @@ CREATE INDEX idx_exchange_rates_lookup ON public.exchange_rates USING btree (ten
 -- Name: idx_exchange_rates_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_exchange_rates_tenant ON public.exchange_rates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_tenant ON public.exchange_rates USING btree (tenant_id);
 
 
 
@@ -1607,7 +1607,7 @@ CREATE INDEX idx_exchange_rates_tenant ON public.exchange_rates USING btree (ten
 -- Name: idx_gl_accounts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gl_accounts_tenant ON public.gl_accounts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_gl_accounts_tenant ON public.gl_accounts USING btree (tenant_id);
 
 
 
@@ -1615,7 +1615,7 @@ CREATE INDEX idx_gl_accounts_tenant ON public.gl_accounts USING btree (tenant_id
 -- Name: idx_gl_accounts_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gl_accounts_type ON public.gl_accounts USING btree (tenant_id, account_type);
+CREATE INDEX IF NOT EXISTS idx_gl_accounts_type ON public.gl_accounts USING btree (tenant_id, account_type);
 
 
 
@@ -1623,7 +1623,7 @@ CREATE INDEX idx_gl_accounts_type ON public.gl_accounts USING btree (tenant_id, 
 -- Name: idx_gst_return_summaries_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gst_return_summaries_tenant ON public.gst_return_summaries USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_gst_return_summaries_tenant ON public.gst_return_summaries USING btree (tenant_id);
 
 
 
@@ -1631,7 +1631,7 @@ CREATE INDEX idx_gst_return_summaries_tenant ON public.gst_return_summaries USIN
 -- Name: idx_invoice_discounts_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoice_discounts_invoice ON public.invoice_discounts USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_discounts_invoice ON public.invoice_discounts USING btree (invoice_id);
 
 
 
@@ -1639,7 +1639,7 @@ CREATE INDEX idx_invoice_discounts_invoice ON public.invoice_discounts USING btr
 -- Name: idx_invoice_items_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoice_items_invoice ON public.invoice_items USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON public.invoice_items USING btree (invoice_id);
 
 
 
@@ -1647,7 +1647,7 @@ CREATE INDEX idx_invoice_items_invoice ON public.invoice_items USING btree (invo
 -- Name: idx_invoice_items_source_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_invoice_items_source_idempotency ON public.invoice_items USING btree (invoice_id, source, source_id) WHERE (source_id IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoice_items_source_idempotency ON public.invoice_items USING btree (invoice_id, source, source_id) WHERE (source_id IS NOT NULL);
 
 
 
@@ -1655,7 +1655,7 @@ CREATE UNIQUE INDEX idx_invoice_items_source_idempotency ON public.invoice_items
 -- Name: idx_invoices_corporate; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_corporate ON public.invoices USING btree (tenant_id, corporate_id) WHERE (corporate_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_invoices_corporate ON public.invoices USING btree (tenant_id, corporate_id) WHERE (corporate_id IS NOT NULL);
 
 
 
@@ -1663,7 +1663,7 @@ CREATE INDEX idx_invoices_corporate ON public.invoices USING btree (tenant_id, c
 -- Name: idx_invoices_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_created_by ON public.invoices USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_invoices_created_by ON public.invoices USING btree (created_by);
 
 
 
@@ -1671,7 +1671,7 @@ CREATE INDEX idx_invoices_created_by ON public.invoices USING btree (created_by)
 -- Name: idx_invoices_interim; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_interim ON public.invoices USING btree (tenant_id, encounter_id, is_interim) WHERE (is_interim = true);
+CREATE INDEX IF NOT EXISTS idx_invoices_interim ON public.invoices USING btree (tenant_id, encounter_id, is_interim) WHERE (is_interim = true);
 
 
 
@@ -1679,7 +1679,7 @@ CREATE INDEX idx_invoices_interim ON public.invoices USING btree (tenant_id, enc
 -- Name: idx_invoices_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_patient ON public.invoices USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_patient ON public.invoices USING btree (patient_id);
 
 
 
@@ -1687,7 +1687,7 @@ CREATE INDEX idx_invoices_patient ON public.invoices USING btree (patient_id);
 -- Name: idx_invoices_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_status ON public.invoices USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices USING btree (tenant_id, status);
 
 
 
@@ -1695,7 +1695,7 @@ CREATE INDEX idx_invoices_status ON public.invoices USING btree (tenant_id, stat
 -- Name: idx_invoices_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_invoices_tenant ON public.invoices USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON public.invoices USING btree (tenant_id);
 
 
 
@@ -1703,7 +1703,7 @@ CREATE INDEX idx_invoices_tenant ON public.invoices USING btree (tenant_id);
 -- Name: idx_journal_entries_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_journal_entries_date ON public.journal_entries USING btree (tenant_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON public.journal_entries USING btree (tenant_id, entry_date);
 
 
 
@@ -1711,7 +1711,7 @@ CREATE INDEX idx_journal_entries_date ON public.journal_entries USING btree (ten
 -- Name: idx_journal_entries_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_journal_entries_status ON public.journal_entries USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_status ON public.journal_entries USING btree (tenant_id, status);
 
 
 
@@ -1719,7 +1719,7 @@ CREATE INDEX idx_journal_entries_status ON public.journal_entries USING btree (t
 -- Name: idx_journal_entries_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_journal_entries_tenant ON public.journal_entries USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_tenant ON public.journal_entries USING btree (tenant_id);
 
 
 
@@ -1727,7 +1727,7 @@ CREATE INDEX idx_journal_entries_tenant ON public.journal_entries USING btree (t
 -- Name: idx_journal_entry_lines_account; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_journal_entry_lines_account ON public.journal_entry_lines USING btree (account_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entry_lines_account ON public.journal_entry_lines USING btree (account_id);
 
 
 
@@ -1735,7 +1735,7 @@ CREATE INDEX idx_journal_entry_lines_account ON public.journal_entry_lines USING
 -- Name: idx_journal_entry_lines_entry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_journal_entry_lines_entry ON public.journal_entry_lines USING btree (journal_entry_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entry_lines_entry ON public.journal_entry_lines USING btree (journal_entry_id);
 
 
 
@@ -1743,7 +1743,7 @@ CREATE INDEX idx_journal_entry_lines_entry ON public.journal_entry_lines USING b
 -- Name: idx_patient_advances_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_advances_patient ON public.patient_advances USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_advances_patient ON public.patient_advances USING btree (tenant_id, patient_id);
 
 
 
@@ -1751,7 +1751,7 @@ CREATE INDEX idx_patient_advances_patient ON public.patient_advances USING btree
 -- Name: idx_patient_advances_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_advances_status ON public.patient_advances USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_patient_advances_status ON public.patient_advances USING btree (tenant_id, status);
 
 
 
@@ -1759,7 +1759,7 @@ CREATE INDEX idx_patient_advances_status ON public.patient_advances USING btree 
 -- Name: idx_payment_methods_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_payment_methods_tenant ON public.payment_methods USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_tenant ON public.payment_methods USING btree (tenant_id);
 
 
 
@@ -1767,7 +1767,7 @@ CREATE INDEX idx_payment_methods_tenant ON public.payment_methods USING btree (t
 -- Name: idx_payments_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_payments_invoice ON public.payments USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON public.payments USING btree (invoice_id);
 
 
 
@@ -1775,7 +1775,7 @@ CREATE INDEX idx_payments_invoice ON public.payments USING btree (invoice_id);
 -- Name: idx_payments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_payments_tenant ON public.payments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant ON public.payments USING btree (tenant_id);
 
 
 
@@ -1783,7 +1783,7 @@ CREATE INDEX idx_payments_tenant ON public.payments USING btree (tenant_id);
 -- Name: idx_pgt_gateway_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pgt_gateway_order ON public.payment_gateway_transactions USING btree (gateway_order_id);
+CREATE INDEX IF NOT EXISTS idx_pgt_gateway_order ON public.payment_gateway_transactions USING btree (gateway_order_id);
 
 
 
@@ -1791,7 +1791,7 @@ CREATE INDEX idx_pgt_gateway_order ON public.payment_gateway_transactions USING 
 -- Name: idx_pgt_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pgt_invoice ON public.payment_gateway_transactions USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_pgt_invoice ON public.payment_gateway_transactions USING btree (invoice_id);
 
 
 
@@ -1799,7 +1799,7 @@ CREATE INDEX idx_pgt_invoice ON public.payment_gateway_transactions USING btree 
 -- Name: idx_pgt_pos_sale; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pgt_pos_sale ON public.payment_gateway_transactions USING btree (pharmacy_pos_sale_id) WHERE (pharmacy_pos_sale_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pgt_pos_sale ON public.payment_gateway_transactions USING btree (pharmacy_pos_sale_id) WHERE (pharmacy_pos_sale_id IS NOT NULL);
 
 
 
@@ -1807,7 +1807,7 @@ CREATE INDEX idx_pgt_pos_sale ON public.payment_gateway_transactions USING btree
 -- Name: idx_pgt_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pgt_status ON public.payment_gateway_transactions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_pgt_status ON public.payment_gateway_transactions USING btree (tenant_id, status);
 
 
 
@@ -1815,7 +1815,7 @@ CREATE INDEX idx_pgt_status ON public.payment_gateway_transactions USING btree (
 -- Name: idx_rate_plan_items_rate_plan; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rate_plan_items_rate_plan ON public.rate_plan_items USING btree (rate_plan_id);
+CREATE INDEX IF NOT EXISTS idx_rate_plan_items_rate_plan ON public.rate_plan_items USING btree (rate_plan_id);
 
 
 
@@ -1823,7 +1823,7 @@ CREATE INDEX idx_rate_plan_items_rate_plan ON public.rate_plan_items USING btree
 -- Name: idx_rate_plans_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rate_plans_tenant ON public.rate_plans USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rate_plans_tenant ON public.rate_plans USING btree (tenant_id);
 
 
 
@@ -1831,7 +1831,7 @@ CREATE INDEX idx_rate_plans_tenant ON public.rate_plans USING btree (tenant_id);
 -- Name: idx_receipts_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_receipts_invoice ON public.receipts USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_invoice ON public.receipts USING btree (invoice_id);
 
 
 
@@ -1839,7 +1839,7 @@ CREATE INDEX idx_receipts_invoice ON public.receipts USING btree (invoice_id);
 -- Name: idx_receipts_payment; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_receipts_payment ON public.receipts USING btree (payment_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_payment ON public.receipts USING btree (payment_id);
 
 
 
@@ -1847,7 +1847,7 @@ CREATE INDEX idx_receipts_payment ON public.receipts USING btree (payment_id);
 -- Name: idx_receipts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_receipts_tenant ON public.receipts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON public.receipts USING btree (tenant_id);
 
 
 
@@ -1855,7 +1855,7 @@ CREATE INDEX idx_receipts_tenant ON public.receipts USING btree (tenant_id);
 -- Name: idx_refunds_invoice; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refunds_invoice ON public.refunds USING btree (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_invoice ON public.refunds USING btree (invoice_id);
 
 
 
@@ -1863,7 +1863,7 @@ CREATE INDEX idx_refunds_invoice ON public.refunds USING btree (invoice_id);
 -- Name: idx_refunds_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refunds_tenant ON public.refunds USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_tenant ON public.refunds USING btree (tenant_id);
 
 
 
@@ -1871,7 +1871,7 @@ CREATE INDEX idx_refunds_tenant ON public.refunds USING btree (tenant_id);
 -- Name: idx_tax_categories_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tax_categories_tenant ON public.tax_categories USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tax_categories_tenant ON public.tax_categories USING btree (tenant_id);
 
 
 
@@ -1879,7 +1879,7 @@ CREATE INDEX idx_tax_categories_tenant ON public.tax_categories USING btree (ten
 -- Name: idx_tds_deductions_fy; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tds_deductions_fy ON public.tds_deductions USING btree (tenant_id, financial_year, quarter);
+CREATE INDEX IF NOT EXISTS idx_tds_deductions_fy ON public.tds_deductions USING btree (tenant_id, financial_year, quarter);
 
 
 
@@ -1887,7 +1887,7 @@ CREATE INDEX idx_tds_deductions_fy ON public.tds_deductions USING btree (tenant_
 -- Name: idx_tds_deductions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tds_deductions_tenant ON public.tds_deductions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tds_deductions_tenant ON public.tds_deductions USING btree (tenant_id);
 
 
 
@@ -1895,7 +1895,7 @@ CREATE INDEX idx_tds_deductions_tenant ON public.tds_deductions USING btree (ten
 -- Name: idx_tpa_rate_cards_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tpa_rate_cards_tenant ON public.tpa_rate_cards USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tpa_rate_cards_tenant ON public.tpa_rate_cards USING btree (tenant_id);
 
 
 
@@ -1903,7 +1903,7 @@ CREATE INDEX idx_tpa_rate_cards_tenant ON public.tpa_rate_cards USING btree (ten
 -- Name: patient_package_consumptions_sub_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX patient_package_consumptions_sub_idx ON public.patient_package_consumptions USING btree (tenant_id, subscription_id, consumed_at DESC);
+CREATE INDEX IF NOT EXISTS patient_package_consumptions_sub_idx ON public.patient_package_consumptions USING btree (tenant_id, subscription_id, consumed_at DESC);
 
 
 
@@ -1911,7 +1911,7 @@ CREATE INDEX patient_package_consumptions_sub_idx ON public.patient_package_cons
 -- Name: patient_package_subscriptions_expiry_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX patient_package_subscriptions_expiry_idx ON public.patient_package_subscriptions USING btree (tenant_id, valid_until) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS patient_package_subscriptions_expiry_idx ON public.patient_package_subscriptions USING btree (tenant_id, valid_until) WHERE (status = 'active'::text);
 
 
 
@@ -1919,7 +1919,7 @@ CREATE INDEX patient_package_subscriptions_expiry_idx ON public.patient_package_
 -- Name: patient_package_subscriptions_patient_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX patient_package_subscriptions_patient_idx ON public.patient_package_subscriptions USING btree (tenant_id, patient_id, status);
+CREATE INDEX IF NOT EXISTS patient_package_subscriptions_patient_idx ON public.patient_package_subscriptions USING btree (tenant_id, patient_id, status);
 
 
 
@@ -1927,7 +1927,7 @@ CREATE INDEX patient_package_subscriptions_patient_idx ON public.patient_package
 -- Name: pgt_idempotency_key_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX pgt_idempotency_key_unique ON public.payment_gateway_transactions USING btree (tenant_id, idempotency_key) WHERE (idempotency_key IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS pgt_idempotency_key_unique ON public.payment_gateway_transactions USING btree (tenant_id, idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
 

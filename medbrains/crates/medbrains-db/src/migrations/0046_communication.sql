@@ -396,7 +396,7 @@ ALTER TABLE ONLY public.comm_templates
 -- Name: code_blue_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX code_blue_active_idx ON public.code_blue_events USING btree (tenant_id, started_at DESC) WHERE (ended_at IS NULL);
+CREATE INDEX IF NOT EXISTS code_blue_active_idx ON public.code_blue_events USING btree (tenant_id, started_at DESC) WHERE (ended_at IS NULL);
 
 
 
@@ -404,7 +404,7 @@ CREATE INDEX code_blue_active_idx ON public.code_blue_events USING btree (tenant
 -- Name: idx_comm_alert_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_alert_patient ON public.comm_critical_alerts USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_comm_alert_patient ON public.comm_critical_alerts USING btree (tenant_id, patient_id);
 
 
 
@@ -412,7 +412,7 @@ CREATE INDEX idx_comm_alert_patient ON public.comm_critical_alerts USING btree (
 -- Name: idx_comm_alert_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_alert_source ON public.comm_critical_alerts USING btree (tenant_id, alert_source);
+CREATE INDEX IF NOT EXISTS idx_comm_alert_source ON public.comm_critical_alerts USING btree (tenant_id, alert_source);
 
 
 
@@ -420,7 +420,7 @@ CREATE INDEX idx_comm_alert_source ON public.comm_critical_alerts USING btree (t
 -- Name: idx_comm_alert_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_alert_status ON public.comm_critical_alerts USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_comm_alert_status ON public.comm_critical_alerts USING btree (tenant_id, status);
 
 
 
@@ -428,7 +428,7 @@ CREATE INDEX idx_comm_alert_status ON public.comm_critical_alerts USING btree (t
 -- Name: idx_comm_alert_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_alert_tenant ON public.comm_critical_alerts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_alert_tenant ON public.comm_critical_alerts USING btree (tenant_id);
 
 
 
@@ -436,7 +436,7 @@ CREATE INDEX idx_comm_alert_tenant ON public.comm_critical_alerts USING btree (t
 -- Name: idx_comm_alert_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_alert_time ON public.comm_critical_alerts USING btree (tenant_id, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comm_alert_time ON public.comm_critical_alerts USING btree (tenant_id, triggered_at DESC);
 
 
 
@@ -444,7 +444,7 @@ CREATE INDEX idx_comm_alert_time ON public.comm_critical_alerts USING btree (ten
 -- Name: idx_comm_clin_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_created ON public.comm_clinical_messages USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_created ON public.comm_clinical_messages USING btree (tenant_id, created_at DESC);
 
 
 
@@ -452,7 +452,7 @@ CREATE INDEX idx_comm_clin_created ON public.comm_clinical_messages USING btree 
 -- Name: idx_comm_clin_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_patient ON public.comm_clinical_messages USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_patient ON public.comm_clinical_messages USING btree (tenant_id, patient_id);
 
 
 
@@ -460,7 +460,7 @@ CREATE INDEX idx_comm_clin_patient ON public.comm_clinical_messages USING btree 
 -- Name: idx_comm_clin_priority; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_priority ON public.comm_clinical_messages USING btree (tenant_id, priority);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_priority ON public.comm_clinical_messages USING btree (tenant_id, priority);
 
 
 
@@ -468,7 +468,7 @@ CREATE INDEX idx_comm_clin_priority ON public.comm_clinical_messages USING btree
 -- Name: idx_comm_clin_recipient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_recipient ON public.comm_clinical_messages USING btree (tenant_id, recipient_id);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_recipient ON public.comm_clinical_messages USING btree (tenant_id, recipient_id);
 
 
 
@@ -476,7 +476,7 @@ CREATE INDEX idx_comm_clin_recipient ON public.comm_clinical_messages USING btre
 -- Name: idx_comm_clin_sender; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_sender ON public.comm_clinical_messages USING btree (tenant_id, sender_id);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_sender ON public.comm_clinical_messages USING btree (tenant_id, sender_id);
 
 
 
@@ -484,7 +484,7 @@ CREATE INDEX idx_comm_clin_sender ON public.comm_clinical_messages USING btree (
 -- Name: idx_comm_clin_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_clin_tenant ON public.comm_clinical_messages USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_clin_tenant ON public.comm_clinical_messages USING btree (tenant_id);
 
 
 
@@ -492,7 +492,7 @@ CREATE INDEX idx_comm_clin_tenant ON public.comm_clinical_messages USING btree (
 -- Name: idx_comm_cmp_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_cmp_dept ON public.comm_complaints USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_comm_cmp_dept ON public.comm_complaints USING btree (tenant_id, department_id);
 
 
 
@@ -500,7 +500,7 @@ CREATE INDEX idx_comm_cmp_dept ON public.comm_complaints USING btree (tenant_id,
 -- Name: idx_comm_cmp_sla; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_cmp_sla ON public.comm_complaints USING btree (tenant_id, sla_deadline) WHERE (status <> ALL (ARRAY['resolved'::public.comm_complaint_status, 'closed'::public.comm_complaint_status]));
+CREATE INDEX IF NOT EXISTS idx_comm_cmp_sla ON public.comm_complaints USING btree (tenant_id, sla_deadline) WHERE (status <> ALL (ARRAY['resolved'::public.comm_complaint_status, 'closed'::public.comm_complaint_status]));
 
 
 
@@ -508,7 +508,7 @@ CREATE INDEX idx_comm_cmp_sla ON public.comm_complaints USING btree (tenant_id, 
 -- Name: idx_comm_cmp_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_cmp_source ON public.comm_complaints USING btree (tenant_id, source);
+CREATE INDEX IF NOT EXISTS idx_comm_cmp_source ON public.comm_complaints USING btree (tenant_id, source);
 
 
 
@@ -516,7 +516,7 @@ CREATE INDEX idx_comm_cmp_source ON public.comm_complaints USING btree (tenant_i
 -- Name: idx_comm_cmp_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_cmp_status ON public.comm_complaints USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_comm_cmp_status ON public.comm_complaints USING btree (tenant_id, status);
 
 
 
@@ -524,7 +524,7 @@ CREATE INDEX idx_comm_cmp_status ON public.comm_complaints USING btree (tenant_i
 -- Name: idx_comm_cmp_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_cmp_tenant ON public.comm_complaints USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_cmp_tenant ON public.comm_complaints USING btree (tenant_id);
 
 
 
@@ -532,7 +532,7 @@ CREATE INDEX idx_comm_cmp_tenant ON public.comm_complaints USING btree (tenant_i
 -- Name: idx_comm_esc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_esc_tenant ON public.comm_escalation_rules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_esc_tenant ON public.comm_escalation_rules USING btree (tenant_id);
 
 
 
@@ -540,7 +540,7 @@ CREATE INDEX idx_comm_esc_tenant ON public.comm_escalation_rules USING btree (te
 -- Name: idx_comm_esc_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_esc_type ON public.comm_escalation_rules USING btree (tenant_id, rule_type);
+CREATE INDEX IF NOT EXISTS idx_comm_esc_type ON public.comm_escalation_rules USING btree (tenant_id, rule_type);
 
 
 
@@ -548,7 +548,7 @@ CREATE INDEX idx_comm_esc_type ON public.comm_escalation_rules USING btree (tena
 -- Name: idx_comm_fb_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_fb_date ON public.comm_feedback_surveys USING btree (tenant_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comm_fb_date ON public.comm_feedback_surveys USING btree (tenant_id, submitted_at DESC);
 
 
 
@@ -556,7 +556,7 @@ CREATE INDEX idx_comm_fb_date ON public.comm_feedback_surveys USING btree (tenan
 -- Name: idx_comm_fb_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_fb_dept ON public.comm_feedback_surveys USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_comm_fb_dept ON public.comm_feedback_surveys USING btree (tenant_id, department_id);
 
 
 
@@ -564,7 +564,7 @@ CREATE INDEX idx_comm_fb_dept ON public.comm_feedback_surveys USING btree (tenan
 -- Name: idx_comm_fb_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_fb_tenant ON public.comm_feedback_surveys USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_fb_tenant ON public.comm_feedback_surveys USING btree (tenant_id);
 
 
 
@@ -572,7 +572,7 @@ CREATE INDEX idx_comm_fb_tenant ON public.comm_feedback_surveys USING btree (ten
 -- Name: idx_comm_fb_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_fb_type ON public.comm_feedback_surveys USING btree (tenant_id, feedback_type);
+CREATE INDEX IF NOT EXISTS idx_comm_fb_type ON public.comm_feedback_surveys USING btree (tenant_id, feedback_type);
 
 
 
@@ -580,7 +580,7 @@ CREATE INDEX idx_comm_fb_type ON public.comm_feedback_surveys USING btree (tenan
 -- Name: idx_comm_msg_channel; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_msg_channel ON public.comm_messages USING btree (tenant_id, channel);
+CREATE INDEX IF NOT EXISTS idx_comm_msg_channel ON public.comm_messages USING btree (tenant_id, channel);
 
 
 
@@ -588,7 +588,7 @@ CREATE INDEX idx_comm_msg_channel ON public.comm_messages USING btree (tenant_id
 -- Name: idx_comm_msg_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_msg_created ON public.comm_messages USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comm_msg_created ON public.comm_messages USING btree (tenant_id, created_at DESC);
 
 
 
@@ -596,7 +596,7 @@ CREATE INDEX idx_comm_msg_created ON public.comm_messages USING btree (tenant_id
 -- Name: idx_comm_msg_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_msg_status ON public.comm_messages USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_comm_msg_status ON public.comm_messages USING btree (tenant_id, status);
 
 
 
@@ -604,7 +604,7 @@ CREATE INDEX idx_comm_msg_status ON public.comm_messages USING btree (tenant_id,
 -- Name: idx_comm_msg_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_msg_tenant ON public.comm_messages USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_msg_tenant ON public.comm_messages USING btree (tenant_id);
 
 
 
@@ -612,7 +612,7 @@ CREATE INDEX idx_comm_msg_tenant ON public.comm_messages USING btree (tenant_id)
 -- Name: idx_comm_tpl_channel; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_tpl_channel ON public.comm_templates USING btree (tenant_id, channel);
+CREATE INDEX IF NOT EXISTS idx_comm_tpl_channel ON public.comm_templates USING btree (tenant_id, channel);
 
 
 
@@ -620,7 +620,7 @@ CREATE INDEX idx_comm_tpl_channel ON public.comm_templates USING btree (tenant_i
 -- Name: idx_comm_tpl_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_tpl_tenant ON public.comm_templates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comm_tpl_tenant ON public.comm_templates USING btree (tenant_id);
 
 
 
@@ -628,7 +628,7 @@ CREATE INDEX idx_comm_tpl_tenant ON public.comm_templates USING btree (tenant_id
 -- Name: idx_comm_tpl_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_comm_tpl_type ON public.comm_templates USING btree (tenant_id, template_type);
+CREATE INDEX IF NOT EXISTS idx_comm_tpl_type ON public.comm_templates USING btree (tenant_id, template_type);
 
 
 

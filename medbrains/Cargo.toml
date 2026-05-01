@@ -37,7 +37,7 @@ tower = { version = "0.5" }
 tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util", "set-header", "fs"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "migrate", "rust_decimal"] }
+sqlx = { version = "0.8.3", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "migrate", "macros", "rust_decimal"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -92,7 +92,7 @@ rig-core = { version = "0.35", features = ["derive"] }
 schemars = "1"
 
 # Code execution (pipeline custom code)
-mlua = { version = "0.10", features = ["lua54", "serialize", "send"] }
+mlua = { version = "0.10", features = ["lua54", "serialize", "send", "vendored"] }
 wasmtime = "29"
 
 # CRDT (Loro) — offline-first replication. Sprint C foundation.

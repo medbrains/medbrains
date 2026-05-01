@@ -191,7 +191,7 @@ ALTER TABLE ONLY public.shift_handoffs
 -- Name: idx_nursing_tasks_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nursing_tasks_admission ON public.nursing_tasks USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_nursing_tasks_admission ON public.nursing_tasks USING btree (admission_id);
 
 
 
@@ -199,7 +199,7 @@ CREATE INDEX idx_nursing_tasks_admission ON public.nursing_tasks USING btree (ad
 -- Name: idx_nursing_tasks_assigned; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nursing_tasks_assigned ON public.nursing_tasks USING btree (assigned_to);
+CREATE INDEX IF NOT EXISTS idx_nursing_tasks_assigned ON public.nursing_tasks USING btree (assigned_to);
 
 
 
@@ -207,7 +207,7 @@ CREATE INDEX idx_nursing_tasks_assigned ON public.nursing_tasks USING btree (ass
 -- Name: idx_nursing_tasks_assigned_due; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nursing_tasks_assigned_due ON public.nursing_tasks USING btree (tenant_id, assigned_to, due_at) WHERE (is_completed = false);
+CREATE INDEX IF NOT EXISTS idx_nursing_tasks_assigned_due ON public.nursing_tasks USING btree (tenant_id, assigned_to, due_at) WHERE (is_completed = false);
 
 
 
@@ -215,7 +215,7 @@ CREATE INDEX idx_nursing_tasks_assigned_due ON public.nursing_tasks USING btree 
 -- Name: idx_nursing_tasks_due_incomplete; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nursing_tasks_due_incomplete ON public.nursing_tasks USING btree (tenant_id, admission_id, due_at) WHERE (is_completed = false);
+CREATE INDEX IF NOT EXISTS idx_nursing_tasks_due_incomplete ON public.nursing_tasks USING btree (tenant_id, admission_id, due_at) WHERE (is_completed = false);
 
 
 
@@ -223,7 +223,7 @@ CREATE INDEX idx_nursing_tasks_due_incomplete ON public.nursing_tasks USING btre
 -- Name: idx_nursing_tasks_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nursing_tasks_tenant ON public.nursing_tasks USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nursing_tasks_tenant ON public.nursing_tasks USING btree (tenant_id);
 
 
 
@@ -231,7 +231,7 @@ CREATE INDEX idx_nursing_tasks_tenant ON public.nursing_tasks USING btree (tenan
 -- Name: mar_administrator_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mar_administrator_idx ON public.medication_administration_records USING btree (tenant_id, administered_by, administered_at DESC) WHERE (administered_by IS NOT NULL);
+CREATE INDEX IF NOT EXISTS mar_administrator_idx ON public.medication_administration_records USING btree (tenant_id, administered_by, administered_at DESC) WHERE (administered_by IS NOT NULL);
 
 
 
@@ -239,7 +239,7 @@ CREATE INDEX mar_administrator_idx ON public.medication_administration_records U
 -- Name: mar_patient_recent_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mar_patient_recent_idx ON public.medication_administration_records USING btree (tenant_id, patient_id, scheduled_at DESC);
+CREATE INDEX IF NOT EXISTS mar_patient_recent_idx ON public.medication_administration_records USING btree (tenant_id, patient_id, scheduled_at DESC);
 
 
 
@@ -247,7 +247,7 @@ CREATE INDEX mar_patient_recent_idx ON public.medication_administration_records 
 -- Name: mar_pending_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mar_pending_due_idx ON public.medication_administration_records USING btree (tenant_id, scheduled_at) WHERE (status = 'pending'::text);
+CREATE INDEX IF NOT EXISTS mar_pending_due_idx ON public.medication_administration_records USING btree (tenant_id, scheduled_at) WHERE (status = 'pending'::text);
 
 
 
@@ -255,7 +255,7 @@ CREATE INDEX mar_pending_due_idx ON public.medication_administration_records USI
 -- Name: nurse_shift_assignments_today_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX nurse_shift_assignments_today_idx ON public.nurse_shift_assignments USING btree (tenant_id, nurse_user_id, shift_date DESC);
+CREATE INDEX IF NOT EXISTS nurse_shift_assignments_today_idx ON public.nurse_shift_assignments USING btree (tenant_id, nurse_user_id, shift_date DESC);
 
 
 
@@ -263,7 +263,7 @@ CREATE INDEX nurse_shift_assignments_today_idx ON public.nurse_shift_assignments
 -- Name: shift_handoffs_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX shift_handoffs_encounter_idx ON public.shift_handoffs USING btree (tenant_id, encounter_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS shift_handoffs_encounter_idx ON public.shift_handoffs USING btree (tenant_id, encounter_id, created_at DESC);
 
 
 

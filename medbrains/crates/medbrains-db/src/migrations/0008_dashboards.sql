@@ -122,7 +122,7 @@ ALTER TABLE ONLY public.widget_templates
 -- Name: idx_dashboards_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dashboards_active ON public.dashboards USING btree (tenant_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_dashboards_active ON public.dashboards USING btree (tenant_id, is_active) WHERE (is_active = true);
 
 
 
@@ -130,7 +130,7 @@ CREATE INDEX idx_dashboards_active ON public.dashboards USING btree (tenant_id, 
 -- Name: idx_dashboards_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dashboards_dept ON public.dashboards USING gin (department_ids jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_dashboards_dept ON public.dashboards USING gin (department_ids jsonb_path_ops);
 
 
 
@@ -138,7 +138,7 @@ CREATE INDEX idx_dashboards_dept ON public.dashboards USING gin (department_ids 
 -- Name: idx_dashboards_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dashboards_tenant ON public.dashboards USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dashboards_tenant ON public.dashboards USING btree (tenant_id);
 
 
 
@@ -146,7 +146,7 @@ CREATE INDEX idx_dashboards_tenant ON public.dashboards USING btree (tenant_id);
 -- Name: idx_dashboards_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dashboards_user ON public.dashboards USING btree (user_id) WHERE (user_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_dashboards_user ON public.dashboards USING btree (user_id) WHERE (user_id IS NOT NULL);
 
 
 
@@ -154,7 +154,7 @@ CREATE INDEX idx_dashboards_user ON public.dashboards USING btree (user_id) WHER
 -- Name: idx_dw_dashboard; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dw_dashboard ON public.dashboard_widgets USING btree (dashboard_id);
+CREATE INDEX IF NOT EXISTS idx_dw_dashboard ON public.dashboard_widgets USING btree (dashboard_id);
 
 
 
@@ -162,7 +162,7 @@ CREATE INDEX idx_dw_dashboard ON public.dashboard_widgets USING btree (dashboard
 -- Name: idx_wt_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_wt_category ON public.widget_templates USING btree (category);
+CREATE INDEX IF NOT EXISTS idx_wt_category ON public.widget_templates USING btree (category);
 
 
 
@@ -170,7 +170,7 @@ CREATE INDEX idx_wt_category ON public.widget_templates USING btree (category);
 -- Name: idx_wt_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_wt_tenant ON public.widget_templates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_wt_tenant ON public.widget_templates USING btree (tenant_id);
 
 
 

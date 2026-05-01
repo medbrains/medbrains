@@ -377,7 +377,7 @@ ALTER TABLE ONLY public.vendors
 -- Name: idx_grn_items_grn; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_grn_items_grn ON public.grn_items USING btree (grn_id);
+CREATE INDEX IF NOT EXISTS idx_grn_items_grn ON public.grn_items USING btree (grn_id);
 
 
 
@@ -385,7 +385,7 @@ CREATE INDEX idx_grn_items_grn ON public.grn_items USING btree (grn_id);
 -- Name: idx_grn_po; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_grn_po ON public.goods_receipt_notes USING btree (po_id);
+CREATE INDEX IF NOT EXISTS idx_grn_po ON public.goods_receipt_notes USING btree (po_id);
 
 
 
@@ -393,7 +393,7 @@ CREATE INDEX idx_grn_po ON public.goods_receipt_notes USING btree (po_id);
 -- Name: idx_grn_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_grn_status ON public.goods_receipt_notes USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_grn_status ON public.goods_receipt_notes USING btree (tenant_id, status);
 
 
 
@@ -401,7 +401,7 @@ CREATE INDEX idx_grn_status ON public.goods_receipt_notes USING btree (tenant_id
 -- Name: idx_grn_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_grn_tenant ON public.goods_receipt_notes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_grn_tenant ON public.goods_receipt_notes USING btree (tenant_id);
 
 
 
@@ -409,7 +409,7 @@ CREATE INDEX idx_grn_tenant ON public.goods_receipt_notes USING btree (tenant_id
 -- Name: idx_grn_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_grn_vendor ON public.goods_receipts USING btree (tenant_id, vendor_id, grn_date DESC);
+CREATE INDEX IF NOT EXISTS idx_grn_vendor ON public.goods_receipts USING btree (tenant_id, vendor_id, grn_date DESC);
 
 
 
@@ -417,7 +417,7 @@ CREATE INDEX idx_grn_vendor ON public.goods_receipts USING btree (tenant_id, ven
 -- Name: idx_po_items_po; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_po_items_po ON public.purchase_order_items USING btree (po_id);
+CREATE INDEX IF NOT EXISTS idx_po_items_po ON public.purchase_order_items USING btree (po_id);
 
 
 
@@ -425,7 +425,7 @@ CREATE INDEX idx_po_items_po ON public.purchase_order_items USING btree (po_id);
 -- Name: idx_po_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_po_status ON public.purchase_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_po_status ON public.purchase_orders USING btree (tenant_id, status);
 
 
 
@@ -433,7 +433,7 @@ CREATE INDEX idx_po_status ON public.purchase_orders USING btree (tenant_id, sta
 -- Name: idx_po_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_po_tenant ON public.purchase_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_po_tenant ON public.purchase_orders USING btree (tenant_id);
 
 
 
@@ -441,7 +441,7 @@ CREATE INDEX idx_po_tenant ON public.purchase_orders USING btree (tenant_id);
 -- Name: idx_po_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_po_vendor ON public.purchase_orders USING btree (tenant_id, vendor_id);
+CREATE INDEX IF NOT EXISTS idx_po_vendor ON public.purchase_orders USING btree (tenant_id, vendor_id);
 
 
 
@@ -449,7 +449,7 @@ CREATE INDEX idx_po_vendor ON public.purchase_orders USING btree (tenant_id, ven
 -- Name: idx_rc_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rc_active ON public.rate_contracts USING btree (tenant_id, status, end_date);
+CREATE INDEX IF NOT EXISTS idx_rc_active ON public.rate_contracts USING btree (tenant_id, status, end_date);
 
 
 
@@ -457,7 +457,7 @@ CREATE INDEX idx_rc_active ON public.rate_contracts USING btree (tenant_id, stat
 -- Name: idx_rc_items_contract; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rc_items_contract ON public.rate_contract_items USING btree (contract_id);
+CREATE INDEX IF NOT EXISTS idx_rc_items_contract ON public.rate_contract_items USING btree (contract_id);
 
 
 
@@ -465,7 +465,7 @@ CREATE INDEX idx_rc_items_contract ON public.rate_contract_items USING btree (co
 -- Name: idx_rc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rc_tenant ON public.rate_contracts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rc_tenant ON public.rate_contracts USING btree (tenant_id);
 
 
 
@@ -473,7 +473,7 @@ CREATE INDEX idx_rc_tenant ON public.rate_contracts USING btree (tenant_id);
 -- Name: idx_rc_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rc_vendor ON public.rate_contracts USING btree (tenant_id, vendor_id);
+CREATE INDEX IF NOT EXISTS idx_rc_vendor ON public.rate_contracts USING btree (tenant_id, vendor_id);
 
 
 
@@ -481,7 +481,7 @@ CREATE INDEX idx_rc_vendor ON public.rate_contracts USING btree (tenant_id, vend
 -- Name: idx_supplier_payments_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_supplier_payments_status ON public.supplier_payments USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_status ON public.supplier_payments USING btree (status);
 
 
 
@@ -489,7 +489,7 @@ CREATE INDEX idx_supplier_payments_status ON public.supplier_payments USING btre
 -- Name: idx_supplier_payments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_supplier_payments_tenant ON public.supplier_payments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_tenant ON public.supplier_payments USING btree (tenant_id);
 
 
 
@@ -497,7 +497,7 @@ CREATE INDEX idx_supplier_payments_tenant ON public.supplier_payments USING btre
 -- Name: idx_supplier_payments_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_supplier_payments_vendor ON public.supplier_payments USING btree (vendor_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_vendor ON public.supplier_payments USING btree (vendor_id);
 
 
 
@@ -505,7 +505,7 @@ CREATE INDEX idx_supplier_payments_vendor ON public.supplier_payments USING btre
 -- Name: idx_vendors_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vendors_status ON public.vendors USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_vendors_status ON public.vendors USING btree (tenant_id, status);
 
 
 
@@ -513,7 +513,7 @@ CREATE INDEX idx_vendors_status ON public.vendors USING btree (tenant_id, status
 -- Name: idx_vendors_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vendors_tenant ON public.vendors USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vendors_tenant ON public.vendors USING btree (tenant_id);
 
 
 

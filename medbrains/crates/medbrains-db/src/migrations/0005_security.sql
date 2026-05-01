@@ -312,7 +312,7 @@ ALTER TABLE ONLY public.security_zones
 -- Name: idx_security_access_cards_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_cards_employee ON public.security_access_cards USING btree (employee_id);
+CREATE INDEX IF NOT EXISTS idx_security_access_cards_employee ON public.security_access_cards USING btree (employee_id);
 
 
 
@@ -320,7 +320,7 @@ CREATE INDEX idx_security_access_cards_employee ON public.security_access_cards 
 -- Name: idx_security_access_cards_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_cards_tenant ON public.security_access_cards USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_access_cards_tenant ON public.security_access_cards USING btree (tenant_id);
 
 
 
@@ -328,7 +328,7 @@ CREATE INDEX idx_security_access_cards_tenant ON public.security_access_cards US
 -- Name: idx_security_access_logs_accessed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_logs_accessed ON public.security_access_logs USING btree (accessed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_access_logs_accessed ON public.security_access_logs USING btree (accessed_at DESC);
 
 
 
@@ -336,7 +336,7 @@ CREATE INDEX idx_security_access_logs_accessed ON public.security_access_logs US
 -- Name: idx_security_access_logs_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_logs_employee ON public.security_access_logs USING btree (employee_id);
+CREATE INDEX IF NOT EXISTS idx_security_access_logs_employee ON public.security_access_logs USING btree (employee_id);
 
 
 
@@ -344,7 +344,7 @@ CREATE INDEX idx_security_access_logs_employee ON public.security_access_logs US
 -- Name: idx_security_access_logs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_logs_tenant ON public.security_access_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_access_logs_tenant ON public.security_access_logs USING btree (tenant_id);
 
 
 
@@ -352,7 +352,7 @@ CREATE INDEX idx_security_access_logs_tenant ON public.security_access_logs USIN
 -- Name: idx_security_access_logs_zone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_access_logs_zone ON public.security_access_logs USING btree (zone_id);
+CREATE INDEX IF NOT EXISTS idx_security_access_logs_zone ON public.security_access_logs USING btree (zone_id);
 
 
 
@@ -360,7 +360,7 @@ CREATE INDEX idx_security_access_logs_zone ON public.security_access_logs USING 
 -- Name: idx_security_cameras_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_cameras_tenant ON public.security_cameras USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_cameras_tenant ON public.security_cameras USING btree (tenant_id);
 
 
 
@@ -368,7 +368,7 @@ CREATE INDEX idx_security_cameras_tenant ON public.security_cameras USING btree 
 -- Name: idx_security_cameras_zone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_cameras_zone ON public.security_cameras USING btree (zone_id);
+CREATE INDEX IF NOT EXISTS idx_security_cameras_zone ON public.security_cameras USING btree (zone_id);
 
 
 
@@ -376,7 +376,7 @@ CREATE INDEX idx_security_cameras_zone ON public.security_cameras USING btree (z
 -- Name: idx_security_code_debriefs_code; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_code_debriefs_code ON public.security_code_debriefs USING btree (code_activation_id);
+CREATE INDEX IF NOT EXISTS idx_security_code_debriefs_code ON public.security_code_debriefs USING btree (code_activation_id);
 
 
 
@@ -384,7 +384,7 @@ CREATE INDEX idx_security_code_debriefs_code ON public.security_code_debriefs US
 -- Name: idx_security_code_debriefs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_code_debriefs_tenant ON public.security_code_debriefs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_code_debriefs_tenant ON public.security_code_debriefs USING btree (tenant_id);
 
 
 
@@ -392,7 +392,7 @@ CREATE INDEX idx_security_code_debriefs_tenant ON public.security_code_debriefs 
 -- Name: idx_security_incidents_occurred; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_incidents_occurred ON public.security_incidents USING btree (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_occurred ON public.security_incidents USING btree (occurred_at DESC);
 
 
 
@@ -400,7 +400,7 @@ CREATE INDEX idx_security_incidents_occurred ON public.security_incidents USING 
 -- Name: idx_security_incidents_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_incidents_severity ON public.security_incidents USING btree (severity);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_severity ON public.security_incidents USING btree (severity);
 
 
 
@@ -408,7 +408,7 @@ CREATE INDEX idx_security_incidents_severity ON public.security_incidents USING 
 -- Name: idx_security_incidents_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_incidents_status ON public.security_incidents USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_status ON public.security_incidents USING btree (status);
 
 
 
@@ -416,7 +416,7 @@ CREATE INDEX idx_security_incidents_status ON public.security_incidents USING bt
 -- Name: idx_security_incidents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_incidents_tenant ON public.security_incidents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_tenant ON public.security_incidents USING btree (tenant_id);
 
 
 
@@ -424,7 +424,7 @@ CREATE INDEX idx_security_incidents_tenant ON public.security_incidents USING bt
 -- Name: idx_security_patient_tags_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_patient_tags_patient ON public.security_patient_tags USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_security_patient_tags_patient ON public.security_patient_tags USING btree (patient_id);
 
 
 
@@ -432,7 +432,7 @@ CREATE INDEX idx_security_patient_tags_patient ON public.security_patient_tags U
 -- Name: idx_security_patient_tags_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_patient_tags_status ON public.security_patient_tags USING btree (alert_status);
+CREATE INDEX IF NOT EXISTS idx_security_patient_tags_status ON public.security_patient_tags USING btree (alert_status);
 
 
 
@@ -440,7 +440,7 @@ CREATE INDEX idx_security_patient_tags_status ON public.security_patient_tags US
 -- Name: idx_security_patient_tags_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_patient_tags_tenant ON public.security_patient_tags USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_patient_tags_tenant ON public.security_patient_tags USING btree (tenant_id);
 
 
 
@@ -448,7 +448,7 @@ CREATE INDEX idx_security_patient_tags_tenant ON public.security_patient_tags US
 -- Name: idx_security_tag_alerts_resolved; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_tag_alerts_resolved ON public.security_tag_alerts USING btree (is_resolved);
+CREATE INDEX IF NOT EXISTS idx_security_tag_alerts_resolved ON public.security_tag_alerts USING btree (is_resolved);
 
 
 
@@ -456,7 +456,7 @@ CREATE INDEX idx_security_tag_alerts_resolved ON public.security_tag_alerts USIN
 -- Name: idx_security_tag_alerts_tag; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_tag_alerts_tag ON public.security_tag_alerts USING btree (tag_id);
+CREATE INDEX IF NOT EXISTS idx_security_tag_alerts_tag ON public.security_tag_alerts USING btree (tag_id);
 
 
 
@@ -464,7 +464,7 @@ CREATE INDEX idx_security_tag_alerts_tag ON public.security_tag_alerts USING btr
 -- Name: idx_security_tag_alerts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_tag_alerts_tenant ON public.security_tag_alerts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_tag_alerts_tenant ON public.security_tag_alerts USING btree (tenant_id);
 
 
 
@@ -472,7 +472,7 @@ CREATE INDEX idx_security_tag_alerts_tenant ON public.security_tag_alerts USING 
 -- Name: idx_security_zones_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_zones_tenant ON public.security_zones USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_zones_tenant ON public.security_zones USING btree (tenant_id);
 
 
 

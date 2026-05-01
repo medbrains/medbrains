@@ -1321,7 +1321,7 @@ ALTER TABLE ONLY public.wound_assessments
 -- Name: fall_risk_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fall_risk_encounter_idx ON public.fall_risk_assessments USING btree (tenant_id, encounter_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS fall_risk_encounter_idx ON public.fall_risk_assessments USING btree (tenant_id, encounter_id, recorded_at DESC);
 
 
 
@@ -1329,7 +1329,7 @@ CREATE INDEX fall_risk_encounter_idx ON public.fall_risk_assessments USING btree
 -- Name: idx_admission_attenders_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admission_attenders_admission ON public.admission_attenders USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_admission_attenders_admission ON public.admission_attenders USING btree (admission_id);
 
 
 
@@ -1337,7 +1337,7 @@ CREATE INDEX idx_admission_attenders_admission ON public.admission_attenders USI
 -- Name: idx_admission_checklists_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admission_checklists_admission ON public.admission_checklists USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_admission_checklists_admission ON public.admission_checklists USING btree (admission_id);
 
 
 
@@ -1345,7 +1345,7 @@ CREATE INDEX idx_admission_checklists_admission ON public.admission_checklists U
 -- Name: idx_admissions_bed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_bed ON public.admissions USING btree (bed_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_bed ON public.admissions USING btree (bed_id);
 
 
 
@@ -1353,7 +1353,7 @@ CREATE INDEX idx_admissions_bed ON public.admissions USING btree (bed_id);
 -- Name: idx_admissions_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_created_by ON public.admissions USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_admissions_created_by ON public.admissions USING btree (created_by);
 
 
 
@@ -1361,7 +1361,7 @@ CREATE INDEX idx_admissions_created_by ON public.admissions USING btree (created
 -- Name: idx_admissions_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_patient ON public.admissions USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_patient ON public.admissions USING btree (patient_id);
 
 
 
@@ -1369,7 +1369,7 @@ CREATE INDEX idx_admissions_patient ON public.admissions USING btree (patient_id
 -- Name: idx_admissions_primary_nurse; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_primary_nurse ON public.admissions USING btree (tenant_id, primary_nurse_id) WHERE ((status = 'admitted'::public.admission_status) AND (primary_nurse_id IS NOT NULL));
+CREATE INDEX IF NOT EXISTS idx_admissions_primary_nurse ON public.admissions USING btree (tenant_id, primary_nurse_id) WHERE ((status = 'admitted'::public.admission_status) AND (primary_nurse_id IS NOT NULL));
 
 
 
@@ -1377,7 +1377,7 @@ CREATE INDEX idx_admissions_primary_nurse ON public.admissions USING btree (tena
 -- Name: idx_admissions_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_status ON public.admissions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_admissions_status ON public.admissions USING btree (tenant_id, status);
 
 
 
@@ -1385,7 +1385,7 @@ CREATE INDEX idx_admissions_status ON public.admissions USING btree (tenant_id, 
 -- Name: idx_admissions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_tenant ON public.admissions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_tenant ON public.admissions USING btree (tenant_id);
 
 
 
@@ -1393,7 +1393,7 @@ CREATE INDEX idx_admissions_tenant ON public.admissions USING btree (tenant_id);
 -- Name: idx_admissions_ward; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_admissions_ward ON public.admissions USING btree (ward_id);
+CREATE INDEX IF NOT EXISTS idx_admissions_ward ON public.admissions USING btree (ward_id);
 
 
 
@@ -1401,7 +1401,7 @@ CREATE INDEX idx_admissions_ward ON public.admissions USING btree (ward_id);
 -- Name: idx_bed_reservations_bed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bed_reservations_bed ON public.bed_reservations USING btree (bed_id, status);
+CREATE INDEX IF NOT EXISTS idx_bed_reservations_bed ON public.bed_reservations USING btree (bed_id, status);
 
 
 
@@ -1409,7 +1409,7 @@ CREATE INDEX idx_bed_reservations_bed ON public.bed_reservations USING btree (be
 -- Name: idx_bed_reservations_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bed_reservations_patient ON public.bed_reservations USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_bed_reservations_patient ON public.bed_reservations USING btree (patient_id);
 
 
 
@@ -1417,7 +1417,7 @@ CREATE INDEX idx_bed_reservations_patient ON public.bed_reservations USING btree
 -- Name: idx_bed_turnaround_bed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bed_turnaround_bed ON public.bed_turnaround_log USING btree (bed_id);
+CREATE INDEX IF NOT EXISTS idx_bed_turnaround_bed ON public.bed_turnaround_log USING btree (bed_id);
 
 
 
@@ -1425,7 +1425,7 @@ CREATE INDEX idx_bed_turnaround_bed ON public.bed_turnaround_log USING btree (be
 -- Name: idx_bed_types_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_bed_types_tenant ON public.bed_types USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bed_types_tenant ON public.bed_types USING btree (tenant_id);
 
 
 
@@ -1433,7 +1433,7 @@ CREATE INDEX idx_bed_types_tenant ON public.bed_types USING btree (tenant_id);
 -- Name: idx_beds_ward; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_beds_ward ON public.beds USING btree (tenant_id, ward_id);
+CREATE INDEX IF NOT EXISTS idx_beds_ward ON public.beds USING btree (tenant_id, ward_id);
 
 
 
@@ -1441,7 +1441,7 @@ CREATE INDEX idx_beds_ward ON public.beds USING btree (tenant_id, ward_id);
 -- Name: idx_discharge_barriers_case; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_discharge_barriers_case ON public.discharge_barriers USING btree (tenant_id, case_assignment_id, is_resolved);
+CREATE INDEX IF NOT EXISTS idx_discharge_barriers_case ON public.discharge_barriers USING btree (tenant_id, case_assignment_id, is_resolved);
 
 
 
@@ -1449,7 +1449,7 @@ CREATE INDEX idx_discharge_barriers_case ON public.discharge_barriers USING btre
 -- Name: idx_dnr_orders_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dnr_orders_active ON public.dnr_orders USING btree (tenant_id, status) WHERE (status = 'active'::public.dnr_status);
+CREATE INDEX IF NOT EXISTS idx_dnr_orders_active ON public.dnr_orders USING btree (tenant_id, status) WHERE (status = 'active'::public.dnr_status);
 
 
 
@@ -1457,7 +1457,7 @@ CREATE INDEX idx_dnr_orders_active ON public.dnr_orders USING btree (tenant_id, 
 -- Name: idx_dnr_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dnr_orders_patient ON public.dnr_orders USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_dnr_orders_patient ON public.dnr_orders USING btree (tenant_id, patient_id);
 
 
 
@@ -1465,7 +1465,7 @@ CREATE INDEX idx_dnr_orders_patient ON public.dnr_orders USING btree (tenant_id,
 -- Name: idx_dnr_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dnr_orders_tenant ON public.dnr_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dnr_orders_tenant ON public.dnr_orders USING btree (tenant_id);
 
 
 
@@ -1473,7 +1473,7 @@ CREATE INDEX idx_dnr_orders_tenant ON public.dnr_orders USING btree (tenant_id);
 -- Name: idx_ipd_birth_records_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_birth_records_admission ON public.ipd_birth_records USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_birth_records_admission ON public.ipd_birth_records USING btree (admission_id);
 
 
 
@@ -1481,7 +1481,7 @@ CREATE INDEX idx_ipd_birth_records_admission ON public.ipd_birth_records USING b
 -- Name: idx_ipd_care_plans_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_care_plans_admission ON public.ipd_care_plans USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_care_plans_admission ON public.ipd_care_plans USING btree (admission_id);
 
 
 
@@ -1489,7 +1489,7 @@ CREATE INDEX idx_ipd_care_plans_admission ON public.ipd_care_plans USING btree (
 -- Name: idx_ipd_care_plans_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_care_plans_status ON public.ipd_care_plans USING btree (admission_id, status);
+CREATE INDEX IF NOT EXISTS idx_ipd_care_plans_status ON public.ipd_care_plans USING btree (admission_id, status);
 
 
 
@@ -1497,7 +1497,7 @@ CREATE INDEX idx_ipd_care_plans_status ON public.ipd_care_plans USING btree (adm
 -- Name: idx_ipd_care_plans_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_care_plans_tenant ON public.ipd_care_plans USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_care_plans_tenant ON public.ipd_care_plans USING btree (tenant_id);
 
 
 
@@ -1505,7 +1505,7 @@ CREATE INDEX idx_ipd_care_plans_tenant ON public.ipd_care_plans USING btree (ten
 -- Name: idx_ipd_clinical_assessments_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_clinical_assessments_admission ON public.ipd_clinical_assessments USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_clinical_assessments_admission ON public.ipd_clinical_assessments USING btree (admission_id);
 
 
 
@@ -1513,7 +1513,7 @@ CREATE INDEX idx_ipd_clinical_assessments_admission ON public.ipd_clinical_asses
 -- Name: idx_ipd_clinical_assessments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_clinical_assessments_tenant ON public.ipd_clinical_assessments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_clinical_assessments_tenant ON public.ipd_clinical_assessments USING btree (tenant_id);
 
 
 
@@ -1521,7 +1521,7 @@ CREATE INDEX idx_ipd_clinical_assessments_tenant ON public.ipd_clinical_assessme
 -- Name: idx_ipd_clinical_assessments_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_clinical_assessments_type ON public.ipd_clinical_assessments USING btree (admission_id, assessment_type);
+CREATE INDEX IF NOT EXISTS idx_ipd_clinical_assessments_type ON public.ipd_clinical_assessments USING btree (admission_id, assessment_type);
 
 
 
@@ -1529,7 +1529,7 @@ CREATE INDEX idx_ipd_clinical_assessments_type ON public.ipd_clinical_assessment
 -- Name: idx_ipd_clinical_docs_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_clinical_docs_admission ON public.ipd_clinical_documentations USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_clinical_docs_admission ON public.ipd_clinical_documentations USING btree (admission_id);
 
 
 
@@ -1537,7 +1537,7 @@ CREATE INDEX idx_ipd_clinical_docs_admission ON public.ipd_clinical_documentatio
 -- Name: idx_ipd_clinical_docs_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_clinical_docs_type ON public.ipd_clinical_documentations USING btree (admission_id, doc_type);
+CREATE INDEX IF NOT EXISTS idx_ipd_clinical_docs_type ON public.ipd_clinical_documentations USING btree (admission_id, doc_type);
 
 
 
@@ -1545,7 +1545,7 @@ CREATE INDEX idx_ipd_clinical_docs_type ON public.ipd_clinical_documentations US
 -- Name: idx_ipd_death_summaries_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_death_summaries_admission ON public.ipd_death_summaries USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_death_summaries_admission ON public.ipd_death_summaries USING btree (admission_id);
 
 
 
@@ -1553,7 +1553,7 @@ CREATE INDEX idx_ipd_death_summaries_admission ON public.ipd_death_summaries USI
 -- Name: idx_ipd_discharge_cl_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_discharge_cl_admission ON public.ipd_discharge_checklists USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_discharge_cl_admission ON public.ipd_discharge_checklists USING btree (admission_id);
 
 
 
@@ -1561,7 +1561,7 @@ CREATE INDEX idx_ipd_discharge_cl_admission ON public.ipd_discharge_checklists U
 -- Name: idx_ipd_discharge_cl_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_discharge_cl_tenant ON public.ipd_discharge_checklists USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_discharge_cl_tenant ON public.ipd_discharge_checklists USING btree (tenant_id);
 
 
 
@@ -1569,7 +1569,7 @@ CREATE INDEX idx_ipd_discharge_cl_tenant ON public.ipd_discharge_checklists USIN
 -- Name: idx_ipd_discharge_summaries_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_discharge_summaries_admission ON public.ipd_discharge_summaries USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_discharge_summaries_admission ON public.ipd_discharge_summaries USING btree (admission_id);
 
 
 
@@ -1577,7 +1577,7 @@ CREATE INDEX idx_ipd_discharge_summaries_admission ON public.ipd_discharge_summa
 -- Name: idx_ipd_discharge_tat_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_discharge_tat_admission ON public.ipd_discharge_tat_log USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_discharge_tat_admission ON public.ipd_discharge_tat_log USING btree (admission_id);
 
 
 
@@ -1585,7 +1585,7 @@ CREATE INDEX idx_ipd_discharge_tat_admission ON public.ipd_discharge_tat_log USI
 -- Name: idx_ipd_handover_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_handover_admission ON public.ipd_handover_reports USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_handover_admission ON public.ipd_handover_reports USING btree (admission_id);
 
 
 
@@ -1593,7 +1593,7 @@ CREATE INDEX idx_ipd_handover_admission ON public.ipd_handover_reports USING btr
 -- Name: idx_ipd_handover_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_handover_date ON public.ipd_handover_reports USING btree (admission_id, handover_date DESC);
+CREATE INDEX IF NOT EXISTS idx_ipd_handover_date ON public.ipd_handover_reports USING btree (admission_id, handover_date DESC);
 
 
 
@@ -1601,7 +1601,7 @@ CREATE INDEX idx_ipd_handover_date ON public.ipd_handover_reports USING btree (a
 -- Name: idx_ipd_handover_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_handover_tenant ON public.ipd_handover_reports USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_handover_tenant ON public.ipd_handover_reports USING btree (tenant_id);
 
 
 
@@ -1609,7 +1609,7 @@ CREATE INDEX idx_ipd_handover_tenant ON public.ipd_handover_reports USING btree 
 -- Name: idx_ipd_io_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_io_admission ON public.ipd_intake_output USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_io_admission ON public.ipd_intake_output USING btree (admission_id);
 
 
 
@@ -1617,7 +1617,7 @@ CREATE INDEX idx_ipd_io_admission ON public.ipd_intake_output USING btree (admis
 -- Name: idx_ipd_io_recorded; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_io_recorded ON public.ipd_intake_output USING btree (admission_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_ipd_io_recorded ON public.ipd_intake_output USING btree (admission_id, recorded_at);
 
 
 
@@ -1625,7 +1625,7 @@ CREATE INDEX idx_ipd_io_recorded ON public.ipd_intake_output USING btree (admiss
 -- Name: idx_ipd_io_shift; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_io_shift ON public.ipd_intake_output USING btree (admission_id, shift);
+CREATE INDEX IF NOT EXISTS idx_ipd_io_shift ON public.ipd_intake_output USING btree (admission_id, shift);
 
 
 
@@ -1633,7 +1633,7 @@ CREATE INDEX idx_ipd_io_shift ON public.ipd_intake_output USING btree (admission
 -- Name: idx_ipd_io_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_io_tenant ON public.ipd_intake_output USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_io_tenant ON public.ipd_intake_output USING btree (tenant_id);
 
 
 
@@ -1641,7 +1641,7 @@ CREATE INDEX idx_ipd_io_tenant ON public.ipd_intake_output USING btree (tenant_i
 -- Name: idx_ipd_mar_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_mar_admission ON public.ipd_medication_administration USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_mar_admission ON public.ipd_medication_administration USING btree (admission_id);
 
 
 
@@ -1649,7 +1649,7 @@ CREATE INDEX idx_ipd_mar_admission ON public.ipd_medication_administration USING
 -- Name: idx_ipd_mar_scheduled; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_mar_scheduled ON public.ipd_medication_administration USING btree (admission_id, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_ipd_mar_scheduled ON public.ipd_medication_administration USING btree (admission_id, scheduled_at);
 
 
 
@@ -1657,7 +1657,7 @@ CREATE INDEX idx_ipd_mar_scheduled ON public.ipd_medication_administration USING
 -- Name: idx_ipd_mar_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_mar_status ON public.ipd_medication_administration USING btree (admission_id, status);
+CREATE INDEX IF NOT EXISTS idx_ipd_mar_status ON public.ipd_medication_administration USING btree (admission_id, status);
 
 
 
@@ -1665,7 +1665,7 @@ CREATE INDEX idx_ipd_mar_status ON public.ipd_medication_administration USING bt
 -- Name: idx_ipd_mar_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_mar_tenant ON public.ipd_medication_administration USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_mar_tenant ON public.ipd_medication_administration USING btree (tenant_id);
 
 
 
@@ -1673,7 +1673,7 @@ CREATE INDEX idx_ipd_mar_tenant ON public.ipd_medication_administration USING bt
 -- Name: idx_ipd_nursing_assess_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_nursing_assess_admission ON public.ipd_nursing_assessments USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_nursing_assess_admission ON public.ipd_nursing_assessments USING btree (admission_id);
 
 
 
@@ -1681,7 +1681,7 @@ CREATE INDEX idx_ipd_nursing_assess_admission ON public.ipd_nursing_assessments 
 -- Name: idx_ipd_nursing_assess_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_nursing_assess_tenant ON public.ipd_nursing_assessments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_nursing_assess_tenant ON public.ipd_nursing_assessments USING btree (tenant_id);
 
 
 
@@ -1689,7 +1689,7 @@ CREATE INDEX idx_ipd_nursing_assess_tenant ON public.ipd_nursing_assessments USI
 -- Name: idx_ipd_progress_notes_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_progress_notes_admission ON public.ipd_progress_notes USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_progress_notes_admission ON public.ipd_progress_notes USING btree (admission_id);
 
 
 
@@ -1697,7 +1697,7 @@ CREATE INDEX idx_ipd_progress_notes_admission ON public.ipd_progress_notes USING
 -- Name: idx_ipd_progress_notes_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_progress_notes_date ON public.ipd_progress_notes USING btree (admission_id, note_date DESC);
+CREATE INDEX IF NOT EXISTS idx_ipd_progress_notes_date ON public.ipd_progress_notes USING btree (admission_id, note_date DESC);
 
 
 
@@ -1705,7 +1705,7 @@ CREATE INDEX idx_ipd_progress_notes_date ON public.ipd_progress_notes USING btre
 -- Name: idx_ipd_progress_notes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_progress_notes_tenant ON public.ipd_progress_notes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_progress_notes_tenant ON public.ipd_progress_notes USING btree (tenant_id);
 
 
 
@@ -1713,7 +1713,7 @@ CREATE INDEX idx_ipd_progress_notes_tenant ON public.ipd_progress_notes USING bt
 -- Name: idx_ipd_transfers_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ipd_transfers_admission ON public.ipd_transfer_logs USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_transfers_admission ON public.ipd_transfer_logs USING btree (admission_id);
 
 
 
@@ -1721,7 +1721,7 @@ CREATE INDEX idx_ipd_transfers_admission ON public.ipd_transfer_logs USING btree
 -- Name: idx_mar_pending; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mar_pending ON public.ipd_medication_administration USING btree (tenant_id, admission_id, scheduled_at) WHERE (status = 'scheduled'::public.mar_status);
+CREATE INDEX IF NOT EXISTS idx_mar_pending ON public.ipd_medication_administration USING btree (tenant_id, admission_id, scheduled_at) WHERE (status = 'scheduled'::public.mar_status);
 
 
 
@@ -1729,7 +1729,7 @@ CREATE INDEX idx_mar_pending ON public.ipd_medication_administration USING btree
 -- Name: idx_newborn_records_labor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_newborn_records_labor ON public.newborn_records USING btree (labor_id);
+CREATE INDEX IF NOT EXISTS idx_newborn_records_labor ON public.newborn_records USING btree (labor_id);
 
 
 
@@ -1737,7 +1737,7 @@ CREATE INDEX idx_newborn_records_labor ON public.newborn_records USING btree (la
 -- Name: idx_newborn_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_newborn_records_tenant ON public.newborn_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_newborn_records_tenant ON public.newborn_records USING btree (tenant_id);
 
 
 
@@ -1745,7 +1745,7 @@ CREATE INDEX idx_newborn_records_tenant ON public.newborn_records USING btree (t
 -- Name: idx_pain_assessments_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pain_assessments_patient ON public.pain_assessments USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_pain_assessments_patient ON public.pain_assessments USING btree (tenant_id, patient_id);
 
 
 
@@ -1753,7 +1753,7 @@ CREATE INDEX idx_pain_assessments_patient ON public.pain_assessments USING btree
 -- Name: idx_pain_assessments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pain_assessments_tenant ON public.pain_assessments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pain_assessments_tenant ON public.pain_assessments USING btree (tenant_id);
 
 
 
@@ -1761,7 +1761,7 @@ CREATE INDEX idx_pain_assessments_tenant ON public.pain_assessments USING btree 
 -- Name: idx_restraint_doc_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_restraint_doc_patient ON public.restraint_documentation USING btree (tenant_id, patient_id, start_datetime DESC);
+CREATE INDEX IF NOT EXISTS idx_restraint_doc_patient ON public.restraint_documentation USING btree (tenant_id, patient_id, start_datetime DESC);
 
 
 
@@ -1769,7 +1769,7 @@ CREATE INDEX idx_restraint_doc_patient ON public.restraint_documentation USING b
 -- Name: idx_restraint_logs_doc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_restraint_logs_doc ON public.restraint_monitoring_logs USING btree (clinical_doc_id);
+CREATE INDEX IF NOT EXISTS idx_restraint_logs_doc ON public.restraint_monitoring_logs USING btree (clinical_doc_id);
 
 
 
@@ -1777,7 +1777,7 @@ CREATE INDEX idx_restraint_logs_doc ON public.restraint_monitoring_logs USING bt
 -- Name: idx_room_turnarounds_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_room_turnarounds_tenant ON public.room_turnarounds USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_room_turnarounds_tenant ON public.room_turnarounds USING btree (tenant_id);
 
 
 
@@ -1785,7 +1785,7 @@ CREATE INDEX idx_room_turnarounds_tenant ON public.room_turnarounds USING btree 
 -- Name: idx_ward_bed_mappings_ward; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ward_bed_mappings_ward ON public.ward_bed_mappings USING btree (ward_id);
+CREATE INDEX IF NOT EXISTS idx_ward_bed_mappings_ward ON public.ward_bed_mappings USING btree (ward_id);
 
 
 
@@ -1793,7 +1793,7 @@ CREATE INDEX idx_ward_bed_mappings_ward ON public.ward_bed_mappings USING btree 
 -- Name: io_entries_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX io_entries_encounter_idx ON public.intake_output_entries USING btree (tenant_id, encounter_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS io_entries_encounter_idx ON public.intake_output_entries USING btree (tenant_id, encounter_id, recorded_at DESC);
 
 
 
@@ -1801,7 +1801,7 @@ CREATE INDEX io_entries_encounter_idx ON public.intake_output_entries USING btre
 -- Name: pain_score_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX pain_score_encounter_idx ON public.pain_score_entries USING btree (tenant_id, encounter_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS pain_score_encounter_idx ON public.pain_score_entries USING btree (tenant_id, encounter_id, recorded_at DESC);
 
 
 
@@ -1809,7 +1809,7 @@ CREATE INDEX pain_score_encounter_idx ON public.pain_score_entries USING btree (
 -- Name: restraint_monitoring_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX restraint_monitoring_idx ON public.restraint_monitoring_events USING btree (tenant_id, restraint_order_id, monitored_at DESC);
+CREATE INDEX IF NOT EXISTS restraint_monitoring_idx ON public.restraint_monitoring_events USING btree (tenant_id, restraint_order_id, monitored_at DESC);
 
 
 
@@ -1817,7 +1817,7 @@ CREATE INDEX restraint_monitoring_idx ON public.restraint_monitoring_events USIN
 -- Name: wound_assessments_encounter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX wound_assessments_encounter_idx ON public.wound_assessments USING btree (tenant_id, encounter_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS wound_assessments_encounter_idx ON public.wound_assessments USING btree (tenant_id, encounter_id, recorded_at DESC);
 
 
 

@@ -1,9 +1,12 @@
 variable "provider_kind" {
-  description = "Which VM backend creates / talks to the host. See README provider matrix."
+  description = "Which VM/compute backend creates / talks to the host. See README provider matrix."
   type        = string
   validation {
-    condition     = contains(["digitalocean", "existing-host"], var.provider_kind)
-    error_message = "provider_kind must be one of: digitalocean, existing-host."
+    condition = contains(
+      ["aws-ec2", "aws-fargate", "aws-k3s", "aws-eks", "digitalocean", "existing-host"],
+      var.provider_kind,
+    )
+    error_message = "provider_kind must be one of: aws-ec2, aws-fargate, aws-k3s, aws-eks, digitalocean, existing-host."
   }
 }
 
@@ -22,6 +25,83 @@ variable "admin_email" {
   type        = string
 }
 
+# ── AWS EC2 / k3s shared (single-host tiers) ─────────────────────────
+
+variable "aws_instance_type" {
+  description = "AWS-only — EC2 instance type. t3.small (Starter), t4g.medium (Enterprise-k3s)."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "aws_ami" {
+  description = "AWS-only — AMI id override. Empty (default) auto-resolves the latest Canonical Ubuntu 24.04 AMI matching the instance arch (amd64 or arm64 inferred from instance_type prefix)."
+  type        = string
+  default     = ""
+}
+
+variable "aws_ssh_key_name" {
+  description = "AWS-only — name of the EC2 keypair already registered in this AWS account / region."
+  type        = string
+  default     = ""
+}
+
+# ── Fargate / k3s / EKS shared (image-based tiers) ───────────────────
+
+variable "image_uri" {
+  description = "Container image reference for image-based tiers. Defaults to the GHCR image."
+  type        = string
+  default     = "ghcr.io/anthropics/medbrains-server:latest"
+}
+
+variable "fargate_task_cpu" {
+  description = "Fargate-only — task vCPU units."
+  type        = number
+  default     = 512
+}
+
+variable "fargate_task_memory" {
+  description = "Fargate-only — task memory in MiB."
+  type        = number
+  default     = 1024
+}
+
+variable "rds_instance_class" {
+  description = "RDS instance class (Fargate / k3s tiers)."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "scale_to_zero_at_night" {
+  description = "Fargate-only — if true, EventBridge sets ECS desired_count=0 at 21:00 IST and =1 at 07:00 IST."
+  type        = bool
+  default     = false
+}
+
+variable "hot_to_cold_days" {
+  description = "S3 lifecycle: days before objects move to STANDARD_IA / GLACIER."
+  type        = number
+  default     = 90
+}
+
+variable "helm_chart_dir" {
+  description = "Path to deploy/helm/medbrains-server/. Required for k3s / EKS tiers — when empty, terraform skips the bootstrap and only provisions infra."
+  type        = string
+  default     = ""
+}
+
+variable "ghcr_pull_token" {
+  description = "GHCR PAT for private packages. Empty = image is public."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_username" {
+  description = "GitHub username for GHCR pull (only used if ghcr_pull_token set)."
+  type        = string
+  default     = ""
+}
+
 # ── DigitalOcean-specific ─────────────────────────────────────────────
 
 variable "region" {
@@ -31,19 +111,19 @@ variable "region" {
 }
 
 variable "size" {
-  description = "DigitalOcean-only — droplet size slug. s-2vcpu-4gb is the recommended pilot size (~$24/mo)."
+  description = "DigitalOcean-only — droplet size slug."
   type        = string
   default     = "s-2vcpu-4gb"
 }
 
 variable "image" {
-  description = "DigitalOcean-only — base image slug. ubuntu-24-04-x64 is what install.sh targets."
+  description = "DigitalOcean-only — base image slug."
   type        = string
   default     = "ubuntu-24-04-x64"
 }
 
 variable "ssh_public_keys" {
-  description = "DigitalOcean-only — fingerprints of SSH keys registered in the DO account that should be authorised on the new droplet."
+  description = "DigitalOcean-only — fingerprints of SSH keys registered in the DO account."
   type        = list(string)
   default     = []
 }
@@ -63,24 +143,34 @@ variable "ssh_user" {
 }
 
 variable "ssh_private_key" {
-  description = "SSH private key contents (file(\"~/.ssh/...\")). Used by terraform's file + remote-exec provisioners."
+  description = "SSH private key contents. Required for tiers that connect over SSH (aws-ec2, aws-k3s, digitalocean, existing-host)."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
-# ── Bootstrap inputs ─────────────────────────────────────────────────
+# ── Bootstrap inputs (Starter only — image-based tiers ignore) ───────
 
 variable "binaries_dir" {
-  description = "Local path containing the pre-built `medbrains-server` and `medbrains-archive` binaries (cargo build --release output)."
+  description = "Local path containing the pre-built `medbrains-server` and `medbrains-archive` binaries. Starter only."
   type        = string
+  default     = ""
 }
 
 variable "spa_dist_dir" {
-  description = "Local path containing the SPA build output (pnpm build → apps/web/dist)."
+  description = "Local path containing the SPA build output. Starter only."
   type        = string
+  default     = ""
 }
 
 variable "deploy_kit_dir" {
-  description = "Local path to deploy/standalone/. Uploaded to the host so install.sh + the systemd units + Caddyfile.tmpl land in /tmp/standalone."
+  description = "Local path to deploy/standalone/. Starter only."
   type        = string
+  default     = ""
+}
+
+variable "reset_pgdata" {
+  description = "Starter only — wipe the postgres named volume on next apply. Use only when migrations are incompatible with existing data."
+  type        = bool
+  default     = false
 }

@@ -408,7 +408,7 @@ ALTER TABLE ONLY public.surgeries
 -- Name: idx_ot_anesthesia_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_anesthesia_booking ON public.ot_anesthesia_records USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_anesthesia_booking ON public.ot_anesthesia_records USING btree (booking_id);
 
 
 
@@ -416,7 +416,7 @@ CREATE INDEX idx_ot_anesthesia_booking ON public.ot_anesthesia_records USING btr
 -- Name: idx_ot_anesthesia_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_anesthesia_tenant ON public.ot_anesthesia_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_anesthesia_tenant ON public.ot_anesthesia_records USING btree (tenant_id);
 
 
 
@@ -424,7 +424,7 @@ CREATE INDEX idx_ot_anesthesia_tenant ON public.ot_anesthesia_records USING btre
 -- Name: idx_ot_bookings_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_date ON public.ot_bookings USING btree (tenant_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_date ON public.ot_bookings USING btree (tenant_id, scheduled_date);
 
 
 
@@ -432,7 +432,7 @@ CREATE INDEX idx_ot_bookings_date ON public.ot_bookings USING btree (tenant_id, 
 -- Name: idx_ot_bookings_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_patient ON public.ot_bookings USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_patient ON public.ot_bookings USING btree (patient_id);
 
 
 
@@ -440,7 +440,7 @@ CREATE INDEX idx_ot_bookings_patient ON public.ot_bookings USING btree (patient_
 -- Name: idx_ot_bookings_room; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_room ON public.ot_bookings USING btree (ot_room_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_room ON public.ot_bookings USING btree (ot_room_id, scheduled_date);
 
 
 
@@ -448,7 +448,7 @@ CREATE INDEX idx_ot_bookings_room ON public.ot_bookings USING btree (ot_room_id,
 -- Name: idx_ot_bookings_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_status ON public.ot_bookings USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_status ON public.ot_bookings USING btree (tenant_id, status);
 
 
 
@@ -456,7 +456,7 @@ CREATE INDEX idx_ot_bookings_status ON public.ot_bookings USING btree (tenant_id
 -- Name: idx_ot_bookings_surgeon; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_surgeon ON public.ot_bookings USING btree (primary_surgeon_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_surgeon ON public.ot_bookings USING btree (primary_surgeon_id, scheduled_date);
 
 
 
@@ -464,7 +464,7 @@ CREATE INDEX idx_ot_bookings_surgeon ON public.ot_bookings USING btree (primary_
 -- Name: idx_ot_bookings_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_bookings_tenant ON public.ot_bookings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_bookings_tenant ON public.ot_bookings USING btree (tenant_id);
 
 
 
@@ -472,7 +472,7 @@ CREATE INDEX idx_ot_bookings_tenant ON public.ot_bookings USING btree (tenant_id
 -- Name: idx_ot_case_records_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_case_records_booking ON public.ot_case_records USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_case_records_booking ON public.ot_case_records USING btree (booking_id);
 
 
 
@@ -480,7 +480,7 @@ CREATE INDEX idx_ot_case_records_booking ON public.ot_case_records USING btree (
 -- Name: idx_ot_case_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_case_records_tenant ON public.ot_case_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_case_records_tenant ON public.ot_case_records USING btree (tenant_id);
 
 
 
@@ -488,7 +488,7 @@ CREATE INDEX idx_ot_case_records_tenant ON public.ot_case_records USING btree (t
 -- Name: idx_ot_consumables_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_consumables_booking ON public.ot_consumable_usage USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_consumables_booking ON public.ot_consumable_usage USING btree (booking_id);
 
 
 
@@ -496,7 +496,7 @@ CREATE INDEX idx_ot_consumables_booking ON public.ot_consumable_usage USING btre
 -- Name: idx_ot_postop_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_postop_booking ON public.ot_postop_records USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_postop_booking ON public.ot_postop_records USING btree (booking_id);
 
 
 
@@ -504,7 +504,7 @@ CREATE INDEX idx_ot_postop_booking ON public.ot_postop_records USING btree (book
 -- Name: idx_ot_postop_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_postop_tenant ON public.ot_postop_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_postop_tenant ON public.ot_postop_records USING btree (tenant_id);
 
 
 
@@ -512,7 +512,7 @@ CREATE INDEX idx_ot_postop_tenant ON public.ot_postop_records USING btree (tenan
 -- Name: idx_ot_preop_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_preop_booking ON public.ot_preop_assessments USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_preop_booking ON public.ot_preop_assessments USING btree (booking_id);
 
 
 
@@ -520,7 +520,7 @@ CREATE INDEX idx_ot_preop_booking ON public.ot_preop_assessments USING btree (bo
 -- Name: idx_ot_preop_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_preop_tenant ON public.ot_preop_assessments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_preop_tenant ON public.ot_preop_assessments USING btree (tenant_id);
 
 
 
@@ -528,7 +528,7 @@ CREATE INDEX idx_ot_preop_tenant ON public.ot_preop_assessments USING btree (ten
 -- Name: idx_ot_rooms_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_rooms_status ON public.ot_rooms USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_ot_rooms_status ON public.ot_rooms USING btree (tenant_id, status);
 
 
 
@@ -536,7 +536,7 @@ CREATE INDEX idx_ot_rooms_status ON public.ot_rooms USING btree (tenant_id, stat
 -- Name: idx_ot_rooms_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_rooms_tenant ON public.ot_rooms USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_rooms_tenant ON public.ot_rooms USING btree (tenant_id);
 
 
 
@@ -544,7 +544,7 @@ CREATE INDEX idx_ot_rooms_tenant ON public.ot_rooms USING btree (tenant_id);
 -- Name: idx_ot_safety_booking; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_safety_booking ON public.ot_surgical_safety_checklists USING btree (booking_id);
+CREATE INDEX IF NOT EXISTS idx_ot_safety_booking ON public.ot_surgical_safety_checklists USING btree (booking_id);
 
 
 
@@ -552,7 +552,7 @@ CREATE INDEX idx_ot_safety_booking ON public.ot_surgical_safety_checklists USING
 -- Name: idx_ot_safety_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_safety_tenant ON public.ot_surgical_safety_checklists USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_safety_tenant ON public.ot_surgical_safety_checklists USING btree (tenant_id);
 
 
 
@@ -560,7 +560,7 @@ CREATE INDEX idx_ot_safety_tenant ON public.ot_surgical_safety_checklists USING 
 -- Name: idx_ot_surgeon_prefs_surgeon; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_surgeon_prefs_surgeon ON public.ot_surgeon_preferences USING btree (surgeon_id);
+CREATE INDEX IF NOT EXISTS idx_ot_surgeon_prefs_surgeon ON public.ot_surgeon_preferences USING btree (surgeon_id);
 
 
 
@@ -568,7 +568,7 @@ CREATE INDEX idx_ot_surgeon_prefs_surgeon ON public.ot_surgeon_preferences USING
 -- Name: idx_ot_surgeon_prefs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ot_surgeon_prefs_tenant ON public.ot_surgeon_preferences USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ot_surgeon_prefs_tenant ON public.ot_surgeon_preferences USING btree (tenant_id);
 
 
 
@@ -576,7 +576,7 @@ CREATE INDEX idx_ot_surgeon_prefs_tenant ON public.ot_surgeon_preferences USING 
 -- Name: idx_surgeries_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_surgeries_patient ON public.surgeries USING btree (tenant_id, patient_id, surgery_date DESC);
+CREATE INDEX IF NOT EXISTS idx_surgeries_patient ON public.surgeries USING btree (tenant_id, patient_id, surgery_date DESC);
 
 
 

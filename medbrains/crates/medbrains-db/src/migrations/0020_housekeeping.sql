@@ -332,7 +332,7 @@ ALTER TABLE ONLY public.linen_par_levels
 -- Name: idx_biowaste_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_biowaste_date ON public.biowaste_records USING btree (tenant_id, record_date);
+CREATE INDEX IF NOT EXISTS idx_biowaste_date ON public.biowaste_records USING btree (tenant_id, record_date);
 
 
 
@@ -340,7 +340,7 @@ CREATE INDEX idx_biowaste_date ON public.biowaste_records USING btree (tenant_id
 -- Name: idx_biowaste_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_biowaste_dept ON public.biowaste_records USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_biowaste_dept ON public.biowaste_records USING btree (tenant_id, department_id);
 
 
 
@@ -348,7 +348,7 @@ CREATE INDEX idx_biowaste_dept ON public.biowaste_records USING btree (tenant_id
 -- Name: idx_biowaste_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_biowaste_tenant ON public.biowaste_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_biowaste_tenant ON public.biowaste_records USING btree (tenant_id);
 
 
 
@@ -356,7 +356,7 @@ CREATE INDEX idx_biowaste_tenant ON public.biowaste_records USING btree (tenant_
 -- Name: idx_cleaning_schedules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cleaning_schedules_tenant ON public.cleaning_schedules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cleaning_schedules_tenant ON public.cleaning_schedules USING btree (tenant_id);
 
 
 
@@ -364,7 +364,7 @@ CREATE INDEX idx_cleaning_schedules_tenant ON public.cleaning_schedules USING bt
 -- Name: idx_cleaning_tasks_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cleaning_tasks_date ON public.cleaning_tasks USING btree (tenant_id, task_date);
+CREATE INDEX IF NOT EXISTS idx_cleaning_tasks_date ON public.cleaning_tasks USING btree (tenant_id, task_date);
 
 
 
@@ -372,7 +372,7 @@ CREATE INDEX idx_cleaning_tasks_date ON public.cleaning_tasks USING btree (tenan
 -- Name: idx_cleaning_tasks_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cleaning_tasks_status ON public.cleaning_tasks USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_cleaning_tasks_status ON public.cleaning_tasks USING btree (tenant_id, status);
 
 
 
@@ -380,7 +380,7 @@ CREATE INDEX idx_cleaning_tasks_status ON public.cleaning_tasks USING btree (ten
 -- Name: idx_cleaning_tasks_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cleaning_tasks_tenant ON public.cleaning_tasks USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cleaning_tasks_tenant ON public.cleaning_tasks USING btree (tenant_id);
 
 
 
@@ -388,7 +388,7 @@ CREATE INDEX idx_cleaning_tasks_tenant ON public.cleaning_tasks USING btree (ten
 -- Name: idx_laundry_batches_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_laundry_batches_tenant ON public.laundry_batches USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_laundry_batches_tenant ON public.laundry_batches USING btree (tenant_id);
 
 
 
@@ -396,7 +396,7 @@ CREATE INDEX idx_laundry_batches_tenant ON public.laundry_batches USING btree (t
 -- Name: idx_linen_condemnations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_linen_condemnations_tenant ON public.linen_condemnations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_linen_condemnations_tenant ON public.linen_condemnations USING btree (tenant_id);
 
 
 
@@ -404,7 +404,7 @@ CREATE INDEX idx_linen_condemnations_tenant ON public.linen_condemnations USING 
 -- Name: idx_linen_items_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_linen_items_status ON public.linen_items USING btree (tenant_id, current_status);
+CREATE INDEX IF NOT EXISTS idx_linen_items_status ON public.linen_items USING btree (tenant_id, current_status);
 
 
 
@@ -412,7 +412,7 @@ CREATE INDEX idx_linen_items_status ON public.linen_items USING btree (tenant_id
 -- Name: idx_linen_items_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_linen_items_tenant ON public.linen_items USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_linen_items_tenant ON public.linen_items USING btree (tenant_id);
 
 
 
@@ -420,7 +420,7 @@ CREATE INDEX idx_linen_items_tenant ON public.linen_items USING btree (tenant_id
 -- Name: idx_linen_movements_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_linen_movements_tenant ON public.linen_movements USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_linen_movements_tenant ON public.linen_movements USING btree (tenant_id);
 
 
 
@@ -428,7 +428,7 @@ CREATE INDEX idx_linen_movements_tenant ON public.linen_movements USING btree (t
 -- Name: idx_linen_par_levels_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_linen_par_levels_tenant ON public.linen_par_levels USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_linen_par_levels_tenant ON public.linen_par_levels USING btree (tenant_id);
 
 
 
@@ -436,7 +436,7 @@ CREATE INDEX idx_linen_par_levels_tenant ON public.linen_par_levels USING btree 
 -- Name: idx_pest_control_logs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pest_control_logs_tenant ON public.pest_control_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pest_control_logs_tenant ON public.pest_control_logs USING btree (tenant_id);
 
 
 
@@ -444,7 +444,7 @@ CREATE INDEX idx_pest_control_logs_tenant ON public.pest_control_logs USING btre
 -- Name: idx_pest_control_schedules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pest_control_schedules_tenant ON public.pest_control_schedules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pest_control_schedules_tenant ON public.pest_control_schedules USING btree (tenant_id);
 
 
 

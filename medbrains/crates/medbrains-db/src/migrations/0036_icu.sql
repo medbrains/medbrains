@@ -238,7 +238,7 @@ ALTER TABLE ONLY public.icu_ventilator_records
 -- Name: idx_icu_bundle_device; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_bundle_device ON public.icu_bundle_checks USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_icu_bundle_device ON public.icu_bundle_checks USING btree (device_id);
 
 
 
@@ -246,7 +246,7 @@ CREATE INDEX idx_icu_bundle_device ON public.icu_bundle_checks USING btree (devi
 -- Name: idx_icu_bundle_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_bundle_tenant ON public.icu_bundle_checks USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_bundle_tenant ON public.icu_bundle_checks USING btree (tenant_id);
 
 
 
@@ -254,7 +254,7 @@ CREATE INDEX idx_icu_bundle_tenant ON public.icu_bundle_checks USING btree (tena
 -- Name: idx_icu_devices_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_devices_active ON public.icu_devices USING btree (is_active);
+CREATE INDEX IF NOT EXISTS idx_icu_devices_active ON public.icu_devices USING btree (is_active);
 
 
 
@@ -262,7 +262,7 @@ CREATE INDEX idx_icu_devices_active ON public.icu_devices USING btree (is_active
 -- Name: idx_icu_devices_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_devices_admission ON public.icu_devices USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_devices_admission ON public.icu_devices USING btree (admission_id);
 
 
 
@@ -270,7 +270,7 @@ CREATE INDEX idx_icu_devices_admission ON public.icu_devices USING btree (admiss
 -- Name: idx_icu_devices_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_devices_tenant ON public.icu_devices USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_devices_tenant ON public.icu_devices USING btree (tenant_id);
 
 
 
@@ -278,7 +278,7 @@ CREATE INDEX idx_icu_devices_tenant ON public.icu_devices USING btree (tenant_id
 -- Name: idx_icu_flowsheets_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_flowsheets_admission ON public.icu_flowsheets USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_flowsheets_admission ON public.icu_flowsheets USING btree (admission_id);
 
 
 
@@ -286,7 +286,7 @@ CREATE INDEX idx_icu_flowsheets_admission ON public.icu_flowsheets USING btree (
 -- Name: idx_icu_flowsheets_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_flowsheets_tenant ON public.icu_flowsheets USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_flowsheets_tenant ON public.icu_flowsheets USING btree (tenant_id);
 
 
 
@@ -294,7 +294,7 @@ CREATE INDEX idx_icu_flowsheets_tenant ON public.icu_flowsheets USING btree (ten
 -- Name: idx_icu_flowsheets_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_flowsheets_time ON public.icu_flowsheets USING btree (recorded_at);
+CREATE INDEX IF NOT EXISTS idx_icu_flowsheets_time ON public.icu_flowsheets USING btree (recorded_at);
 
 
 
@@ -302,7 +302,7 @@ CREATE INDEX idx_icu_flowsheets_time ON public.icu_flowsheets USING btree (recor
 -- Name: idx_icu_neonatal_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_neonatal_admission ON public.icu_neonatal_records USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_neonatal_admission ON public.icu_neonatal_records USING btree (admission_id);
 
 
 
@@ -310,7 +310,7 @@ CREATE INDEX idx_icu_neonatal_admission ON public.icu_neonatal_records USING btr
 -- Name: idx_icu_neonatal_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_neonatal_tenant ON public.icu_neonatal_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_neonatal_tenant ON public.icu_neonatal_records USING btree (tenant_id);
 
 
 
@@ -318,7 +318,7 @@ CREATE INDEX idx_icu_neonatal_tenant ON public.icu_neonatal_records USING btree 
 -- Name: idx_icu_nutrition_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_nutrition_admission ON public.icu_nutrition USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_nutrition_admission ON public.icu_nutrition USING btree (admission_id);
 
 
 
@@ -326,7 +326,7 @@ CREATE INDEX idx_icu_nutrition_admission ON public.icu_nutrition USING btree (ad
 -- Name: idx_icu_nutrition_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_nutrition_tenant ON public.icu_nutrition USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_nutrition_tenant ON public.icu_nutrition USING btree (tenant_id);
 
 
 
@@ -334,7 +334,7 @@ CREATE INDEX idx_icu_nutrition_tenant ON public.icu_nutrition USING btree (tenan
 -- Name: idx_icu_scores_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_scores_admission ON public.icu_scores USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_scores_admission ON public.icu_scores USING btree (admission_id);
 
 
 
@@ -342,7 +342,7 @@ CREATE INDEX idx_icu_scores_admission ON public.icu_scores USING btree (admissio
 -- Name: idx_icu_scores_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_scores_tenant ON public.icu_scores USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_scores_tenant ON public.icu_scores USING btree (tenant_id);
 
 
 
@@ -350,7 +350,7 @@ CREATE INDEX idx_icu_scores_tenant ON public.icu_scores USING btree (tenant_id);
 -- Name: idx_icu_scores_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_scores_type ON public.icu_scores USING btree (score_type);
+CREATE INDEX IF NOT EXISTS idx_icu_scores_type ON public.icu_scores USING btree (score_type);
 
 
 
@@ -358,7 +358,7 @@ CREATE INDEX idx_icu_scores_type ON public.icu_scores USING btree (score_type);
 -- Name: idx_icu_ventilator_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_ventilator_admission ON public.icu_ventilator_records USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_icu_ventilator_admission ON public.icu_ventilator_records USING btree (admission_id);
 
 
 
@@ -366,7 +366,7 @@ CREATE INDEX idx_icu_ventilator_admission ON public.icu_ventilator_records USING
 -- Name: idx_icu_ventilator_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icu_ventilator_tenant ON public.icu_ventilator_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_icu_ventilator_tenant ON public.icu_ventilator_records USING btree (tenant_id);
 
 
 

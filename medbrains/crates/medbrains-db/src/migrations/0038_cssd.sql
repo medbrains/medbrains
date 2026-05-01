@@ -304,7 +304,7 @@ ALTER TABLE ONLY public.cssd_sterilizers
 -- Name: idx_cssd_indicators_load; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_indicators_load ON public.cssd_indicator_results USING btree (load_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_indicators_load ON public.cssd_indicator_results USING btree (load_id);
 
 
 
@@ -312,7 +312,7 @@ CREATE INDEX idx_cssd_indicators_load ON public.cssd_indicator_results USING btr
 -- Name: idx_cssd_instrument_sets_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_instrument_sets_tenant ON public.cssd_instrument_sets USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_instrument_sets_tenant ON public.cssd_instrument_sets USING btree (tenant_id);
 
 
 
@@ -320,7 +320,7 @@ CREATE INDEX idx_cssd_instrument_sets_tenant ON public.cssd_instrument_sets USIN
 -- Name: idx_cssd_instruments_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_instruments_status ON public.cssd_instruments USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_cssd_instruments_status ON public.cssd_instruments USING btree (tenant_id, status);
 
 
 
@@ -328,7 +328,7 @@ CREATE INDEX idx_cssd_instruments_status ON public.cssd_instruments USING btree 
 -- Name: idx_cssd_instruments_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_instruments_tenant ON public.cssd_instruments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_instruments_tenant ON public.cssd_instruments USING btree (tenant_id);
 
 
 
@@ -336,7 +336,7 @@ CREATE INDEX idx_cssd_instruments_tenant ON public.cssd_instruments USING btree 
 -- Name: idx_cssd_issuances_department; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_issuances_department ON public.cssd_issuances USING btree (tenant_id, issued_to_department);
+CREATE INDEX IF NOT EXISTS idx_cssd_issuances_department ON public.cssd_issuances USING btree (tenant_id, issued_to_department);
 
 
 
@@ -344,7 +344,7 @@ CREATE INDEX idx_cssd_issuances_department ON public.cssd_issuances USING btree 
 -- Name: idx_cssd_issuances_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_issuances_tenant ON public.cssd_issuances USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_issuances_tenant ON public.cssd_issuances USING btree (tenant_id);
 
 
 
@@ -352,7 +352,7 @@ CREATE INDEX idx_cssd_issuances_tenant ON public.cssd_issuances USING btree (ten
 -- Name: idx_cssd_load_items_load; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_load_items_load ON public.cssd_load_items USING btree (load_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_load_items_load ON public.cssd_load_items USING btree (load_id);
 
 
 
@@ -360,7 +360,7 @@ CREATE INDEX idx_cssd_load_items_load ON public.cssd_load_items USING btree (loa
 -- Name: idx_cssd_loads_sterilizer; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_loads_sterilizer ON public.cssd_sterilization_loads USING btree (sterilizer_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_loads_sterilizer ON public.cssd_sterilization_loads USING btree (sterilizer_id);
 
 
 
@@ -368,7 +368,7 @@ CREATE INDEX idx_cssd_loads_sterilizer ON public.cssd_sterilization_loads USING 
 -- Name: idx_cssd_loads_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_loads_tenant ON public.cssd_sterilization_loads USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_loads_tenant ON public.cssd_sterilization_loads USING btree (tenant_id);
 
 
 
@@ -376,7 +376,7 @@ CREATE INDEX idx_cssd_loads_tenant ON public.cssd_sterilization_loads USING btre
 -- Name: idx_cssd_maintenance_sterilizer; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cssd_maintenance_sterilizer ON public.cssd_maintenance_logs USING btree (sterilizer_id);
+CREATE INDEX IF NOT EXISTS idx_cssd_maintenance_sterilizer ON public.cssd_maintenance_logs USING btree (sterilizer_id);
 
 
 

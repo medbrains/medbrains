@@ -263,7 +263,7 @@ ALTER TABLE ONLY public.procedure_consents
 -- Name: idx_consent_audit_consent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_audit_consent ON public.consent_audit_log USING btree (consent_source, consent_id);
+CREATE INDEX IF NOT EXISTS idx_consent_audit_consent ON public.consent_audit_log USING btree (consent_source, consent_id);
 
 
 
@@ -271,7 +271,7 @@ CREATE INDEX idx_consent_audit_consent ON public.consent_audit_log USING btree (
 -- Name: idx_consent_audit_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_audit_patient ON public.consent_audit_log USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_consent_audit_patient ON public.consent_audit_log USING btree (tenant_id, patient_id);
 
 
 
@@ -279,7 +279,7 @@ CREATE INDEX idx_consent_audit_patient ON public.consent_audit_log USING btree (
 -- Name: idx_consent_audit_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_audit_tenant ON public.consent_audit_log USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consent_audit_tenant ON public.consent_audit_log USING btree (tenant_id);
 
 
 
@@ -287,7 +287,7 @@ CREATE INDEX idx_consent_audit_tenant ON public.consent_audit_log USING btree (t
 -- Name: idx_consent_records_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_records_active ON public.consent_records USING btree (patient_id, consent_type) WHERE (NOT is_revoked);
+CREATE INDEX IF NOT EXISTS idx_consent_records_active ON public.consent_records USING btree (patient_id, consent_type) WHERE (NOT is_revoked);
 
 
 
@@ -295,7 +295,7 @@ CREATE INDEX idx_consent_records_active ON public.consent_records USING btree (p
 -- Name: idx_consent_records_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_records_admission ON public.consent_records USING btree (admission_id) WHERE (admission_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_consent_records_admission ON public.consent_records USING btree (admission_id) WHERE (admission_id IS NOT NULL);
 
 
 
@@ -303,7 +303,7 @@ CREATE INDEX idx_consent_records_admission ON public.consent_records USING btree
 -- Name: idx_consent_records_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_records_patient ON public.consent_records USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_consent_records_patient ON public.consent_records USING btree (patient_id);
 
 
 
@@ -311,7 +311,7 @@ CREATE INDEX idx_consent_records_patient ON public.consent_records USING btree (
 -- Name: idx_consent_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_records_tenant ON public.consent_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consent_records_tenant ON public.consent_records USING btree (tenant_id);
 
 
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_consent_records_tenant ON public.consent_records USING btree (t
 -- Name: idx_consent_records_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_records_type ON public.consent_records USING btree (consent_type);
+CREATE INDEX IF NOT EXISTS idx_consent_records_type ON public.consent_records USING btree (consent_type);
 
 
 
@@ -327,7 +327,7 @@ CREATE INDEX idx_consent_records_type ON public.consent_records USING btree (con
 -- Name: idx_consent_sig_consent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_sig_consent ON public.consent_signature_metadata USING btree (consent_source, consent_id);
+CREATE INDEX IF NOT EXISTS idx_consent_sig_consent ON public.consent_signature_metadata USING btree (consent_source, consent_id);
 
 
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_consent_sig_consent ON public.consent_signature_metadata USING 
 -- Name: idx_consent_sig_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_sig_tenant ON public.consent_signature_metadata USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consent_sig_tenant ON public.consent_signature_metadata USING btree (tenant_id);
 
 
 
@@ -343,7 +343,7 @@ CREATE INDEX idx_consent_sig_tenant ON public.consent_signature_metadata USING b
 -- Name: idx_consent_templates_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_templates_category ON public.consent_templates USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_consent_templates_category ON public.consent_templates USING btree (tenant_id, category);
 
 
 
@@ -351,7 +351,7 @@ CREATE INDEX idx_consent_templates_category ON public.consent_templates USING bt
 -- Name: idx_consent_templates_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consent_templates_tenant ON public.consent_templates USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consent_templates_tenant ON public.consent_templates USING btree (tenant_id);
 
 
 
@@ -359,7 +359,7 @@ CREATE INDEX idx_consent_templates_tenant ON public.consent_templates USING btre
 -- Name: idx_consents_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consents_encounter ON public.procedure_consents USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_consents_encounter ON public.procedure_consents USING btree (encounter_id);
 
 
 
@@ -367,7 +367,7 @@ CREATE INDEX idx_consents_encounter ON public.procedure_consents USING btree (en
 -- Name: idx_consents_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consents_patient ON public.procedure_consents USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_consents_patient ON public.procedure_consents USING btree (patient_id);
 
 
 
@@ -375,7 +375,7 @@ CREATE INDEX idx_consents_patient ON public.procedure_consents USING btree (pati
 -- Name: idx_consents_procedure_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consents_procedure_order ON public.procedure_consents USING btree (procedure_order_id);
+CREATE INDEX IF NOT EXISTS idx_consents_procedure_order ON public.procedure_consents USING btree (procedure_order_id);
 
 
 
@@ -383,7 +383,7 @@ CREATE INDEX idx_consents_procedure_order ON public.procedure_consents USING btr
 -- Name: idx_consents_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consents_tenant ON public.procedure_consents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consents_tenant ON public.procedure_consents USING btree (tenant_id);
 
 
 
@@ -391,7 +391,7 @@ CREATE INDEX idx_consents_tenant ON public.procedure_consents USING btree (tenan
 -- Name: idx_patient_consents_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_consents_patient ON public.patient_consents USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_consents_patient ON public.patient_consents USING btree (tenant_id, patient_id);
 
 
 

@@ -277,7 +277,7 @@ ALTER TABLE ONLY public.meal_preparations
 -- Name: idx_diet_orders_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_diet_orders_admission ON public.diet_orders USING btree (tenant_id, admission_id) WHERE (admission_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_diet_orders_admission ON public.diet_orders USING btree (tenant_id, admission_id) WHERE (admission_id IS NOT NULL);
 
 
 
@@ -285,7 +285,7 @@ CREATE INDEX idx_diet_orders_admission ON public.diet_orders USING btree (tenant
 -- Name: idx_diet_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_diet_orders_patient ON public.diet_orders USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_diet_orders_patient ON public.diet_orders USING btree (tenant_id, patient_id);
 
 
 
@@ -293,7 +293,7 @@ CREATE INDEX idx_diet_orders_patient ON public.diet_orders USING btree (tenant_i
 -- Name: idx_diet_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_diet_orders_status ON public.diet_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_diet_orders_status ON public.diet_orders USING btree (tenant_id, status);
 
 
 
@@ -301,7 +301,7 @@ CREATE INDEX idx_diet_orders_status ON public.diet_orders USING btree (tenant_id
 -- Name: idx_kitchen_audits_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_kitchen_audits_date ON public.kitchen_audits USING btree (tenant_id, audit_date);
+CREATE INDEX IF NOT EXISTS idx_kitchen_audits_date ON public.kitchen_audits USING btree (tenant_id, audit_date);
 
 
 
@@ -309,7 +309,7 @@ CREATE INDEX idx_kitchen_audits_date ON public.kitchen_audits USING btree (tenan
 -- Name: idx_kitchen_inventory_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_kitchen_inventory_name ON public.kitchen_inventory USING btree (tenant_id, item_name);
+CREATE INDEX IF NOT EXISTS idx_kitchen_inventory_name ON public.kitchen_inventory USING btree (tenant_id, item_name);
 
 
 
@@ -317,7 +317,7 @@ CREATE INDEX idx_kitchen_inventory_name ON public.kitchen_inventory USING btree 
 -- Name: idx_kitchen_menu_items_menu; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_kitchen_menu_items_menu ON public.kitchen_menu_items USING btree (tenant_id, menu_id);
+CREATE INDEX IF NOT EXISTS idx_kitchen_menu_items_menu ON public.kitchen_menu_items USING btree (tenant_id, menu_id);
 
 
 
@@ -325,7 +325,7 @@ CREATE INDEX idx_kitchen_menu_items_menu ON public.kitchen_menu_items USING btre
 -- Name: idx_meal_counts_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_meal_counts_date ON public.meal_counts USING btree (tenant_id, count_date);
+CREATE INDEX IF NOT EXISTS idx_meal_counts_date ON public.meal_counts USING btree (tenant_id, count_date);
 
 
 
@@ -333,7 +333,7 @@ CREATE INDEX idx_meal_counts_date ON public.meal_counts USING btree (tenant_id, 
 -- Name: idx_meal_prep_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_meal_prep_date ON public.meal_preparations USING btree (tenant_id, meal_date, meal_type);
+CREATE INDEX IF NOT EXISTS idx_meal_prep_date ON public.meal_preparations USING btree (tenant_id, meal_date, meal_type);
 
 
 
@@ -341,7 +341,7 @@ CREATE INDEX idx_meal_prep_date ON public.meal_preparations USING btree (tenant_
 -- Name: idx_meal_prep_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_meal_prep_order ON public.meal_preparations USING btree (tenant_id, diet_order_id);
+CREATE INDEX IF NOT EXISTS idx_meal_prep_order ON public.meal_preparations USING btree (tenant_id, diet_order_id);
 
 
 

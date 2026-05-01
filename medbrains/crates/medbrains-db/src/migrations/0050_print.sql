@@ -68,7 +68,7 @@ ALTER TABLE ONLY public.printer_configs
 -- Name: idx_print_jobs_printer; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_print_jobs_printer ON public.print_jobs USING btree (printer_id, status);
+CREATE INDEX IF NOT EXISTS idx_print_jobs_printer ON public.print_jobs USING btree (printer_id, status);
 
 
 
@@ -76,7 +76,7 @@ CREATE INDEX idx_print_jobs_printer ON public.print_jobs USING btree (printer_id
 -- Name: idx_print_jobs_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_print_jobs_status ON public.print_jobs USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_print_jobs_status ON public.print_jobs USING btree (tenant_id, status);
 
 
 

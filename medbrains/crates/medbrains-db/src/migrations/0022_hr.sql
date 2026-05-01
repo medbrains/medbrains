@@ -639,7 +639,7 @@ ALTER TABLE ONLY public.training_records
 -- Name: idx_appraisals_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appraisals_employee ON public.appraisals USING btree (tenant_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_appraisals_employee ON public.appraisals USING btree (tenant_id, employee_id);
 
 
 
@@ -647,7 +647,7 @@ CREATE INDEX idx_appraisals_employee ON public.appraisals USING btree (tenant_id
 -- Name: idx_appraisals_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appraisals_tenant ON public.appraisals USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_appraisals_tenant ON public.appraisals USING btree (tenant_id);
 
 
 
@@ -655,7 +655,7 @@ CREATE INDEX idx_appraisals_tenant ON public.appraisals USING btree (tenant_id);
 -- Name: idx_attendance_records_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_attendance_records_date ON public.attendance_records USING btree (tenant_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_records_date ON public.attendance_records USING btree (tenant_id, attendance_date);
 
 
 
@@ -663,7 +663,7 @@ CREATE INDEX idx_attendance_records_date ON public.attendance_records USING btre
 -- Name: idx_attendance_records_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_attendance_records_employee ON public.attendance_records USING btree (tenant_id, employee_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_records_employee ON public.attendance_records USING btree (tenant_id, employee_id, attendance_date);
 
 
 
@@ -671,7 +671,7 @@ CREATE INDEX idx_attendance_records_employee ON public.attendance_records USING 
 -- Name: idx_attendance_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_attendance_records_tenant ON public.attendance_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_records_tenant ON public.attendance_records USING btree (tenant_id);
 
 
 
@@ -679,7 +679,7 @@ CREATE INDEX idx_attendance_records_tenant ON public.attendance_records USING bt
 -- Name: idx_designations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_designations_tenant ON public.designations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_designations_tenant ON public.designations USING btree (tenant_id);
 
 
 
@@ -687,7 +687,7 @@ CREATE INDEX idx_designations_tenant ON public.designations USING btree (tenant_
 -- Name: idx_duty_rosters_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_duty_rosters_date ON public.duty_rosters USING btree (tenant_id, roster_date);
+CREATE INDEX IF NOT EXISTS idx_duty_rosters_date ON public.duty_rosters USING btree (tenant_id, roster_date);
 
 
 
@@ -695,7 +695,7 @@ CREATE INDEX idx_duty_rosters_date ON public.duty_rosters USING btree (tenant_id
 -- Name: idx_duty_rosters_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_duty_rosters_employee ON public.duty_rosters USING btree (tenant_id, employee_id, roster_date);
+CREATE INDEX IF NOT EXISTS idx_duty_rosters_employee ON public.duty_rosters USING btree (tenant_id, employee_id, roster_date);
 
 
 
@@ -703,7 +703,7 @@ CREATE INDEX idx_duty_rosters_employee ON public.duty_rosters USING btree (tenan
 -- Name: idx_duty_rosters_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_duty_rosters_tenant ON public.duty_rosters USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_duty_rosters_tenant ON public.duty_rosters USING btree (tenant_id);
 
 
 
@@ -711,7 +711,7 @@ CREATE INDEX idx_duty_rosters_tenant ON public.duty_rosters USING btree (tenant_
 -- Name: idx_employee_credentials_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employee_credentials_employee ON public.employee_credentials USING btree (tenant_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_credentials_employee ON public.employee_credentials USING btree (tenant_id, employee_id);
 
 
 
@@ -719,7 +719,7 @@ CREATE INDEX idx_employee_credentials_employee ON public.employee_credentials US
 -- Name: idx_employee_credentials_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employee_credentials_expiry ON public.employee_credentials USING btree (tenant_id, expiry_date) WHERE (status = 'active'::public.credential_status);
+CREATE INDEX IF NOT EXISTS idx_employee_credentials_expiry ON public.employee_credentials USING btree (tenant_id, expiry_date) WHERE (status = 'active'::public.credential_status);
 
 
 
@@ -727,7 +727,7 @@ CREATE INDEX idx_employee_credentials_expiry ON public.employee_credentials USIN
 -- Name: idx_employee_credentials_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employee_credentials_tenant ON public.employee_credentials USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_employee_credentials_tenant ON public.employee_credentials USING btree (tenant_id);
 
 
 
@@ -735,7 +735,7 @@ CREATE INDEX idx_employee_credentials_tenant ON public.employee_credentials USIN
 -- Name: idx_employees_department; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employees_department ON public.employees USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_employees_department ON public.employees USING btree (tenant_id, department_id);
 
 
 
@@ -743,7 +743,7 @@ CREATE INDEX idx_employees_department ON public.employees USING btree (tenant_id
 -- Name: idx_employees_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employees_status ON public.employees USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_employees_status ON public.employees USING btree (tenant_id, status);
 
 
 
@@ -751,7 +751,7 @@ CREATE INDEX idx_employees_status ON public.employees USING btree (tenant_id, st
 -- Name: idx_employees_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employees_tenant ON public.employees USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_employees_tenant ON public.employees USING btree (tenant_id);
 
 
 
@@ -759,7 +759,7 @@ CREATE INDEX idx_employees_tenant ON public.employees USING btree (tenant_id);
 -- Name: idx_employees_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_employees_user ON public.employees USING btree (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_employees_user ON public.employees USING btree (tenant_id, user_id);
 
 
 
@@ -767,7 +767,7 @@ CREATE INDEX idx_employees_user ON public.employees USING btree (tenant_id, user
 -- Name: idx_leave_balances_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_balances_employee ON public.leave_balances USING btree (tenant_id, employee_id, year);
+CREATE INDEX IF NOT EXISTS idx_leave_balances_employee ON public.leave_balances USING btree (tenant_id, employee_id, year);
 
 
 
@@ -775,7 +775,7 @@ CREATE INDEX idx_leave_balances_employee ON public.leave_balances USING btree (t
 -- Name: idx_leave_balances_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_balances_tenant ON public.leave_balances USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_leave_balances_tenant ON public.leave_balances USING btree (tenant_id);
 
 
 
@@ -783,7 +783,7 @@ CREATE INDEX idx_leave_balances_tenant ON public.leave_balances USING btree (ten
 -- Name: idx_leave_emp; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_emp ON public.leave_applications USING btree (tenant_id, employee_id, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_leave_emp ON public.leave_applications USING btree (tenant_id, employee_id, start_date DESC);
 
 
 
@@ -791,7 +791,7 @@ CREATE INDEX idx_leave_emp ON public.leave_applications USING btree (tenant_id, 
 -- Name: idx_leave_requests_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_requests_employee ON public.leave_requests USING btree (tenant_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_leave_requests_employee ON public.leave_requests USING btree (tenant_id, employee_id);
 
 
 
@@ -799,7 +799,7 @@ CREATE INDEX idx_leave_requests_employee ON public.leave_requests USING btree (t
 -- Name: idx_leave_requests_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_requests_status ON public.leave_requests USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON public.leave_requests USING btree (tenant_id, status);
 
 
 
@@ -807,7 +807,7 @@ CREATE INDEX idx_leave_requests_status ON public.leave_requests USING btree (ten
 -- Name: idx_leave_requests_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_leave_requests_tenant ON public.leave_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_leave_requests_tenant ON public.leave_requests USING btree (tenant_id);
 
 
 
@@ -815,7 +815,7 @@ CREATE INDEX idx_leave_requests_tenant ON public.leave_requests USING btree (ten
 -- Name: idx_on_call_schedules_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_on_call_schedules_date ON public.on_call_schedules USING btree (tenant_id, schedule_date);
+CREATE INDEX IF NOT EXISTS idx_on_call_schedules_date ON public.on_call_schedules USING btree (tenant_id, schedule_date);
 
 
 
@@ -823,7 +823,7 @@ CREATE INDEX idx_on_call_schedules_date ON public.on_call_schedules USING btree 
 -- Name: idx_on_call_schedules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_on_call_schedules_tenant ON public.on_call_schedules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_on_call_schedules_tenant ON public.on_call_schedules USING btree (tenant_id);
 
 
 
@@ -831,7 +831,7 @@ CREATE INDEX idx_on_call_schedules_tenant ON public.on_call_schedules USING btre
 -- Name: idx_shift_definitions_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_shift_definitions_tenant ON public.shift_definitions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_shift_definitions_tenant ON public.shift_definitions USING btree (tenant_id);
 
 
 
@@ -839,7 +839,7 @@ CREATE INDEX idx_shift_definitions_tenant ON public.shift_definitions USING btre
 -- Name: idx_statutory_records_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_statutory_records_employee ON public.statutory_records USING btree (tenant_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_statutory_records_employee ON public.statutory_records USING btree (tenant_id, employee_id);
 
 
 
@@ -847,7 +847,7 @@ CREATE INDEX idx_statutory_records_employee ON public.statutory_records USING bt
 -- Name: idx_statutory_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_statutory_records_tenant ON public.statutory_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_statutory_records_tenant ON public.statutory_records USING btree (tenant_id);
 
 
 
@@ -855,7 +855,7 @@ CREATE INDEX idx_statutory_records_tenant ON public.statutory_records USING btre
 -- Name: idx_training_emp; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_training_emp ON public.training_attendance USING btree (tenant_id, employee_id, training_date DESC);
+CREATE INDEX IF NOT EXISTS idx_training_emp ON public.training_attendance USING btree (tenant_id, employee_id, training_date DESC);
 
 
 
@@ -863,7 +863,7 @@ CREATE INDEX idx_training_emp ON public.training_attendance USING btree (tenant_
 -- Name: idx_training_programs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_training_programs_tenant ON public.training_programs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_programs_tenant ON public.training_programs USING btree (tenant_id);
 
 
 
@@ -871,7 +871,7 @@ CREATE INDEX idx_training_programs_tenant ON public.training_programs USING btre
 -- Name: idx_training_records_employee; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_training_records_employee ON public.training_records USING btree (tenant_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_training_records_employee ON public.training_records USING btree (tenant_id, employee_id);
 
 
 
@@ -879,7 +879,7 @@ CREATE INDEX idx_training_records_employee ON public.training_records USING btre
 -- Name: idx_training_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_training_records_tenant ON public.training_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_records_tenant ON public.training_records USING btree (tenant_id);
 
 
 

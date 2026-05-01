@@ -5,9 +5,9 @@
 # Phase B.2. Inputs + outputs are stable so consumers can wire against
 # them now.
 
-variable "region"             { type = string }
-variable "environment"        { type = string }
-variable "vpc_id"             { type = string }
+variable "region" { type = string }
+variable "environment" { type = string }
+variable "vpc_id" { type = string }
 variable "private_subnet_ids" {
   type        = list(string)
   description = "3 subnets, one per AZ"
@@ -16,8 +16,8 @@ variable "private_subnet_ids" {
     error_message = "Patroni cluster requires exactly 3 subnets (one per AZ)."
   }
 }
-variable "kms_key_arn"          { type = string }
-variable "wal_archive_bucket"   { type = string }
+variable "kms_key_arn" { type = string }
+variable "wal_archive_bucket" { type = string }
 variable "instance_type" {
   type    = string
   default = "r7g.large"
@@ -47,7 +47,7 @@ locals {
   cluster_id = "medbrains-${var.environment}-${var.region}-pg"
   # AWS LB / target group names cap at 32 chars. cluster_id is too long once
   # we append `-writer-tg` / `-haproxy`, so use a shorter prefix that drops region.
-  lb_prefix  = "medbrains-${var.environment}-pg"
+  lb_prefix = "medbrains-${var.environment}-pg"
 }
 
 # Custom AMI — built by Packer in infra/packer/postgres-bottlerocket/.
@@ -62,10 +62,10 @@ data "aws_ami" "postgres" {
   }
 }
 
-  # etcd binary is baked into the same Packer AMI (see postgres.pkr.hcl
-  # Step 1 — `etcd` and `etcdctl` installed to /usr/local/bin). We reuse
-  # data.aws_ami.postgres for etcd nodes; the systemd unit selects the
-  # right service via cloud-init tag dispatch.
+# etcd binary is baked into the same Packer AMI (see postgres.pkr.hcl
+# Step 1 — `etcd` and `etcdctl` installed to /usr/local/bin). We reuse
+# data.aws_ami.postgres for etcd nodes; the systemd unit selects the
+# right service via cloud-init tag dispatch.
 
 # ── Security groups ────────────────────────────────────────────────
 
@@ -223,13 +223,13 @@ resource "aws_instance" "pg" {
 
   # Cloud-init reads these tags + writes the patroni.yml + pgBackRest config
   tags = {
-    Name                  = "${local.cluster_id}-pg-${count.index + 1}"
-    medbrains-pg-role     = "leader-candidate"
-    medbrains-pg-cluster  = local.cluster_id
-    medbrains-pg-node-id  = "pg-${count.index + 1}"
-    medbrains-etcd-peers  = join(",", aws_instance.etcd[*].private_ip)
-    medbrains-wal-bucket  = var.wal_archive_bucket
-    medbrains-sync-rep    = var.synchronous_replication ? "true" : "false"
+    Name                 = "${local.cluster_id}-pg-${count.index + 1}"
+    medbrains-pg-role    = "leader-candidate"
+    medbrains-pg-cluster = local.cluster_id
+    medbrains-pg-node-id = "pg-${count.index + 1}"
+    medbrains-etcd-peers = join(",", aws_instance.etcd[*].private_ip)
+    medbrains-wal-bucket = var.wal_archive_bucket
+    medbrains-sync-rep   = var.synchronous_replication ? "true" : "false"
   }
 
   root_block_device {
@@ -241,13 +241,13 @@ resource "aws_instance" "pg" {
 
   # PG data on a dedicated EBS volume so root upgrades don't touch data
   ebs_block_device {
-    device_name = "/dev/xvdf"
-    volume_type = "gp3"
-    volume_size = 200
-    iops        = 12000
-    throughput  = 250
-    encrypted   = true
-    kms_key_id  = var.kms_key_arn
+    device_name           = "/dev/xvdf"
+    volume_type           = "gp3"
+    volume_size           = 200
+    iops                  = 12000
+    throughput            = 250
+    encrypted             = true
+    kms_key_id            = var.kms_key_arn
     delete_on_termination = false
   }
 
@@ -260,11 +260,11 @@ resource "aws_instance" "pg" {
 
 resource "aws_instance" "etcd" {
   count                  = 3
-  ami                    = data.aws_ami.postgres.id  # same AMI; etcd binary baked in
+  ami                    = data.aws_ami.postgres.id # same AMI; etcd binary baked in
   instance_type          = var.etcd_instance_type
   subnet_id              = var.private_subnet_ids[count.index]
   vpc_security_group_ids = [aws_security_group.etcd.id]
-  iam_instance_profile   = aws_iam_instance_profile.pg.name  # SSM agent access
+  iam_instance_profile   = aws_iam_instance_profile.pg.name # SSM agent access
   depends_on             = [aws_iam_role_policy_attachment.pg_ssm]
   tags = {
     Name                 = "${local.cluster_id}-etcd-${count.index + 1}"

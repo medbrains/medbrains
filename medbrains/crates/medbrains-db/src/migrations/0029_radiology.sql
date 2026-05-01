@@ -331,7 +331,7 @@ ALTER TABLE ONLY public.radiology_share_links
 -- Name: idx_dicom_studies_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dicom_studies_order ON public.radiology_dicom_studies USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_dicom_studies_order ON public.radiology_dicom_studies USING btree (order_id);
 
 
 
@@ -339,7 +339,7 @@ CREATE INDEX idx_dicom_studies_order ON public.radiology_dicom_studies USING btr
 -- Name: idx_dicom_studies_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dicom_studies_patient ON public.radiology_dicom_studies USING btree (patient_id, study_date DESC);
+CREATE INDEX IF NOT EXISTS idx_dicom_studies_patient ON public.radiology_dicom_studies USING btree (patient_id, study_date DESC);
 
 
 
@@ -347,7 +347,7 @@ CREATE INDEX idx_dicom_studies_patient ON public.radiology_dicom_studies USING b
 -- Name: idx_dosimetry_staff; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dosimetry_staff ON public.radiology_dosimetry_records USING btree (staff_id, monitoring_period_end DESC);
+CREATE INDEX IF NOT EXISTS idx_dosimetry_staff ON public.radiology_dosimetry_records USING btree (staff_id, monitoring_period_end DESC);
 
 
 
@@ -355,7 +355,7 @@ CREATE INDEX idx_dosimetry_staff ON public.radiology_dosimetry_records USING btr
 -- Name: idx_nuclear_med_admin_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nuclear_med_admin_patient ON public.nuclear_med_administrations USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_nuclear_med_admin_patient ON public.nuclear_med_administrations USING btree (tenant_id, patient_id);
 
 
 
@@ -363,7 +363,7 @@ CREATE INDEX idx_nuclear_med_admin_patient ON public.nuclear_med_administrations
 -- Name: idx_nuclear_med_admin_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nuclear_med_admin_source ON public.nuclear_med_administrations USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_nuclear_med_admin_source ON public.nuclear_med_administrations USING btree (source_id);
 
 
 
@@ -371,7 +371,7 @@ CREATE INDEX idx_nuclear_med_admin_source ON public.nuclear_med_administrations 
 -- Name: idx_nuclear_med_admin_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nuclear_med_admin_tenant ON public.nuclear_med_administrations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nuclear_med_admin_tenant ON public.nuclear_med_administrations USING btree (tenant_id);
 
 
 
@@ -379,7 +379,7 @@ CREATE INDEX idx_nuclear_med_admin_tenant ON public.nuclear_med_administrations 
 -- Name: idx_nuclear_med_sources_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nuclear_med_sources_active ON public.nuclear_med_sources USING btree (tenant_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_nuclear_med_sources_active ON public.nuclear_med_sources USING btree (tenant_id, is_active) WHERE (is_active = true);
 
 
 
@@ -387,7 +387,7 @@ CREATE INDEX idx_nuclear_med_sources_active ON public.nuclear_med_sources USING 
 -- Name: idx_nuclear_med_sources_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_nuclear_med_sources_tenant ON public.nuclear_med_sources USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nuclear_med_sources_tenant ON public.nuclear_med_sources USING btree (tenant_id);
 
 
 
@@ -395,7 +395,7 @@ CREATE INDEX idx_nuclear_med_sources_tenant ON public.nuclear_med_sources USING 
 -- Name: idx_radiation_dose_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiation_dose_order ON public.radiation_dose_records USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_radiation_dose_order ON public.radiation_dose_records USING btree (order_id);
 
 
 
@@ -403,7 +403,7 @@ CREATE INDEX idx_radiation_dose_order ON public.radiation_dose_records USING btr
 -- Name: idx_radiation_dose_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiation_dose_patient ON public.radiation_dose_records USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_radiation_dose_patient ON public.radiation_dose_records USING btree (patient_id);
 
 
 
@@ -411,7 +411,7 @@ CREATE INDEX idx_radiation_dose_patient ON public.radiation_dose_records USING b
 -- Name: idx_radiation_dose_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiation_dose_tenant ON public.radiation_dose_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_radiation_dose_tenant ON public.radiation_dose_records USING btree (tenant_id);
 
 
 
@@ -419,7 +419,7 @@ CREATE INDEX idx_radiation_dose_tenant ON public.radiation_dose_records USING bt
 -- Name: idx_radiology_modalities_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_modalities_tenant ON public.radiology_modalities USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_modalities_tenant ON public.radiology_modalities USING btree (tenant_id);
 
 
 
@@ -427,7 +427,7 @@ CREATE INDEX idx_radiology_modalities_tenant ON public.radiology_modalities USIN
 -- Name: idx_radiology_orders_modality; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_orders_modality ON public.radiology_orders USING btree (modality_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_orders_modality ON public.radiology_orders USING btree (modality_id);
 
 
 
@@ -435,7 +435,7 @@ CREATE INDEX idx_radiology_orders_modality ON public.radiology_orders USING btre
 -- Name: idx_radiology_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_orders_patient ON public.radiology_orders USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_orders_patient ON public.radiology_orders USING btree (patient_id);
 
 
 
@@ -443,7 +443,7 @@ CREATE INDEX idx_radiology_orders_patient ON public.radiology_orders USING btree
 -- Name: idx_radiology_orders_scheduled; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_orders_scheduled ON public.radiology_orders USING btree (scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_radiology_orders_scheduled ON public.radiology_orders USING btree (scheduled_at);
 
 
 
@@ -451,7 +451,7 @@ CREATE INDEX idx_radiology_orders_scheduled ON public.radiology_orders USING btr
 -- Name: idx_radiology_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_orders_status ON public.radiology_orders USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_radiology_orders_status ON public.radiology_orders USING btree (status);
 
 
 
@@ -459,7 +459,7 @@ CREATE INDEX idx_radiology_orders_status ON public.radiology_orders USING btree 
 -- Name: idx_radiology_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_orders_tenant ON public.radiology_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_orders_tenant ON public.radiology_orders USING btree (tenant_id);
 
 
 
@@ -467,7 +467,7 @@ CREATE INDEX idx_radiology_orders_tenant ON public.radiology_orders USING btree 
 -- Name: idx_radiology_reports_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_reports_order ON public.radiology_reports USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_reports_order ON public.radiology_reports USING btree (order_id);
 
 
 
@@ -475,7 +475,7 @@ CREATE INDEX idx_radiology_reports_order ON public.radiology_reports USING btree
 -- Name: idx_radiology_reports_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_reports_status ON public.radiology_reports USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_radiology_reports_status ON public.radiology_reports USING btree (status);
 
 
 
@@ -483,7 +483,7 @@ CREATE INDEX idx_radiology_reports_status ON public.radiology_reports USING btre
 -- Name: idx_radiology_reports_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_radiology_reports_tenant ON public.radiology_reports USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_radiology_reports_tenant ON public.radiology_reports USING btree (tenant_id);
 
 
 
@@ -491,7 +491,7 @@ CREATE INDEX idx_radiology_reports_tenant ON public.radiology_reports USING btre
 -- Name: idx_share_links_study; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_share_links_study ON public.radiology_share_links USING btree (study_id);
+CREATE INDEX IF NOT EXISTS idx_share_links_study ON public.radiology_share_links USING btree (study_id);
 
 
 
@@ -499,7 +499,7 @@ CREATE INDEX idx_share_links_study ON public.radiology_share_links USING btree (
 -- Name: idx_share_links_token; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_share_links_token ON public.radiology_share_links USING btree (token);
+CREATE INDEX IF NOT EXISTS idx_share_links_token ON public.radiology_share_links USING btree (token);
 
 
 

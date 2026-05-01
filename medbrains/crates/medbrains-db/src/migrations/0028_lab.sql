@@ -1137,7 +1137,7 @@ ALTER TABLE ONLY public.lab_test_panels
 -- Name: idx_critical_value_rules_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_critical_value_rules_tenant ON public.critical_value_rules USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_critical_value_rules_tenant ON public.critical_value_rules USING btree (tenant_id);
 
 
 
@@ -1145,7 +1145,7 @@ CREATE INDEX idx_critical_value_rules_tenant ON public.critical_value_rules USIN
 -- Name: idx_critical_value_rules_test; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_critical_value_rules_test ON public.critical_value_rules USING btree (tenant_id, test_code);
+CREATE INDEX IF NOT EXISTS idx_critical_value_rules_test ON public.critical_value_rules USING btree (tenant_id, test_code);
 
 
 
@@ -1153,7 +1153,7 @@ CREATE INDEX idx_critical_value_rules_test ON public.critical_value_rules USING 
 -- Name: idx_histopath_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_histopath_order ON public.histopath_results USING btree (tenant_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_histopath_order ON public.histopath_results USING btree (tenant_id, order_id);
 
 
 
@@ -1161,7 +1161,7 @@ CREATE INDEX idx_histopath_order ON public.histopath_results USING btree (tenant
 -- Name: idx_lab_b2b_rates_client; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_b2b_rates_client ON public.lab_b2b_rates USING btree (tenant_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_lab_b2b_rates_client ON public.lab_b2b_rates USING btree (tenant_id, client_id);
 
 
 
@@ -1169,7 +1169,7 @@ CREATE INDEX idx_lab_b2b_rates_client ON public.lab_b2b_rates USING btree (tenan
 -- Name: idx_lab_critical_alerts_unack; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_critical_alerts_unack ON public.lab_critical_alerts USING btree (tenant_id, acknowledged_at) WHERE (acknowledged_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_lab_critical_alerts_unack ON public.lab_critical_alerts USING btree (tenant_id, acknowledged_at) WHERE (acknowledged_at IS NULL);
 
 
 
@@ -1177,7 +1177,7 @@ CREATE INDEX idx_lab_critical_alerts_unack ON public.lab_critical_alerts USING b
 -- Name: idx_lab_cytology_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_cytology_order ON public.lab_cytology_reports USING btree (tenant_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_cytology_order ON public.lab_cytology_reports USING btree (tenant_id, order_id);
 
 
 
@@ -1185,7 +1185,7 @@ CREATE INDEX idx_lab_cytology_order ON public.lab_cytology_reports USING btree (
 -- Name: idx_lab_eqas_test_cycle; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_eqas_test_cycle ON public.lab_eqas_results USING btree (tenant_id, test_id, cycle);
+CREATE INDEX IF NOT EXISTS idx_lab_eqas_test_cycle ON public.lab_eqas_results USING btree (tenant_id, test_id, cycle);
 
 
 
@@ -1193,7 +1193,7 @@ CREATE INDEX idx_lab_eqas_test_cycle ON public.lab_eqas_results USING btree (ten
 -- Name: idx_lab_histopath_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_histopath_order ON public.lab_histopath_reports USING btree (tenant_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_histopath_order ON public.lab_histopath_reports USING btree (tenant_id, order_id);
 
 
 
@@ -1201,7 +1201,7 @@ CREATE INDEX idx_lab_histopath_order ON public.lab_histopath_reports USING btree
 -- Name: idx_lab_home_collections_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_home_collections_date ON public.lab_home_collections USING btree (tenant_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_lab_home_collections_date ON public.lab_home_collections USING btree (tenant_id, scheduled_date);
 
 
 
@@ -1209,7 +1209,7 @@ CREATE INDEX idx_lab_home_collections_date ON public.lab_home_collections USING 
 -- Name: idx_lab_home_collections_tenant_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_home_collections_tenant_status ON public.lab_home_collections USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_lab_home_collections_tenant_status ON public.lab_home_collections USING btree (tenant_id, status);
 
 
 
@@ -1217,7 +1217,7 @@ CREATE INDEX idx_lab_home_collections_tenant_status ON public.lab_home_collectio
 -- Name: idx_lab_molecular_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_molecular_order ON public.lab_molecular_reports USING btree (tenant_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_molecular_order ON public.lab_molecular_reports USING btree (tenant_id, order_id);
 
 
 
@@ -1225,7 +1225,7 @@ CREATE INDEX idx_lab_molecular_order ON public.lab_molecular_reports USING btree
 -- Name: idx_lab_nabl_documents_current; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_nabl_documents_current ON public.lab_nabl_documents USING btree (tenant_id, is_current);
+CREATE INDEX IF NOT EXISTS idx_lab_nabl_documents_current ON public.lab_nabl_documents USING btree (tenant_id, is_current);
 
 
 
@@ -1233,7 +1233,7 @@ CREATE INDEX idx_lab_nabl_documents_current ON public.lab_nabl_documents USING b
 -- Name: idx_lab_orders_barcode; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_barcode ON public.lab_orders USING btree (tenant_id, sample_barcode) WHERE (sample_barcode IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_barcode ON public.lab_orders USING btree (tenant_id, sample_barcode) WHERE (sample_barcode IS NOT NULL);
 
 
 
@@ -1241,7 +1241,7 @@ CREATE INDEX idx_lab_orders_barcode ON public.lab_orders USING btree (tenant_id,
 -- Name: idx_lab_orders_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_created_by ON public.lab_orders USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_created_by ON public.lab_orders USING btree (created_by);
 
 
 
@@ -1249,7 +1249,7 @@ CREATE INDEX idx_lab_orders_created_by ON public.lab_orders USING btree (created
 -- Name: idx_lab_orders_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_encounter ON public.lab_orders USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_encounter ON public.lab_orders USING btree (encounter_id);
 
 
 
@@ -1257,7 +1257,7 @@ CREATE INDEX idx_lab_orders_encounter ON public.lab_orders USING btree (encounte
 -- Name: idx_lab_orders_parent; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_parent ON public.lab_orders USING btree (parent_order_id) WHERE (parent_order_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_parent ON public.lab_orders USING btree (parent_order_id) WHERE (parent_order_id IS NOT NULL);
 
 
 
@@ -1265,7 +1265,7 @@ CREATE INDEX idx_lab_orders_parent ON public.lab_orders USING btree (parent_orde
 -- Name: idx_lab_orders_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_patient ON public.lab_orders USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_patient ON public.lab_orders USING btree (patient_id);
 
 
 
@@ -1273,7 +1273,7 @@ CREATE INDEX idx_lab_orders_patient ON public.lab_orders USING btree (patient_id
 -- Name: idx_lab_orders_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_status ON public.lab_orders USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_status ON public.lab_orders USING btree (tenant_id, status);
 
 
 
@@ -1281,7 +1281,7 @@ CREATE INDEX idx_lab_orders_status ON public.lab_orders USING btree (tenant_id, 
 -- Name: idx_lab_orders_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_orders_tenant ON public.lab_orders USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_tenant ON public.lab_orders USING btree (tenant_id);
 
 
 
@@ -1289,7 +1289,7 @@ CREATE INDEX idx_lab_orders_tenant ON public.lab_orders USING btree (tenant_id);
 -- Name: idx_lab_panel_tests_panel; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_panel_tests_panel ON public.lab_panel_tests USING btree (panel_id);
+CREATE INDEX IF NOT EXISTS idx_lab_panel_tests_panel ON public.lab_panel_tests USING btree (panel_id);
 
 
 
@@ -1297,7 +1297,7 @@ CREATE INDEX idx_lab_panel_tests_panel ON public.lab_panel_tests USING btree (pa
 -- Name: idx_lab_panel_tests_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_panel_tests_tenant ON public.lab_panel_tests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_panel_tests_tenant ON public.lab_panel_tests USING btree (tenant_id);
 
 
 
@@ -1305,7 +1305,7 @@ CREATE INDEX idx_lab_panel_tests_tenant ON public.lab_panel_tests USING btree (t
 -- Name: idx_lab_phlebotomy_queue_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_phlebotomy_queue_status ON public.lab_phlebotomy_queue USING btree (tenant_id, status, assigned_to);
+CREATE INDEX IF NOT EXISTS idx_lab_phlebotomy_queue_status ON public.lab_phlebotomy_queue USING btree (tenant_id, status, assigned_to);
 
 
 
@@ -1313,7 +1313,7 @@ CREATE INDEX idx_lab_phlebotomy_queue_status ON public.lab_phlebotomy_queue USIN
 -- Name: idx_lab_proficiency_test; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_proficiency_test ON public.lab_proficiency_tests USING btree (tenant_id, test_id);
+CREATE INDEX IF NOT EXISTS idx_lab_proficiency_test ON public.lab_proficiency_tests USING btree (tenant_id, test_id);
 
 
 
@@ -1321,7 +1321,7 @@ CREATE INDEX idx_lab_proficiency_test ON public.lab_proficiency_tests USING btre
 -- Name: idx_lab_qc_period; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_qc_period ON public.lab_qc_metrics USING btree (tenant_id, period, analyte);
+CREATE INDEX IF NOT EXISTS idx_lab_qc_period ON public.lab_qc_metrics USING btree (tenant_id, period, analyte);
 
 
 
@@ -1329,7 +1329,7 @@ CREATE INDEX idx_lab_qc_period ON public.lab_qc_metrics USING btree (tenant_id, 
 -- Name: idx_lab_qc_results_test_lot_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_qc_results_test_lot_date ON public.lab_qc_results USING btree (tenant_id, test_id, lot_id, run_date);
+CREATE INDEX IF NOT EXISTS idx_lab_qc_results_test_lot_date ON public.lab_qc_results USING btree (tenant_id, test_id, lot_id, run_date);
 
 
 
@@ -1337,7 +1337,7 @@ CREATE INDEX idx_lab_qc_results_test_lot_date ON public.lab_qc_results USING btr
 -- Name: idx_lab_reagent_lots_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_reagent_lots_expiry ON public.lab_reagent_lots USING btree (tenant_id, expiry_date);
+CREATE INDEX IF NOT EXISTS idx_lab_reagent_lots_expiry ON public.lab_reagent_lots USING btree (tenant_id, expiry_date);
 
 
 
@@ -1345,7 +1345,7 @@ CREATE INDEX idx_lab_reagent_lots_expiry ON public.lab_reagent_lots USING btree 
 -- Name: idx_lab_referral_doctors_phone; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_referral_doctors_phone ON public.lab_referral_doctors USING btree (phone);
+CREATE INDEX IF NOT EXISTS idx_lab_referral_doctors_phone ON public.lab_referral_doctors USING btree (phone);
 
 
 
@@ -1353,7 +1353,7 @@ CREATE INDEX idx_lab_referral_doctors_phone ON public.lab_referral_doctors USING
 -- Name: idx_lab_referral_doctors_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_referral_doctors_tenant ON public.lab_referral_doctors USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_referral_doctors_tenant ON public.lab_referral_doctors USING btree (tenant_id);
 
 
 
@@ -1361,7 +1361,7 @@ CREATE INDEX idx_lab_referral_doctors_tenant ON public.lab_referral_doctors USIN
 -- Name: idx_lab_referral_payouts_doctor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_referral_payouts_doctor ON public.lab_referral_payouts USING btree (referral_doctor_id);
+CREATE INDEX IF NOT EXISTS idx_lab_referral_payouts_doctor ON public.lab_referral_payouts USING btree (referral_doctor_id);
 
 
 
@@ -1369,7 +1369,7 @@ CREATE INDEX idx_lab_referral_payouts_doctor ON public.lab_referral_payouts USIN
 -- Name: idx_lab_referral_payouts_period; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_referral_payouts_period ON public.lab_referral_payouts USING btree (period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_lab_referral_payouts_period ON public.lab_referral_payouts USING btree (period_start, period_end);
 
 
 
@@ -1377,7 +1377,7 @@ CREATE INDEX idx_lab_referral_payouts_period ON public.lab_referral_payouts USIN
 -- Name: idx_lab_report_dispatches_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_report_dispatches_order ON public.lab_report_dispatches USING btree (tenant_id, order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_report_dispatches_order ON public.lab_report_dispatches USING btree (tenant_id, order_id);
 
 
 
@@ -1385,7 +1385,7 @@ CREATE INDEX idx_lab_report_dispatches_order ON public.lab_report_dispatches USI
 -- Name: idx_lab_results_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_order ON public.lab_results USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_results_order ON public.lab_results USING btree (order_id);
 
 
 
@@ -1393,7 +1393,7 @@ CREATE INDEX idx_lab_results_order ON public.lab_results USING btree (order_id);
 -- Name: idx_lab_sample_archive_barcode; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_archive_barcode ON public.lab_sample_archive USING btree (tenant_id, sample_barcode);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_archive_barcode ON public.lab_sample_archive USING btree (tenant_id, sample_barcode);
 
 
 
@@ -1401,7 +1401,7 @@ CREATE INDEX idx_lab_sample_archive_barcode ON public.lab_sample_archive USING b
 -- Name: idx_lab_sample_archive_tenant_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_archive_tenant_status ON public.lab_sample_archive USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_archive_tenant_status ON public.lab_sample_archive USING btree (tenant_id, status);
 
 
 
@@ -1409,7 +1409,7 @@ CREATE INDEX idx_lab_sample_archive_tenant_status ON public.lab_sample_archive U
 -- Name: idx_lab_sample_rejections_order; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_rejections_order ON public.lab_sample_rejections USING btree (order_id);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_rejections_order ON public.lab_sample_rejections USING btree (order_id);
 
 
 
@@ -1417,7 +1417,7 @@ CREATE INDEX idx_lab_sample_rejections_order ON public.lab_sample_rejections USI
 -- Name: idx_lab_sample_rejections_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_rejections_tenant ON public.lab_sample_rejections USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_rejections_tenant ON public.lab_sample_rejections USING btree (tenant_id);
 
 
 
@@ -1425,7 +1425,7 @@ CREATE INDEX idx_lab_sample_rejections_tenant ON public.lab_sample_rejections US
 -- Name: idx_lab_sample_routes_dest; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_routes_dest ON public.lab_sample_routes USING btree (dest_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_routes_dest ON public.lab_sample_routes USING btree (dest_tenant_id);
 
 
 
@@ -1433,7 +1433,7 @@ CREATE INDEX idx_lab_sample_routes_dest ON public.lab_sample_routes USING btree 
 -- Name: idx_lab_sample_routes_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_routes_source ON public.lab_sample_routes USING btree (source_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_routes_source ON public.lab_sample_routes USING btree (source_tenant_id);
 
 
 
@@ -1441,7 +1441,7 @@ CREATE INDEX idx_lab_sample_routes_source ON public.lab_sample_routes USING btre
 -- Name: idx_lab_sample_routes_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_sample_routes_status ON public.lab_sample_routes USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_lab_sample_routes_status ON public.lab_sample_routes USING btree (status);
 
 
 
@@ -1449,7 +1449,7 @@ CREATE INDEX idx_lab_sample_routes_status ON public.lab_sample_routes USING btre
 -- Name: idx_lab_test_catalog_loinc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_test_catalog_loinc ON public.lab_test_catalog USING btree (loinc_code) WHERE (loinc_code IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_lab_test_catalog_loinc ON public.lab_test_catalog USING btree (loinc_code) WHERE (loinc_code IS NOT NULL);
 
 
 
@@ -1457,7 +1457,7 @@ CREATE INDEX idx_lab_test_catalog_loinc ON public.lab_test_catalog USING btree (
 -- Name: idx_lab_test_catalog_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_test_catalog_tenant ON public.lab_test_catalog USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_test_catalog_tenant ON public.lab_test_catalog USING btree (tenant_id);
 
 
 
@@ -1465,7 +1465,7 @@ CREATE INDEX idx_lab_test_catalog_tenant ON public.lab_test_catalog USING btree 
 -- Name: idx_lab_test_panels_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_test_panels_tenant ON public.lab_test_panels USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lab_test_panels_tenant ON public.lab_test_panels USING btree (tenant_id);
 
 
 

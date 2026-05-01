@@ -172,7 +172,7 @@ ALTER TABLE ONLY public.geo_towns
 -- Name: idx_geo_districts_state; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_geo_districts_state ON public.geo_districts USING btree (state_id);
+CREATE INDEX IF NOT EXISTS idx_geo_districts_state ON public.geo_districts USING btree (state_id);
 
 
 
@@ -180,7 +180,7 @@ CREATE INDEX idx_geo_districts_state ON public.geo_districts USING btree (state_
 -- Name: idx_geo_states_country; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_geo_states_country ON public.geo_states USING btree (country_id);
+CREATE INDEX IF NOT EXISTS idx_geo_states_country ON public.geo_states USING btree (country_id);
 
 
 
@@ -188,7 +188,7 @@ CREATE INDEX idx_geo_states_country ON public.geo_states USING btree (country_id
 -- Name: idx_geo_subdistricts_district; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_geo_subdistricts_district ON public.geo_subdistricts USING btree (district_id);
+CREATE INDEX IF NOT EXISTS idx_geo_subdistricts_district ON public.geo_subdistricts USING btree (district_id);
 
 
 
@@ -196,7 +196,7 @@ CREATE INDEX idx_geo_subdistricts_district ON public.geo_subdistricts USING btre
 -- Name: idx_geo_towns_pincode; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_geo_towns_pincode ON public.geo_towns USING btree (pincode) WHERE (pincode IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_geo_towns_pincode ON public.geo_towns USING btree (pincode) WHERE (pincode IS NOT NULL);
 
 
 
@@ -204,7 +204,7 @@ CREATE INDEX idx_geo_towns_pincode ON public.geo_towns USING btree (pincode) WHE
 -- Name: idx_geo_towns_subdistrict; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_geo_towns_subdistrict ON public.geo_towns USING btree (subdistrict_id);
+CREATE INDEX IF NOT EXISTS idx_geo_towns_subdistrict ON public.geo_towns USING btree (subdistrict_id);
 
 
 

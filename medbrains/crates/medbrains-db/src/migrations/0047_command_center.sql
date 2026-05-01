@@ -146,7 +146,7 @@ ALTER TABLE ONLY public.eod_digest_subscriptions
 -- Name: idx_dept_alert_thresholds_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dept_alert_thresholds_dept ON public.department_alert_thresholds USING btree (tenant_id, department_id) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_dept_alert_thresholds_dept ON public.department_alert_thresholds USING btree (tenant_id, department_id) WHERE (is_active = true);
 
 
 
@@ -154,7 +154,7 @@ CREATE INDEX idx_dept_alert_thresholds_dept ON public.department_alert_threshold
 -- Name: idx_dept_alert_thresholds_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dept_alert_thresholds_tenant ON public.department_alert_thresholds USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dept_alert_thresholds_tenant ON public.department_alert_thresholds USING btree (tenant_id);
 
 
 
@@ -162,7 +162,7 @@ CREATE INDEX idx_dept_alert_thresholds_tenant ON public.department_alert_thresho
 -- Name: idx_dept_alerts_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dept_alerts_active ON public.department_alerts USING btree (tenant_id, department_id) WHERE ((acknowledged_at IS NULL) AND (resolved_at IS NULL));
+CREATE INDEX IF NOT EXISTS idx_dept_alerts_active ON public.department_alerts USING btree (tenant_id, department_id) WHERE ((acknowledged_at IS NULL) AND (resolved_at IS NULL));
 
 
 
@@ -170,7 +170,7 @@ CREATE INDEX idx_dept_alerts_active ON public.department_alerts USING btree (ten
 -- Name: idx_dept_alerts_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dept_alerts_created ON public.department_alerts USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dept_alerts_created ON public.department_alerts USING btree (tenant_id, created_at DESC);
 
 
 
@@ -178,7 +178,7 @@ CREATE INDEX idx_dept_alerts_created ON public.department_alerts USING btree (te
 -- Name: idx_dept_alerts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dept_alerts_tenant ON public.department_alerts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dept_alerts_tenant ON public.department_alerts USING btree (tenant_id);
 
 
 
@@ -186,7 +186,7 @@ CREATE INDEX idx_dept_alerts_tenant ON public.department_alerts USING btree (ten
 -- Name: idx_eod_digest_history_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_eod_digest_history_user ON public.eod_digest_history USING btree (tenant_id, user_id, digest_date DESC);
+CREATE INDEX IF NOT EXISTS idx_eod_digest_history_user ON public.eod_digest_history USING btree (tenant_id, user_id, digest_date DESC);
 
 
 

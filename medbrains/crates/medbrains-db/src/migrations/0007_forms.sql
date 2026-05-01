@@ -30,6 +30,6 @@ ALTER TABLE ONLY public.form_fields
 -- Name: idx_form_fields_form; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_form_fields_form ON public.form_fields USING btree (form_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_form_fields_form ON public.form_fields USING btree (form_id, sort_order);
 
 

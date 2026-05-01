@@ -74,7 +74,7 @@ ALTER TABLE ONLY public.tenant_settings
 -- Name: idx_tenant_db_topology_deploy_mode; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tenant_db_topology_deploy_mode ON public.tenant_db_topology USING btree (deploy_mode);
+CREATE INDEX IF NOT EXISTS idx_tenant_db_topology_deploy_mode ON public.tenant_db_topology USING btree (deploy_mode);
 
 
 
@@ -82,7 +82,7 @@ CREATE INDEX idx_tenant_db_topology_deploy_mode ON public.tenant_db_topology USI
 -- Name: idx_tenant_settings_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tenant_settings_category ON public.tenant_settings USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_tenant_settings_category ON public.tenant_settings USING btree (tenant_id, category);
 
 
 
@@ -90,7 +90,7 @@ CREATE INDEX idx_tenant_settings_category ON public.tenant_settings USING btree 
 -- Name: idx_tenant_settings_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_tenant_settings_tenant ON public.tenant_settings USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_settings_tenant ON public.tenant_settings USING btree (tenant_id);
 
 
 

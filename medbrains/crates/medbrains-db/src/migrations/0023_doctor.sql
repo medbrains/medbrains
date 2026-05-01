@@ -636,7 +636,7 @@ ALTER TABLE ONLY public.pg_logbook_entries
 -- Name: doctor_coverage_assignments_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_coverage_assignments_active_idx ON public.doctor_coverage_assignments USING btree (tenant_id, absent_doctor_id, start_at, end_at);
+CREATE INDEX IF NOT EXISTS doctor_coverage_assignments_active_idx ON public.doctor_coverage_assignments USING btree (tenant_id, absent_doctor_id, start_at, end_at);
 
 
 
@@ -644,7 +644,7 @@ CREATE INDEX doctor_coverage_assignments_active_idx ON public.doctor_coverage_as
 -- Name: doctor_coverage_assignments_covering_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_coverage_assignments_covering_idx ON public.doctor_coverage_assignments USING btree (tenant_id, covering_doctor_id, start_at, end_at);
+CREATE INDEX IF NOT EXISTS doctor_coverage_assignments_covering_idx ON public.doctor_coverage_assignments USING btree (tenant_id, covering_doctor_id, start_at, end_at);
 
 
 
@@ -652,7 +652,7 @@ CREATE INDEX doctor_coverage_assignments_covering_idx ON public.doctor_coverage_
 -- Name: doctor_package_inclusions_pkg_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_package_inclusions_pkg_idx ON public.doctor_package_inclusions USING btree (tenant_id, package_id, sort_order);
+CREATE INDEX IF NOT EXISTS doctor_package_inclusions_pkg_idx ON public.doctor_package_inclusions USING btree (tenant_id, package_id, sort_order);
 
 
 
@@ -660,7 +660,7 @@ CREATE INDEX doctor_package_inclusions_pkg_idx ON public.doctor_package_inclusio
 -- Name: doctor_packages_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_packages_active_idx ON public.doctor_packages USING btree (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS doctor_packages_active_idx ON public.doctor_packages USING btree (tenant_id, is_active);
 
 
 
@@ -668,7 +668,7 @@ CREATE INDEX doctor_packages_active_idx ON public.doctor_packages USING btree (t
 -- Name: doctor_profiles_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_profiles_active_idx ON public.doctor_profiles USING btree (tenant_id, is_active) WHERE is_active;
+CREATE INDEX IF NOT EXISTS doctor_profiles_active_idx ON public.doctor_profiles USING btree (tenant_id, is_active) WHERE is_active;
 
 
 
@@ -676,7 +676,7 @@ CREATE INDEX doctor_profiles_active_idx ON public.doctor_profiles USING btree (t
 -- Name: doctor_profiles_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_profiles_user_idx ON public.doctor_profiles USING btree (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS doctor_profiles_user_idx ON public.doctor_profiles USING btree (tenant_id, user_id);
 
 
 
@@ -684,7 +684,7 @@ CREATE INDEX doctor_profiles_user_idx ON public.doctor_profiles USING btree (ten
 -- Name: doctor_signature_credentials_default_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX doctor_signature_credentials_default_idx ON public.doctor_signature_credentials USING btree (tenant_id, doctor_user_id) WHERE (is_default AND (revoked_at IS NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS doctor_signature_credentials_default_idx ON public.doctor_signature_credentials USING btree (tenant_id, doctor_user_id) WHERE (is_default AND (revoked_at IS NULL));
 
 
 
@@ -692,7 +692,7 @@ CREATE UNIQUE INDEX doctor_signature_credentials_default_idx ON public.doctor_si
 -- Name: doctor_signature_credentials_doctor_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX doctor_signature_credentials_doctor_idx ON public.doctor_signature_credentials USING btree (tenant_id, doctor_user_id) WHERE (revoked_at IS NULL);
+CREATE INDEX IF NOT EXISTS doctor_signature_credentials_doctor_idx ON public.doctor_signature_credentials USING btree (tenant_id, doctor_user_id) WHERE (revoked_at IS NULL);
 
 
 
@@ -700,7 +700,7 @@ CREATE INDEX doctor_signature_credentials_doctor_idx ON public.doctor_signature_
 -- Name: idx_case_assignments_manager; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_case_assignments_manager ON public.case_assignments USING btree (tenant_id, case_manager_id, status);
+CREATE INDEX IF NOT EXISTS idx_case_assignments_manager ON public.case_assignments USING btree (tenant_id, case_manager_id, status);
 
 
 
@@ -708,7 +708,7 @@ CREATE INDEX idx_case_assignments_manager ON public.case_assignments USING btree
 -- Name: idx_case_assignments_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_case_assignments_status ON public.case_assignments USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_case_assignments_status ON public.case_assignments USING btree (tenant_id, status);
 
 
 
@@ -716,7 +716,7 @@ CREATE INDEX idx_case_assignments_status ON public.case_assignments USING btree 
 -- Name: idx_case_referrals_case; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_case_referrals_case ON public.case_referrals USING btree (tenant_id, case_assignment_id);
+CREATE INDEX IF NOT EXISTS idx_case_referrals_case ON public.case_referrals USING btree (tenant_id, case_assignment_id);
 
 
 
@@ -724,7 +724,7 @@ CREATE INDEX idx_case_referrals_case ON public.case_referrals USING btree (tenan
 -- Name: idx_co_signature_approver; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_co_signature_approver ON public.co_signature_requests USING btree (tenant_id, approver_id, status);
+CREATE INDEX IF NOT EXISTS idx_co_signature_approver ON public.co_signature_requests USING btree (tenant_id, approver_id, status);
 
 
 
@@ -732,7 +732,7 @@ CREATE INDEX idx_co_signature_approver ON public.co_signature_requests USING btr
 -- Name: idx_co_signature_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_co_signature_tenant ON public.co_signature_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_co_signature_tenant ON public.co_signature_requests USING btree (tenant_id);
 
 
 
@@ -740,7 +740,7 @@ CREATE INDEX idx_co_signature_tenant ON public.co_signature_requests USING btree
 -- Name: idx_dockets_doctor_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dockets_doctor_date ON public.doctor_dockets USING btree (doctor_id, docket_date DESC);
+CREATE INDEX IF NOT EXISTS idx_dockets_doctor_date ON public.doctor_dockets USING btree (doctor_id, docket_date DESC);
 
 
 
@@ -748,7 +748,7 @@ CREATE INDEX idx_dockets_doctor_date ON public.doctor_dockets USING btree (docto
 -- Name: idx_dockets_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dockets_tenant ON public.doctor_dockets USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dockets_tenant ON public.doctor_dockets USING btree (tenant_id);
 
 
 
@@ -756,7 +756,7 @@ CREATE INDEX idx_dockets_tenant ON public.doctor_dockets USING btree (tenant_id)
 -- Name: idx_doctor_incentive_doc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_incentive_doc ON public.doctor_incentive_assignments USING btree (tenant_id, doctor_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_incentive_doc ON public.doctor_incentive_assignments USING btree (tenant_id, doctor_id);
 
 
 
@@ -764,7 +764,7 @@ CREATE INDEX idx_doctor_incentive_doc ON public.doctor_incentive_assignments USI
 -- Name: idx_doctor_rotation_doctor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_rotation_doctor ON public.doctor_rotation_schedules USING btree (doctor_id, schedule_date);
+CREATE INDEX IF NOT EXISTS idx_doctor_rotation_doctor ON public.doctor_rotation_schedules USING btree (doctor_id, schedule_date);
 
 
 
@@ -772,7 +772,7 @@ CREATE INDEX idx_doctor_rotation_doctor ON public.doctor_rotation_schedules USIN
 -- Name: idx_doctor_rotation_group; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_rotation_group ON public.doctor_rotation_schedules USING btree (group_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_rotation_group ON public.doctor_rotation_schedules USING btree (group_id);
 
 
 
@@ -780,7 +780,7 @@ CREATE INDEX idx_doctor_rotation_group ON public.doctor_rotation_schedules USING
 -- Name: idx_doctor_rotation_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_rotation_tenant ON public.doctor_rotation_schedules USING btree (tenant_id, schedule_date);
+CREATE INDEX IF NOT EXISTS idx_doctor_rotation_tenant ON public.doctor_rotation_schedules USING btree (tenant_id, schedule_date);
 
 
 
@@ -788,7 +788,7 @@ CREATE INDEX idx_doctor_rotation_tenant ON public.doctor_rotation_schedules USIN
 -- Name: idx_doctor_schedule_exceptions_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_schedule_exceptions_date ON public.doctor_schedule_exceptions USING btree (tenant_id, doctor_id, exception_date);
+CREATE INDEX IF NOT EXISTS idx_doctor_schedule_exceptions_date ON public.doctor_schedule_exceptions USING btree (tenant_id, doctor_id, exception_date);
 
 
 
@@ -796,7 +796,7 @@ CREATE INDEX idx_doctor_schedule_exceptions_date ON public.doctor_schedule_excep
 -- Name: idx_doctor_schedules_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_schedules_dept ON public.doctor_schedules USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_schedules_dept ON public.doctor_schedules USING btree (tenant_id, department_id);
 
 
 
@@ -804,7 +804,7 @@ CREATE INDEX idx_doctor_schedules_dept ON public.doctor_schedules USING btree (t
 -- Name: idx_doctor_schedules_doctor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_doctor_schedules_doctor ON public.doctor_schedules USING btree (tenant_id, doctor_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_schedules_doctor ON public.doctor_schedules USING btree (tenant_id, doctor_id);
 
 
 
@@ -812,7 +812,7 @@ CREATE INDEX idx_doctor_schedules_doctor ON public.doctor_schedules USING btree 
 -- Name: idx_incentive_calcs_doctor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_incentive_calcs_doctor ON public.incentive_calculations USING btree (tenant_id, doctor_id, period_start DESC);
+CREATE INDEX IF NOT EXISTS idx_incentive_calcs_doctor ON public.incentive_calculations USING btree (tenant_id, doctor_id, period_start DESC);
 
 
 
@@ -820,7 +820,7 @@ CREATE INDEX idx_incentive_calcs_doctor ON public.incentive_calculations USING b
 -- Name: idx_incentive_rules_plan; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_incentive_rules_plan ON public.incentive_plan_rules USING btree (plan_id);
+CREATE INDEX IF NOT EXISTS idx_incentive_rules_plan ON public.incentive_plan_rules USING btree (plan_id);
 
 
 
@@ -828,7 +828,7 @@ CREATE INDEX idx_incentive_rules_plan ON public.incentive_plan_rules USING btree
 -- Name: idx_pg_logbook_supervisor; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pg_logbook_supervisor ON public.pg_logbook_entries USING btree (tenant_id, supervisor_id) WHERE (supervisor_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_pg_logbook_supervisor ON public.pg_logbook_entries USING btree (tenant_id, supervisor_id) WHERE (supervisor_id IS NOT NULL);
 
 
 
@@ -836,7 +836,7 @@ CREATE INDEX idx_pg_logbook_supervisor ON public.pg_logbook_entries USING btree 
 -- Name: idx_pg_logbook_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pg_logbook_tenant ON public.pg_logbook_entries USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pg_logbook_tenant ON public.pg_logbook_entries USING btree (tenant_id);
 
 
 
@@ -844,7 +844,7 @@ CREATE INDEX idx_pg_logbook_tenant ON public.pg_logbook_entries USING btree (ten
 -- Name: idx_pg_logbook_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pg_logbook_user ON public.pg_logbook_entries USING btree (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_pg_logbook_user ON public.pg_logbook_entries USING btree (tenant_id, user_id);
 
 
 

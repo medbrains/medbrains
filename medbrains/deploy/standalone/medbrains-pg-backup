@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-pg-backup — invoked by the systemd timer.
+# Streams pg_dump (custom format, gzipped) directly to S3.
+# Object Lock + versioning on the bucket make these tamper-proof for
+# 5 years (configured in terraform).
+
+set -euo pipefail
+
+: "${BACKUP_BUCKET:?BACKUP_BUCKET must be set in /etc/medbrains/env}"
+: "${POSTGRES_USER:?POSTGRES_USER must be in /etc/medbrains/.compose-env}"
+: "${POSTGRES_DB:?POSTGRES_DB must be in /etc/medbrains/.compose-env}"
+
+DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+HOSTNAME_TAG="$(hostname)"
+KEY="pg-backups/${HOSTNAME_TAG}/${DATE}.sql.gz"
+
+echo "==> dumping postgres → s3://${BACKUP_BUCKET}/${KEY}"
+
+# pg_dump runs inside the postgres container so we don't need pg_dump
+# on the host. --format=custom + --compress=9 = small, restorable
+# via pg_restore. Stream straight to S3 (no /tmp staging, no disk
+# IO outside the container).
+docker exec -i medbrains-postgres pg_dump \
+    -U "$POSTGRES_USER" \
+    -d "$POSTGRES_DB" \
+    --format=custom \
+    --compress=9 \
+    --no-owner \
+    --no-privileges \
+  | aws s3 cp - "s3://${BACKUP_BUCKET}/${KEY}" \
+    --expected-size 1073741824 \
+    --content-type application/octet-stream \
+    --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
+
+echo "==> backup complete: s3://${BACKUP_BUCKET}/${KEY}"

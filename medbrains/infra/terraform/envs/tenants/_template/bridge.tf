@@ -47,7 +47,7 @@ output "tunnel_provider" {
 }
 
 output "tenant_topology_sql" {
-  value = <<-EOT
+  value       = <<-EOT
     -- Run on the cloud-side admin DB after on-prem soak (T+7 days):
     UPDATE tenant_db_topology
     SET topology   = 'patroni_with_cloud_analytics',

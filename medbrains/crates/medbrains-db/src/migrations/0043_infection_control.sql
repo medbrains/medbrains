@@ -377,7 +377,7 @@ ALTER TABLE ONLY public.polypharmacy_interaction_alerts
 -- Name: idx_abx_consumption_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_abx_consumption_dept ON public.antibiotic_consumption_records USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_abx_consumption_dept ON public.antibiotic_consumption_records USING btree (tenant_id, department_id);
 
 
 
@@ -385,7 +385,7 @@ CREATE INDEX idx_abx_consumption_dept ON public.antibiotic_consumption_records U
 -- Name: idx_abx_consumption_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_abx_consumption_tenant ON public.antibiotic_consumption_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_abx_consumption_tenant ON public.antibiotic_consumption_records USING btree (tenant_id);
 
 
 
@@ -393,7 +393,7 @@ CREATE INDEX idx_abx_consumption_tenant ON public.antibiotic_consumption_records
 -- Name: idx_abx_steward_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_abx_steward_patient ON public.antibiotic_stewardship_requests USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_abx_steward_patient ON public.antibiotic_stewardship_requests USING btree (tenant_id, patient_id);
 
 
 
@@ -401,7 +401,7 @@ CREATE INDEX idx_abx_steward_patient ON public.antibiotic_stewardship_requests U
 -- Name: idx_abx_steward_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_abx_steward_status ON public.antibiotic_stewardship_requests USING btree (tenant_id, request_status);
+CREATE INDEX IF NOT EXISTS idx_abx_steward_status ON public.antibiotic_stewardship_requests USING btree (tenant_id, request_status);
 
 
 
@@ -409,7 +409,7 @@ CREATE INDEX idx_abx_steward_status ON public.antibiotic_stewardship_requests US
 -- Name: idx_abx_steward_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_abx_steward_tenant ON public.antibiotic_stewardship_requests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_abx_steward_tenant ON public.antibiotic_stewardship_requests USING btree (tenant_id);
 
 
 
@@ -417,7 +417,7 @@ CREATE INDEX idx_abx_steward_tenant ON public.antibiotic_stewardship_requests US
 -- Name: idx_culture_surv_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_culture_surv_dept ON public.culture_surveillance USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_culture_surv_dept ON public.culture_surveillance USING btree (tenant_id, department_id);
 
 
 
@@ -425,7 +425,7 @@ CREATE INDEX idx_culture_surv_dept ON public.culture_surveillance USING btree (t
 -- Name: idx_culture_surv_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_culture_surv_tenant ON public.culture_surveillance USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_culture_surv_tenant ON public.culture_surveillance USING btree (tenant_id);
 
 
 
@@ -433,7 +433,7 @@ CREATE INDEX idx_culture_surv_tenant ON public.culture_surveillance USING btree 
 -- Name: idx_hand_hygiene_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_hand_hygiene_dept ON public.hand_hygiene_audits USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_hand_hygiene_dept ON public.hand_hygiene_audits USING btree (tenant_id, department_id);
 
 
 
@@ -441,7 +441,7 @@ CREATE INDEX idx_hand_hygiene_dept ON public.hand_hygiene_audits USING btree (te
 -- Name: idx_hand_hygiene_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_hand_hygiene_tenant ON public.hand_hygiene_audits USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_hand_hygiene_tenant ON public.hand_hygiene_audits USING btree (tenant_id);
 
 
 
@@ -449,7 +449,7 @@ CREATE INDEX idx_hand_hygiene_tenant ON public.hand_hygiene_audits USING btree (
 -- Name: idx_infection_dd_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_dd_date ON public.infection_device_days USING btree (tenant_id, record_date);
+CREATE INDEX IF NOT EXISTS idx_infection_dd_date ON public.infection_device_days USING btree (tenant_id, record_date);
 
 
 
@@ -457,7 +457,7 @@ CREATE INDEX idx_infection_dd_date ON public.infection_device_days USING btree (
 -- Name: idx_infection_dd_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_dd_dept ON public.infection_device_days USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_infection_dd_dept ON public.infection_device_days USING btree (tenant_id, department_id);
 
 
 
@@ -465,7 +465,7 @@ CREATE INDEX idx_infection_dd_dept ON public.infection_device_days USING btree (
 -- Name: idx_infection_dd_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_dd_tenant ON public.infection_device_days USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_infection_dd_tenant ON public.infection_device_days USING btree (tenant_id);
 
 
 
@@ -473,7 +473,7 @@ CREATE INDEX idx_infection_dd_tenant ON public.infection_device_days USING btree
 -- Name: idx_infection_surv_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_surv_dept ON public.infection_surveillance_events USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_infection_surv_dept ON public.infection_surveillance_events USING btree (tenant_id, department_id);
 
 
 
@@ -481,7 +481,7 @@ CREATE INDEX idx_infection_surv_dept ON public.infection_surveillance_events USI
 -- Name: idx_infection_surv_hai_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_surv_hai_type ON public.infection_surveillance_events USING btree (tenant_id, hai_type);
+CREATE INDEX IF NOT EXISTS idx_infection_surv_hai_type ON public.infection_surveillance_events USING btree (tenant_id, hai_type);
 
 
 
@@ -489,7 +489,7 @@ CREATE INDEX idx_infection_surv_hai_type ON public.infection_surveillance_events
 -- Name: idx_infection_surv_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_surv_patient ON public.infection_surveillance_events USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_infection_surv_patient ON public.infection_surveillance_events USING btree (tenant_id, patient_id);
 
 
 
@@ -497,7 +497,7 @@ CREATE INDEX idx_infection_surv_patient ON public.infection_surveillance_events 
 -- Name: idx_infection_surv_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_surv_status ON public.infection_surveillance_events USING btree (tenant_id, infection_status);
+CREATE INDEX IF NOT EXISTS idx_infection_surv_status ON public.infection_surveillance_events USING btree (tenant_id, infection_status);
 
 
 
@@ -505,7 +505,7 @@ CREATE INDEX idx_infection_surv_status ON public.infection_surveillance_events U
 -- Name: idx_infection_surv_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_infection_surv_tenant ON public.infection_surveillance_events USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_infection_surv_tenant ON public.infection_surveillance_events USING btree (tenant_id);
 
 
 
@@ -513,7 +513,7 @@ CREATE INDEX idx_infection_surv_tenant ON public.infection_surveillance_events U
 -- Name: idx_needle_stick_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_needle_stick_dept ON public.needle_stick_incidents USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_needle_stick_dept ON public.needle_stick_incidents USING btree (tenant_id, department_id);
 
 
 
@@ -521,7 +521,7 @@ CREATE INDEX idx_needle_stick_dept ON public.needle_stick_incidents USING btree 
 -- Name: idx_needle_stick_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_needle_stick_patient ON public.needle_stick_incidents USING btree (tenant_id, source_patient_id);
+CREATE INDEX IF NOT EXISTS idx_needle_stick_patient ON public.needle_stick_incidents USING btree (tenant_id, source_patient_id);
 
 
 
@@ -529,7 +529,7 @@ CREATE INDEX idx_needle_stick_patient ON public.needle_stick_incidents USING btr
 -- Name: idx_needle_stick_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_needle_stick_tenant ON public.needle_stick_incidents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_needle_stick_tenant ON public.needle_stick_incidents USING btree (tenant_id);
 
 
 
@@ -537,7 +537,7 @@ CREATE INDEX idx_needle_stick_tenant ON public.needle_stick_incidents USING btre
 -- Name: idx_outbreak_contacts_outbreak; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbreak_contacts_outbreak ON public.outbreak_contacts USING btree (tenant_id, outbreak_id);
+CREATE INDEX IF NOT EXISTS idx_outbreak_contacts_outbreak ON public.outbreak_contacts USING btree (tenant_id, outbreak_id);
 
 
 
@@ -545,7 +545,7 @@ CREATE INDEX idx_outbreak_contacts_outbreak ON public.outbreak_contacts USING bt
 -- Name: idx_outbreak_contacts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbreak_contacts_tenant ON public.outbreak_contacts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_outbreak_contacts_tenant ON public.outbreak_contacts USING btree (tenant_id);
 
 
 
@@ -553,7 +553,7 @@ CREATE INDEX idx_outbreak_contacts_tenant ON public.outbreak_contacts USING btre
 -- Name: idx_outbreak_events_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbreak_events_dept ON public.outbreak_events USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_outbreak_events_dept ON public.outbreak_events USING btree (tenant_id, department_id);
 
 
 
@@ -561,7 +561,7 @@ CREATE INDEX idx_outbreak_events_dept ON public.outbreak_events USING btree (ten
 -- Name: idx_outbreak_events_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbreak_events_status ON public.outbreak_events USING btree (tenant_id, outbreak_status);
+CREATE INDEX IF NOT EXISTS idx_outbreak_events_status ON public.outbreak_events USING btree (tenant_id, outbreak_status);
 
 
 
@@ -569,7 +569,7 @@ CREATE INDEX idx_outbreak_events_status ON public.outbreak_events USING btree (t
 -- Name: idx_outbreak_events_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_outbreak_events_tenant ON public.outbreak_events USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_outbreak_events_tenant ON public.outbreak_events USING btree (tenant_id);
 
 
 
@@ -577,7 +577,7 @@ CREATE INDEX idx_outbreak_events_tenant ON public.outbreak_events USING btree (t
 -- Name: idx_polypharmacy_alerts_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_polypharmacy_alerts_active ON public.polypharmacy_interaction_alerts USING btree (tenant_id, patient_id, status) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_polypharmacy_alerts_active ON public.polypharmacy_interaction_alerts USING btree (tenant_id, patient_id, status) WHERE (status = 'active'::text);
 
 
 

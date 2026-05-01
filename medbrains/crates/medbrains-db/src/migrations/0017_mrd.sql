@@ -255,7 +255,7 @@ ALTER TABLE ONLY public.mrd_retention_policies
 -- Name: idx_mrd_birth_register_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_birth_register_date ON public.mrd_birth_register USING btree (tenant_id, birth_date);
+CREATE INDEX IF NOT EXISTS idx_mrd_birth_register_date ON public.mrd_birth_register USING btree (tenant_id, birth_date);
 
 
 
@@ -263,7 +263,7 @@ CREATE INDEX idx_mrd_birth_register_date ON public.mrd_birth_register USING btre
 -- Name: idx_mrd_birth_register_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_birth_register_patient ON public.mrd_birth_register USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_birth_register_patient ON public.mrd_birth_register USING btree (patient_id);
 
 
 
@@ -271,7 +271,7 @@ CREATE INDEX idx_mrd_birth_register_patient ON public.mrd_birth_register USING b
 -- Name: idx_mrd_birth_register_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_birth_register_tenant ON public.mrd_birth_register USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_birth_register_tenant ON public.mrd_birth_register USING btree (tenant_id);
 
 
 
@@ -279,7 +279,7 @@ CREATE INDEX idx_mrd_birth_register_tenant ON public.mrd_birth_register USING bt
 -- Name: idx_mrd_death_register_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_death_register_date ON public.mrd_death_register USING btree (tenant_id, death_date);
+CREATE INDEX IF NOT EXISTS idx_mrd_death_register_date ON public.mrd_death_register USING btree (tenant_id, death_date);
 
 
 
@@ -287,7 +287,7 @@ CREATE INDEX idx_mrd_death_register_date ON public.mrd_death_register USING btre
 -- Name: idx_mrd_death_register_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_death_register_patient ON public.mrd_death_register USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_death_register_patient ON public.mrd_death_register USING btree (patient_id);
 
 
 
@@ -295,7 +295,7 @@ CREATE INDEX idx_mrd_death_register_patient ON public.mrd_death_register USING b
 -- Name: idx_mrd_death_register_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_death_register_tenant ON public.mrd_death_register USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_death_register_tenant ON public.mrd_death_register USING btree (tenant_id);
 
 
 
@@ -303,7 +303,7 @@ CREATE INDEX idx_mrd_death_register_tenant ON public.mrd_death_register USING bt
 -- Name: idx_mrd_form_records_admission; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_form_records_admission ON public.mrd_form_records USING btree (admission_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_form_records_admission ON public.mrd_form_records USING btree (admission_id);
 
 
 
@@ -311,7 +311,7 @@ CREATE INDEX idx_mrd_form_records_admission ON public.mrd_form_records USING btr
 -- Name: idx_mrd_form_records_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_form_records_date ON public.mrd_form_records USING btree (admission_id, form_date);
+CREATE INDEX IF NOT EXISTS idx_mrd_form_records_date ON public.mrd_form_records USING btree (admission_id, form_date);
 
 
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_mrd_form_records_date ON public.mrd_form_records USING btree (a
 -- Name: idx_mrd_form_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_form_records_tenant ON public.mrd_form_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_form_records_tenant ON public.mrd_form_records USING btree (tenant_id);
 
 
 
@@ -327,7 +327,7 @@ CREATE INDEX idx_mrd_form_records_tenant ON public.mrd_form_records USING btree 
 -- Name: idx_mrd_form_records_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_form_records_type ON public.mrd_form_records USING btree (form_type);
+CREATE INDEX IF NOT EXISTS idx_mrd_form_records_type ON public.mrd_form_records USING btree (form_type);
 
 
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_mrd_form_records_type ON public.mrd_form_records USING btree (f
 -- Name: idx_mrd_medical_records_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_medical_records_patient ON public.mrd_medical_records USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_medical_records_patient ON public.mrd_medical_records USING btree (patient_id);
 
 
 
@@ -343,7 +343,7 @@ CREATE INDEX idx_mrd_medical_records_patient ON public.mrd_medical_records USING
 -- Name: idx_mrd_medical_records_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_medical_records_status ON public.mrd_medical_records USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mrd_medical_records_status ON public.mrd_medical_records USING btree (tenant_id, status);
 
 
 
@@ -351,7 +351,7 @@ CREATE INDEX idx_mrd_medical_records_status ON public.mrd_medical_records USING 
 -- Name: idx_mrd_medical_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_medical_records_tenant ON public.mrd_medical_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_medical_records_tenant ON public.mrd_medical_records USING btree (tenant_id);
 
 
 
@@ -359,7 +359,7 @@ CREATE INDEX idx_mrd_medical_records_tenant ON public.mrd_medical_records USING 
 -- Name: idx_mrd_record_movements_record; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_record_movements_record ON public.mrd_record_movements USING btree (medical_record_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_record_movements_record ON public.mrd_record_movements USING btree (medical_record_id);
 
 
 
@@ -367,7 +367,7 @@ CREATE INDEX idx_mrd_record_movements_record ON public.mrd_record_movements USIN
 -- Name: idx_mrd_record_movements_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_record_movements_status ON public.mrd_record_movements USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mrd_record_movements_status ON public.mrd_record_movements USING btree (tenant_id, status);
 
 
 
@@ -375,7 +375,7 @@ CREATE INDEX idx_mrd_record_movements_status ON public.mrd_record_movements USIN
 -- Name: idx_mrd_record_movements_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_record_movements_tenant ON public.mrd_record_movements USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_record_movements_tenant ON public.mrd_record_movements USING btree (tenant_id);
 
 
 
@@ -383,7 +383,7 @@ CREATE INDEX idx_mrd_record_movements_tenant ON public.mrd_record_movements USIN
 -- Name: idx_mrd_retention_policies_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mrd_retention_policies_tenant ON public.mrd_retention_policies USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mrd_retention_policies_tenant ON public.mrd_retention_policies USING btree (tenant_id);
 
 
 

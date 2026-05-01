@@ -440,7 +440,7 @@ ALTER TABLE ONLY public.mortuary_records
 -- Name: idx_death_conditions_record; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_death_conditions_record ON public.death_other_conditions USING btree (death_record_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_death_conditions_record ON public.death_other_conditions USING btree (death_record_id, display_order);
 
 
 
@@ -448,7 +448,7 @@ CREATE INDEX idx_death_conditions_record ON public.death_other_conditions USING 
 -- Name: idx_death_records_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_death_records_patient ON public.death_records USING btree (tenant_id, patient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_death_records_patient ON public.death_records USING btree (tenant_id, patient_id, created_at DESC);
 
 
 
@@ -456,7 +456,7 @@ CREATE INDEX idx_death_records_patient ON public.death_records USING btree (tena
 -- Name: idx_er_codes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_codes_tenant ON public.er_code_activations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_er_codes_tenant ON public.er_code_activations USING btree (tenant_id);
 
 
 
@@ -464,7 +464,7 @@ CREATE INDEX idx_er_codes_tenant ON public.er_code_activations USING btree (tena
 -- Name: idx_er_codes_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_codes_type ON public.er_code_activations USING btree (tenant_id, code_type);
+CREATE INDEX IF NOT EXISTS idx_er_codes_type ON public.er_code_activations USING btree (tenant_id, code_type);
 
 
 
@@ -472,7 +472,7 @@ CREATE INDEX idx_er_codes_type ON public.er_code_activations USING btree (tenant
 -- Name: idx_er_resus_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_resus_tenant ON public.er_resuscitation_logs USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_er_resus_tenant ON public.er_resuscitation_logs USING btree (tenant_id);
 
 
 
@@ -480,7 +480,7 @@ CREATE INDEX idx_er_resus_tenant ON public.er_resuscitation_logs USING btree (te
 -- Name: idx_er_resus_visit; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_resus_visit ON public.er_resuscitation_logs USING btree (er_visit_id);
+CREATE INDEX IF NOT EXISTS idx_er_resus_visit ON public.er_resuscitation_logs USING btree (er_visit_id);
 
 
 
@@ -488,7 +488,7 @@ CREATE INDEX idx_er_resus_visit ON public.er_resuscitation_logs USING btree (er_
 -- Name: idx_er_triage_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_triage_tenant ON public.er_triage_assessments USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_er_triage_tenant ON public.er_triage_assessments USING btree (tenant_id);
 
 
 
@@ -496,7 +496,7 @@ CREATE INDEX idx_er_triage_tenant ON public.er_triage_assessments USING btree (t
 -- Name: idx_er_triage_visit; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_triage_visit ON public.er_triage_assessments USING btree (er_visit_id);
+CREATE INDEX IF NOT EXISTS idx_er_triage_visit ON public.er_triage_assessments USING btree (er_visit_id);
 
 
 
@@ -504,7 +504,7 @@ CREATE INDEX idx_er_triage_visit ON public.er_triage_assessments USING btree (er
 -- Name: idx_er_visits_arrival; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_visits_arrival ON public.er_visits USING btree (tenant_id, arrival_time);
+CREATE INDEX IF NOT EXISTS idx_er_visits_arrival ON public.er_visits USING btree (tenant_id, arrival_time);
 
 
 
@@ -512,7 +512,7 @@ CREATE INDEX idx_er_visits_arrival ON public.er_visits USING btree (tenant_id, a
 -- Name: idx_er_visits_mlc; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_visits_mlc ON public.er_visits USING btree (tenant_id, is_mlc) WHERE (is_mlc = true);
+CREATE INDEX IF NOT EXISTS idx_er_visits_mlc ON public.er_visits USING btree (tenant_id, is_mlc) WHERE (is_mlc = true);
 
 
 
@@ -520,7 +520,7 @@ CREATE INDEX idx_er_visits_mlc ON public.er_visits USING btree (tenant_id, is_ml
 -- Name: idx_er_visits_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_visits_patient ON public.er_visits USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_er_visits_patient ON public.er_visits USING btree (tenant_id, patient_id);
 
 
 
@@ -528,7 +528,7 @@ CREATE INDEX idx_er_visits_patient ON public.er_visits USING btree (tenant_id, p
 -- Name: idx_er_visits_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_visits_status ON public.er_visits USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_er_visits_status ON public.er_visits USING btree (tenant_id, status);
 
 
 
@@ -536,7 +536,7 @@ CREATE INDEX idx_er_visits_status ON public.er_visits USING btree (tenant_id, st
 -- Name: idx_er_visits_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_er_visits_tenant ON public.er_visits USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_er_visits_tenant ON public.er_visits USING btree (tenant_id);
 
 
 
@@ -544,7 +544,7 @@ CREATE INDEX idx_er_visits_tenant ON public.er_visits USING btree (tenant_id);
 -- Name: idx_mass_casualty_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mass_casualty_status ON public.mass_casualty_events USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mass_casualty_status ON public.mass_casualty_events USING btree (tenant_id, status);
 
 
 
@@ -552,7 +552,7 @@ CREATE INDEX idx_mass_casualty_status ON public.mass_casualty_events USING btree
 -- Name: idx_mass_casualty_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mass_casualty_tenant ON public.mass_casualty_events USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mass_casualty_tenant ON public.mass_casualty_events USING btree (tenant_id);
 
 
 
@@ -560,7 +560,7 @@ CREATE INDEX idx_mass_casualty_tenant ON public.mass_casualty_events USING btree
 -- Name: idx_mlc_docs_case; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_docs_case ON public.mlc_documents USING btree (mlc_case_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_docs_case ON public.mlc_documents USING btree (mlc_case_id);
 
 
 
@@ -568,7 +568,7 @@ CREATE INDEX idx_mlc_docs_case ON public.mlc_documents USING btree (mlc_case_id)
 -- Name: idx_mlc_docs_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_docs_tenant ON public.mlc_documents USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_docs_tenant ON public.mlc_documents USING btree (tenant_id);
 
 
 
@@ -576,7 +576,7 @@ CREATE INDEX idx_mlc_docs_tenant ON public.mlc_documents USING btree (tenant_id)
 -- Name: idx_mlc_number; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_mlc_number ON public.mlc_cases USING btree (tenant_id, mlc_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mlc_number ON public.mlc_cases USING btree (tenant_id, mlc_number);
 
 
 
@@ -584,7 +584,7 @@ CREATE UNIQUE INDEX idx_mlc_number ON public.mlc_cases USING btree (tenant_id, m
 -- Name: idx_mlc_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_patient ON public.mlc_cases USING btree (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_patient ON public.mlc_cases USING btree (tenant_id, patient_id);
 
 
 
@@ -592,7 +592,7 @@ CREATE INDEX idx_mlc_patient ON public.mlc_cases USING btree (tenant_id, patient
 -- Name: idx_mlc_police_case; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_police_case ON public.mlc_police_intimations USING btree (mlc_case_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_police_case ON public.mlc_police_intimations USING btree (mlc_case_id);
 
 
 
@@ -600,7 +600,7 @@ CREATE INDEX idx_mlc_police_case ON public.mlc_police_intimations USING btree (m
 -- Name: idx_mlc_police_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_police_tenant ON public.mlc_police_intimations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_police_tenant ON public.mlc_police_intimations USING btree (tenant_id);
 
 
 
@@ -608,7 +608,7 @@ CREATE INDEX idx_mlc_police_tenant ON public.mlc_police_intimations USING btree 
 -- Name: idx_mlc_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_status ON public.mlc_cases USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mlc_status ON public.mlc_cases USING btree (tenant_id, status);
 
 
 
@@ -616,7 +616,7 @@ CREATE INDEX idx_mlc_status ON public.mlc_cases USING btree (tenant_id, status);
 -- Name: idx_mlc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mlc_tenant ON public.mlc_cases USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mlc_tenant ON public.mlc_cases USING btree (tenant_id);
 
 
 
@@ -624,7 +624,7 @@ CREATE INDEX idx_mlc_tenant ON public.mlc_cases USING btree (tenant_id);
 -- Name: idx_mortuary_records_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mortuary_records_status ON public.mortuary_records USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_mortuary_records_status ON public.mortuary_records USING btree (tenant_id, status);
 
 
 
@@ -632,7 +632,7 @@ CREATE INDEX idx_mortuary_records_status ON public.mortuary_records USING btree 
 -- Name: idx_mortuary_records_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mortuary_records_tenant ON public.mortuary_records USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_mortuary_records_tenant ON public.mortuary_records USING btree (tenant_id);
 
 
 

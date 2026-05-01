@@ -552,7 +552,7 @@ ALTER TABLE ONLY public.stores
 -- Name: idx_batch_stock_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_batch_stock_expiry ON public.batch_stock USING btree (tenant_id, expiry_date) WHERE (quantity > 0);
+CREATE INDEX IF NOT EXISTS idx_batch_stock_expiry ON public.batch_stock USING btree (tenant_id, expiry_date) WHERE (quantity > 0);
 
 
 
@@ -560,7 +560,7 @@ CREATE INDEX idx_batch_stock_expiry ON public.batch_stock USING btree (tenant_id
 -- Name: idx_batch_stock_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_batch_stock_item ON public.batch_stock USING btree (tenant_id, catalog_item_id);
+CREATE INDEX IF NOT EXISTS idx_batch_stock_item ON public.batch_stock USING btree (tenant_id, catalog_item_id);
 
 
 
@@ -568,7 +568,7 @@ CREATE INDEX idx_batch_stock_item ON public.batch_stock USING btree (tenant_id, 
 -- Name: idx_batch_stock_location; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_batch_stock_location ON public.batch_stock USING btree (tenant_id, store_location_id);
+CREATE INDEX IF NOT EXISTS idx_batch_stock_location ON public.batch_stock USING btree (tenant_id, store_location_id);
 
 
 
@@ -576,7 +576,7 @@ CREATE INDEX idx_batch_stock_location ON public.batch_stock USING btree (tenant_
 -- Name: idx_condemnations_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_condemnations_status ON public.equipment_condemnations USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_condemnations_status ON public.equipment_condemnations USING btree (status);
 
 
 
@@ -584,7 +584,7 @@ CREATE INDEX idx_condemnations_status ON public.equipment_condemnations USING bt
 -- Name: idx_condemnations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_condemnations_tenant ON public.equipment_condemnations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_condemnations_tenant ON public.equipment_condemnations USING btree (tenant_id);
 
 
 
@@ -592,7 +592,7 @@ CREATE INDEX idx_condemnations_tenant ON public.equipment_condemnations USING bt
 -- Name: idx_consumable_issues_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consumable_issues_patient ON public.patient_consumable_issues USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_consumable_issues_patient ON public.patient_consumable_issues USING btree (patient_id);
 
 
 
@@ -600,7 +600,7 @@ CREATE INDEX idx_consumable_issues_patient ON public.patient_consumable_issues U
 -- Name: idx_consumable_issues_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_consumable_issues_tenant ON public.patient_consumable_issues USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consumable_issues_tenant ON public.patient_consumable_issues USING btree (tenant_id);
 
 
 
@@ -608,7 +608,7 @@ CREATE INDEX idx_consumable_issues_tenant ON public.patient_consumable_issues US
 -- Name: idx_disposal_items_disposal; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_disposal_items_disposal ON public.stock_disposal_items USING btree (disposal_id);
+CREATE INDEX IF NOT EXISTS idx_disposal_items_disposal ON public.stock_disposal_items USING btree (disposal_id);
 
 
 
@@ -616,7 +616,7 @@ CREATE INDEX idx_disposal_items_disposal ON public.stock_disposal_items USING bt
 -- Name: idx_implant_registry_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_implant_registry_patient ON public.implant_registry USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_implant_registry_patient ON public.implant_registry USING btree (patient_id);
 
 
 
@@ -624,7 +624,7 @@ CREATE INDEX idx_implant_registry_patient ON public.implant_registry USING btree
 -- Name: idx_implant_registry_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_implant_registry_tenant ON public.implant_registry USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_implant_registry_tenant ON public.implant_registry USING btree (tenant_id);
 
 
 
@@ -632,7 +632,7 @@ CREATE INDEX idx_implant_registry_tenant ON public.implant_registry USING btree 
 -- Name: idx_indent_items_catalog; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_items_catalog ON public.indent_items USING btree (catalog_item_id) WHERE (catalog_item_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_indent_items_catalog ON public.indent_items USING btree (catalog_item_id) WHERE (catalog_item_id IS NOT NULL);
 
 
 
@@ -640,7 +640,7 @@ CREATE INDEX idx_indent_items_catalog ON public.indent_items USING btree (catalo
 -- Name: idx_indent_items_req; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_items_req ON public.indent_items USING btree (requisition_id);
+CREATE INDEX IF NOT EXISTS idx_indent_items_req ON public.indent_items USING btree (requisition_id);
 
 
 
@@ -648,7 +648,7 @@ CREATE INDEX idx_indent_items_req ON public.indent_items USING btree (requisitio
 -- Name: idx_indent_req_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_req_dept ON public.indent_requisitions USING btree (tenant_id, department_id);
+CREATE INDEX IF NOT EXISTS idx_indent_req_dept ON public.indent_requisitions USING btree (tenant_id, department_id);
 
 
 
@@ -656,7 +656,7 @@ CREATE INDEX idx_indent_req_dept ON public.indent_requisitions USING btree (tena
 -- Name: idx_indent_req_requested_by; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_req_requested_by ON public.indent_requisitions USING btree (tenant_id, requested_by);
+CREATE INDEX IF NOT EXISTS idx_indent_req_requested_by ON public.indent_requisitions USING btree (tenant_id, requested_by);
 
 
 
@@ -664,7 +664,7 @@ CREATE INDEX idx_indent_req_requested_by ON public.indent_requisitions USING btr
 -- Name: idx_indent_req_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_req_status ON public.indent_requisitions USING btree (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_indent_req_status ON public.indent_requisitions USING btree (tenant_id, status);
 
 
 
@@ -672,7 +672,7 @@ CREATE INDEX idx_indent_req_status ON public.indent_requisitions USING btree (te
 -- Name: idx_indent_req_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_req_tenant ON public.indent_requisitions USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_indent_req_tenant ON public.indent_requisitions USING btree (tenant_id);
 
 
 
@@ -680,7 +680,7 @@ CREATE INDEX idx_indent_req_tenant ON public.indent_requisitions USING btree (te
 -- Name: idx_indent_req_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indent_req_type ON public.indent_requisitions USING btree (tenant_id, indent_type);
+CREATE INDEX IF NOT EXISTS idx_indent_req_type ON public.indent_requisitions USING btree (tenant_id, indent_type);
 
 
 
@@ -688,7 +688,7 @@ CREATE INDEX idx_indent_req_type ON public.indent_requisitions USING btree (tena
 -- Name: idx_indents_dept; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_indents_dept ON public.indents USING btree (tenant_id, department_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_indents_dept ON public.indents USING btree (tenant_id, department_id, created_at DESC);
 
 
 
@@ -696,7 +696,7 @@ CREATE INDEX idx_indents_dept ON public.indents USING btree (tenant_id, departme
 -- Name: idx_reorder_alerts_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reorder_alerts_item ON public.reorder_alerts USING btree (catalog_item_id);
+CREATE INDEX IF NOT EXISTS idx_reorder_alerts_item ON public.reorder_alerts USING btree (catalog_item_id);
 
 
 
@@ -704,7 +704,7 @@ CREATE INDEX idx_reorder_alerts_item ON public.reorder_alerts USING btree (catal
 -- Name: idx_reorder_alerts_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reorder_alerts_tenant ON public.reorder_alerts USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_reorder_alerts_tenant ON public.reorder_alerts USING btree (tenant_id);
 
 
 
@@ -712,7 +712,7 @@ CREATE INDEX idx_reorder_alerts_tenant ON public.reorder_alerts USING btree (ten
 -- Name: idx_reorder_alerts_unack; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_reorder_alerts_unack ON public.reorder_alerts USING btree (is_acknowledged) WHERE (is_acknowledged = false);
+CREATE INDEX IF NOT EXISTS idx_reorder_alerts_unack ON public.reorder_alerts USING btree (is_acknowledged) WHERE (is_acknowledged = false);
 
 
 
@@ -720,7 +720,7 @@ CREATE INDEX idx_reorder_alerts_unack ON public.reorder_alerts USING btree (is_a
 -- Name: idx_stock_movements_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_date ON public.store_stock_movements USING btree (created_at);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_date ON public.store_stock_movements USING btree (created_at);
 
 
 
@@ -728,7 +728,7 @@ CREATE INDEX idx_stock_movements_date ON public.store_stock_movements USING btre
 -- Name: idx_stock_movements_department; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_department ON public.store_stock_movements USING btree (department_id) WHERE (department_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_department ON public.store_stock_movements USING btree (department_id) WHERE (department_id IS NOT NULL);
 
 
 
@@ -736,7 +736,7 @@ CREATE INDEX idx_stock_movements_department ON public.store_stock_movements USIN
 -- Name: idx_stock_movements_item; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_item ON public.store_stock_movements USING btree (catalog_item_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_item ON public.store_stock_movements USING btree (catalog_item_id);
 
 
 
@@ -744,7 +744,7 @@ CREATE INDEX idx_stock_movements_item ON public.store_stock_movements USING btre
 -- Name: idx_stock_movements_location; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_location ON public.store_stock_movements USING btree (store_location_id) WHERE (store_location_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_location ON public.store_stock_movements USING btree (store_location_id) WHERE (store_location_id IS NOT NULL);
 
 
 
@@ -752,7 +752,7 @@ CREATE INDEX idx_stock_movements_location ON public.store_stock_movements USING 
 -- Name: idx_stock_movements_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_patient ON public.store_stock_movements USING btree (patient_id) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_patient ON public.store_stock_movements USING btree (patient_id) WHERE (patient_id IS NOT NULL);
 
 
 
@@ -760,7 +760,7 @@ CREATE INDEX idx_stock_movements_patient ON public.store_stock_movements USING b
 -- Name: idx_stock_movements_ref; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_ref ON public.store_stock_movements USING btree (reference_type, reference_id) WHERE (reference_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_ref ON public.store_stock_movements USING btree (reference_type, reference_id) WHERE (reference_id IS NOT NULL);
 
 
 
@@ -768,7 +768,7 @@ CREATE INDEX idx_stock_movements_ref ON public.store_stock_movements USING btree
 -- Name: idx_stock_movements_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_movements_tenant ON public.store_stock_movements USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_tenant ON public.store_stock_movements USING btree (tenant_id);
 
 
 
@@ -776,7 +776,7 @@ CREATE INDEX idx_stock_movements_tenant ON public.store_stock_movements USING bt
 -- Name: idx_stock_transfers_from; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_stock_transfers_from ON public.stock_transfers USING btree (tenant_id, from_store_id, transfer_date DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_transfers_from ON public.stock_transfers USING btree (tenant_id, from_store_id, transfer_date DESC);
 
 
 
@@ -784,7 +784,7 @@ CREATE INDEX idx_stock_transfers_from ON public.stock_transfers USING btree (ten
 -- Name: idx_store_catalog_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_store_catalog_active ON public.store_catalog USING btree (tenant_id, is_active) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_store_catalog_active ON public.store_catalog USING btree (tenant_id, is_active) WHERE is_active;
 
 
 
@@ -792,7 +792,7 @@ CREATE INDEX idx_store_catalog_active ON public.store_catalog USING btree (tenan
 -- Name: idx_store_catalog_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_store_catalog_category ON public.store_catalog USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_store_catalog_category ON public.store_catalog USING btree (tenant_id, category);
 
 
 
@@ -800,7 +800,7 @@ CREATE INDEX idx_store_catalog_category ON public.store_catalog USING btree (ten
 -- Name: idx_store_catalog_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_store_catalog_tenant ON public.store_catalog USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_store_catalog_tenant ON public.store_catalog USING btree (tenant_id);
 
 
 
@@ -808,7 +808,7 @@ CREATE INDEX idx_store_catalog_tenant ON public.store_catalog USING btree (tenan
 -- Name: idx_store_locations_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_store_locations_tenant ON public.store_locations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_store_locations_tenant ON public.store_locations USING btree (tenant_id);
 
 
 

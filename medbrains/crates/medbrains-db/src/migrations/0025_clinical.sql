@@ -231,7 +231,7 @@ ALTER TABLE ONLY public.vitals
 -- Name: idx_cc_search; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cc_search ON public.chief_complaint_masters USING gin (to_tsvector('english'::regconfig, (name)::text));
+CREATE INDEX IF NOT EXISTS idx_cc_search ON public.chief_complaint_masters USING gin (to_tsvector('english'::regconfig, (name)::text));
 
 
 
@@ -239,7 +239,7 @@ CREATE INDEX idx_cc_search ON public.chief_complaint_masters USING gin (to_tsvec
 -- Name: idx_cc_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cc_tenant ON public.chief_complaint_masters USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cc_tenant ON public.chief_complaint_masters USING btree (tenant_id);
 
 
 
@@ -247,7 +247,7 @@ CREATE INDEX idx_cc_tenant ON public.chief_complaint_masters USING btree (tenant
 -- Name: idx_clinical_protocols_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinical_protocols_category ON public.clinical_protocols USING btree (tenant_id, category);
+CREATE INDEX IF NOT EXISTS idx_clinical_protocols_category ON public.clinical_protocols USING btree (tenant_id, category);
 
 
 
@@ -255,7 +255,7 @@ CREATE INDEX idx_clinical_protocols_category ON public.clinical_protocols USING 
 -- Name: idx_clinical_protocols_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinical_protocols_tenant ON public.clinical_protocols USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_clinical_protocols_tenant ON public.clinical_protocols USING btree (tenant_id);
 
 
 
@@ -263,7 +263,7 @@ CREATE INDEX idx_clinical_protocols_tenant ON public.clinical_protocols USING bt
 -- Name: idx_diagnoses_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_diagnoses_encounter ON public.diagnoses USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_diagnoses_encounter ON public.diagnoses USING btree (encounter_id);
 
 
 
@@ -271,7 +271,7 @@ CREATE INDEX idx_diagnoses_encounter ON public.diagnoses USING btree (encounter_
 -- Name: idx_diagnoses_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_diagnoses_tenant ON public.diagnoses USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_diagnoses_tenant ON public.diagnoses USING btree (tenant_id);
 
 
 
@@ -279,7 +279,7 @@ CREATE INDEX idx_diagnoses_tenant ON public.diagnoses USING btree (tenant_id);
 -- Name: idx_icd10_code; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icd10_code ON public.icd10_codes USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_icd10_code ON public.icd10_codes USING btree (code);
 
 
 
@@ -287,7 +287,7 @@ CREATE INDEX idx_icd10_code ON public.icd10_codes USING btree (code);
 -- Name: idx_icd10_search; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_icd10_search ON public.icd10_codes USING gin (to_tsvector('english'::regconfig, short_desc));
+CREATE INDEX IF NOT EXISTS idx_icd10_search ON public.icd10_codes USING gin (to_tsvector('english'::regconfig, short_desc));
 
 
 
@@ -295,7 +295,7 @@ CREATE INDEX idx_icd10_search ON public.icd10_codes USING gin (to_tsvector('engl
 -- Name: idx_snomed_codes_code; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_snomed_codes_code ON public.snomed_codes USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_snomed_codes_code ON public.snomed_codes USING btree (code);
 
 
 
@@ -303,7 +303,7 @@ CREATE INDEX idx_snomed_codes_code ON public.snomed_codes USING btree (code);
 -- Name: idx_snomed_codes_display_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_snomed_codes_display_trgm ON public.snomed_codes USING gin (display_name public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_snomed_codes_display_trgm ON public.snomed_codes USING gin (display_name public.gin_trgm_ops);
 
 
 
@@ -311,7 +311,7 @@ CREATE INDEX idx_snomed_codes_display_trgm ON public.snomed_codes USING gin (dis
 -- Name: idx_vitals_encounter; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vitals_encounter ON public.vitals USING btree (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_vitals_encounter ON public.vitals USING btree (encounter_id);
 
 
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_vitals_encounter ON public.vitals USING btree (encounter_id);
 -- Name: idx_vitals_latest; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vitals_latest ON public.vitals USING btree (tenant_id, encounter_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vitals_latest ON public.vitals USING btree (tenant_id, encounter_id, recorded_at DESC);
 
 
 
@@ -327,7 +327,7 @@ CREATE INDEX idx_vitals_latest ON public.vitals USING btree (tenant_id, encounte
 -- Name: idx_vitals_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vitals_tenant ON public.vitals USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vitals_tenant ON public.vitals USING btree (tenant_id);
 
 
 
@@ -335,7 +335,7 @@ CREATE INDEX idx_vitals_tenant ON public.vitals USING btree (tenant_id);
 -- Name: vitals_schedule_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX vitals_schedule_due_idx ON public.vitals_capture_schedules USING btree (tenant_id, next_due_at) WHERE (ended_at IS NULL);
+CREATE INDEX IF NOT EXISTS vitals_schedule_due_idx ON public.vitals_capture_schedules USING btree (tenant_id, next_due_at) WHERE (ended_at IS NULL);
 
 
 
