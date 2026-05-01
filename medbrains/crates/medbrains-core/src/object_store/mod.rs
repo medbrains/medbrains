@@ -4,7 +4,14 @@
 //! Cloud impl = S3 in `medbrains-server`. On-prem impl = `LocalFs`
 //! here (no MinIO daemon — Rust binary handles it directly).
 
+pub mod cold_local;
 pub mod local;
+pub mod tiering;
+
+pub use cold_local::ColdLocalObjectStore;
+pub use tiering::{
+    transition_hash, ObjectStoragePolicy, StorageTier, StorageTierTransition,
+};
 
 use async_trait::async_trait;
 use std::fmt;

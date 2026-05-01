@@ -1,0 +1,39 @@
+# Postgres-only docker-compose for the standalone deploy kit.
+# The Rust binary runs on the host (systemd), not in a container —
+# only the database is dockerised so backups + minor-version
+# upgrades stay simple.
+#
+# YottaDB / Kiwi TCMS / SpiceDB from the dev compose are intentionally
+# excluded — they're dev/test only and not needed for a hospital
+# pilot.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: medbrains-postgres
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only so the host firewall doesn't have to
+      # think about postgres exposure. Caddy + the Rust server are
+      # the only public entry points.
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medbrains}
+      POSTGRES_USER: ${POSTGRES_USER:-medbrains}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in env}
+    volumes:
+      - /var/lib/medbrains/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-medbrains}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: nightly logical-dump backup container. Cron picks it
+  # up via the timer-based "medbrains-pg-backup.service" if
+  # configured; commented out here because the install script
+  # offers a separate runbook for backups.
+  #
+  # backup:
+  #   image: prodrigestivill/postgres-backup-local
+  #   ...

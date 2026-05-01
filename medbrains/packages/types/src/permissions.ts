@@ -709,6 +709,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { code: "devices.pairing.paired.list", label: "List Paired Devices", description: "View devices paired into the tenant", module: "devices" },
   { code: "devices.pairing.paired.revoke", label: "Revoke Paired Device", description: "Revoke a paired device's certificate, terminating its access", module: "devices" },
 
+  // Storage lifecycle (hot/cold/archive tiers, retention policies)
+  { code: "storage.policies.list", label: "List Storage Policies", description: "View per-document-category retention thresholds", module: "storage" },
+  { code: "storage.policies.manage", label: "Manage Storage Policies", description: "Edit retention thresholds for document categories", module: "storage" },
+  { code: "storage.transitions.list", label: "List Tier Transitions", description: "View hash-chained audit log of hot/cold/archive moves", module: "storage" },
+  { code: "storage.usage.view", label: "View Storage Usage", description: "View per-tier byte and record counts", module: "storage" },
+  { code: "storage.restore", label: "Restore Archived Document", description: "Trigger restore of an archive-tier document back to hot/cold", module: "storage" },
+  { code: "storage.sweep.trigger", label: "Trigger Storage Sweep", description: "Run the medbrains-archive sweeper on demand (super_admin)", module: "storage" },
+
   // LMS
   { code: "lms.courses.list", label: "List Courses", description: "View LMS course catalog", module: "lms" },
   { code: "lms.courses.view", label: "View Course", description: "View course details and modules", module: "lms" },
@@ -1592,6 +1600,20 @@ export const P = {
       PAIRED_LIST: "devices.pairing.paired.list" as const,
       PAIRED_REVOKE: "devices.pairing.paired.revoke" as const,
     },
+  },
+  STORAGE: {
+    POLICIES: {
+      LIST: "storage.policies.list" as const,
+      MANAGE: "storage.policies.manage" as const,
+    },
+    TRANSITIONS: {
+      LIST: "storage.transitions.list" as const,
+    },
+    USAGE: {
+      VIEW: "storage.usage.view" as const,
+    },
+    RESTORE: "storage.restore" as const,
+    SWEEP_TRIGGER: "storage.sweep.trigger" as const,
   },
   LMS: {
     COURSES_LIST: "lms.courses.list" as const,

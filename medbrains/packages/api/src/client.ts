@@ -11734,4 +11734,89 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ reason }),
     }),
+
+  // ── Storage lifecycle (hot/cold/archive tiers) ──────────────────
+  listStoragePolicies: () =>
+    request<
+      Array<{
+        id: string;
+        document_category: string;
+        hot_to_cold_days: number | null;
+        cold_to_archive_days: number | null;
+        archive_to_delete_days: number | null;
+        retention_years: number;
+        description: string | null;
+        updated_at: string;
+      }>
+    >("/admin/storage/policies"),
+
+  updateStoragePolicy: (
+    category: string,
+    body: {
+      hot_to_cold_days?: number | null;
+      cold_to_archive_days?: number | null;
+      archive_to_delete_days?: number | null;
+      retention_years?: number;
+      description?: string;
+    },
+  ) =>
+    request<{
+      id: string;
+      document_category: string;
+      hot_to_cold_days: number | null;
+      cold_to_archive_days: number | null;
+      archive_to_delete_days: number | null;
+      retention_years: number;
+      description: string | null;
+      updated_at: string;
+    }>(`/admin/storage/policies/${encodeURIComponent(category)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  getStorageUsage: () =>
+    request<{
+      tiers: Array<{ tier: string; record_count: number; byte_total: number }>;
+      breakdown: Array<{
+        category: string;
+        tier: string;
+        record_count: number;
+        byte_total: number;
+      }>;
+    }>("/admin/storage/usage"),
+
+  listStorageTransitions: (params?: { limit?: number; before?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.before) qs.set("before", params.before);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<
+      Array<{
+        id: string;
+        document_id: string;
+        document_table: string;
+        from_tier: string;
+        to_tier: string;
+        byte_size: number | null;
+        triggered_by: string;
+        triggered_at: string;
+        hash: string;
+      }>
+    >(`/admin/storage/transitions${suffix}`);
+  },
+
+  requestStorageRestore: (docId: string, reason?: string) =>
+    request<{
+      document_id: string;
+      current_tier: string;
+      status: string;
+    }>(`/admin/storage/restore/${docId}`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  triggerStorageSweep: () =>
+    request<{ status: string }>("/admin/storage/sweep-now", {
+      method: "POST",
+    }),
 };

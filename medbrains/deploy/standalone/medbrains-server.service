@@ -1,0 +1,32 @@
+[Unit]
+Description=MedBrains HMS — Rust API + SPA server
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=medbrains
+Group=medbrains
+EnvironmentFile=/etc/medbrains/env
+ExecStart=/usr/local/bin/medbrains-server
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# Hardening — none of these break the binary; standard systemd
+# practice for a service that only needs the postgres socket + the
+# /var/lib/medbrains tree.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/medbrains /var/log/medbrains
+
+# File descriptor limit — uploads + streaming need headroom.
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

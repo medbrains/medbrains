@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     ports:
       - "5435:5432"
     environment:
@@ -71,7 +71,7 @@ services:
 
   # ── SpiceDB (ReBAC permissions service, Apache 2.0) ──
   spicedb_pg:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: spicedb
       POSTGRES_PASSWORD: spicedb_dev

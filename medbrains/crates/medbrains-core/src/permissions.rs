@@ -1654,6 +1654,24 @@ pub mod devices {
     }
 }
 
+pub mod storage {
+    pub mod policies {
+        pub const LIST: &str = "storage.policies.list";
+        pub const MANAGE: &str = "storage.policies.manage";
+    }
+
+    pub mod transitions {
+        pub const LIST: &str = "storage.transitions.list";
+    }
+
+    pub mod usage {
+        pub const VIEW: &str = "storage.usage.view";
+    }
+
+    pub const RESTORE: &str = "storage.restore";
+    pub const SWEEP_TRIGGER: &str = "storage.sweep.trigger";
+}
+
 pub mod lms {
     pub mod courses {
         pub const LIST: &str = "lms.courses.list";

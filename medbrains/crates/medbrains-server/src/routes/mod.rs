@@ -102,6 +102,7 @@ pub mod schema_registry;
 pub mod security;
 pub mod setup;
 pub mod sharing;
+pub mod storage;
 pub mod specialty_interventional;
 pub mod specialty_maternity;
 pub mod specialty_other;
@@ -6343,6 +6344,28 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/paired-devices/{id}",
             axum::routing::delete(device_pairing::revoke_paired_device),
+        )
+        // Storage lifecycle (hot/cold/archive tiers).
+        .route(
+            "/api/admin/storage/policies",
+            get(storage::list_policies),
+        )
+        .route(
+            "/api/admin/storage/policies/{category}",
+            put(storage::update_policy),
+        )
+        .route("/api/admin/storage/usage", get(storage::get_usage))
+        .route(
+            "/api/admin/storage/transitions",
+            get(storage::list_transitions),
+        )
+        .route(
+            "/api/admin/storage/restore/{doc_id}",
+            post(storage::request_restore),
+        )
+        .route(
+            "/api/admin/storage/sweep-now",
+            post(storage::trigger_sweep),
         )
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
