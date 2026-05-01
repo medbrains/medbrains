@@ -6406,11 +6406,20 @@ pub fn build_router(state: AppState) -> Router {
             get(radiology::validate_share_link),
         );
 
-    // ── Reminder config (protected) — add to protected routes ──
-    let reminder_routes = Router::new().route(
-        "/api/opd/appointments/reminder-config",
-        get(appointments::get_reminder_config).put(appointments::update_reminder_config),
-    );
+    // ── Reminder config — protected, must run through the same auth +
+    //    csrf + audit middleware stack as `protected`. Without these
+    //    layers the handler's `Extension<Claims>` extractor 500s.
+    let reminder_routes = Router::new()
+        .route(
+            "/api/opd/appointments/reminder-config",
+            get(appointments::get_reminder_config).put(appointments::update_reminder_config),
+        )
+        .layer(from_fn_with_state(state.clone(), audit_layer))
+        .layer(from_fn_with_state(state.clone(), access_log_layer))
+        .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
+        .layer(from_fn(csrf_middleware))
+        .layer(from_fn_with_state(state.clone(), auth_middleware))
+        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
 
     public
         .merge(protected)
