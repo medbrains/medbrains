@@ -35,6 +35,8 @@ coverage/
 
 # React Native — Mobile
 apps/*/.expo/
+apps/mobile-staff/android/
+apps/mobile-staff/ios/
 apps/mobile/android/app/build/
 apps/mobile/android/build/
 apps/mobile/android/.gradle/

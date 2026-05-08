@@ -1,7 +1,9 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
-       mobile-staff-start mobile-staff-start-lan mobile-staff-ios mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
+       mobile-staff-start mobile-staff-start-lan \
+       mobile-staff-ios mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
+       mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api \
        check-ui-api check-types check-all \
        test-frontend test-frontend-coverage analyze \
@@ -11,6 +13,10 @@
        docs docs-build flamegraph profile-build miri watch watch-check
 
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))medbrains
+IOS_DEVICE ?=
+ANDROID_DEVICE ?=
+IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
+ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 
 # Default
 help: ## Show this help
@@ -50,11 +56,23 @@ mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
 mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
 	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
 
-mobile-staff-ios: ## Build/open staff mobile app on iOS simulator/device
-	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff ios
+mobile-staff-ios: ## Build/open staff mobile app on iOS; set IOS_DEVICE="iPhone 17"
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
+
+mobile-staff-ios-devices: ## List available iOS simulators/devices
+	xcrun simctl list devices available
+
+mobile-staff-ios-doctor: ## Show Xcode SDKs, simulator runtimes, and devices
+	@xcodebuild -version
+	@xcodebuild -showsdks | grep -E "iOS|Simulator" || true
+	@xcrun simctl list runtimes
+	@xcrun simctl list devices available
+
+mobile-staff-ios-platform: ## Install the matching iOS platform/runtime for current Xcode
+	xcodebuild -downloadPlatform iOS
 
 mobile-staff-android: ## Build/open staff mobile app on Android emulator/device
-	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff android
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff android $(ANDROID_RUN_ARGS)
 
 mobile-staff-prebuild: ## Regenerate native projects for staff mobile app
 	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff prebuild
