@@ -1,5 +1,7 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
        build build-backend build-frontend \
+       camp-mobile camp-mobile-ios camp-mobile-android \
+       mobile-staff-start mobile-staff-start-lan mobile-staff-ios mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-all \
        check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
@@ -58,6 +60,32 @@ dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web
+
+# ── Mobile / Camp Mode ───────────────────────────────────────
+
+camp-mobile: mobile-staff-start-lan ## Start Camp Mode staff mobile app (LAN QR, port 8082)
+
+camp-mobile-ios: mobile-staff-ios ## Open Camp Mode staff mobile app on iOS
+
+camp-mobile-android: mobile-staff-android ## Open Camp Mode staff mobile app on Android
+
+mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
+	pnpm --filter @medbrains/mobile-staff start
+
+mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
+	pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
+
+mobile-staff-ios: ## Build/open staff mobile app on iOS simulator/device
+	pnpm --filter @medbrains/mobile-staff ios
+
+mobile-staff-android: ## Build/open staff mobile app on Android emulator/device
+	pnpm --filter @medbrains/mobile-staff android
+
+mobile-staff-prebuild: ## Regenerate native projects for staff mobile app
+	pnpm --filter @medbrains/mobile-staff prebuild
+
+mobile-staff-typecheck: ## Typecheck staff mobile app
+	pnpm --filter @medbrains/mobile-staff typecheck
 
 # ── Database ─────────────────────────────────────────────────
 
