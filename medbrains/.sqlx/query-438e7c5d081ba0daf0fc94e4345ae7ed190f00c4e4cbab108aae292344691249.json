@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invoice_items\n         SET reversed_at = COALESCE(reversed_at, now()),\n             reversed_by = COALESCE(reversed_by, $3),\n             reversal_reason = COALESCE(reversal_reason, $4)\n         WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "438e7c5d081ba0daf0fc94e4345ae7ed190f00c4e4cbab108aae292344691249"
+}

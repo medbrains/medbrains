@@ -5,15 +5,15 @@
  * sub-stack for drill-downs.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
+import type { ReactNode } from "react";
+import type { PatientRow } from "../api/patients.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
-import { PatientListScreen } from "./reception/patient-list.js";
 import { PatientDetailScreen } from "./reception/patient-detail.js";
+import { PatientListScreen } from "./reception/patient-list.js";
 import { RegisterPatientScreen } from "./reception/register-patient.js";
-import type { PatientRow } from "../api/patients.js";
 
 function ReceptionHome(): ReactNode {
   const router = useModuleRouter();
@@ -78,9 +78,7 @@ function ReceptionScreen(): ReactNode {
         home: <ReceptionHome />,
         register: <RegisterPatientScreen />,
         directory: <PatientListScreen />,
-        "patient-detail": (payload) => (
-          <PatientDetailScreen patient={payload as PatientRow} />
-        ),
+        "patient-detail": (payload) => <PatientDetailScreen patient={payload as PatientRow} />,
       }}
     />
   );

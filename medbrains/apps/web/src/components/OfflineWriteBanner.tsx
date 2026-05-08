@@ -16,23 +16,15 @@ interface OfflineWriteBannerProps {
   resource?: string;
 }
 
-export function OfflineWriteBanner({
-  resource = "permission",
-}: OfflineWriteBannerProps) {
+export function OfflineWriteBanner({ resource = "permission" }: OfflineWriteBannerProps) {
   const config = useTenantConfigOptional();
   if (!config || config.mode !== "crdt") {
     return null;
   }
   return (
-    <Alert
-      color="orange"
-      title="Tunnel offline — authz mutations paused"
-      mt="xs"
-      mb="md"
-    >
-      This tenant is operating against the on-prem edge node. {resource}
-      {" "}changes can't be applied until the WAN tunnel reconnects. Read
-      access continues to work normally.
+    <Alert color="orange" title="Tunnel offline — authz mutations paused" mt="xs" mb="md">
+      This tenant is operating against the on-prem edge node. {resource} changes can't be applied
+      until the WAN tunnel reconnects. Read access continues to work normally.
     </Alert>
   );
 }

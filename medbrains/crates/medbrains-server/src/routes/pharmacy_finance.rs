@@ -230,9 +230,17 @@ pub async fn approve_credit_note(
         .await?;
 
         if let Some((invoice_id, _balance)) = outstanding_invoice {
-            // Reduce the outstanding invoice
+            // Reduce the outstanding invoice. Cascade status so a fully-cleared
+            // invoice no longer shows as outstanding in the UI / running-balance
+            // queries that filter by status.
             sqlx::query(
-                "UPDATE invoices SET paid_amount = paid_amount + $1 \
+                "UPDATE invoices SET \
+                 paid_amount = paid_amount + $1, \
+                 status = CASE \
+                   WHEN paid_amount + $1 >= total_amount THEN 'paid'::invoice_status \
+                   ELSE 'partially_paid'::invoice_status \
+                 END, \
+                 updated_at = now() \
                  WHERE id = $2 AND tenant_id = $3",
             )
             .bind(total)

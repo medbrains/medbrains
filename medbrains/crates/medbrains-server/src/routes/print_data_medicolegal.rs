@@ -63,7 +63,8 @@ pub async fn get_ama_form_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, AmaFormRow>(
         "SELECT \
@@ -205,7 +206,8 @@ pub async fn get_mlc_register_print_data(
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MlcRegisterRow>(
         "SELECT \
@@ -351,7 +353,8 @@ pub async fn get_wound_certificate_print_data(
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, WoundCertRow>(
         "SELECT \
@@ -414,14 +417,6 @@ pub async fn get_wound_certificate_print_data(
     .bind(case_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await?;
-
-    let wound_sigs = super::signed_documents::fetch_all_signatures_for_print(
-        &mut tx,
-        &claims.tenant_id,
-        "mlc_certificate",
-        case_id,
-    )
     .await?;
 
     let wound_sigs = super::signed_documents::fetch_all_signatures_for_print(
@@ -519,7 +514,8 @@ pub async fn get_age_estimation_print_data(
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, AgeEstimationRow>(
         "SELECT \
@@ -679,7 +675,8 @@ pub async fn get_death_declaration_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, DeathDeclRow>(
         "SELECT \
@@ -807,7 +804,8 @@ pub async fn get_mlc_documentation_print_data(
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MlcDocRow>(
         "SELECT \

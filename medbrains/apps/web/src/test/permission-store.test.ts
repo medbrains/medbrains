@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { usePermissionStore } from "@medbrains/stores";
+import { beforeEach, describe, expect, it } from "vitest";
 
 /**
  * The permission store powers `useHasPermission`, `useRequirePermission`,
@@ -16,10 +16,7 @@ describe("permission-store", () => {
     });
 
     it("returns true when the code is in the user's permissions", () => {
-      usePermissionStore.getState().setPermissions("doctor", [
-        "patients.list",
-        "opd.queue.list",
-      ]);
+      usePermissionStore.getState().setPermissions("doctor", ["patients.list", "opd.queue.list"]);
       expect(usePermissionStore.getState().hasPermission("patients.list")).toBe(true);
       expect(usePermissionStore.getState().hasPermission("opd.queue.list")).toBe(true);
     });
@@ -48,17 +45,12 @@ describe("permission-store", () => {
 
   describe("hasAllPermissions", () => {
     it("returns true only when every code is held", () => {
-      usePermissionStore.getState().setPermissions("billing_clerk", [
-        "billing.invoices.list",
-        "billing.invoices.create",
-      ]);
+      usePermissionStore
+        .getState()
+        .setPermissions("billing_clerk", ["billing.invoices.list", "billing.invoices.create"]);
       const s = usePermissionStore.getState();
-      expect(
-        s.hasAllPermissions(["billing.invoices.list", "billing.invoices.create"]),
-      ).toBe(true);
-      expect(
-        s.hasAllPermissions(["billing.invoices.list", "billing.payments.create"]),
-      ).toBe(false);
+      expect(s.hasAllPermissions(["billing.invoices.list", "billing.invoices.create"])).toBe(true);
+      expect(s.hasAllPermissions(["billing.invoices.list", "billing.payments.create"])).toBe(false);
     });
 
     it("bypass role returns true even for empty grant", () => {
@@ -76,9 +68,7 @@ describe("permission-store", () => {
 
     it("returns false when none match", () => {
       usePermissionStore.getState().setPermissions("doctor", ["patients.list"]);
-      expect(
-        usePermissionStore.getState().hasAnyPermission(["a.b.c", "x.y.z"]),
-      ).toBe(false);
+      expect(usePermissionStore.getState().hasAnyPermission(["a.b.c", "x.y.z"])).toBe(false);
     });
 
     it("bypass role short-circuits to true on empty input", () => {
@@ -94,25 +84,19 @@ describe("permission-store", () => {
     });
 
     it("returns the override level when set", () => {
-      usePermissionStore.getState().setPermissions(
-        "lab_technician",
-        ["lab.orders.list"],
-        { "patients.aadhaar_number": "hidden" },
+      usePermissionStore.getState().setPermissions("lab_technician", ["lab.orders.list"], {
+        "patients.aadhaar_number": "hidden",
+      });
+      expect(usePermissionStore.getState().getFieldAccess("patients.aadhaar_number")).toBe(
+        "hidden",
       );
-      expect(
-        usePermissionStore.getState().getFieldAccess("patients.aadhaar_number"),
-      ).toBe("hidden");
     });
 
     it("bypass role always gets 'edit' regardless of override", () => {
-      usePermissionStore.getState().setPermissions(
-        "super_admin",
-        [],
-        { "patients.aadhaar_number": "hidden" },
-      );
-      expect(
-        usePermissionStore.getState().getFieldAccess("patients.aadhaar_number"),
-      ).toBe("edit");
+      usePermissionStore
+        .getState()
+        .setPermissions("super_admin", [], { "patients.aadhaar_number": "hidden" });
+      expect(usePermissionStore.getState().getFieldAccess("patients.aadhaar_number")).toBe("edit");
     });
   });
 

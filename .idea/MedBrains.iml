@@ -18,6 +18,12 @@
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-edge/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-outbox/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-outbox/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/apps/desktop/src-tauri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-crypto/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-edge-rn/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-edge/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-fhir/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/medbrains/crates/medbrains-offline-core/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/medbrains/target" />
     </content>
     <orderEntry type="inheritedJdk" />

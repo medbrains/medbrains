@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
@@ -12,9 +11,10 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
@@ -87,7 +87,9 @@ export function PharmacyFinancePage() {
           <SupplierPaymentsTab />
         </Tabs.Panel>
         <Tabs.Panel value="free-dispensing" pt="md">
-          <Text c="dimmed">Free dispensings audit list — read via /api/pharmacy/free-dispensings.</Text>
+          <Text c="dimmed">
+            Free dispensings audit list — read via /api/pharmacy/free-dispensings.
+          </Text>
         </Tabs.Panel>
         <Tabs.Panel value="margins" pt="md">
           <Text c="dimmed">Daily drug margins — read via /api/pharmacy/drug-margins/daily.</Text>
@@ -223,7 +225,12 @@ function OpenDrawerModal({
           min={0}
           step={100}
         />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} minRows={2} />
+        <Textarea
+          label="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.currentTarget.value)}
+          minRows={2}
+        />
         <Group justify="flex-end">
           <Button
             onClick={() => open.mutate()}
@@ -315,7 +322,11 @@ function PettyCashTab() {
         <Card key={row.id} withBorder padding="sm">
           <Group justify="space-between">
             <Group gap="xs">
-              <Badge color={row.status === "approved" ? "green" : row.status === "rejected" ? "red" : "yellow"}>
+              <Badge
+                color={
+                  row.status === "approved" ? "green" : row.status === "rejected" ? "red" : "yellow"
+                }
+              >
                 {row.status}
               </Badge>
               <Text fw={500}>{row.category}</Text>
@@ -324,10 +335,19 @@ function PettyCashTab() {
             </Group>
             {row.status === "pending" && (
               <Group>
-                <Button size="xs" color="green" onClick={() => decide.mutate({ id: row.id, approved: true })}>
+                <Button
+                  size="xs"
+                  color="green"
+                  onClick={() => decide.mutate({ id: row.id, approved: true })}
+                >
                   Approve
                 </Button>
-                <Button size="xs" color="red" variant="light" onClick={() => decide.mutate({ id: row.id, approved: false })}>
+                <Button
+                  size="xs"
+                  color="red"
+                  variant="light"
+                  onClick={() => decide.mutate({ id: row.id, approved: false })}
+                >
                   Reject
                 </Button>
               </Group>
@@ -348,7 +368,9 @@ function SupplierPaymentsTab() {
   const { data } = useQuery({
     queryKey: ["supplier-payments", overdueOnly],
     queryFn: () =>
-      api.listPharmacySupplierPayments({ overdue_only: overdueOnly, limit: 100 }) as Promise<SupplierPaymentRow[]>,
+      api.listPharmacySupplierPayments({ overdue_only: overdueOnly, limit: 100 }) as Promise<
+        SupplierPaymentRow[]
+      >,
   });
 
   return (

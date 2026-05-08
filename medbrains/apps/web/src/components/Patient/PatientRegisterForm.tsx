@@ -71,12 +71,33 @@ interface FormValues {
   mlc_number?: string;
   is_vip?: boolean;
   known_allergies?: string;
+  drug_allergies?: string;
   // Address
   line1?: string;
+  line2?: string;
   city?: string;
+  district?: string;
   state?: string;
   postal_code?: string;
   country?: string;
+  landmark?: string;
+  // Multi-speciality / VIP attributes (stored in patients.attributes JSONB)
+  next_of_kin_name?: string;
+  next_of_kin_relation?: string;
+  next_of_kin_phone?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relation?: string;
+  preferred_room_class?: string;
+  dietary_preference?: string;
+  dietary_restrictions?: string;
+  religious_observances?: string;
+  language_preference?: string;
+  primary_physician_id?: string;
+  primary_physician_name?: string;
+  secondary_insurance_provider?: string;
+  secondary_insurance_policy_no?: string;
+  attendant_passes_count?: string;
 }
 
 const genderOptions: { value: Gender; label: string }[] = [
@@ -123,6 +144,23 @@ const categoryOptions: { value: PatientCategory; label: string }[] = [
   { value: "charity", label: "Charity" },
 ];
 
+const prefixOptions = [
+  { value: "Mr.", label: "Mr." },
+  { value: "Mrs.", label: "Mrs." },
+  { value: "Ms.", label: "Ms." },
+  { value: "Miss", label: "Miss" },
+  { value: "Master", label: "Master" },
+  { value: "Baby", label: "Baby" },
+  { value: "Baby of", label: "Baby of" },
+  { value: "Dr.", label: "Dr." },
+  { value: "Prof.", label: "Prof." },
+  { value: "Shri", label: "Shri" },
+  { value: "Smt.", label: "Smt." },
+  { value: "Kumari", label: "Kumari" },
+  { value: "Rev.", label: "Rev." },
+  { value: "Mx.", label: "Mx." },
+];
+
 export function PatientRegisterForm({
   quickMode = false,
   isSubmitting,
@@ -163,7 +201,10 @@ export function PatientRegisterForm({
   const submit = (values: FormValues) => {
     const address: Record<string, unknown> = {};
     if (values.line1) address.line1 = values.line1;
+    if (values.line2) address.line2 = values.line2;
+    if (values.landmark) address.landmark = values.landmark;
     if (values.city) address.city = values.city;
+    if (values.district) address.district = values.district;
     if (values.state) address.state = values.state;
     if (values.postal_code) address.postal_code = values.postal_code;
     if (values.country) address.country = values.country;
@@ -171,6 +212,43 @@ export function PatientRegisterForm({
     const attributes: Record<string, unknown> = {};
     const allergies = values.known_allergies?.trim();
     if (allergies) attributes.known_allergies = allergies;
+    const drugAllergies = values.drug_allergies?.trim();
+    if (drugAllergies) attributes.drug_allergies = drugAllergies;
+    // Next-of-kin & emergency-contact: collected separately because the
+    // immediate caregiver is often not the same person we'd call in a
+    // crisis (e.g. domestic violence, estranged family).
+    if (values.next_of_kin_name) {
+      attributes.next_of_kin = {
+        name: values.next_of_kin_name,
+        relation: values.next_of_kin_relation,
+        phone: values.next_of_kin_phone,
+      };
+    }
+    if (values.emergency_contact_name) {
+      attributes.emergency_contact = {
+        name: values.emergency_contact_name,
+        relation: values.emergency_contact_relation,
+        phone: values.emergency_contact_phone,
+      };
+    }
+    if (values.preferred_room_class) attributes.preferred_room_class = values.preferred_room_class;
+    if (values.dietary_preference) attributes.dietary_preference = values.dietary_preference;
+    if (values.dietary_restrictions) attributes.dietary_restrictions = values.dietary_restrictions;
+    if (values.religious_observances)
+      attributes.religious_observances = values.religious_observances;
+    if (values.language_preference) attributes.language_preference = values.language_preference;
+    if (values.primary_physician_id) attributes.primary_physician_id = values.primary_physician_id;
+    if (values.primary_physician_name)
+      attributes.primary_physician_name = values.primary_physician_name;
+    if (values.secondary_insurance_provider) {
+      attributes.secondary_insurance = {
+        provider: values.secondary_insurance_provider,
+        policy_no: values.secondary_insurance_policy_no,
+      };
+    }
+    if (values.attendant_passes_count) {
+      attributes.attendant_passes_count = Number(values.attendant_passes_count);
+    }
 
     const req: CreatePatientRequest = {
       first_name: values.first_name,
@@ -230,7 +308,20 @@ export function PatientRegisterForm({
           <FormRow label="Name" required>
             <Grid>
               <Grid.Col span={{ base: 12, sm: 2 }}>
-                <TextInput placeholder="Prefix" {...register("prefix")} />
+                <Controller
+                  control={control}
+                  name="prefix"
+                  render={({ field }) => (
+                    <Select
+                      placeholder="Prefix"
+                      data={prefixOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      searchable
+                      clearable
+                    />
+                  )}
+                />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
@@ -326,10 +417,34 @@ export function PatientRegisterForm({
         </FormSection>
 
         <FormSection num="03" name="Allergies">
-          <FormRow label="Known allergies" required>
+          {/* Both fields are optional — many patients have no known
+              allergies. Empty = "not yet recorded"; the prescriber
+              still gets a banner before issuing meds, but registration
+              is not blocked for routine OPD intake. */}
+          <FormRow label="General allergies (food, environmental, contact)">
             <Controller
               control={control}
               name="known_allergies"
+              render={({ field }) => {
+                const v = (field.value ?? "").trim();
+                const has = v.length > 0;
+                return (
+                  <AllergyField
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Pollen, dust, peanuts, latex, etc. — or leave blank if none known"
+                    severity="watch"
+                    badgeLabel={has ? "Logged" : "Optional"}
+                    hint="Examples: peanuts, shellfish, latex, dust mites. Skip if patient is unsure or has no known allergies."
+                  />
+                );
+              }}
+            />
+          </FormRow>
+          <FormRow label="Drug allergies">
+            <Controller
+              control={control}
+              name="drug_allergies"
               render={({ field }) => {
                 const v = (field.value ?? "").trim();
                 const has = v.length > 0;
@@ -338,13 +453,13 @@ export function PatientRegisterForm({
                   <AllergyField
                     value={field.value ?? ""}
                     onChange={field.onChange}
-                    placeholder="Type known allergies, or 'NKDA' for no known drug allergies"
+                    placeholder="e.g. 'Penicillin — anaphylaxis' or 'NKDA' for No Known Drug Allergies"
                     severity={has ? "watch" : "blocking"}
-                    badgeLabel={has ? (isNkda ? "NKDA" : "Logged") : "Required"}
+                    badgeLabel={has ? (isNkda ? "NKDA" : "Logged") : "Confirm before Rx"}
                     hint={
                       has
-                        ? undefined
-                        : "Code-Red pulse: blocking field — required before any prescription can be issued"
+                        ? "Drug-class allergies: every prescription will surface this. Use 'NKDA' if explicitly confirmed."
+                        : "Pharmacy and prescribing screens will warn until this is confirmed (NKDA, or specific drug + reaction)."
                     }
                   />
                 );
@@ -397,20 +512,32 @@ export function PatientRegisterForm({
             </FormSection>
 
             <FormSection num="05" name="Address">
-              <FormRow label="Street">
+              <FormRow label="Address line 1">
                 <Textarea
-                  placeholder="House / street / locality"
+                  placeholder="House / building / street"
                   autosize
                   minRows={2}
                   {...register("line1")}
                 />
               </FormRow>
-              <FormRow label="City · state · pin">
+              <FormRow label="Address line 2">
+                <TextInput placeholder="Locality / area (optional)" {...register("line2")} />
+              </FormRow>
+              <FormRow label="Landmark">
+                <TextInput
+                  placeholder="Near temple / opposite school / etc."
+                  {...register("landmark")}
+                />
+              </FormRow>
+              <FormRow label="City · district · state · pin">
                 <Grid>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
-                    <TextInput placeholder="City" {...register("city")} />
+                  <Grid.Col span={{ base: 12, sm: 3 }}>
+                    <TextInput placeholder="City / village" {...register("city")} />
                   </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 4 }}>
+                  <Grid.Col span={{ base: 12, sm: 3 }}>
+                    <TextInput placeholder="District / Taluka" {...register("district")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 2 }}>
                     <TextInput placeholder="State" {...register("state")} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 6, sm: 2 }}>
@@ -423,7 +550,145 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="06" name="Registration">
+            <FormSection num="06" name="Next of kin & emergency contact">
+              <FormRow label="Next of kin">
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 5 }}>
+                    <TextInput placeholder="Full name" {...register("next_of_kin_name")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 3 }}>
+                    <TextInput placeholder="Relation" {...register("next_of_kin_relation")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 4 }}>
+                    <TextInput placeholder="Phone" {...register("next_of_kin_phone")} />
+                  </Grid.Col>
+                </Grid>
+              </FormRow>
+              <FormRow label="Emergency contact (different person if needed)">
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 5 }}>
+                    <TextInput placeholder="Full name" {...register("emergency_contact_name")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 3 }}>
+                    <TextInput placeholder="Relation" {...register("emergency_contact_relation")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 6, sm: 4 }}>
+                    <TextInput placeholder="Phone" {...register("emergency_contact_phone")} />
+                  </Grid.Col>
+                </Grid>
+              </FormRow>
+            </FormSection>
+
+            <FormSection num="07" name="Preferences & care continuity">
+              <FormRow label="Preferred ward / room class">
+                <Controller
+                  control={control}
+                  name="preferred_room_class"
+                  render={({ field }) => (
+                    <Select
+                      placeholder="No preference"
+                      data={[
+                        { value: "general", label: "General ward" },
+                        { value: "semi_private", label: "Semi-private" },
+                        { value: "private", label: "Private" },
+                        { value: "deluxe", label: "Deluxe" },
+                        { value: "suite", label: "Suite" },
+                        { value: "icu", label: "ICU (clinical decision)" },
+                      ]}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      clearable
+                    />
+                  )}
+                />
+              </FormRow>
+              <FormRow label="Dietary preference">
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 5 }}>
+                    <Controller
+                      control={control}
+                      name="dietary_preference"
+                      render={({ field }) => (
+                        <Select
+                          placeholder="No preference"
+                          data={[
+                            { value: "vegetarian", label: "Vegetarian" },
+                            { value: "vegan", label: "Vegan" },
+                            { value: "non_veg", label: "Non-vegetarian" },
+                            { value: "jain", label: "Jain" },
+                            { value: "halal", label: "Halal" },
+                            { value: "kosher", label: "Kosher" },
+                            { value: "diabetic", label: "Diabetic-friendly" },
+                          ]}
+                          value={field.value ?? null}
+                          onChange={(v) => field.onChange(v ?? undefined)}
+                          clearable
+                        />
+                      )}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 7 }}>
+                    <TextInput
+                      placeholder="Restrictions / allergies — gluten-free, low-sodium, etc."
+                      {...register("dietary_restrictions")}
+                    />
+                  </Grid.Col>
+                </Grid>
+              </FormRow>
+              <FormRow label="Religious / cultural observances">
+                <TextInput
+                  placeholder="Daily prayer times, fasting, pre-procedure rituals, female-only attendant, etc."
+                  {...register("religious_observances")}
+                />
+              </FormRow>
+              <FormRow label="Preferred language">
+                <TextInput
+                  placeholder="Tamil, Hindi, English, etc."
+                  {...register("language_preference")}
+                />
+              </FormRow>
+              <FormRow label="Primary physician (referring / family doctor)">
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 7 }}>
+                    <TextInput placeholder="Name" {...register("primary_physician_name")} />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 5 }}>
+                    <TextInput
+                      placeholder="In-house staff ID (optional)"
+                      {...register("primary_physician_id")}
+                    />
+                  </Grid.Col>
+                </Grid>
+              </FormRow>
+            </FormSection>
+
+            <FormSection num="08" name="Insurance & visitor pass">
+              <FormRow label="Secondary insurance">
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      placeholder="Provider — second policy (e.g. corporate top-up)"
+                      {...register("secondary_insurance_provider")}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      placeholder="Policy / member number"
+                      {...register("secondary_insurance_policy_no")}
+                    />
+                  </Grid.Col>
+                </Grid>
+              </FormRow>
+              <FormRow label="Default attendant pass count">
+                <TextInput
+                  type="number"
+                  placeholder="Number of bedside attendants allowed (defaults per ward type)"
+                  {...register("attendant_passes_count")}
+                />
+              </FormRow>
+            </FormSection>
+
+            <FormSection num="09" name="Registration">
               <FormRow label="Patient category">
                 <Controller
                   control={control}

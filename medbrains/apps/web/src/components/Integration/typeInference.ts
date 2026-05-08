@@ -80,23 +80,36 @@ export function inferTypeFromFieldName(path: string): MappingFieldType {
   // Boolean patterns
   if (/^(is_|has_|can_|should_|enable|active|visible|disabled|verified|approved)/.test(leaf))
     return "boolean";
-  if (/(flag|_active|_enabled|_visible|_verified|_approved|_blocked)$/.test(leaf))
-    return "boolean";
+  if (/(flag|_active|_enabled|_visible|_verified|_approved|_blocked)$/.test(leaf)) return "boolean";
 
   // Date patterns
-  if (/(date|_at|_time|_on|timestamp|created|updated|deleted|expired|scheduled|dob|birth)/.test(leaf))
+  if (
+    /(date|_at|_time|_on|timestamp|created|updated|deleted|expired|scheduled|dob|birth)/.test(leaf)
+  )
     return "date";
 
   // Number patterns
-  if (/(count|amount|qty|quantity|total|price|cost|rate|age|weight|height|dose|_id|number|balance|score|rank|index|size|duration|length|percentage|percent|ratio)$/.test(leaf))
+  if (
+    /(count|amount|qty|quantity|total|price|cost|rate|age|weight|height|dose|_id|number|balance|score|rank|index|size|duration|length|percentage|percent|ratio)$/.test(
+      leaf,
+    )
+  )
     return "number";
 
   // Array patterns
-  if (/(list|tags|items|array|entries|records|results|children|members|roles|permissions|codes|values|options|categories|groups|attachments|medications|diagnoses|allergies|symptoms)$/.test(leaf))
+  if (
+    /(list|tags|items|array|entries|records|results|children|members|roles|permissions|codes|values|options|categories|groups|attachments|medications|diagnoses|allergies|symptoms)$/.test(
+      leaf,
+    )
+  )
     return "array";
 
   // Object patterns
-  if (/(data|config|meta|metadata|settings|options_obj|payload|body|address|contact|details|info|profile|preferences)$/.test(leaf))
+  if (
+    /(data|config|meta|metadata|settings|options_obj|payload|body|address|contact|details|info|profile|preferences)$/.test(
+      leaf,
+    )
+  )
     return "object";
 
   // Default to string for names, descriptions, labels, codes, etc.

@@ -1,15 +1,14 @@
-import { Box, Modal, Text } from "@mantine/core";
 import {
   DndContext,
+  type DragEndEvent,
   DragOverlay,
+  type DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable";
-import { ReactFlowProvider, type Edge } from "@xyflow/react";
+import { arrayMove, rectSortingStrategy, SortableContext } from "@dnd-kit/sortable";
+import { Box, Modal, Text } from "@mantine/core";
 import type {
   AvailableField,
   FieldMapping,
@@ -17,21 +16,17 @@ import type {
   TargetFieldSuggestion,
   TransformStep,
 } from "@medbrains/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconArrowRight } from "@tabler/icons-react";
-
-import { MapperToolbar, type ViewMode } from "./MapperToolbar";
-import { SourcePanel } from "./SourcePanel";
+import { type Edge, ReactFlowProvider } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DestinationPanel } from "./DestinationPanel";
-import { MappingCard } from "./MappingCard";
 import { FreeformMapperCanvas } from "./FreeformMapperCanvas";
+import { MapperToolbar, type ViewMode } from "./MapperToolbar";
+import { MappingCard } from "./MappingCard";
+import { freeformToMappings, type MapperNode, mappingsToFreeform } from "./mapperSync";
 import { PreviewPanel } from "./PreviewPanel";
-import {
-  mappingsToFreeform,
-  freeformToMappings,
-  type MapperNode,
-} from "./mapperSync";
-import { inferFieldType, inferTypeFromFieldName, getAutoConversionStep } from "./typeInference";
+import { SourcePanel } from "./SourcePanel";
+import { getAutoConversionStep, inferFieldType, inferTypeFromFieldName } from "./typeInference";
 import styles from "./VisualFieldMapper.module.scss";
 
 // ── Types ─────────────────────────────────────────────────
@@ -82,9 +77,7 @@ export function VisualFieldMapper({
 
   // DnD
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // Initialize when modal opens
   const prevOpened = useRef(false);
@@ -130,13 +123,15 @@ export function VisualFieldMapper({
   }, [availableFields, parsedSampleData]);
 
   // Enrich destination suggestions with inferred types from field name heuristics
-  const enrichedTargetSuggestions = useMemo(() =>
-    targetSuggestions.map((s) => {
-      if (s.type && s.type !== "unknown") return s;
-      const inferred = inferTypeFromFieldName(s.path);
-      return inferred !== "unknown" ? { ...s, type: inferred } : s;
-    }),
-  [targetSuggestions]);
+  const enrichedTargetSuggestions = useMemo(
+    () =>
+      targetSuggestions.map((s) => {
+        if (s.type && s.type !== "unknown") return s;
+        const inferred = inferTypeFromFieldName(s.path);
+        return inferred !== "unknown" ? { ...s, type: inferred } : s;
+      }),
+    [targetSuggestions],
+  );
 
   // Mapped paths — recurse into grouped sources to get all leaf paths
   const mappedSourcePaths = useMemo(() => {
@@ -191,16 +186,13 @@ export function VisualFieldMapper({
 
   // ── Mapping CRUD (Diagram mode) ────────────────
 
-  const handleMappingChange = useCallback(
-    (index: number, updated: FieldMapping) => {
-      setLocalMappings((prev) => {
-        const next = [...prev];
-        next[index] = updated;
-        return next;
-      });
-    },
-    [],
-  );
+  const handleMappingChange = useCallback((index: number, updated: FieldMapping) => {
+    setLocalMappings((prev) => {
+      const next = [...prev];
+      next[index] = updated;
+      return next;
+    });
+  }, []);
 
   const handleMappingDelete = useCallback((index: number) => {
     setLocalMappings((prev) => prev.filter((_, i) => i !== index));
@@ -314,10 +306,7 @@ export function VisualFieldMapper({
                   : [];
 
             if (existingSources.length > 0) {
-              const allSources = [
-                ...existingSources,
-                { id: newSourceId(), path: field.path },
-              ];
+              const allSources = [...existingSources, { id: newSourceId(), path: field.path }];
               return {
                 ...m,
                 from: m.from || field.path,
@@ -392,9 +381,10 @@ export function VisualFieldMapper({
             const updated = { ...m, to: suggestion.path };
 
             // Determine source type from the card's existing source field(s)
-            const sourcePath = m.combineMode && m.combineMode !== "single" && m.sources
-              ? m.sources[0]?.path
-              : m.from;
+            const sourcePath =
+              m.combineMode && m.combineMode !== "single" && m.sources
+                ? m.sources[0]?.path
+                : m.from;
             if (!sourcePath) return updated;
 
             const hasSample = Object.keys(parsedSampleData).length > 0;
@@ -420,7 +410,6 @@ export function VisualFieldMapper({
         );
         return;
       }
-
     },
     [localMappings, handleAddMapping, parsedSampleData],
   );
@@ -428,11 +417,7 @@ export function VisualFieldMapper({
   // ── Freeform drop handler ──────────────────────
 
   const handleFreeformDrop = useCallback(
-    (
-      type: string,
-      data: Record<string, unknown>,
-      position: { x: number; y: number },
-    ) => {
+    (type: string, data: Record<string, unknown>, position: { x: number; y: number }) => {
       const nodeId = `drop_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
       if (type === "sourceField") {
@@ -493,11 +478,9 @@ export function VisualFieldMapper({
 
     // Create combiner node at average position
     const avgX =
-      selectedSourceNodes.reduce((sum, n) => sum + n.position.x, 0) /
-      selectedSourceNodes.length;
+      selectedSourceNodes.reduce((sum, n) => sum + n.position.x, 0) / selectedSourceNodes.length;
     const avgY =
-      selectedSourceNodes.reduce((sum, n) => sum + n.position.y, 0) /
-      selectedSourceNodes.length;
+      selectedSourceNodes.reduce((sum, n) => sum + n.position.y, 0) / selectedSourceNodes.length;
 
     const combinerId = `cmb_${Date.now()}`;
     const combinerNode: MapperNode = {
@@ -524,9 +507,7 @@ export function VisualFieldMapper({
 
     // Transfer any outgoing edges from selected sources to the combiner
     const outgoingEdges = freeformEdges.filter(
-      (e) =>
-        selectedFreeformNodes.includes(e.source) &&
-        !selectedFreeformNodes.includes(e.target),
+      (e) => selectedFreeformNodes.includes(e.source) && !selectedFreeformNodes.includes(e.target),
     );
     const transferredEdges: Edge[] = outgoingEdges.map((e) => ({
       ...e,
@@ -549,9 +530,7 @@ export function VisualFieldMapper({
   const handleApply = useCallback(() => {
     // If in freeform mode, sync back to mappings first
     const finalMappings =
-      viewMode === "freeform"
-        ? freeformToMappings(freeformNodes, freeformEdges)
-        : localMappings;
+      viewMode === "freeform" ? freeformToMappings(freeformNodes, freeformEdges) : localMappings;
     onSave(finalMappings);
     onClose();
   }, [viewMode, freeformNodes, freeformEdges, localMappings, onSave, onClose]);
@@ -571,11 +550,7 @@ export function VisualFieldMapper({
         content: { maxHeight: "90vh", display: "flex", flexDirection: "column" },
       }}
     >
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className={styles.mapperModal}>
           {/* ── Toolbar ─────────────────────────────── */}
           <MapperToolbar
@@ -585,9 +560,7 @@ export function VisualFieldMapper({
             sampleData={sampleDataJson}
             onSampleDataChange={setSampleDataJson}
             sourceFieldPaths={[...mappedSourcePaths]}
-            canGroup={
-              viewMode === "freeform" && selectedFreeformNodes.length >= 2
-            }
+            canGroup={viewMode === "freeform" && selectedFreeformNodes.length >= 2}
             onGroup={handleGroup}
             onCancel={onClose}
             onApply={handleApply}
@@ -610,32 +583,23 @@ export function VisualFieldMapper({
                 <div className={styles.centerDiagram}>
                   {localMappings.length === 0 ? (
                     <div className={styles.emptyCenter}>
-                      <IconArrowRight
-                        size={48}
-                        color="var(--mantine-color-gray-3)"
-                      />
+                      <IconArrowRight size={48} color="var(--mantine-color-gray-3)" />
                       <Text size="lg" c="dimmed" mt="md">
                         No mappings yet
                       </Text>
                       <Text size="sm" c="dimmed" mt={4}>
-                        Drag a source field from the left panel to create a
-                        mapping.
+                        Drag a source field from the left panel to create a mapping.
                       </Text>
                     </div>
                   ) : (
-                    <SortableContext
-                      items={mappingIds}
-                      strategy={rectSortingStrategy}
-                    >
+                    <SortableContext items={mappingIds} strategy={rectSortingStrategy}>
                       <div className={styles.diagramGrid}>
                         {localMappings.map((m, i) => (
                           <MappingCard
                             key={m.id}
                             mapping={m}
                             index={i}
-                            onChange={(updated) =>
-                              handleMappingChange(i, updated)
-                            }
+                            onChange={(updated) => handleMappingChange(i, updated)}
                             onDelete={() => handleMappingDelete(i)}
                             targetSuggestions={enrichedTargetSuggestions}
                             sampleData={parsedSampleData}

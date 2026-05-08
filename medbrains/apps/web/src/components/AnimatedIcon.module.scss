@@ -1,0 +1,94 @@
+.root {
+  --animated-icon-color: currentColor;
+  --animated-icon-glow: var(--mb-icon-glow, rgba(20, 184, 166, 0.24));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--animated-icon-color);
+  transform-origin: center;
+}
+
+.root svg {
+  display: block;
+}
+
+.root[data-animation="pulse"] {
+  animation: iconPulse 1.8s ease-in-out infinite;
+}
+
+.root[data-animation="float"] {
+  animation: iconFloat 2.4s ease-in-out infinite;
+}
+
+.root[data-animation="bounce"] {
+  animation: iconBounce 1.8s ease-in-out infinite;
+}
+
+.root[data-animation="rotate"] {
+  animation: iconRotate 2.2s linear infinite;
+}
+
+.root[data-animation="spark"] {
+  animation: iconSpark 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px var(--animated-icon-glow));
+}
+
+@keyframes iconPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes iconFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes iconBounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-3px) scale(1.03);
+  }
+}
+
+@keyframes iconRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes iconSpark {
+  0%,
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+  45% {
+    opacity: 0.86;
+    transform: rotate(-8deg) scale(1.1);
+  }
+  70% {
+    transform: rotate(6deg) scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none !important;
+    filter: none !important;
+  }
+}

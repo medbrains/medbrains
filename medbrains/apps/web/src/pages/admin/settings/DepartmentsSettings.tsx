@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -14,17 +13,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconClock,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { DepartmentRow, WorkingHours } from "@medbrains/types";
-import { SelectLabel, CreateDepartmentModal } from "../../../components";
+import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { CreateDepartmentModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
 
 // ── Constants ─────────────────────────────────────────────
@@ -47,14 +41,7 @@ const TYPE_COLORS: Record<string, string> = {
   academic: "violet",
 };
 
-const WEEKDAYS = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
+const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const ALL_DAYS = [...WEEKDAYS, "sunday"];
 
 const DEFAULT_DAY_SCHEDULE = {
@@ -114,9 +101,7 @@ function DepartmentModal({
   const [name, setName] = useState("");
   const [departmentType, setDepartmentType] = useState("clinical");
   const [parentId, setParentId] = useState<string | null>(null);
-  const [workingHours, setWorkingHours] = useState<WorkingHours>(
-    makeDefaultWorkingHours(),
-  );
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(makeDefaultWorkingHours());
 
   const parentInline = useCreateInline<DepartmentRow>({ queryKey: ["setup-departments"] });
 
@@ -213,8 +198,7 @@ function DepartmentModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      api.updateDepartment(editingDept!.id, data),
+    mutationFn: (data: Record<string, unknown>) => api.updateDepartment(editingDept?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Department updated",
@@ -294,12 +278,7 @@ function DepartmentModal({
           required
         />
         <Select
-          label={
-            <SelectLabel
-              label="Parent Department"
-              onCreate={parentInline.openCreateModal}
-            />
-          }
+          label={<SelectLabel label="Parent Department" onCreate={parentInline.openCreateModal} />}
           placeholder="None (top-level)"
           data={parentOptions}
           value={parentId}
@@ -326,16 +305,14 @@ function DepartmentModal({
                   {day}
                 </Text>
                 {isSunday && (
-                  <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    onClick={toggleSunday}
-                  >
+                  <Button variant="subtle" size="compact-xs" onClick={toggleSunday}>
                     {isOff ? "Enable" : "Set Off"}
                   </Button>
                 )}
                 {!isSunday && isOff && (
-                  <Text size="xs" c="dimmed">Off</Text>
+                  <Text size="xs" c="dimmed">
+                    Off
+                  </Text>
                 )}
               </Group>
               {!isOff && (
@@ -357,9 +334,7 @@ function DepartmentModal({
                       placeholder="HH:MM"
                       label="AM End"
                       value={daySchedule?.morning?.end ?? ""}
-                      onChange={(e) =>
-                        updateDayTime(day, "morning", "end", e.currentTarget.value)
-                      }
+                      onChange={(e) => updateDayTime(day, "morning", "end", e.currentTarget.value)}
                     />
                   </Grid.Col>
                   <Grid.Col span={3}>
@@ -379,9 +354,7 @@ function DepartmentModal({
                       placeholder="HH:MM"
                       label="PM End"
                       value={daySchedule?.evening?.end ?? ""}
-                      onChange={(e) =>
-                        updateDayTime(day, "evening", "end", e.currentTarget.value)
-                      }
+                      onChange={(e) => updateDayTime(day, "evening", "end", e.currentTarget.value)}
                     />
                   </Grid.Col>
                 </Grid>
@@ -526,20 +499,13 @@ export function DepartmentsSettings() {
         <Text size="sm">{dept.name}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={TYPE_COLORS[dept.department_type] ?? "slate"}
-        >
+        <Badge size="sm" variant="light" color={TYPE_COLORS[dept.department_type] ?? "slate"}>
           {dept.department_type.replace(/_/g, " ")}
         </Badge>
       </Table.Td>
       <Table.Td>
         <Text size="xs" c="dimmed">
-          <IconClock
-            size={12}
-            style={{ verticalAlign: "middle", marginRight: 4 }}
-          />
+          <IconClock size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
           {formatWorkingHoursSummary(dept.working_hours)}
         </Text>
       </Table.Td>
@@ -583,11 +549,7 @@ export function DepartmentsSettings() {
         <Text size="sm" c="dimmed">
           Manage hospital departments and their working hours.
         </Text>
-        <Button
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-        >
+        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Department
         </Button>
       </Group>

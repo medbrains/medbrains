@@ -28,7 +28,10 @@ impl fmt::Debug for LocalEd25519Signer {
 
 impl LocalEd25519Signer {
     pub fn new(kid: impl Into<String>, key: SigningKey) -> Self {
-        Self { kid: kid.into(), key }
+        Self {
+            kid: kid.into(),
+            key,
+        }
     }
 
     /// Build from raw 32-byte secret. Returns error if length is wrong.

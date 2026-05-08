@@ -1,14 +1,5 @@
-import { useMemo } from "react";
-import {
-  Badge,
-  Card,
-  Grid,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  ThemeIcon,
-} from "@mantine/core";
+import { Badge, Card, Grid, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
+import { api } from "@medbrains/api";
 import {
   IconAlertCircle,
   IconCheck,
@@ -20,7 +11,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
+import { useMemo } from "react";
 
 interface MasterDataItem {
   key: string;
@@ -68,14 +59,7 @@ export function MasterDataStatusSettings() {
   const firstError = queries.find((q) => q.isError)?.error;
 
   const masterItems: MasterDataItem[] = useMemo(() => {
-    const [
-      pharmacyQuery,
-      labQuery,
-      procedureQuery,
-      deptQuery,
-      userQuery,
-      locationQuery,
-    ] = queries;
+    const [pharmacyQuery, labQuery, procedureQuery, deptQuery, userQuery, locationQuery] = queries;
 
     const drugCount = pharmacyQuery.data?.length || 0;
     const testCount = labQuery.data?.length || 0;
@@ -177,7 +161,9 @@ export function MasterDataStatusSettings() {
               radius="md"
               withBorder
               style={{
-                borderColor: item.needsSetup ? "#fa5252" : "#e9ecef",
+                borderColor: item.needsSetup
+                  ? "var(--mb-danger-accent)"
+                  : "var(--mb-border-subtle)",
               }}
             >
               <Stack gap="md">
@@ -195,12 +181,7 @@ export function MasterDataStatusSettings() {
                       Needs setup
                     </Badge>
                   ) : (
-                    <ThemeIcon
-                      size="sm"
-                      radius="xl"
-                      color="success"
-                      variant="light"
-                    >
+                    <ThemeIcon size="sm" radius="xl" color="success" variant="light">
                       <IconCheck size={14} />
                     </ThemeIcon>
                   )}
@@ -235,7 +216,7 @@ export function MasterDataStatusSettings() {
           padding="lg"
           radius="md"
           withBorder
-          style={{ backgroundColor: "#f8f9fa" }}
+          style={{ background: "var(--mb-accent-gradient-soft)" }}
         >
           <Group gap="md">
             <ThemeIcon size="xl" radius="xl" color="success" variant="light">

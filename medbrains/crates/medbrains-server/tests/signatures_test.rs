@@ -104,12 +104,13 @@ async fn issue_default_credential(
         .send()
         .await
         .expect("issue cred");
-    assert_eq!(resp.status(), StatusCode::OK, "credential issue must succeed");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "credential issue must succeed"
+    );
     let body: serde_json::Value = resp.json().await.expect("cred json");
-    body["credential"]["id"]
-        .as_str()
-        .unwrap_or("")
-        .to_owned()
+    body["credential"]["id"].as_str().unwrap_or("").to_owned()
 }
 
 // Note: a "sign without any credential returns 400" test is omitted

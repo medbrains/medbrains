@@ -149,7 +149,10 @@ pub async fn get_package(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(PackageWithInclusions { package, inclusions }))
+    Ok(Json(PackageWithInclusions {
+        package,
+        inclusions,
+    }))
 }
 
 pub async fn create_package(
@@ -205,7 +208,10 @@ pub async fn create_package(
     }
 
     tx.commit().await?;
-    Ok(Json(PackageWithInclusions { package, inclusions }))
+    Ok(Json(PackageWithInclusions {
+        package,
+        inclusions,
+    }))
 }
 
 pub async fn update_package(

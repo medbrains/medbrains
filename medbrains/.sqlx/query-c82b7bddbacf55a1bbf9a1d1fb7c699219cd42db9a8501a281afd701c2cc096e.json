@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id\n         FROM invoice_items\n         WHERE tenant_id = $1\n           AND source::text = $2\n           AND source_id = $3\n           AND reversal_of_id IS NULL\n           AND total_price > 0\n         ORDER BY created_at\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c82b7bddbacf55a1bbf9a1d1fb7c699219cd42db9a8501a281afd701c2cc096e"
+}

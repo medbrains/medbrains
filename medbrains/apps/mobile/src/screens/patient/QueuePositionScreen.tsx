@@ -1,6 +1,6 @@
 import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -135,10 +135,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Status Banner */}
-      <Surface
-        style={[styles.statusBanner, { backgroundColor: statusInfo.bgColor }]}
-        elevation={0}
-      >
+      <Surface style={[styles.statusBanner, { backgroundColor: statusInfo.bgColor }]} elevation={0}>
         <Avatar.Icon
           size={64}
           icon={statusInfo.icon}
@@ -254,11 +251,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           Get Directions
         </Button>
 
-        <Button
-          mode="text"
-          icon="refresh"
-          onPress={() => setRefreshKey((prev) => prev + 1)}
-        >
+        <Button mode="text" icon="refresh" onPress={() => setRefreshKey((prev) => prev + 1)}>
           Refresh Status
         </Button>
       </View>

@@ -114,16 +114,11 @@ pub async fn spawn_app() -> TestApp {
     let decoding_key = DecodingKey::from_ed_der(verifying_key.as_bytes());
 
     // Topology router — tests use shared pool for both writer + reader.
-    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> =
-        Arc::new(medbrains_db_topology::PostgresTopologyResolver::new(
-            db.clone(),
-        ));
+    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> = Arc::new(
+        medbrains_db_topology::PostgresTopologyResolver::new(db.clone()),
+    );
     let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> = Arc::new(
-        medbrains_db_topology::TopologyRouter::new(
-            db.clone(),
-            db.clone(),
-            topology_resolver,
-        ),
+        medbrains_db_topology::TopologyRouter::new(db.clone(), db.clone(), topology_resolver),
     );
 
     let outbox_registry = Arc::new(medbrains_outbox::Registry::new());

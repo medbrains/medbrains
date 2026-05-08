@@ -2,7 +2,7 @@
 //!
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §7.
 
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
@@ -37,14 +37,21 @@ pub async fn get_system_state(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: Option<(String, chrono::DateTime<chrono::Utc>, Option<String>, Option<uuid::Uuid>, chrono::DateTime<chrono::Utc>)> =
-        sqlx::query_as( // allow-raw-sql: admin endpoint reads own tenant's system_state
-            "SELECT mode, since, reason, set_by, updated_at \
+    type SystemStateRow = (
+        String,
+        chrono::DateTime<chrono::Utc>,
+        Option<String>,
+        Option<uuid::Uuid>,
+        chrono::DateTime<chrono::Utc>,
+    );
+    let row: Option<SystemStateRow> = sqlx::query_as(
+        // allow-raw-sql: admin endpoint reads own tenant's system_state
+        "SELECT mode, since, reason, set_by, updated_at \
              FROM system_state WHERE tenant_id = $1 LIMIT 1",
-        )
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let resp = match row {

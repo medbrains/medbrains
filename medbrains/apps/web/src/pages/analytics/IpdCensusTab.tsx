@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { AreaChart } from "@mantine/charts";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { AreaChart } from "@mantine/charts";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { IpdCensusRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -24,10 +24,7 @@ export function IpdCensusTab() {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
 
-  const params = useMemo(
-    () => ({ from: toIso(from), to: toIso(to) }),
-    [from, to],
-  );
+  const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["analytics", "ipd-census", params],
@@ -67,10 +64,34 @@ export function IpdCensusTab() {
 
   const columns: Column<IpdCensusRow>[] = [
     { key: "date", label: "Date", render: (r) => <Text size="sm">{r.date}</Text> },
-    { key: "admissions", label: "Admissions", render: (r) => <Text size="sm">{r.admissions}</Text> },
-    { key: "discharges", label: "Discharges", render: (r) => <Text size="sm">{r.discharges}</Text> },
-    { key: "deaths", label: "Deaths", render: (r) => <Text size="sm" c={r.deaths > 0 ? "danger" : undefined}>{r.deaths}</Text> },
-    { key: "active", label: "Active Census", render: (r) => <Text size="sm" fw={600}>{r.active}</Text> },
+    {
+      key: "admissions",
+      label: "Admissions",
+      render: (r) => <Text size="sm">{r.admissions}</Text>,
+    },
+    {
+      key: "discharges",
+      label: "Discharges",
+      render: (r) => <Text size="sm">{r.discharges}</Text>,
+    },
+    {
+      key: "deaths",
+      label: "Deaths",
+      render: (r) => (
+        <Text size="sm" c={r.deaths > 0 ? "danger" : undefined}>
+          {r.deaths}
+        </Text>
+      ),
+    },
+    {
+      key: "active",
+      label: "Active Census",
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {r.active}
+        </Text>
+      ),
+    },
   ];
 
   return (
@@ -101,14 +122,20 @@ export function IpdCensusTab() {
       <SimpleGrid cols={4}>
         <StatCard label="Total Admissions" value={totals.admissions.toLocaleString()} />
         <StatCard label="Total Discharges" value={totals.discharges.toLocaleString()} />
-        <StatCard label="Total Deaths" value={totals.deaths.toLocaleString()} color={totals.deaths > 0 ? "danger" : undefined} />
+        <StatCard
+          label="Total Deaths"
+          value={totals.deaths.toLocaleString()}
+          color={totals.deaths > 0 ? "danger" : undefined}
+        />
         <StatCard label="Current Census" value={totals.latestActive.toLocaleString()} />
       </SimpleGrid>
 
       {/* Chart */}
       {chartData.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="sm">IPD Census Trend</Text>
+          <Text fw={600} mb="sm">
+            IPD Census Trend
+          </Text>
           <AreaChart
             h={300}
             data={chartData}
@@ -125,12 +152,7 @@ export function IpdCensusTab() {
       )}
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={rows}
-        loading={isLoading}
-        rowKey={(r) => r.date}
-      />
+      <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(r) => r.date} />
     </Stack>
   );
 }
@@ -140,8 +162,12 @@ export function IpdCensusTab() {
 function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <Card withBorder p="lg">
-      <Text c="dimmed" size="sm">{label}</Text>
-      <Text fw={700} size="xl" c={color}>{value}</Text>
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Text fw={700} size="xl" c={color}>
+        {value}
+      </Text>
     </Card>
   );
 }

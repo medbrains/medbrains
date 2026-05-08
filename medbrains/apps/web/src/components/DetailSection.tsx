@@ -49,7 +49,11 @@ export function DetailSection({
             <div key={field.label} className={styles.fieldItem}>
               <span className={styles.fieldLabel}>{field.label}</span>
               <span className={styles.fieldValue}>
-                {field.value || <Text component="span" c="var(--mb-text-faint)">--</Text>}
+                {field.value || (
+                  <Text component="span" c="var(--mb-text-faint)">
+                    --
+                  </Text>
+                )}
               </span>
             </div>
           ))}

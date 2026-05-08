@@ -20,6 +20,8 @@ Exit codes:
     1  Field mismatches found between matched types
 """
 
+import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -30,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TYPES_TS = REPO_ROOT / "medbrains" / "packages" / "types" / "src" / "index.ts"
 ROUTES_DIR = REPO_ROOT / "medbrains" / "crates" / "medbrains-server" / "src" / "routes"
 CORE_DIR = REPO_ROOT / "medbrains" / "crates" / "medbrains-core" / "src"
+BASELINE_FILE = REPO_ROOT / "scripts" / ".type_contract_baseline.json"
 
 # ── Type mapping: Rust → TypeScript ──────────────────────────────────
 
@@ -69,6 +72,13 @@ SKIP_TYPES = {
     "QueryParams",
     "Pagination",
     "PaginatedResponse",
+}
+
+# Fields that are deliberately server-internal even when the Rust domain
+# model is serializable. They must never be required in frontend public
+# contracts.
+SKIP_FIELDS_BY_TYPE = {
+    "User": {"password_hash"},
 }
 
 
@@ -203,7 +213,7 @@ def extract_all_rust_structs() -> dict[str, dict[str, tuple[str, bool, int]]]:
     for directory in [ROUTES_DIR, CORE_DIR]:
         if not directory.exists():
             continue
-        for rs_file in directory.rglob("*.rs"):
+        for rs_file in sorted(directory.rglob("*.rs")):
             file_structs = extract_rust_structs_from_file(rs_file)
             all_structs.update(file_structs)
 
@@ -333,6 +343,8 @@ def compare_types(
 
         # Fields in Rust but not TS (ERROR — frontend won't send them)
         for fname in sorted(rust_field_names - ts_field_names):
+            if fname in SKIP_FIELDS_BY_TYPE.get(ts_name, set()):
+                continue
             rust_type, rust_opt, _ = rust_fields[fname]
             if rust_opt:
                 # Optional fields are OK to be missing in TS (defaults to None)
@@ -397,6 +409,19 @@ def compare_types(
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="Record current required-field mismatches as the known baseline",
+    )
+    ap.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print baseline errors and warning details instead of summary-only output",
+    )
+    args = ap.parse_args()
+
     if not TYPES_TS.exists():
         print(f"ERROR: TypeScript types file not found: {TYPES_TS}")
         sys.exit(2)
@@ -422,25 +447,63 @@ def main():
     # Separate by severity
     errors = [i for i in issues if i[3] == "ERROR"]
     warnings = [i for i in issues if i[3] == "WARNING"]
+    error_ids = sorted(f"{type_name}.{field}" for type_name, field, _, _ in errors)
+
+    if args.update_baseline:
+        BASELINE_FILE.write_text(json.dumps(error_ids, indent=2, sort_keys=True) + "\n")
+        print(
+            f"updated type-contract baseline: {len(error_ids)} required-field mismatches "
+            f"({BASELINE_FILE.relative_to(REPO_ROOT)})"
+        )
+        return
+
+    baseline: set[str] = set()
+    if BASELINE_FILE.exists():
+        baseline = set(json.loads(BASELINE_FILE.read_text()))
+
+    new_error_ids = sorted(set(error_ids) - baseline)
+    resolved_error_ids = sorted(baseline - set(error_ids))
 
     if errors:
-        print(f"ERRORS ({len(errors)} — required Rust fields missing in TS):")
+        if baseline:
+            print(
+                f"ERRORS ({len(errors)} required Rust fields missing in TS; "
+                f"{len(new_error_ids)} new vs baseline):"
+            )
+        else:
+            print(f"ERRORS ({len(errors)} — required Rust fields missing in TS):")
         for type_name, field, detail, _ in errors:
-            print(f"  {type_name}.{field}: {detail}")
+            error_id = f"{type_name}.{field}"
+            if baseline and error_id not in new_error_ids and not args.verbose:
+                continue
+            marker = "NEW " if error_id in new_error_ids else ""
+            print(f"  {marker}{error_id}: {detail}")
+        if baseline and not new_error_ids and not args.verbose:
+            print("  No new required-field mismatches. Existing mismatches are in baseline.")
+            print("  Use --verbose to print all baseline mismatches.")
+        print()
+
+    if resolved_error_ids:
+        print(f"INFO: {len(resolved_error_ids)} baseline errors have been resolved.")
+        print("      Run with --update-baseline after the cleanup is reviewed.")
         print()
 
     if warnings:
         print(f"WARNINGS ({len(warnings)} — optionality or extra field mismatches):")
+        if not args.verbose:
+            print("  Warning details suppressed by default. Use --verbose to print them.")
+            print()
+        else:
         # Group by type for readability
-        by_type: dict[str, list[tuple[str, str]]] = {}
-        for type_name, field, detail, _ in warnings:
-            by_type.setdefault(type_name, []).append((field, detail))
+            by_type: dict[str, list[tuple[str, str]]] = {}
+            for type_name, field, detail, _ in warnings:
+                by_type.setdefault(type_name, []).append((field, detail))
 
-        for type_name in sorted(by_type.keys()):
-            print(f"  {type_name}:")
-            for field, detail in by_type[type_name]:
-                print(f"    .{field}: {detail}")
-        print()
+            for type_name in sorted(by_type.keys()):
+                print(f"  {type_name}:")
+                for field, detail in by_type[type_name]:
+                    print(f"    .{field}: {detail}")
+            print()
 
     # Info: types only on one side (truncated)
     if ts_only:
@@ -472,9 +535,15 @@ def main():
         f"{len(errors)} errors, {len(warnings)} warnings"
     )
 
-    if errors:
-        print("\nFAILED — required Rust fields are missing in TypeScript interfaces.")
+    if errors and (not baseline or new_error_ids):
+        if baseline:
+            print("\nFAILED — new required Rust fields are missing in TypeScript interfaces.")
+        else:
+            print("\nFAILED — required Rust fields are missing in TypeScript interfaces.")
         sys.exit(1)
+    elif errors:
+        print("\nPASSED WITH BASELINE — no new required field mismatches.")
+        sys.exit(0)
     else:
         print("\nPASSED — no required field mismatches found.")
         sys.exit(0)

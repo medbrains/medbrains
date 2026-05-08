@@ -1,19 +1,22 @@
 import { Tabs } from "@mantine/core";
-import { P } from "@medbrains/types";
 import { usePermissionStore } from "@medbrains/stores";
-import { useTranslation } from "react-i18next";
+import { P } from "@medbrains/types";
 import { createElement, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "../../config/settings-tabs";
 import { useHashTabs } from "../../hooks/useHashTabs";
-import { SETTINGS_TABS, SETTINGS_TAB_ICON_MAP } from "../../config/settings-tabs";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 export function SettingsPage() {
   const { t } = useTranslation("admin");
   const hasPermission = usePermissionStore((s) => s.hasPermission);
 
   const visibleTabs = useMemo(
-    () => SETTINGS_TABS.filter((tab) => !tab.requiredPermission || hasPermission(tab.requiredPermission)),
+    () =>
+      SETTINGS_TABS.filter(
+        (tab) => !tab.requiredPermission || hasPermission(tab.requiredPermission),
+      ),
     [hasPermission],
   );
 

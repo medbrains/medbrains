@@ -27,7 +27,9 @@ pub enum MerkleError {
     #[error("serde_json: {0}")]
     Serde(#[from] serde_json::Error),
 
-    #[error("chain integrity violation at offset {offset}: expected prev_hash {expected}, got {actual}")]
+    #[error(
+        "chain integrity violation at offset {offset}: expected prev_hash {expected}, got {actual}"
+    )]
     Integrity {
         offset: u64,
         expected: String,
@@ -120,9 +122,7 @@ impl MerkleAudit {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((zeros(), 0)),
             Err(e) => return Err(e.into()),
         };
-        let last_line = bytes
-            .split(|&b| b == b'\n')
-            .rfind(|s| !s.is_empty());
+        let last_line = bytes.split(|&b| b == b'\n').rfind(|s| !s.is_empty());
         let Some(line) = last_line else {
             return Ok((zeros(), 0));
         };

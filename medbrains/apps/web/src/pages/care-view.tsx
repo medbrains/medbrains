@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { Select, Tabs } from "@mantine/core";
-import { IconBed, IconClipboardList, IconLogout, IconUserHeart } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import { IconBed, IconClipboardList, IconLogout, IconUserHeart } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";

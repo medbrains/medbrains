@@ -4,8 +4,8 @@
 
 use async_trait::async_trait;
 use moka::future::Cache;
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -88,8 +88,8 @@ impl TopologyRouter {
                 // Default — Aurora for both reads + writes
                 TenantPools {
                     topology: Topology::Aurora,
-                    writer: self.aurora_writer.clone(),
-                    reader: self.aurora_reader.clone(),
+                    writer: Arc::clone(&self.aurora_writer),
+                    reader: Arc::clone(&self.aurora_reader),
                 }
             }
             Some(row) => self.build_pools(row).await?,
@@ -103,8 +103,8 @@ impl TopologyRouter {
         match topology {
             Topology::Aurora => Ok(TenantPools {
                 topology,
-                writer: self.aurora_writer.clone(),
-                reader: self.aurora_reader.clone(),
+                writer: Arc::clone(&self.aurora_writer),
+                reader: Arc::clone(&self.aurora_reader),
             }),
             Topology::Patroni => {
                 let writer = self.connect(&row, /*reader=*/ false).await?;
@@ -119,7 +119,7 @@ impl TopologyRouter {
                 let reader = self.connect(&row, /*reader=*/ true).await?;
                 Ok(TenantPools {
                     topology,
-                    writer: self.aurora_writer.clone(),
+                    writer: Arc::clone(&self.aurora_writer),
                     reader: Arc::new(reader),
                 })
             }
@@ -177,17 +177,24 @@ mod tests {
 
     #[async_trait]
     impl TopologyResolver for StubResolver {
-        async fn resolve(
-            &self,
-            tenant_id: Uuid,
-        ) -> Result<Option<DbTopologyRow>, TopologyError> {
-            Ok(self.rows.lock().expect("stub-resolver lock").get(&tenant_id).cloned().flatten())
+        async fn resolve(&self, tenant_id: Uuid) -> Result<Option<DbTopologyRow>, TopologyError> {
+            Ok(self
+                .rows
+                .lock()
+                .expect("stub-resolver lock")
+                .get(&tenant_id)
+                .cloned()
+                .flatten())
         }
     }
 
     #[test]
     fn topology_codes_round_trip() {
-        for t in [Topology::Aurora, Topology::Patroni, Topology::AuroraWithPatroniReads] {
+        for t in [
+            Topology::Aurora,
+            Topology::Patroni,
+            Topology::AuroraWithPatroniReads,
+        ] {
             assert_eq!(Topology::from_code(t.as_code()), Some(t));
         }
     }

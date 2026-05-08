@@ -25,7 +25,11 @@ function newQueryClient(): QueryClient {
 function makeProviders(client: QueryClient, initialEntries: string[]) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <MantineProvider theme={theme} defaultColorScheme="light" cssVariablesResolver={cssVariableResolver}>
+      <MantineProvider
+        theme={theme}
+        defaultColorScheme="light"
+        cssVariablesResolver={cssVariableResolver}
+      >
         <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
       </MantineProvider>
     </QueryClientProvider>

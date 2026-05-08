@@ -41,7 +41,10 @@ async fn render_with_dlt_template(
         .get("DLT_ENFORCE")
         .await
         .unwrap_or_default();
-    let enforce = matches!(enforce_str.to_ascii_lowercase().as_str(), "1" | "true" | "yes");
+    let enforce = matches!(
+        enforce_str.to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes"
+    );
 
     let Some(scope) = scope else {
         if enforce {
@@ -110,7 +113,10 @@ pub struct SmsSendHandler {
 
 impl SmsSendHandler {
     pub const fn new(event_type: &'static str) -> Self {
-        Self { event_type, api_base: None }
+        Self {
+            event_type,
+            api_base: None,
+        }
     }
 
     /// Construct a handler that targets a custom REST base URL.
@@ -130,11 +136,7 @@ impl Handler for SmsSendHandler {
         self.event_type
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         // Pull the recipient + body from the payload first; fail fast
         // before contacting the credential resolver.
         let to = payload
@@ -195,10 +197,7 @@ impl Handler for SmsSendHandler {
 
         // Build form body. Use MessagingServiceSid when present (India DLT
         // routing); fall back to From for international/dev.
-        let mut form: Vec<(&str, String)> = vec![
-            ("To", to.to_owned()),
-            ("Body", body.clone()),
-        ];
+        let mut form: Vec<(&str, String)> = vec![("To", to.to_owned()), ("Body", body.clone())];
         if let Some(svc) = messaging_service_sid.filter(|s| !s.is_empty()) {
             form.push(("MessagingServiceSid", svc));
         } else {

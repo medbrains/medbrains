@@ -2,8 +2,8 @@
  * Security API methods — incident log.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface IncidentRow {
   id: string;

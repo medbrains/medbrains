@@ -2,6 +2,9 @@
 //!
 //! Usage: cargo run -p medbrains-authz --bin lookup-probe -- <user_uuid>
 
+// CLI binary — println is the user-facing UI.
+#![allow(clippy::print_stdout)]
+
 use medbrains_authz::backend_spicedb::SpiceDbBackend;
 use medbrains_authz::{AuthzBackend, AuthzContext, relations::Relation};
 use uuid::Uuid;
@@ -13,8 +16,8 @@ async fn main() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("usage: lookup-probe <user_uuid>"))?
         .parse()?;
 
-    let endpoint = std::env::var("SPICEDB_ENDPOINT")
-        .unwrap_or_else(|_| "http://localhost:50051".to_owned());
+    let endpoint =
+        std::env::var("SPICEDB_ENDPOINT").unwrap_or_else(|_| "http://localhost:50051".to_owned());
     let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
 
     println!("connecting to {endpoint}…");

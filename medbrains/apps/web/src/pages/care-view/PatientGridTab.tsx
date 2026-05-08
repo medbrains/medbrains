@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { Badge, Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
-import { IconHeartbeat, IconTemperature } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { PatientCardRow, VitalsChecklistRow } from "@medbrains/types";
+import { IconHeartbeat, IconTemperature } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { fallRiskColor, news2Color, urgencyColor } from "./shared";
@@ -193,8 +193,16 @@ function VitalsChecklistSection({ wardId }: { wardId: string | null }) {
   const dueCount = data?.filter((row) => row.vitals_due).length ?? 0;
 
   const columns: Column<VitalsChecklistRow>[] = [
-    { key: "patient_name", label: "Patient", render: (row) => <Text size="sm">{row.patient_name}</Text> },
-    { key: "bed_name", label: "Bed", render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text> },
+    {
+      key: "patient_name",
+      label: "Patient",
+      render: (row) => <Text size="sm">{row.patient_name}</Text>,
+    },
+    {
+      key: "bed_name",
+      label: "Bed",
+      render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text>,
+    },
     {
       key: "hours_since_last",
       label: "Hours Since Last",

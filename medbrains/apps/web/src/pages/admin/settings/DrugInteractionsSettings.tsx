@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -9,16 +8,17 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
+import type { CreateDrugInteractionRequest, DrugInteraction } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import type { DrugInteraction, CreateDrugInteractionRequest } from "@medbrains/types";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const SEVERITY_COLORS: Record<string, string> = {
   minor: "warning",
@@ -47,11 +47,19 @@ export function DrugInteractionsSettings() {
     mutationFn: (data: CreateDrugInteractionRequest) => api.createDrugInteraction(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
-      notifications.show({ title: "Created", message: "Drug interaction rule added", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Drug interaction rule added",
+        color: "success",
+      });
       handleClose();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create interaction rule", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to create interaction rule",
+        color: "danger",
+      });
     },
   });
 
@@ -59,7 +67,11 @@ export function DrugInteractionsSettings() {
     mutationFn: (id: string) => api.deleteDrugInteraction(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
-      notifications.show({ title: "Deleted", message: "Interaction rule removed", color: "warning" });
+      notifications.show({
+        title: "Deleted",
+        message: "Interaction rule removed",
+        color: "warning",
+      });
     },
   });
 
@@ -110,16 +122,40 @@ export function DrugInteractionsSettings() {
         <Table.Tbody>
           {interactions.map((row: DrugInteraction) => (
             <Table.Tr key={row.id}>
-              <Table.Td><Text size="sm" fw={500}>{row.drug_a_name}</Text></Table.Td>
-              <Table.Td><Text size="sm" fw={500}>{row.drug_b_name}</Text></Table.Td>
               <Table.Td>
-                <Badge size="sm" color={SEVERITY_COLORS[row.severity] ?? "slate"}>{row.severity}</Badge>
+                <Text size="sm" fw={500}>
+                  {row.drug_a_name}
+                </Text>
               </Table.Td>
-              <Table.Td><Text size="xs" lineClamp={2}>{row.description}</Text></Table.Td>
-              <Table.Td><Text size="xs" c="dimmed" lineClamp={1}>{row.management ?? "—"}</Text></Table.Td>
+              <Table.Td>
+                <Text size="sm" fw={500}>
+                  {row.drug_b_name}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge size="sm" color={SEVERITY_COLORS[row.severity] ?? "slate"}>
+                  {row.severity}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs" lineClamp={2}>
+                  {row.description}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs" c="dimmed" lineClamp={1}>
+                  {row.management ?? "—"}
+                </Text>
+              </Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(row.id)} aria-label="Delete">
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => deleteMutation.mutate(row.id)}
+                    aria-label="Delete"
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -129,7 +165,9 @@ export function DrugInteractionsSettings() {
           {interactions.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={canManage ? 6 : 5}>
-                <Text size="sm" c="dimmed" ta="center">No drug interaction rules configured</Text>
+                <Text size="sm" c="dimmed" ta="center">
+                  No drug interaction rules configured
+                </Text>
               </Table.Td>
             </Table.Tr>
           )}
@@ -138,8 +176,20 @@ export function DrugInteractionsSettings() {
 
       <Modal opened={opened} onClose={handleClose} title="Add Drug Interaction Rule" size="md">
         <Stack gap="sm">
-          <TextInput label="Drug A" placeholder="e.g. Warfarin" value={drugA} onChange={(e) => setDrugA(e.currentTarget.value)} required />
-          <TextInput label="Drug B" placeholder="e.g. Aspirin" value={drugB} onChange={(e) => setDrugB(e.currentTarget.value)} required />
+          <TextInput
+            label="Drug A"
+            placeholder="e.g. Warfarin"
+            value={drugA}
+            onChange={(e) => setDrugA(e.currentTarget.value)}
+            required
+          />
+          <TextInput
+            label="Drug B"
+            placeholder="e.g. Aspirin"
+            value={drugB}
+            onChange={(e) => setDrugB(e.currentTarget.value)}
+            required
+          />
           <Select
             label="Severity"
             data={[
@@ -152,12 +202,38 @@ export function DrugInteractionsSettings() {
             onChange={setSeverity}
             required
           />
-          <Textarea label="Description" placeholder="Describe the interaction" value={description} onChange={(e) => setDescription(e.currentTarget.value)} required autosize minRows={2} />
-          <TextInput label="Mechanism" placeholder="Optional" value={mechanism} onChange={(e) => setMechanism(e.currentTarget.value)} />
-          <Textarea label="Management" placeholder="How to manage this interaction" value={management} onChange={(e) => setManagement(e.currentTarget.value)} autosize minRows={2} />
+          <Textarea
+            label="Description"
+            placeholder="Describe the interaction"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            required
+            autosize
+            minRows={2}
+          />
+          <TextInput
+            label="Mechanism"
+            placeholder="Optional"
+            value={mechanism}
+            onChange={(e) => setMechanism(e.currentTarget.value)}
+          />
+          <Textarea
+            label="Management"
+            placeholder="How to manage this interaction"
+            value={management}
+            onChange={(e) => setManagement(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={!drugA.trim() || !drugB.trim() || !severity || !description.trim()}>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={!drugA.trim() || !drugB.trim() || !severity || !description.trim()}
+            >
               Create
             </Button>
           </Group>

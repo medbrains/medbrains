@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const webRoot = path.dirname(fileURLToPath(import.meta.url));
+const authStatePath = path.join(webRoot, "e2e/.auth/user.json");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -37,7 +42,7 @@ export default defineConfig({
       testMatch: /crud\/.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
+        storageState: authStatePath,
       },
       dependencies: ["setup"],
     },
@@ -48,7 +53,7 @@ export default defineConfig({
       testMatch: /forms\/.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
+        storageState: authStatePath,
       },
       dependencies: ["setup"],
     },
@@ -59,7 +64,7 @@ export default defineConfig({
       testMatch: /analytics\/.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
+        storageState: authStatePath,
       },
       dependencies: ["setup"],
     },
@@ -78,7 +83,7 @@ export default defineConfig({
       testMatch: /scenarios\/.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
+        storageState: authStatePath,
       },
       dependencies: ["setup"],
     },
@@ -88,7 +93,7 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.auth/user.json",
+        storageState: authStatePath,
       },
       dependencies: ["setup"],
       testIgnore: /(mock|smoke\/api|crud|forms|analytics|rbac)\/.*\.spec\.ts/,

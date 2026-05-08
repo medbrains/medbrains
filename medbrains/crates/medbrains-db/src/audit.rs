@@ -22,9 +22,9 @@ pub struct HttpAuditEntry {
     pub tenant_id: Uuid,
     pub user_id: Option<Uuid>,
     pub correlation_id: Uuid,
-    pub action: String,             // e.g. "POST /api/patients" → "create_patients"
-    pub entity_type: String,        // path segment after /api/, e.g. "patients"
-    pub entity_id: Option<Uuid>,    // resolved from URL path or response body
+    pub action: String,          // e.g. "POST /api/patients" → "create_patients"
+    pub entity_type: String,     // path segment after /api/, e.g. "patients"
+    pub entity_id: Option<Uuid>, // resolved from URL path or response body
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
     pub session_id: Option<Uuid>,
@@ -38,9 +38,9 @@ pub struct HttpAuditEntry {
 pub struct ChainVerificationResult {
     pub tenant_id: Uuid,
     pub rows_checked: i64,
-    pub rows_legacy_skipped: i64,    // pre-2.5 rows without hash_input_canonical
+    pub rows_legacy_skipped: i64, // pre-2.5 rows without hash_input_canonical
     pub head_hash: Option<String>,
-    pub broken_at: Option<Uuid>,     // audit_log.id where chain breaks
+    pub broken_at: Option<Uuid>, // audit_log.id where chain breaks
     pub valid: bool,
 }
 
@@ -165,7 +165,10 @@ impl AuditLogger {
         .bind(entry.module.as_deref())
         .bind(prev_hash.as_deref())
         .bind(&hash)
-        .bind(format!("{} {} → {}", entry.method, entry.action, entry.status_code))
+        .bind(format!(
+            "{} {} → {}",
+            entry.method, entry.action, entry.status_code
+        ))
         .bind(&hash_input)
         .execute(&mut *tx)
         .await?;
@@ -242,11 +245,10 @@ impl AuditLogger {
     /// List all tenants that have audit_log rows. Used by the verify-chain cron.
     pub async fn tenants_with_audit_log(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {
         // allow-raw-sql: cross-tenant admin query, runs from cron job container only
-        let rows: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT DISTINCT tenant_id FROM audit_log ORDER BY tenant_id",
-        )
-        .fetch_all(pool)
-        .await?;
+        let rows: Vec<(Uuid,)> =
+            sqlx::query_as("SELECT DISTINCT tenant_id FROM audit_log ORDER BY tenant_id")
+                .fetch_all(pool)
+                .await?;
         Ok(rows.into_iter().map(|(t,)| t).collect())
     }
 }

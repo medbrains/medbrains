@@ -10,6 +10,7 @@ use medbrains_core::blood_bank::{
     BbMsbosGuideline, BbRecruitmentCampaign, BloodComponent, BloodDonation, BloodDonor,
     CrossmatchRequest, TransfusionRecord,
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -701,6 +702,25 @@ pub async fn record_reaction(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    crate::routes::nabh_evidence::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
+        .await?;
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BloodTransfusionReactionReported,
+        record.id,
+        claims.sub,
+        serde_json::json!({
+            "reaction_id": record.id,
+            "transfusion_id": record.id,
+            "patient_id": record.patient_id,
+            "component_id": record.component_id,
+            "reaction_type": &record.reaction_type,
+            "reaction_severity": record.reaction_severity,
+        }),
+    )
+    .with_patient(record.patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(record))

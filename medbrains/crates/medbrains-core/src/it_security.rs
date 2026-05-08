@@ -18,14 +18,20 @@ pub struct BreakGlassEvent {
     pub reason: String,
     pub justification: Option<String>,
     pub modules_accessed: Vec<String>,
+    pub scope_type: String,
+    pub scope_id: Option<Uuid>,
+    pub requested_modules: Vec<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
     pub is_active: bool,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
     pub supervisor_id: Option<Uuid>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub review_notes: Option<String>,
+    pub phi_access_count: i32,
+    pub last_phi_accessed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -37,9 +43,15 @@ pub struct BreakGlassEventSummary {
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
     pub reason: String,
+    pub scope_type: String,
+    pub scope_id: Option<Uuid>,
+    pub requested_modules: Vec<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
     pub is_active: bool,
+    pub phi_access_count: i32,
+    pub last_phi_accessed_at: Option<DateTime<Utc>>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -47,6 +59,10 @@ pub struct BreakGlassEventSummary {
 #[derive(Debug, Deserialize)]
 pub struct CreateBreakGlassRequest {
     pub patient_id: Option<Uuid>,
+    pub scope_type: Option<String>,
+    pub scope_id: Option<Uuid>,
+    pub requested_modules: Option<Vec<String>>,
+    pub expires_in_minutes: Option<i32>,
     pub reason: String,
     pub justification: Option<String>,
 }

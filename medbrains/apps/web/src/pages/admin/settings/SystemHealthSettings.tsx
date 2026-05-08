@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Alert,
   Badge,
@@ -12,6 +11,8 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type { CompletenessCheck } from "@medbrains/types";
 import {
   IconCheck,
   IconCircleCheck,
@@ -23,8 +24,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type { CompletenessCheck } from "@medbrains/types";
+import { useState } from "react";
 
 // ── Completeness thresholds ──────────────────────────────
 
@@ -126,12 +126,7 @@ export function SystemHealthSettings() {
           <Text fw={600} size="lg">
             System Health
           </Text>
-          <Button
-            variant="light"
-            size="xs"
-            onClick={() => refetchHealth()}
-            loading={healthLoading}
-          >
+          <Button variant="light" size="xs" onClick={() => refetchHealth()} loading={healthLoading}>
             Refresh
           </Button>
         </Group>
@@ -143,8 +138,12 @@ export function SystemHealthSettings() {
                   <IconUsers size={18} />
                 </ThemeIcon>
                 <div>
-                  <Text size="xs" c="dimmed">Users</Text>
-                  <Text fw={700} size="xl">{health.user_count}</Text>
+                  <Text size="xs" c="dimmed">
+                    Users
+                  </Text>
+                  <Text fw={700} size="xl">
+                    {health.user_count}
+                  </Text>
                 </div>
               </Group>
             </Card>
@@ -154,8 +153,12 @@ export function SystemHealthSettings() {
                   <IconDatabase size={18} />
                 </ThemeIcon>
                 <div>
-                  <Text size="xs" c="dimmed">Departments</Text>
-                  <Text fw={700} size="xl">{health.department_count}</Text>
+                  <Text size="xs" c="dimmed">
+                    Departments
+                  </Text>
+                  <Text fw={700} size="xl">
+                    {health.department_count}
+                  </Text>
                 </div>
               </Group>
             </Card>
@@ -165,8 +168,12 @@ export function SystemHealthSettings() {
                   <IconDatabase size={18} />
                 </ThemeIcon>
                 <div>
-                  <Text size="xs" c="dimmed">Modules</Text>
-                  <Text fw={700} size="xl">{health.module_count}</Text>
+                  <Text size="xs" c="dimmed">
+                    Modules
+                  </Text>
+                  <Text fw={700} size="xl">
+                    {health.module_count}
+                  </Text>
                 </div>
               </Group>
             </Card>
@@ -176,26 +183,38 @@ export function SystemHealthSettings() {
                   <IconDatabase size={18} />
                 </ThemeIcon>
                 <div>
-                  <Text size="xs" c="dimmed">Migrations</Text>
-                  <Text fw={700} size="xl">{health.migration_count}</Text>
+                  <Text size="xs" c="dimmed">
+                    Migrations
+                  </Text>
+                  <Text fw={700} size="xl">
+                    {health.migration_count}
+                  </Text>
                 </div>
               </Group>
             </Card>
           </SimpleGrid>
         ) : healthLoading ? (
-          <Text c="dimmed" size="sm">Loading system health...</Text>
+          <Text c="dimmed" size="sm">
+            Loading system health...
+          </Text>
         ) : null}
 
         {health && Object.keys(health.table_sizes).length > 0 && (
           <Card withBorder p="md" mt="sm">
-            <Text fw={500} size="sm" mb="xs">Table Row Counts</Text>
+            <Text fw={500} size="sm" mb="xs">
+              Table Row Counts
+            </Text>
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }}>
               {Object.entries(health.table_sizes)
                 .sort(([, a], [, b]) => (b as number) - (a as number))
                 .map(([table, count]) => (
                   <Group key={table} gap="xs">
-                    <Text size="xs" c="dimmed" style={{ minWidth: 120 }}>{table}</Text>
-                    <Badge variant="light" size="sm">{String(count)}</Badge>
+                    <Text size="xs" c="dimmed" style={{ minWidth: 120 }}>
+                      {table}
+                    </Text>
+                    <Badge variant="light" size="sm">
+                      {String(count)}
+                    </Badge>
                   </Group>
                 ))}
             </SimpleGrid>
@@ -232,7 +251,9 @@ export function SystemHealthSettings() {
                       ) : (
                         <IconCircleX size={20} color="var(--mantine-color-red-6)" />
                       )}
-                      <Text size="sm" fw={500}>{item.label}</Text>
+                      <Text size="sm" fw={500}>
+                        {item.label}
+                      </Text>
                     </Group>
                     <Badge color={ok ? "success" : "danger"} variant="light" size="sm">
                       {count} {item.min > 0 ? `(min: ${item.min})` : ""}
@@ -243,7 +264,9 @@ export function SystemHealthSettings() {
             })}
           </SimpleGrid>
         ) : completenessLoading ? (
-          <Text c="dimmed" size="sm">Loading completeness check...</Text>
+          <Text c="dimmed" size="sm">
+            Loading completeness check...
+          </Text>
         ) : null}
       </div>
 

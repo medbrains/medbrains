@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import type { LabOrder, LabResult } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -32,13 +32,16 @@ function parseNormalRange(range: string | null | undefined): { low?: number; hig
   if (!range) return {};
   // Parse formats like "10-20", "< 100", "> 5", "10 - 20"
   const dashMatch = range.match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/);
-  if (dashMatch && dashMatch[1] && dashMatch[2]) {
+  if (dashMatch?.[1] && dashMatch[2]) {
     return { low: parseFloat(dashMatch[1]), high: parseFloat(dashMatch[2]) };
   }
   return {};
 }
 
-function getResultStatus(value: string, normalRange: string | null): "normal" | "low" | "high" | "critical" {
+function getResultStatus(
+  value: string,
+  normalRange: string | null,
+): "normal" | "low" | "high" | "critical" {
   const numValue = parseFloat(value);
   if (Number.isNaN(numValue)) return "normal";
 
@@ -296,9 +299,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                   right={() => (
                     <Chip
                       compact
-                      style={
-                        historyOrder.status === "completed" ? styles.completedChip : undefined
-                      }
+                      style={historyOrder.status === "completed" ? styles.completedChip : undefined}
                     >
                       {historyOrder.status}
                     </Chip>
@@ -309,14 +310,15 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
           </Card>
         )}
 
-        {viewMode === "history" && (!patientOrders?.orders || patientOrders.orders.length === 0) && (
-          <Surface style={styles.emptyState} elevation={1}>
-            <Avatar.Icon size={48} icon="history" style={styles.emptyIcon} />
-            <Text variant="bodyMedium" style={styles.emptyText}>
-              No previous orders
-            </Text>
-          </Surface>
-        )}
+        {viewMode === "history" &&
+          (!patientOrders?.orders || patientOrders.orders.length === 0) && (
+            <Surface style={styles.emptyState} elevation={1}>
+              <Avatar.Icon size={48} icon="history" style={styles.emptyIcon} />
+              <Text variant="bodyMedium" style={styles.emptyText}>
+                No previous orders
+              </Text>
+            </Surface>
+          )}
 
         {/* Trends View */}
         {viewMode === "trends" && (

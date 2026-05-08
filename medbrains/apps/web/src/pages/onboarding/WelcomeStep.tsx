@@ -1,10 +1,5 @@
 import { Alert, Button, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import {
-  IconBuildingHospital,
-  IconDatabase,
-  IconLock,
-  IconServer,
-} from "@tabler/icons-react";
+import { IconBuildingHospital, IconDatabase, IconLock, IconServer } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -26,8 +21,8 @@ export function WelcomeStep({ onNext }: Props) {
         </ThemeIcon>
         <Title order={2}>Welcome to MedBrains</Title>
         <Text c="dimmed" mt="sm" maw={500} mx="auto">
-          This wizard will guide you through the initial setup of your Hospital
-          Management System. It takes about 10 minutes to complete.
+          This wizard will guide you through the initial setup of your Hospital Management System.
+          It takes about 10 minutes to complete.
         </Text>
       </div>
 

@@ -1,11 +1,11 @@
-import { useMemo } from "react";
 import { Button, Group, Stack, Text } from "@mantine/core";
-import { IconPrinter } from "@tabler/icons-react";
 import type { FoodTiming, PrescriptionItem, TimeOfDay } from "@medbrains/types";
+import { IconPrinter } from "@tabler/icons-react";
+import { useMemo } from "react";
 import {
-  parseInstructions,
-  frequencyToDefaultSlots,
   foodTimingLabel,
+  frequencyToDefaultSlots,
+  parseInstructions,
 } from "../../lib/medication-timing-utils";
 import classes from "./pharmacy-dispensing.module.scss";
 
@@ -43,7 +43,9 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
       let customInstruction: string | undefined;
 
       if (parsed && !("text" in parsed)) {
-        timeSlots = parsed.time_slots?.length ? parsed.time_slots : frequencyToDefaultSlots(item.frequency);
+        timeSlots = parsed.time_slots?.length
+          ? parsed.time_slots
+          : frequencyToDefaultSlots(item.frequency);
         foodTiming = parsed.food_timing;
         customInstruction = parsed.custom_instruction;
       } else {
@@ -70,7 +72,12 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
   return (
     <Stack gap="sm">
       <Group justify="flex-end" className="no-print">
-        <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={handlePrint}>
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconPrinter size={14} />}
+          onClick={handlePrint}
+        >
           Print Labels
         </Button>
       </Group>
@@ -113,7 +120,9 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
 
             {/* Custom instruction */}
             {label.custom_instruction && (
-              <Text size="xs" c="dimmed" fs="italic">{label.custom_instruction}</Text>
+              <Text size="xs" c="dimmed" fs="italic">
+                {label.custom_instruction}
+              </Text>
             )}
 
             {/* Patient info */}

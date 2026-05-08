@@ -12,14 +12,10 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import type { RecentActivity } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
-import { useNavigate } from "react-router";
-import { useTranslation } from "react-i18next";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import type { RecentActivity } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconActivity,
   IconArrowRight,
@@ -36,7 +32,11 @@ import {
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { PageHeader, StatCard } from "../components";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
@@ -99,11 +99,19 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function CardHeader({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
+function CardHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
     <>
       <Group justify="space-between" px="lg" py="sm">
-        <Text size="sm" fw={600} c="var(--mb-text-primary)">{title}</Text>
+        <Text size="sm" fw={600} c="var(--mb-text-primary)">
+          {title}
+        </Text>
         {action && (
           <Text
             size="xs"
@@ -172,14 +180,20 @@ function DefaultDashboard({
           value={stats?.total_patients ?? 0}
           icon={<IconUsers size={20} stroke={1.5} />}
           color="primary"
-          trend={stats?.today_registrations ? { value: stats.today_registrations, label: "new today" } : undefined}
+          trend={
+            stats?.today_registrations
+              ? { value: stats.today_registrations, label: "new today" }
+              : undefined
+          }
         />
         <StatCard
           label={t("stats.opdQueue")}
           value={stats?.opd_queue_count ?? 0}
           icon={<IconStethoscope size={20} stroke={1.5} />}
           color="teal"
-          trend={stats?.today_visits ? { value: stats.today_visits, label: "visits today" } : undefined}
+          trend={
+            stats?.today_visits ? { value: stats.today_visits, label: "visits today" } : undefined
+          }
         />
         <StatCard
           label={t("stats.labPending")}
@@ -221,23 +235,15 @@ function DefaultDashboard({
                 <UnstyledButton
                   key={action.label}
                   onClick={() => navigate(action.path)}
-                  className="clickable-card"
+                  className="clickable-card quick-action-card"
                   style={{
                     padding: 16,
-                    borderRadius: 12,
-                    background: "var(--mb-card-bg, #ffffff)",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
                   }}
                 >
-                  <ThemeIcon
-                    variant="light"
-                    color={action.color}
-                    size={40}
-                    radius="lg"
-                  >
+                  <ThemeIcon variant="light" color={action.color} size={40} radius="lg">
                     <action.icon size={20} stroke={1.5} />
                   </ThemeIcon>
                   <div style={{ flex: 1 }}>
@@ -261,18 +267,16 @@ function DefaultDashboard({
             <Stack gap={0}>
               {stats?.recent_activity && stats.recent_activity.length > 0 ? (
                 stats.recent_activity.map((item: RecentActivity, i: number) => {
-                  const meta = ACTIVITY_ICON_MAP[item.activity_type] ?? { icon: IconActivity, color: "slate" };
+                  const meta = ACTIVITY_ICON_MAP[item.activity_type] ?? {
+                    icon: IconActivity,
+                    color: "slate",
+                  };
                   const ActivityIcon = meta.icon;
+                  const activityKey = `${item.activity_type}-${item.occurred_at}-${item.description}`;
                   return (
-                    <Box key={i}>
+                    <Box key={activityKey}>
                       <Group gap="sm" wrap="nowrap" align="flex-start" px="lg" py="sm">
-                        <ThemeIcon
-                          variant="light"
-                          color={meta.color}
-                          size={28}
-                          radius="lg"
-                          mt={2}
-                        >
+                        <ThemeIcon variant="light" color={meta.color} size={28} radius="lg" mt={2}>
                           <ActivityIcon size={14} stroke={1.5} />
                         </ThemeIcon>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -317,8 +321,12 @@ function DefaultDashboard({
               { name: "Indent & Store", status: "Active" },
             ].map((mod) => (
               <Group key={mod.name} justify="space-between">
-                <Text size="sm" c="var(--mb-text-secondary)">{mod.name}</Text>
-                <Badge color="success" variant="light" size="sm">{mod.status}</Badge>
+                <Text size="sm" c="var(--mb-text-secondary)">
+                  {mod.name}
+                </Text>
+                <Badge color="success" variant="light" size="sm">
+                  {mod.status}
+                </Badge>
               </Group>
             ))}
           </Stack>
@@ -331,36 +339,52 @@ function DefaultDashboard({
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.apiServer")}</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">
+                  {t("systemHealth.apiServer")}
+                </Text>
               </Group>
-              <Badge color="success" variant="light" size="sm">Healthy</Badge>
+              <Badge color="success" variant="light" size="sm">
+                Healthy
+              </Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.postgresql")}</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">
+                  {t("systemHealth.postgresql")}
+                </Text>
               </Group>
-              <Badge color="success" variant="light" size="sm">Connected</Badge>
+              <Badge color="success" variant="light" size="sm">
+                Connected
+              </Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
                 <ThemeIcon variant="light" color="slate" size={24} radius="lg">
                   <IconServer size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.yottadb")}</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">
+                  {t("systemHealth.yottadb")}
+                </Text>
               </Group>
-              <Badge color="slate" variant="light" size="sm">Deferred</Badge>
+              <Badge color="slate" variant="light" size="sm">
+                Deferred
+              </Badge>
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconHeartbeat size={14} />
                 </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">{t("systemHealth.uptime")}</Text>
+                <Text size="sm" c="var(--mb-text-secondary)">
+                  {t("systemHealth.uptime")}
+                </Text>
               </Group>
-              <Text size="xs" c="var(--mb-text-secondary)" fw={500}>99.9%</Text>
+              <Text size="xs" c="var(--mb-text-secondary)" fw={500}>
+                99.9%
+              </Text>
             </Group>
           </Stack>
         </Card>

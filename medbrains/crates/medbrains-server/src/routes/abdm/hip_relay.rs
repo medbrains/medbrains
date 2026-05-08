@@ -126,7 +126,8 @@ async fn resolve_tenant_from_recipient(
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| {
             AppError::BadRequest(
-                "no tenant for x-hcx-recipient-code; set abdm_hcx_sender_code on the tenant first".into(),
+                "no tenant for x-hcx-recipient-code; set abdm_hcx_sender_code on the tenant first"
+                    .into(),
             )
         })
 }
@@ -171,7 +172,7 @@ pub struct PendingCallback {
 pub async fn ack_callback(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     let mut tx = state.db.begin().await?;
     let updated = sqlx::query(
         "UPDATE abdm_gateway_callbacks \

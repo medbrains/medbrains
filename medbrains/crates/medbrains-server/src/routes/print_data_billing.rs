@@ -62,7 +62,8 @@ pub async fn get_receipt_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, ReceiptRow>(
         "SELECT \
@@ -128,7 +129,8 @@ pub async fn get_estimate_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let header = sqlx::query_as::<_, EstimateHeaderRow>(
         "SELECT \
@@ -212,7 +214,8 @@ pub async fn get_gst_invoice_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let header = sqlx::query_as::<_, GstInvoiceHeaderRow>(
         "SELECT \
@@ -312,7 +315,8 @@ pub async fn get_opd_bill_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let header = sqlx::query_as::<_, OpdBillHeaderRow>(
         "SELECT \
@@ -322,7 +326,7 @@ pub async fn get_opd_bill_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
-           p.gender, \
+           p.gender::text AS gender, \
            p.phone, \
            u.full_name AS doctor_name, \
            d.name AS department, \
@@ -441,14 +445,15 @@ pub async fn get_ipd_interim_bill_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, IpdInterimBillRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
-           p.gender, \
+           p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            b.bed_number, \
            w.name AS ward_name, \
@@ -635,7 +640,8 @@ pub async fn get_ipd_final_bill_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, IpdFinalBillRow>(
         "SELECT \
@@ -645,7 +651,7 @@ pub async fn get_ipd_final_bill_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
-           p.gender, \
+           p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
            b.bed_number, \
@@ -808,7 +814,8 @@ pub async fn get_advance_receipt_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, AdvanceReceiptRow>(
         "SELECT \
@@ -883,7 +890,8 @@ pub async fn get_refund_receipt_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, RefundReceiptRow>(
         "SELECT \
@@ -965,7 +973,8 @@ pub async fn get_insurance_preauth_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PreauthRow>(
         "SELECT \
@@ -974,7 +983,7 @@ pub async fn get_insurance_preauth_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
-           p.gender, \
+           p.gender::text AS gender, \
            ins.policy_number, \
            ic.name AS insurance_company, \
            tpa.name AS tpa_name, \
@@ -1088,7 +1097,8 @@ pub async fn get_cashless_claim_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CashlessClaimRow>(
         "SELECT \
@@ -1190,7 +1200,8 @@ pub async fn get_package_estimate_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PackageEstimateRow>(
         "SELECT \
@@ -1412,7 +1423,8 @@ pub async fn get_credit_note_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CreditNoteRow>(
         "SELECT \
@@ -1564,7 +1576,8 @@ pub async fn get_package_bill_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PackageBillRow>(
         "SELECT \
@@ -1746,7 +1759,8 @@ pub async fn get_insurance_claim_print_data(
     require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, InsuranceClaimRow>(
         "SELECT \
@@ -1943,7 +1957,8 @@ pub async fn get_tds_certificate_print_data(
     require_permission(&claims, permissions::billing::tds::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TdsCertRow>(
         "SELECT \

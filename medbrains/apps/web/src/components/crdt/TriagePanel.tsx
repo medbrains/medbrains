@@ -7,9 +7,9 @@
  * mutated, only superseded by a later entry on the same visit.
  */
 
-import { useState } from "react";
 import { Badge, Button, Card, Group, Select, Stack, Text, Textarea, Timeline } from "@mantine/core";
-import { useTriageSource, type TriageEntryInput } from "../../hooks/useTriageSource";
+import { useState } from "react";
+import { type TriageEntryInput, useTriageSource } from "../../hooks/useTriageSource";
 
 interface TriagePanelProps {
   visitId: string;
@@ -51,9 +51,13 @@ export function TriagePanel({ visitId, canAppend = true }: TriagePanelProps) {
       <Group justify="space-between">
         <Text fw={600}>Triage Log</Text>
         <Group gap="xs">
-          <Badge variant="light" size="sm" color={statusColor(status)}>{status}</Badge>
+          <Badge variant="light" size="sm" color={statusColor(status)}>
+            {status}
+          </Badge>
           {unsyncedOps > 0 && (
-            <Badge variant="filled" size="sm" color="orange">{unsyncedOps} unsynced</Badge>
+            <Badge variant="filled" size="sm" color="orange">
+              {unsyncedOps} unsynced
+            </Badge>
           )}
         </Group>
       </Group>
@@ -101,22 +105,38 @@ export function TriagePanel({ visitId, canAppend = true }: TriagePanelProps) {
       )}
 
       {entries.length === 0 ? (
-        <Text size="sm" c="dimmed">No triage entries for this visit.</Text>
+        <Text size="sm" c="dimmed">
+          No triage entries for this visit.
+        </Text>
       ) : (
         <Timeline bulletSize={22} lineWidth={2}>
           {entries.map((e, i) => (
             <Timeline.Item
               key={`${e.ts}-${i}`}
-              bullet={<Badge size="xs" color={esiColor[e.esi_level]}>{e.esi_level}</Badge>}
+              bullet={
+                <Badge size="xs" color={esiColor[e.esi_level]}>
+                  {e.esi_level}
+                </Badge>
+              }
               title={
                 <Group gap="xs">
-                  <Text size="sm" fw={600}>{esiLabel[e.esi_level]}</Text>
-                  <Text size="xs" c="dimmed">{new Date(e.ts).toLocaleString()} — {e.author}</Text>
+                  <Text size="sm" fw={600}>
+                    {esiLabel[e.esi_level]}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(e.ts).toLocaleString()} — {e.author}
+                  </Text>
                 </Group>
               }
             >
-              <Text size="sm" fw={500}>{e.chief_complaint}</Text>
-              {e.observation && <Text size="sm" c="dimmed">{e.observation}</Text>}
+              <Text size="sm" fw={500}>
+                {e.chief_complaint}
+              </Text>
+              {e.observation && (
+                <Text size="sm" c="dimmed">
+                  {e.observation}
+                </Text>
+              )}
             </Timeline.Item>
           ))}
         </Timeline>

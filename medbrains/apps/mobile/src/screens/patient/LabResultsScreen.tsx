@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ActivityIndicator,
@@ -55,18 +55,19 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
 
   // Filter by status and search
   const allOrders = data || [];
-  const filteredByStatus = filter === "all"
-    ? allOrders
-    : allOrders.filter((order) => {
-        if (filter === "pending") return order.status !== "completed" && order.status !== "verified";
-        if (filter === "completed") return order.status === "completed" || order.status === "verified";
-        return true;
-      });
+  const filteredByStatus =
+    filter === "all"
+      ? allOrders
+      : allOrders.filter((order) => {
+          if (filter === "pending")
+            return order.status !== "completed" && order.status !== "verified";
+          if (filter === "completed")
+            return order.status === "completed" || order.status === "verified";
+          return true;
+        });
 
   const labOrders = filteredByStatus.filter(
-    (order) =>
-      !search ||
-      order.test_name?.toLowerCase().includes(search.toLowerCase())
+    (order) => !search || order.test_name?.toLowerCase().includes(search.toLowerCase()),
   );
 
   const renderLabOrder = ({ item }: { item: (typeof labOrders)[0] }) => {
@@ -83,10 +84,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
             <Avatar.Icon
               size={48}
               icon={isReady ? "flask-empty" : "flask"}
-              style={[
-                styles.orderIcon,
-                { backgroundColor: isReady ? "#d3f9d8" : "#e7f5ff" },
-              ]}
+              style={[styles.orderIcon, { backgroundColor: isReady ? "#d3f9d8" : "#e7f5ff" }]}
               color={isReady ? "#40c057" : "#228be6"}
             />
             <View style={styles.orderInfo}>
@@ -94,7 +92,8 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
                 {item.test_name || "Lab Test"}
               </Text>
               <Text variant="bodySmall" style={styles.orderDate}>
-                {orderDate.toLocaleDateString()} at {orderDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {orderDate.toLocaleDateString()} at{" "}
+                {orderDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </Text>
               <View style={styles.orderMeta}>
                 <Chip
@@ -105,21 +104,13 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
                   {item.status}
                 </Chip>
                 {item.priority && item.priority !== "routine" && (
-                  <Chip
-                    compact
-                    icon="alert"
-                    style={styles.priorityChip}
-                  >
+                  <Chip compact icon="alert" style={styles.priorityChip}>
                     {item.priority.toUpperCase()}
                   </Chip>
                 )}
               </View>
             </View>
-            <Avatar.Icon
-              size={24}
-              icon="chevron-right"
-              style={styles.chevron}
-            />
+            <Avatar.Icon size={24} icon="chevron-right" style={styles.chevron} />
           </Card.Content>
 
           {/* Results Preview */}

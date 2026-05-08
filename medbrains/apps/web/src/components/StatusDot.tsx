@@ -10,10 +10,7 @@ interface StatusDotProps {
 export function StatusDot({ color, label, size = "md" }: StatusDotProps) {
   return (
     <span className={`${styles.wrapper} ${styles[size]}`}>
-      <span
-        className={styles.dot}
-        style={{ backgroundColor: `var(--mantine-color-${color}-5)` }}
-      />
+      <span className={styles.dot} style={{ backgroundColor: `var(--mantine-color-${color}-5)` }} />
       <Text component="span" className={styles.label} c="var(--mb-text-primary)">
         {label}
       </Text>

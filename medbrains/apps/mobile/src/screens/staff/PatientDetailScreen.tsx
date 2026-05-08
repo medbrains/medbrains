@@ -1,7 +1,6 @@
 import { api } from "@medbrains/api";
 import type { PatientVisitRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -214,11 +213,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
                   title={visit.department_name || "Consultation"}
                   description={new Date(visit.encounter_date).toLocaleDateString()}
                   left={(props) => <List.Icon {...props} icon="calendar-clock" />}
-                  right={() => (
-                    <Chip compact>
-                      {visit.encounter_type}
-                    </Chip>
-                  )}
+                  right={() => <Chip compact>{visit.encounter_type}</Chip>}
                 />
               ))
             ) : (

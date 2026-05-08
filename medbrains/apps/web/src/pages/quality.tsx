@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { BarChart, DonutChart, LineChart } from "@mantine/charts";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -20,15 +21,51 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { DepartmentSelect } from "../components/DepartmentSelect";
+import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { LineChart, DonutChart, BarChart } from "@mantine/charts";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AccreditationBodyType,
+  AuditFinding,
+  CommitteeFrequencyType,
+  ComplianceStatusType,
+  CreateAccreditationStandardRequest,
+  CreateAuditFindingRequest,
+  CreateCapaRequest,
+  CreateMeetingRequest,
+  CreateMortalityReviewRequest,
+  CreateQualityAuditRequest,
+  CreateQualityCommitteeRequest,
+  CreateQualityDocumentRequest,
+  CreateQualityIncidentRequest,
+  CreateQualityIndicatorRequest,
+  DepartmentScorecard,
+  EvidenceCompilation,
+  IncidentSeverityType,
+  IndicatorFrequencyType,
+  PatientSafetyIndicator,
+  PendingAckUser,
+  QualityAccreditationCompliance,
+  QualityAccreditationStandard,
+  QualityActionItem,
+  QualityAudit,
+  QualityCapa,
+  QualityCommittee,
+  QualityCommitteeMeeting,
+  QualityDocument,
+  QualityIncident,
+  QualityIndicator,
+  QualityIndicatorValue,
+  ScheduleAuditsRequest,
+  UpdateComplianceRequest,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconAward,
@@ -49,46 +86,10 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  QualityIndicator,
-  QualityIndicatorValue,
-  QualityDocument,
-  QualityIncident,
-  QualityCapa,
-  QualityCommittee,
-  QualityCommitteeMeeting,
-  QualityActionItem,
-  QualityAccreditationStandard,
-  QualityAccreditationCompliance,
-  QualityAudit,
-  CreateQualityIndicatorRequest,
-  CreateQualityDocumentRequest,
-  CreateQualityIncidentRequest,
-  CreateCapaRequest,
-  CreateQualityCommitteeRequest,
-  CreateMeetingRequest,
-  CreateAccreditationStandardRequest,
-  UpdateComplianceRequest,
-  CreateQualityAuditRequest,
-  IncidentSeverityType,
-  IndicatorFrequencyType,
-  AccreditationBodyType,
-  CommitteeFrequencyType,
-  ComplianceStatusType,
-  PendingAckUser,
-  EvidenceCompilation,
-  PatientSafetyIndicator,
-  DepartmentScorecard,
-  CreateMortalityReviewRequest,
-  ScheduleAuditsRequest,
-  AuditFinding,
-  CreateAuditFindingRequest,
-} from "@medbrains/types";
-import { DateInput } from "@mantine/dates";
-import { P } from "@medbrains/types";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
+import { DepartmentSelect } from "../components/DepartmentSelect";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Color Maps ──────────────────────────────────────────
@@ -188,7 +189,8 @@ function IndicatorsTab() {
 
   const { data: indicators = [], isLoading } = useQuery({
     queryKey: ["quality-indicators", categoryFilter],
-    queryFn: () => api.listQualityIndicators(categoryFilter ? { category: categoryFilter } : undefined),
+    queryFn: () =>
+      api.listQualityIndicators(categoryFilter ? { category: categoryFilter } : undefined),
   });
 
   const categories = [...new Set(indicators.map((i) => i.category))];
@@ -262,10 +264,18 @@ function IndicatorsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
-      notifications.show({ title: "Indicator calculated", message: "Value auto-computed", color: "teal" });
+      notifications.show({
+        title: "Indicator calculated",
+        message: "Value auto-computed",
+        color: "teal",
+      });
     },
     onError: () => {
-      notifications.show({ title: "Calculation failed", message: "Could not auto-calculate indicator", color: "danger" });
+      notifications.show({
+        title: "Calculation failed",
+        message: "Could not auto-calculate indicator",
+        color: "danger",
+      });
     },
   });
 
@@ -280,15 +290,16 @@ function IndicatorsTab() {
   });
 
   const recordMut = useMutation({
-    mutationFn: () => api.recordIndicatorValue({
-      indicator_id: recordForm.indicator_id,
-      period_start: recordForm.period_start,
-      period_end: recordForm.period_end,
-      numerator_value: recordForm.numerator_value,
-      denominator_value: recordForm.denominator_value,
-      calculated_value: recordForm.calculated_value,
-      notes: recordForm.notes || undefined,
-    }),
+    mutationFn: () =>
+      api.recordIndicatorValue({
+        indicator_id: recordForm.indicator_id,
+        period_start: recordForm.period_start,
+        period_end: recordForm.period_end,
+        numerator_value: recordForm.numerator_value,
+        denominator_value: recordForm.denominator_value,
+        calculated_value: recordForm.calculated_value,
+        notes: recordForm.notes || undefined,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
       notifications.show({ title: "Value recorded", message: "", color: "success" });
@@ -297,12 +308,30 @@ function IndicatorsTab() {
   });
 
   const columns = [
-    { key: "code" as const, label: "Code", render: (i: QualityIndicator) => <Text fw={500}>{i.code}</Text> },
+    {
+      key: "code" as const,
+      label: "Code",
+      render: (i: QualityIndicator) => <Text fw={500}>{i.code}</Text>,
+    },
     { key: "name" as const, label: "Name", render: (i: QualityIndicator) => i.name },
-    { key: "category" as const, label: "Category", render: (i: QualityIndicator) => <Badge variant="light">{i.category}</Badge> },
+    {
+      key: "category" as const,
+      label: "Category",
+      render: (i: QualityIndicator) => <Badge variant="light">{i.category}</Badge>,
+    },
     { key: "frequency" as const, label: "Frequency", render: (i: QualityIndicator) => i.frequency },
-    { key: "target" as const, label: "Target", render: (i: QualityIndicator) => i.target_value != null ? `${i.target_value}${i.unit ? ` ${i.unit}` : ""}` : "---" },
-    { key: "status" as const, label: "Status", render: (i: QualityIndicator) => i.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge> },
+    {
+      key: "target" as const,
+      label: "Target",
+      render: (i: QualityIndicator) =>
+        i.target_value != null ? `${i.target_value}${i.unit ? ` ${i.unit}` : ""}` : "---",
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (i: QualityIndicator) =>
+        i.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge>,
+    },
     {
       key: "actions" as const,
       label: "Actions",
@@ -333,12 +362,16 @@ function IndicatorsTab() {
           )}
           {canManage && (
             <Tooltip label="Record Value">
-              <ActionIcon variant="subtle" color="primary" onClick={() => {
-                setSelectedIndicator(i);
-                setRecordForm({ ...recordForm, indicator_id: i.id });
-                openRecord();
-              }}
-                aria-label="Chart">
+              <ActionIcon
+                variant="subtle"
+                color="primary"
+                onClick={() => {
+                  setSelectedIndicator(i);
+                  setRecordForm({ ...recordForm, indicator_id: i.id });
+                  openRecord();
+                }}
+                aria-label="Chart"
+              >
                 <IconChartBar size={16} />
               </ActionIcon>
             </Tooltip>
@@ -369,22 +402,36 @@ function IndicatorsTab() {
             leftSection={<IconSearch size={14} />}
             w={200}
           />
-          <Text c="dimmed" size="sm">{indicators.length} indicator(s)</Text>
+          <Text c="dimmed" size="sm">
+            {indicators.length} indicator(s)
+          </Text>
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>New Indicator</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            New Indicator
+          </Button>
         )}
       </Group>
 
       {indicatorView === "list" && (
-        <DataTable columns={columns} data={indicators} loading={isLoading} rowKey={(i) => i.id} emptyTitle="No quality indicators" />
+        <DataTable
+          columns={columns}
+          data={indicators}
+          loading={isLoading}
+          rowKey={(i) => i.id}
+          emptyTitle="No quality indicators"
+        />
       )}
 
       {indicatorView === "benchmarking" && (
         <Card withBorder shadow="sm" p="md">
-          <Text fw={600} mb="md">Indicator Benchmarking</Text>
+          <Text fw={600} mb="md">
+            Indicator Benchmarking
+          </Text>
           {indicators.filter((i) => i.target_value != null).length === 0 ? (
-            <Text c="dimmed" size="sm">No indicators with target values configured</Text>
+            <Text c="dimmed" size="sm">
+              No indicators with target values configured
+            </Text>
           ) : (
             <Table withTableBorder>
               <Table.Thead>
@@ -410,25 +457,36 @@ function IndicatorsTab() {
                       <Table.Tr key={i.id}>
                         <Table.Td>
                           <div>
-                            <Text fw={500} size="sm">{i.name}</Text>
-                            <Text size="xs" c="dimmed">{i.code}</Text>
+                            <Text fw={500} size="sm">
+                              {i.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {i.code}
+                            </Text>
                           </div>
                         </Table.Td>
                         <Table.Td>
                           <Badge color={meetsTarget ? "success" : "danger"}>
-                            {current.toFixed(2)}{i.unit ? ` ${i.unit}` : ""}
+                            {current.toFixed(2)}
+                            {i.unit ? ` ${i.unit}` : ""}
                           </Badge>
                         </Table.Td>
                         <Table.Td>
-                          {target.toFixed(2)}{i.unit ? ` ${i.unit}` : ""}
+                          {target.toFixed(2)}
+                          {i.unit ? ` ${i.unit}` : ""}
                         </Table.Td>
                         <Table.Td>
                           <Text c={variance >= 0 ? "success" : "danger"} fw={500}>
-                            {variance > 0 ? "+" : ""}{variance.toFixed(1)}%
+                            {variance > 0 ? "+" : ""}
+                            {variance.toFixed(1)}%
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Progress value={progress} color={meetsTarget ? "success" : "danger"} size="lg" />
+                          <Progress
+                            value={progress}
+                            color={meetsTarget ? "success" : "danger"}
+                            size="lg"
+                          />
                         </Table.Td>
                       </Table.Tr>
                     );
@@ -444,7 +502,12 @@ function IndicatorsTab() {
           <Stack>
             <Group justify="space-between">
               <Text fw={600}>Trend Analysis: {trendIndicator.name}</Text>
-              <Button variant="subtle" size="compact-sm" color="slate" onClick={() => setTrendIndicator(null)}>
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                color="slate"
+                onClick={() => setTrendIndicator(null)}
+              >
                 Close
               </Button>
             </Group>
@@ -462,16 +525,27 @@ function IndicatorsTab() {
                 referenceLines={trendReferenceLines.length > 0 ? trendReferenceLines : undefined}
               />
             ) : (
-              <Text c="dimmed" ta="center" py="xl">No recorded values for this indicator yet.</Text>
+              <Text c="dimmed" ta="center" py="xl">
+                No recorded values for this indicator yet.
+              </Text>
             )}
             {trendIndicator.target_value != null && (
               <Group gap="lg">
-                <Badge color="success" variant="dot" size="lg">Target: {trendIndicator.target_value}{trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}</Badge>
+                <Badge color="success" variant="dot" size="lg">
+                  Target: {trendIndicator.target_value}
+                  {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
+                </Badge>
                 {trendIndicator.threshold_warning != null && (
-                  <Badge color="orange" variant="dot" size="lg">Warning Threshold: {trendIndicator.threshold_warning}{trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}</Badge>
+                  <Badge color="orange" variant="dot" size="lg">
+                    Warning Threshold: {trendIndicator.threshold_warning}
+                    {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
+                  </Badge>
                 )}
                 {trendIndicator.threshold_critical != null && (
-                  <Badge color="danger" variant="dot" size="lg">Critical Threshold: {trendIndicator.threshold_critical}{trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}</Badge>
+                  <Badge color="danger" variant="dot" size="lg">
+                    Critical Threshold: {trendIndicator.threshold_critical}
+                    {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
+                  </Badge>
                 )}
               </Group>
             )}
@@ -479,34 +553,170 @@ function IndicatorsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title="New Quality Indicator" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="New Quality Indicator"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-          <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-          <Select label="Category" required data={INDICATOR_CATEGORIES} value={form.category} onChange={(v) => setForm({ ...form, category: v ?? "" })} searchable />
-          <Select label="Sub-Category" data={INDICATOR_SUB_CATEGORIES} value={form.sub_category ?? null} onChange={(v) => setForm({ ...form, sub_category: v || undefined })} clearable searchable />
-          <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
-          <TextInput label="Numerator Description" value={form.numerator_description ?? ""} onChange={(e) => setForm({ ...form, numerator_description: e.currentTarget.value || undefined })} />
-          <TextInput label="Denominator Description" value={form.denominator_description ?? ""} onChange={(e) => setForm({ ...form, denominator_description: e.currentTarget.value || undefined })} />
-          <TextInput label="Unit" value={form.unit ?? ""} onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })} />
-          <Select label="Frequency" required data={["daily", "weekly", "monthly", "quarterly", "annually"] satisfies IndicatorFrequencyType[]} value={form.frequency} onChange={(v) => setForm({ ...form, frequency: (v ?? "monthly") as IndicatorFrequencyType })} />
-          <NumberInput label="Target Value" decimalScale={2} value={form.target_value ?? ""} onChange={(v) => setForm({ ...form, target_value: v === "" ? undefined : Number(v) })} />
-          <NumberInput label="Warning Threshold" decimalScale={2} value={form.threshold_warning ?? ""} onChange={(v) => setForm({ ...form, threshold_warning: v === "" ? undefined : Number(v) })} />
-          <NumberInput label="Critical Threshold" decimalScale={2} value={form.threshold_critical ?? ""} onChange={(v) => setForm({ ...form, threshold_critical: v === "" ? undefined : Number(v) })} />
-          <Switch label="Auto-calculated" checked={form.auto_calculated ?? false} onChange={(e) => setForm({ ...form, auto_calculated: e.currentTarget.checked })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
+          <TextInput
+            label="Code"
+            required
+            value={form.code}
+            onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Name"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          />
+          <Select
+            label="Category"
+            required
+            data={INDICATOR_CATEGORIES}
+            value={form.category}
+            onChange={(v) => setForm({ ...form, category: v ?? "" })}
+            searchable
+          />
+          <Select
+            label="Sub-Category"
+            data={INDICATOR_SUB_CATEGORIES}
+            value={form.sub_category ?? null}
+            onChange={(v) => setForm({ ...form, sub_category: v || undefined })}
+            clearable
+            searchable
+          />
+          <Textarea
+            label="Description"
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Numerator Description"
+            value={form.numerator_description ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, numerator_description: e.currentTarget.value || undefined })
+            }
+          />
+          <TextInput
+            label="Denominator Description"
+            value={form.denominator_description ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, denominator_description: e.currentTarget.value || undefined })
+            }
+          />
+          <TextInput
+            label="Unit"
+            value={form.unit ?? ""}
+            onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })}
+          />
+          <Select
+            label="Frequency"
+            required
+            data={
+              [
+                "daily",
+                "weekly",
+                "monthly",
+                "quarterly",
+                "annually",
+              ] satisfies IndicatorFrequencyType[]
+            }
+            value={form.frequency}
+            onChange={(v) =>
+              setForm({ ...form, frequency: (v ?? "monthly") as IndicatorFrequencyType })
+            }
+          />
+          <NumberInput
+            label="Target Value"
+            decimalScale={2}
+            value={form.target_value ?? ""}
+            onChange={(v) => setForm({ ...form, target_value: v === "" ? undefined : Number(v) })}
+          />
+          <NumberInput
+            label="Warning Threshold"
+            decimalScale={2}
+            value={form.threshold_warning ?? ""}
+            onChange={(v) =>
+              setForm({ ...form, threshold_warning: v === "" ? undefined : Number(v) })
+            }
+          />
+          <NumberInput
+            label="Critical Threshold"
+            decimalScale={2}
+            value={form.threshold_critical ?? ""}
+            onChange={(v) =>
+              setForm({ ...form, threshold_critical: v === "" ? undefined : Number(v) })
+            }
+          />
+          <Switch
+            label="Auto-calculated"
+            checked={form.auto_calculated ?? false}
+            onChange={(e) => setForm({ ...form, auto_calculated: e.currentTarget.checked })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
 
-      <Drawer opened={recordOpened} onClose={closeRecord} title={`Record Value: ${selectedIndicator?.name ?? ""}`} position="right" size="sm">
+      <Drawer
+        opened={recordOpened}
+        onClose={closeRecord}
+        title={`Record Value: ${selectedIndicator?.name ?? ""}`}
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <TextInput label="Period Start" type="date" required value={recordForm.period_start} onChange={(e) => setRecordForm({ ...recordForm, period_start: e.currentTarget.value })} />
-          <TextInput label="Period End" type="date" required value={recordForm.period_end} onChange={(e) => setRecordForm({ ...recordForm, period_end: e.currentTarget.value })} />
-          <NumberInput label="Numerator" decimalScale={2} value={recordForm.numerator_value ?? ""} onChange={(v) => setRecordForm({ ...recordForm, numerator_value: v === "" ? undefined : Number(v) })} />
-          <NumberInput label="Denominator" decimalScale={2} value={recordForm.denominator_value ?? ""} onChange={(v) => setRecordForm({ ...recordForm, denominator_value: v === "" ? undefined : Number(v) })} />
-          <NumberInput label="Calculated Value" decimalScale={2} value={recordForm.calculated_value ?? ""} onChange={(v) => setRecordForm({ ...recordForm, calculated_value: v === "" ? undefined : Number(v) })} />
-          <Textarea label="Notes" value={recordForm.notes} onChange={(e) => setRecordForm({ ...recordForm, notes: e.currentTarget.value })} />
-          <Button loading={recordMut.isPending} onClick={() => recordMut.mutate()}>Record</Button>
+          <TextInput
+            label="Period Start"
+            type="date"
+            required
+            value={recordForm.period_start}
+            onChange={(e) => setRecordForm({ ...recordForm, period_start: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Period End"
+            type="date"
+            required
+            value={recordForm.period_end}
+            onChange={(e) => setRecordForm({ ...recordForm, period_end: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Numerator"
+            decimalScale={2}
+            value={recordForm.numerator_value ?? ""}
+            onChange={(v) =>
+              setRecordForm({ ...recordForm, numerator_value: v === "" ? undefined : Number(v) })
+            }
+          />
+          <NumberInput
+            label="Denominator"
+            decimalScale={2}
+            value={recordForm.denominator_value ?? ""}
+            onChange={(v) =>
+              setRecordForm({ ...recordForm, denominator_value: v === "" ? undefined : Number(v) })
+            }
+          />
+          <NumberInput
+            label="Calculated Value"
+            decimalScale={2}
+            value={recordForm.calculated_value ?? ""}
+            onChange={(v) =>
+              setRecordForm({ ...recordForm, calculated_value: v === "" ? undefined : Number(v) })
+            }
+          />
+          <Textarea
+            label="Notes"
+            value={recordForm.notes}
+            onChange={(e) => setRecordForm({ ...recordForm, notes: e.currentTarget.value })}
+          />
+          <Button loading={recordMut.isPending} onClick={() => recordMut.mutate()}>
+            Record
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -520,7 +730,8 @@ function DocumentsTab() {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [ackModalOpened, { open: openAckModal, close: closeAckModal }] = useDisclosure(false);
-  const [versionModalOpened, { open: openVersionModal, close: closeVersionModal }] = useDisclosure(false);
+  const [versionModalOpened, { open: openVersionModal, close: closeVersionModal }] =
+    useDisclosure(false);
   const [ackDocId, setAckDocId] = useState<string | null>(null);
   const [versionDocCode, setVersionDocCode] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -544,14 +755,15 @@ function DocumentsTab() {
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ["quality-documents", statusFilter, categoryFilter],
-    queryFn: () => api.listQualityDocuments({
-      status: statusFilter ?? undefined,
-      category: categoryFilter ?? undefined,
-    }),
+    queryFn: () =>
+      api.listQualityDocuments({
+        status: statusFilter ?? undefined,
+        category: categoryFilter ?? undefined,
+      }),
   });
 
   const filteredDocuments = useMemo(
-    () => trainingOnly ? documents.filter((d) => d.is_training_required) : documents,
+    () => (trainingOnly ? documents.filter((d) => d.is_training_required) : documents),
     [documents, trainingOnly],
   );
 
@@ -572,7 +784,8 @@ function DocumentsTab() {
   });
 
   const statusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => api.updateDocumentStatus(id, { status }),
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.updateDocumentStatus(id, { status }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       notifications.show({ title: "Status updated", message: "", color: "success" });
@@ -595,35 +808,71 @@ function DocumentsTab() {
   };
 
   const columns = [
-    { key: "document_number" as const, label: "Doc #", render: (d: QualityDocument) => <Text fw={500}>{d.document_number}</Text> },
+    {
+      key: "document_number" as const,
+      label: "Doc #",
+      render: (d: QualityDocument) => <Text fw={500}>{d.document_number}</Text>,
+    },
     { key: "title" as const, label: "Title", render: (d: QualityDocument) => d.title },
     { key: "category" as const, label: "Category", render: (d: QualityDocument) => d.category },
-    { key: "version" as const, label: "Version", render: (d: QualityDocument) => `v${d.current_version}` },
-    { key: "status" as const, label: "Status", render: (d: QualityDocument) => <Badge color={docStatusColors[d.status] ?? "slate"}>{d.status.replace(/_/g, " ")}</Badge> },
-    { key: "review_date" as const, label: "Next Review", render: (d: QualityDocument) => d.next_review_date ? new Date(d.next_review_date).toLocaleDateString() : "---" },
-    { key: "training" as const, label: "Training", render: (d: QualityDocument) => d.is_training_required ? <Badge color="orange" size="sm">Required</Badge> : "---" },
+    {
+      key: "version" as const,
+      label: "Version",
+      render: (d: QualityDocument) => `v${d.current_version}`,
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (d: QualityDocument) => (
+        <Badge color={docStatusColors[d.status] ?? "slate"}>{d.status.replace(/_/g, " ")}</Badge>
+      ),
+    },
+    {
+      key: "review_date" as const,
+      label: "Next Review",
+      render: (d: QualityDocument) =>
+        d.next_review_date ? new Date(d.next_review_date).toLocaleDateString() : "---",
+    },
+    {
+      key: "training" as const,
+      label: "Training",
+      render: (d: QualityDocument) =>
+        d.is_training_required ? (
+          <Badge color="orange" size="sm">
+            Required
+          </Badge>
+        ) : (
+          "---"
+        ),
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (d: QualityDocument) => (
         <Group gap="xs">
-          {canManage && (statusTransitions[d.status] ?? []).map((nextStatus) => (
-            <Tooltip key={nextStatus} label={nextStatus.replace(/_/g, " ")}>
-              <Button
-                size="compact-xs"
-                variant="light"
-                color={docStatusColors[nextStatus] ?? "slate"}
-                loading={statusMut.isPending}
-                onClick={() => statusMut.mutate({ id: d.id, status: nextStatus })}
-              >
-                {nextStatus.replace(/_/g, " ")}
-              </Button>
-            </Tooltip>
-          ))}
+          {canManage &&
+            (statusTransitions[d.status] ?? []).map((nextStatus) => (
+              <Tooltip key={nextStatus} label={nextStatus.replace(/_/g, " ")}>
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color={docStatusColors[nextStatus] ?? "slate"}
+                  loading={statusMut.isPending}
+                  onClick={() => statusMut.mutate({ id: d.id, status: nextStatus })}
+                >
+                  {nextStatus.replace(/_/g, " ")}
+                </Button>
+              </Tooltip>
+            ))}
           {d.status === "released" && (
             <>
               <Tooltip label="Acknowledge">
-                <ActionIcon variant="subtle" color="teal" onClick={() => acknowledgeMut.mutate(d.id)} aria-label="Checklist">
+                <ActionIcon
+                  variant="subtle"
+                  color="teal"
+                  onClick={() => acknowledgeMut.mutate(d.id)}
+                  aria-label="Checklist"
+                >
                   <IconChecklist size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -633,13 +882,24 @@ function DocumentsTab() {
                   variant="light"
                   size="sm"
                   style={{ cursor: "pointer" }}
-                  onClick={() => { setAckDocId(d.id); openAckModal(); }}
+                  onClick={() => {
+                    setAckDocId(d.id);
+                    openAckModal();
+                  }}
                 >
                   Pending Acks
                 </Badge>
               </Tooltip>
               <Tooltip label="Version History">
-                <ActionIcon variant="subtle" color="violet" onClick={() => { setVersionDocCode(d.document_number); openVersionModal(); }} aria-label="History">
+                <ActionIcon
+                  variant="subtle"
+                  color="violet"
+                  onClick={() => {
+                    setVersionDocCode(d.document_number);
+                    openVersionModal();
+                  }}
+                  aria-label="History"
+                >
                   <IconHistory size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -654,15 +914,31 @@ function DocumentsTab() {
     <Stack>
       <Group justify="space-between">
         <Group>
-          <Select placeholder="Status" data={["draft", "under_review", "approved", "released", "revised", "obsolete"]} value={statusFilter} onChange={setStatusFilter} clearable w={160} />
-          <Select placeholder="Category" data={[...new Set(documents.map((d) => d.category))]} value={categoryFilter} onChange={setCategoryFilter} clearable w={160} />
+          <Select
+            placeholder="Status"
+            data={["draft", "under_review", "approved", "released", "revised", "obsolete"]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            clearable
+            w={160}
+          />
+          <Select
+            placeholder="Category"
+            data={[...new Set(documents.map((d) => d.category))]}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            clearable
+            w={160}
+          />
           <Switch
             label="Training Required Only"
             checked={trainingOnly}
             onChange={(e) => setTrainingOnly(e.currentTarget.checked)}
             color="orange"
           />
-          <Text c="dimmed" size="sm">{filteredDocuments.length} document(s)</Text>
+          <Text c="dimmed" size="sm">
+            {filteredDocuments.length} document(s)
+          </Text>
         </Group>
         <Group>
           <Button
@@ -673,7 +949,9 @@ function DocumentsTab() {
             Print
           </Button>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>New Document</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+              New Document
+            </Button>
           )}
         </Group>
       </Group>
@@ -691,27 +969,78 @@ function DocumentsTab() {
         }
       />
 
-      <Drawer opened={opened} onClose={close} title="New Controlled Document" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="New Controlled Document"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Document Number" required value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })} />
-          <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
-          <Select label="Category" required data={["SOP", "Policy", "Protocol", "Guideline", "Manual", "Form", "Record", "Other"]} value={form.category} onChange={(v) => setForm({ ...form, category: v ?? "" })} />
-          <Textarea label="Content" minRows={4} value={form.content ?? ""} onChange={(e) => setForm({ ...form, content: e.currentTarget.value || undefined })} />
-          <Textarea label="Summary" value={form.summary ?? ""} onChange={(e) => setForm({ ...form, summary: e.currentTarget.value || undefined })} />
-          <TextInput label="Reviewer ID" value={form.reviewer_id ?? ""} onChange={(e) => setForm({ ...form, reviewer_id: e.currentTarget.value || undefined })} />
-          <Checkbox label="Training Required" checked={form.is_training_required ?? false} onChange={(e) => setForm({ ...form, is_training_required: e.currentTarget.checked })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
+          <TextInput
+            label="Document Number"
+            required
+            value={form.document_number}
+            onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Title"
+            required
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.currentTarget.value })}
+          />
+          <Select
+            label="Category"
+            required
+            data={["SOP", "Policy", "Protocol", "Guideline", "Manual", "Form", "Record", "Other"]}
+            value={form.category}
+            onChange={(v) => setForm({ ...form, category: v ?? "" })}
+          />
+          <Textarea
+            label="Content"
+            minRows={4}
+            value={form.content ?? ""}
+            onChange={(e) => setForm({ ...form, content: e.currentTarget.value || undefined })}
+          />
+          <Textarea
+            label="Summary"
+            value={form.summary ?? ""}
+            onChange={(e) => setForm({ ...form, summary: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Reviewer ID"
+            value={form.reviewer_id ?? ""}
+            onChange={(e) => setForm({ ...form, reviewer_id: e.currentTarget.value || undefined })}
+          />
+          <Checkbox
+            label="Training Required"
+            checked={form.is_training_required ?? false}
+            onChange={(e) => setForm({ ...form, is_training_required: e.currentTarget.checked })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
 
-      <Modal opened={ackModalOpened} onClose={() => { closeAckModal(); setAckDocId(null); }} title="Pending Acknowledgments" size="md">
+      <Modal
+        opened={ackModalOpened}
+        onClose={() => {
+          closeAckModal();
+          setAckDocId(null);
+        }}
+        title="Pending Acknowledgments"
+        size="md"
+      >
         {acksLoading ? (
           <Text c="dimmed">Loading...</Text>
         ) : pendingAcks.length === 0 ? (
           <Text c="dimmed">All users have acknowledged this document.</Text>
         ) : (
           <Stack gap="xs">
-            <Text size="sm" c="dimmed">{pendingAcks.length} user(s) have not yet acknowledged</Text>
+            <Text size="sm" c="dimmed">
+              {pendingAcks.length} user(s) have not yet acknowledged
+            </Text>
             <Table withTableBorder>
               <Table.Thead>
                 <Table.Tr>
@@ -732,14 +1061,24 @@ function DocumentsTab() {
         )}
       </Modal>
 
-      <Modal opened={versionModalOpened} onClose={() => { closeVersionModal(); setVersionDocCode(null); }} title="Version History" size="lg">
+      <Modal
+        opened={versionModalOpened}
+        onClose={() => {
+          closeVersionModal();
+          setVersionDocCode(null);
+        }}
+        title="Version History"
+        size="lg"
+      >
         {versionsLoading ? (
           <Text c="dimmed">Loading...</Text>
         ) : versionHistory.length === 0 ? (
           <Text c="dimmed">No version history available.</Text>
         ) : (
           <Stack gap="xs">
-            <Text size="sm" c="dimmed">{versionHistory.length} version(s) found for document {versionDocCode}</Text>
+            <Text size="sm" c="dimmed">
+              {versionHistory.length} version(s) found for document {versionDocCode}
+            </Text>
             <Table withTableBorder>
               <Table.Thead>
                 <Table.Tr>
@@ -751,26 +1090,41 @@ function DocumentsTab() {
               </Table.Thead>
               <Table.Tbody>
                 {versionHistory
-                  .sort((a: QualityDocument, b: QualityDocument) => b.current_version - a.current_version)
+                  .sort(
+                    (a: QualityDocument, b: QualityDocument) =>
+                      b.current_version - a.current_version,
+                  )
                   .map((doc: QualityDocument, idx: number) => {
-                    const prevDoc = idx < versionHistory.length - 1 ? versionHistory[idx + 1] as QualityDocument : null;
-                    const hasChanges = prevDoc && (doc.content !== prevDoc.content || doc.title !== prevDoc.title);
+                    const prevDoc =
+                      idx < versionHistory.length - 1
+                        ? (versionHistory[idx + 1] as QualityDocument)
+                        : null;
+                    const hasChanges =
+                      prevDoc && (doc.content !== prevDoc.content || doc.title !== prevDoc.title);
                     return (
                       <Table.Tr key={doc.id}>
                         <Table.Td>
                           <Badge color="primary">v{doc.current_version}</Badge>
                         </Table.Td>
                         <Table.Td>
-                          <Badge color={docStatusColors[doc.status] ?? "slate"}>{doc.status.replace(/_/g, " ")}</Badge>
+                          <Badge color={docStatusColors[doc.status] ?? "slate"}>
+                            {doc.status.replace(/_/g, " ")}
+                          </Badge>
                         </Table.Td>
                         <Table.Td>{new Date(doc.created_at).toLocaleDateString()}</Table.Td>
                         <Table.Td>
                           {hasChanges ? (
-                            <Badge color="orange" size="sm">Modified</Badge>
+                            <Badge color="orange" size="sm">
+                              Modified
+                            </Badge>
                           ) : idx === versionHistory.length - 1 ? (
-                            <Text size="sm" c="dimmed">Initial</Text>
+                            <Text size="sm" c="dimmed">
+                              Initial
+                            </Text>
                           ) : (
-                            <Text size="sm" c="dimmed">No changes</Text>
+                            <Text size="sm" c="dimmed">
+                              No changes
+                            </Text>
                           )}
                         </Table.Td>
                       </Table.Tr>
@@ -801,10 +1155,11 @@ function IncidentsTab() {
 
   const { data: incidents = [], isLoading } = useQuery({
     queryKey: ["quality-incidents", statusFilter, severityFilter],
-    queryFn: () => api.listQualityIncidents({
-      status: statusFilter ?? undefined,
-      severity: severityFilter ?? undefined,
-    }),
+    queryFn: () =>
+      api.listQualityIncidents({
+        status: statusFilter ?? undefined,
+        severity: severityFilter ?? undefined,
+      }),
   });
 
   const { data: capaList = [] } = useQuery({
@@ -826,7 +1181,12 @@ function IncidentsTab() {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident reported", message: "", color: "success" });
       closeCreate();
-      setForm({ title: "", incident_type: "", severity: "minor", incident_date: new Date().toISOString().slice(0, 10) });
+      setForm({
+        title: "",
+        incident_type: "",
+        severity: "minor",
+        incident_date: new Date().toISOString().slice(0, 10),
+      });
     },
   });
 
@@ -841,7 +1201,8 @@ function IncidentsTab() {
   };
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.updateQualityIncident(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      api.updateQualityIncident(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident updated", message: "", color: "success" });
@@ -883,20 +1244,65 @@ function IncidentsTab() {
   });
 
   const columns = [
-    { key: "incident_number" as const, label: "Incident #", render: (i: QualityIncident) => <Text fw={500}>{i.incident_number}</Text> },
+    {
+      key: "incident_number" as const,
+      label: "Incident #",
+      render: (i: QualityIncident) => <Text fw={500}>{i.incident_number}</Text>,
+    },
     { key: "title" as const, label: "Title", render: (i: QualityIncident) => i.title },
-    { key: "incident_type" as const, label: "Type", render: (i: QualityIncident) => i.incident_type },
-    { key: "severity" as const, label: "Severity", render: (i: QualityIncident) => <Badge color={severityColors[i.severity] ?? "slate"}>{i.severity.replace(/_/g, " ")}</Badge> },
-    { key: "status" as const, label: "Status", render: (i: QualityIncident) => <Badge color={incidentStatusColors[i.status] ?? "slate"}>{i.status.replace(/_/g, " ")}</Badge> },
-    { key: "incident_date" as const, label: "Date", render: (i: QualityIncident) => new Date(i.incident_date).toLocaleDateString() },
-    { key: "anonymous" as const, label: "Anon", render: (i: QualityIncident) => i.is_anonymous ? <Badge size="sm" color="violet">Yes</Badge> : "---" },
+    {
+      key: "incident_type" as const,
+      label: "Type",
+      render: (i: QualityIncident) => i.incident_type,
+    },
+    {
+      key: "severity" as const,
+      label: "Severity",
+      render: (i: QualityIncident) => (
+        <Badge color={severityColors[i.severity] ?? "slate"}>{i.severity.replace(/_/g, " ")}</Badge>
+      ),
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (i: QualityIncident) => (
+        <Badge color={incidentStatusColors[i.status] ?? "slate"}>
+          {i.status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "incident_date" as const,
+      label: "Date",
+      render: (i: QualityIncident) => new Date(i.incident_date).toLocaleDateString(),
+    },
+    {
+      key: "anonymous" as const,
+      label: "Anon",
+      render: (i: QualityIncident) =>
+        i.is_anonymous ? (
+          <Badge size="sm" color="violet">
+            Yes
+          </Badge>
+        ) : (
+          "---"
+        ),
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (i: QualityIncident) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedIncident(i); openDetail(); }} aria-label="View details">
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              onClick={() => {
+                setSelectedIncident(i);
+                openDetail();
+              }}
+              aria-label="View details"
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -911,7 +1317,16 @@ function IncidentsTab() {
         <Group>
           <Select
             placeholder="Status"
-            data={["reported", "acknowledged", "investigating", "rca_complete", "capa_assigned", "capa_in_progress", "closed", "reopened"]}
+            data={[
+              "reported",
+              "acknowledged",
+              "investigating",
+              "rca_complete",
+              "capa_assigned",
+              "capa_in_progress",
+              "closed",
+              "reopened",
+            ]}
             value={statusFilter}
             onChange={setStatusFilter}
             clearable
@@ -925,77 +1340,212 @@ function IncidentsTab() {
             clearable
             w={140}
           />
-          <Text c="dimmed" size="sm">{incidents.length} incident(s)</Text>
+          <Text c="dimmed" size="sm">
+            {incidents.length} incident(s)
+          </Text>
         </Group>
         {canCreate && (
           <Group>
-            <Button variant="light" color="violet" leftSection={<IconFileDescription size={16} />} onClick={openMortality}>
+            <Button
+              variant="light"
+              color="violet"
+              leftSection={<IconFileDescription size={16} />}
+              onClick={openMortality}
+            >
               Mortality Review
             </Button>
-            <Button variant="light" color="slate" leftSection={<IconAlertTriangle size={16} />} onClick={openNearMissReport}>
+            <Button
+              variant="light"
+              color="slate"
+              leftSection={<IconAlertTriangle size={16} />}
+              onClick={openNearMissReport}
+            >
               Report Near Miss
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Report Incident</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              Report Incident
+            </Button>
           </Group>
         )}
       </Group>
 
-      <DataTable columns={columns} data={incidents} loading={isLoading} rowKey={(i) => i.id} emptyTitle="No incidents reported" />
+      <DataTable
+        columns={columns}
+        data={incidents}
+        loading={isLoading}
+        rowKey={(i) => i.id}
+        emptyTitle="No incidents reported"
+      />
 
       {/* Create Incident Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="Report Incident" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Report Incident"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
-          <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
-          <Select label="Incident Type" required data={["medication_error", "fall", "infection", "surgical", "diagnostic", "equipment", "behavioral", "other"]} value={form.incident_type} onChange={(v) => setForm({ ...form, incident_type: v ?? "" })} />
-          <Select label="Severity" required data={["near_miss", "minor", "moderate", "major", "sentinel"] satisfies IncidentSeverityType[]} value={form.severity} onChange={(v) => setForm({ ...form, severity: (v ?? "minor") as IncidentSeverityType })} />
-          <DepartmentSelect value={form.department_id ?? ""} onChange={(id) => setForm({ ...form, department_id: id || undefined })} />
-          <TextInput label="Location" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.currentTarget.value || undefined })} />
-          <TextInput label="Incident Date" type="date" required value={form.incident_date} onChange={(e) => setForm({ ...form, incident_date: e.currentTarget.value })} />
-          <PatientSearchSelect label="Patient (optional)" value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id || undefined })} />
-          <Textarea label="Immediate Action Taken" value={form.immediate_action ?? ""} onChange={(e) => setForm({ ...form, immediate_action: e.currentTarget.value || undefined })} />
-          <Switch label="Report Anonymously" checked={form.is_anonymous ?? false} onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Submit Report</Button>
+          <TextInput
+            label="Title"
+            required
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Description"
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+          />
+          <Select
+            label="Incident Type"
+            required
+            data={[
+              { value: "medication_error", label: "Medication error" },
+              { value: "fall", label: "Patient fall" },
+              { value: "infection", label: "Infection" },
+              { value: "surgical", label: "Surgical" },
+              { value: "diagnostic", label: "Diagnostic" },
+              { value: "equipment", label: "Equipment" },
+              { value: "behavioral", label: "Behavioral" },
+              { value: "other", label: "Other" },
+            ]}
+            value={form.incident_type}
+            onChange={(v) => setForm({ ...form, incident_type: v ?? "" })}
+          />
+          {form.incident_type === "fall" && (
+            <Alert
+              icon={<IconAlertTriangle size={16} />}
+              color="orange"
+              variant="light"
+              title="Feeds NABH falls register"
+            >
+              Select the patient, location, severity, and immediate action. This report will
+              automatically create or update the NABH falls evidence row.
+            </Alert>
+          )}
+          <Select
+            label="Severity"
+            required
+            data={
+              [
+                "near_miss",
+                "minor",
+                "moderate",
+                "major",
+                "sentinel",
+              ] satisfies IncidentSeverityType[]
+            }
+            value={form.severity}
+            onChange={(v) => setForm({ ...form, severity: (v ?? "minor") as IncidentSeverityType })}
+          />
+          <DepartmentSelect
+            value={form.department_id ?? ""}
+            onChange={(id) => setForm({ ...form, department_id: id || undefined })}
+          />
+          <TextInput
+            label="Location"
+            value={form.location ?? ""}
+            onChange={(e) => setForm({ ...form, location: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Incident Date"
+            type="date"
+            required
+            value={form.incident_date}
+            onChange={(e) => setForm({ ...form, incident_date: e.currentTarget.value })}
+          />
+          <PatientSearchSelect
+            label="Patient (optional)"
+            value={form.patient_id ?? ""}
+            onChange={(id) => setForm({ ...form, patient_id: id || undefined })}
+          />
+          <Textarea
+            label="Immediate Action Taken"
+            value={form.immediate_action ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, immediate_action: e.currentTarget.value || undefined })
+            }
+          />
+          <Switch
+            label="Report Anonymously"
+            checked={form.is_anonymous ?? false}
+            onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Submit Report
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Incident Detail Drawer */}
-      <Drawer opened={detailOpened} onClose={closeDetail} title={`Incident: ${selectedIncident?.incident_number ?? ""}`} position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title={`Incident: ${selectedIncident?.incident_number ?? ""}`}
+        position="right"
+        size="lg"
+      >
         {selectedIncident && (
           <Stack>
             <Group>
-              <Badge color={severityColors[selectedIncident.severity] ?? "slate"} size="lg">{selectedIncident.severity.replace(/_/g, " ")}</Badge>
-              <Badge color={incidentStatusColors[selectedIncident.status] ?? "slate"} size="lg">{selectedIncident.status.replace(/_/g, " ")}</Badge>
+              <Badge color={severityColors[selectedIncident.severity] ?? "slate"} size="lg">
+                {selectedIncident.severity.replace(/_/g, " ")}
+              </Badge>
+              <Badge color={incidentStatusColors[selectedIncident.status] ?? "slate"} size="lg">
+                {selectedIncident.status.replace(/_/g, " ")}
+              </Badge>
             </Group>
             <Text fw={600}>{selectedIncident.title}</Text>
-            {selectedIncident.description && <Text size="sm" c="dimmed">{selectedIncident.description}</Text>}
+            {selectedIncident.description && (
+              <Text size="sm" c="dimmed">
+                {selectedIncident.description}
+              </Text>
+            )}
             <Text size="sm">Type: {selectedIncident.incident_type}</Text>
-            <Text size="sm">Date: {new Date(selectedIncident.incident_date).toLocaleDateString()}</Text>
-            {selectedIncident.location && <Text size="sm">Location: {selectedIncident.location}</Text>}
+            <Text size="sm">
+              Date: {new Date(selectedIncident.incident_date).toLocaleDateString()}
+            </Text>
+            {selectedIncident.location && (
+              <Text size="sm">Location: {selectedIncident.location}</Text>
+            )}
             {selectedIncident.immediate_action && (
               <>
-                <Text fw={500} size="sm">Immediate Action:</Text>
-                <Text size="sm" c="dimmed">{selectedIncident.immediate_action}</Text>
+                <Text fw={500} size="sm">
+                  Immediate Action:
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {selectedIncident.immediate_action}
+                </Text>
               </>
             )}
 
             {/* RCA section */}
             {canUpdate && (
               <>
-                <Text fw={600} mt="md">Root Cause Analysis</Text>
+                <Text fw={600} mt="md">
+                  Root Cause Analysis
+                </Text>
                 <Textarea
                   label="Root Cause"
                   value={selectedIncident.root_cause ?? ""}
-                  onChange={(e) => setSelectedIncident({ ...selectedIncident, root_cause: e.currentTarget.value || undefined })}
+                  onChange={(e) =>
+                    setSelectedIncident({
+                      ...selectedIncident,
+                      root_cause: e.currentTarget.value || undefined,
+                    })
+                  }
                 />
                 <Button
                   size="sm"
                   variant="light"
                   loading={updateMut.isPending}
-                  onClick={() => updateMut.mutate({
-                    id: selectedIncident.id,
-                    data: { root_cause: selectedIncident.root_cause, status: "rca_complete" },
-                  })}
+                  onClick={() =>
+                    updateMut.mutate({
+                      id: selectedIncident.id,
+                      data: { root_cause: selectedIncident.root_cause, status: "rca_complete" },
+                    })
+                  }
                 >
                   Save RCA
                 </Button>
@@ -1003,7 +1553,9 @@ function IncidentsTab() {
             )}
 
             {/* CAPA section */}
-            <Text fw={600} mt="md">CAPA ({capaList.length})</Text>
+            <Text fw={600} mt="md">
+              CAPA ({capaList.length})
+            </Text>
             {capaList.length > 0 && (
               <Table withTableBorder>
                 <Table.Thead>
@@ -1019,19 +1571,32 @@ function IncidentsTab() {
                   {capaList.map((c: QualityCapa) => {
                     const createdDate = new Date(c.created_at);
                     const now = new Date();
-                    const capaAgeInDays = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const capaAgeInDays = Math.floor(
+                      (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+                    );
                     return (
                       <Table.Tr key={c.id}>
                         <Table.Td>
                           <Text fw={500}>{c.capa_number}</Text>
-                          <Text size="xs" c="dimmed">{capaAgeInDays} days old</Text>
+                          <Text size="xs" c="dimmed">
+                            {capaAgeInDays} days old
+                          </Text>
                         </Table.Td>
                         <Table.Td>{c.capa_type}</Table.Td>
-                        <Table.Td><Badge color={capaStatusColors[c.status] ?? "slate"}>{c.status.replace(/_/g, " ")}</Badge></Table.Td>
+                        <Table.Td>
+                          <Badge color={capaStatusColors[c.status] ?? "slate"}>
+                            {c.status.replace(/_/g, " ")}
+                          </Badge>
+                        </Table.Td>
                         <Table.Td>{new Date(c.due_date).toLocaleDateString()}</Table.Td>
                         <Table.Td>
                           <Tooltip label="View Effectiveness">
-                            <ActionIcon variant="subtle" color="primary" onClick={() => setSelectedCapa(c)} aria-label="View details">
+                            <ActionIcon
+                              variant="subtle"
+                              color="primary"
+                              onClick={() => setSelectedCapa(c)}
+                              aria-label="View details"
+                            >
                               <IconEye size={16} />
                             </ActionIcon>
                           </Tooltip>
@@ -1048,7 +1613,12 @@ function IncidentsTab() {
                 <Stack gap="sm">
                   <Group justify="space-between">
                     <Text fw={600}>CAPA Effectiveness Review: {selectedCapa.capa_number}</Text>
-                    <Button variant="subtle" size="compact-sm" color="slate" onClick={() => setSelectedCapa(null)}>
+                    <Button
+                      variant="subtle"
+                      size="compact-sm"
+                      color="slate"
+                      onClick={() => setSelectedCapa(null)}
+                    >
                       Close
                     </Button>
                   </Group>
@@ -1056,56 +1626,103 @@ function IncidentsTab() {
                     const createdDate = new Date(selectedCapa.created_at);
                     const dueDate = new Date(selectedCapa.due_date);
                     const now = new Date();
-                    const capaAgeInDays = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const capaAgeInDays = Math.floor(
+                      (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+                    );
                     const daysOverdueSinceCompletion = selectedCapa.completed_at
-                      ? Math.floor((now.getTime() - new Date(selectedCapa.completed_at).getTime()) / (1000 * 60 * 60 * 24))
+                      ? Math.floor(
+                          (now.getTime() - new Date(selectedCapa.completed_at).getTime()) /
+                            (1000 * 60 * 60 * 24),
+                        )
                       : 0;
-                    const reviewOverdue = selectedCapa.completed_at && daysOverdueSinceCompletion > 90;
-                    const effectivenessReview = (selectedCapa as QualityCapa & { effectiveness_review?: { effectiveness_check_date?: string; effectiveness_result?: string } }).effectiveness_review;
+                    const reviewOverdue =
+                      selectedCapa.completed_at && daysOverdueSinceCompletion > 90;
+                    const effectivenessReview = (
+                      selectedCapa as QualityCapa & {
+                        effectiveness_review?: {
+                          effectiveness_check_date?: string;
+                          effectiveness_result?: string;
+                        };
+                      }
+                    ).effectiveness_review;
                     return (
                       <>
                         <SimpleGrid cols={3} spacing="sm">
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>CAPA Age</Text>
-                            <Text fw={600} mt={4}>{capaAgeInDays} days</Text>
+                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                              CAPA Age
+                            </Text>
+                            <Text fw={600} mt={4}>
+                              {capaAgeInDays} days
+                            </Text>
                           </Card>
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Due Date</Text>
-                            <Text fw={600} mt={4}>{dueDate.toLocaleDateString()}</Text>
+                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                              Due Date
+                            </Text>
+                            <Text fw={600} mt={4}>
+                              {dueDate.toLocaleDateString()}
+                            </Text>
                           </Card>
                           <Card withBorder p="xs">
-                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Effectiveness Review</Text>
+                            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                              Effectiveness Review
+                            </Text>
                             {effectivenessReview ? (
                               <>
-                                <Text fw={600} mt={4} c="success">Completed</Text>
+                                <Text fw={600} mt={4} c="success">
+                                  Completed
+                                </Text>
                                 {effectivenessReview.effectiveness_check_date && (
-                                  <Text size="xs" c="dimmed">{new Date(effectivenessReview.effectiveness_check_date).toLocaleDateString()}</Text>
+                                  <Text size="xs" c="dimmed">
+                                    {new Date(
+                                      effectivenessReview.effectiveness_check_date,
+                                    ).toLocaleDateString()}
+                                  </Text>
                                 )}
                               </>
                             ) : reviewOverdue ? (
-                              <Badge color="danger" mt={4}>Overdue</Badge>
+                              <Badge color="danger" mt={4}>
+                                Overdue
+                              </Badge>
                             ) : selectedCapa.completed_at ? (
-                              <Badge color="warning" mt={4}>Due Soon</Badge>
+                              <Badge color="warning" mt={4}>
+                                Due Soon
+                              </Badge>
                             ) : (
-                              <Badge color="slate" mt={4}>Pending</Badge>
+                              <Badge color="slate" mt={4}>
+                                Pending
+                              </Badge>
                             )}
                           </Card>
                         </SimpleGrid>
                         {effectivenessReview ? (
                           <Card withBorder p="sm">
-                            <Text size="sm" fw={600} mb="xs">Effectiveness Check Result</Text>
-                            <Text size="sm">{effectivenessReview.effectiveness_result ?? "No result recorded"}</Text>
+                            <Text size="sm" fw={600} mb="xs">
+                              Effectiveness Check Result
+                            </Text>
+                            <Text size="sm">
+                              {effectivenessReview.effectiveness_result ?? "No result recorded"}
+                            </Text>
                             {effectivenessReview.effectiveness_check_date && (
                               <Text size="xs" c="dimmed" mt="xs">
-                                Checked on {new Date(effectivenessReview.effectiveness_check_date).toLocaleDateString()}
+                                Checked on{" "}
+                                {new Date(
+                                  effectivenessReview.effectiveness_check_date,
+                                ).toLocaleDateString()}
                               </Text>
                             )}
                           </Card>
                         ) : (
-                          <Badge color="slate" size="lg">Pending Review</Badge>
+                          <Badge color="slate" size="lg">
+                            Pending Review
+                          </Badge>
                         )}
                         {reviewOverdue && (
-                          <Badge color="danger" size="lg">Review overdue by {daysOverdueSinceCompletion - 90} days (90-day threshold exceeded)</Badge>
+                          <Badge color="danger" size="lg">
+                            Review overdue by {daysOverdueSinceCompletion - 90} days (90-day
+                            threshold exceeded)
+                          </Badge>
                         )}
                       </>
                     );
@@ -1116,16 +1733,48 @@ function IncidentsTab() {
 
             {canManageCapa && (
               <>
-                <Text fw={500} size="sm" mt="sm">Add CAPA</Text>
-                <Select label="Type" data={["corrective", "preventive"]} value={capaForm.capa_type} onChange={(v) => setCapaForm({ ...capaForm, capa_type: v ?? "corrective" })} />
-                <Textarea label="Description" value={capaForm.description ?? ""} onChange={(e) => setCapaForm({ ...capaForm, description: e.currentTarget.value || undefined })} />
-                <Textarea label="Action Plan" value={capaForm.action_plan ?? ""} onChange={(e) => setCapaForm({ ...capaForm, action_plan: e.currentTarget.value || undefined })} />
-                <TextInput label="Assigned To (User ID)" required value={capaForm.assigned_to} onChange={(e) => setCapaForm({ ...capaForm, assigned_to: e.currentTarget.value })} />
-                <TextInput label="Due Date" type="date" required value={capaForm.due_date} onChange={(e) => setCapaForm({ ...capaForm, due_date: e.currentTarget.value })} />
+                <Text fw={500} size="sm" mt="sm">
+                  Add CAPA
+                </Text>
+                <Select
+                  label="Type"
+                  data={["corrective", "preventive"]}
+                  value={capaForm.capa_type}
+                  onChange={(v) => setCapaForm({ ...capaForm, capa_type: v ?? "corrective" })}
+                />
+                <Textarea
+                  label="Description"
+                  value={capaForm.description ?? ""}
+                  onChange={(e) =>
+                    setCapaForm({ ...capaForm, description: e.currentTarget.value || undefined })
+                  }
+                />
+                <Textarea
+                  label="Action Plan"
+                  value={capaForm.action_plan ?? ""}
+                  onChange={(e) =>
+                    setCapaForm({ ...capaForm, action_plan: e.currentTarget.value || undefined })
+                  }
+                />
+                <TextInput
+                  label="Assigned To (User ID)"
+                  required
+                  value={capaForm.assigned_to}
+                  onChange={(e) => setCapaForm({ ...capaForm, assigned_to: e.currentTarget.value })}
+                />
+                <TextInput
+                  label="Due Date"
+                  type="date"
+                  required
+                  value={capaForm.due_date}
+                  onChange={(e) => setCapaForm({ ...capaForm, due_date: e.currentTarget.value })}
+                />
                 <Button
                   size="sm"
                   loading={createCapaMut.isPending}
-                  onClick={() => createCapaMut.mutate({ ...capaForm, incident_id: selectedIncident.id })}
+                  onClick={() =>
+                    createCapaMut.mutate({ ...capaForm, incident_id: selectedIncident.id })
+                  }
                 >
                   Create CAPA
                 </Button>
@@ -1136,20 +1785,64 @@ function IncidentsTab() {
       </Drawer>
 
       {/* Mortality Review Drawer */}
-      <Drawer opened={mortalityOpened} onClose={closeMortality} title="Mortality Review" position="right" size="xl">
+      <Drawer
+        opened={mortalityOpened}
+        onClose={closeMortality}
+        title="Mortality Review"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <PatientSearchSelect value={mortalityForm.patient_id} onChange={(v) => setMortalityForm({ ...mortalityForm, patient_id: v })} required />
-          <TextInput label="Death Date" type="date" required value={mortalityForm.death_date} onChange={(e) => setMortalityForm({ ...mortalityForm, death_date: e.currentTarget.value })} />
-          <TextInput label="Primary Diagnosis" required value={mortalityForm.primary_diagnosis} onChange={(e) => setMortalityForm({ ...mortalityForm, primary_diagnosis: e.currentTarget.value })} />
-          <Textarea label="Review Findings" value={mortalityForm.review_findings ?? ""} onChange={(e) => setMortalityForm({ ...mortalityForm, review_findings: e.currentTarget.value || undefined })} />
+          <PatientSearchSelect
+            value={mortalityForm.patient_id}
+            onChange={(v) => setMortalityForm({ ...mortalityForm, patient_id: v })}
+            required
+          />
+          <TextInput
+            label="Death Date"
+            type="date"
+            required
+            value={mortalityForm.death_date}
+            onChange={(e) =>
+              setMortalityForm({ ...mortalityForm, death_date: e.currentTarget.value })
+            }
+          />
+          <TextInput
+            label="Primary Diagnosis"
+            required
+            value={mortalityForm.primary_diagnosis}
+            onChange={(e) =>
+              setMortalityForm({ ...mortalityForm, primary_diagnosis: e.currentTarget.value })
+            }
+          />
+          <Textarea
+            label="Review Findings"
+            value={mortalityForm.review_findings ?? ""}
+            onChange={(e) =>
+              setMortalityForm({
+                ...mortalityForm,
+                review_findings: e.currentTarget.value || undefined,
+              })
+            }
+          />
           <Select
             label="Preventability"
-            data={["definitely_preventable", "possibly_preventable", "not_preventable", "undetermined"]}
+            data={[
+              "definitely_preventable",
+              "possibly_preventable",
+              "not_preventable",
+              "undetermined",
+            ]}
             value={mortalityForm.preventability ?? null}
             onChange={(v) => setMortalityForm({ ...mortalityForm, preventability: v ?? undefined })}
             clearable
           />
-          <Button loading={createMortalityMut.isPending} onClick={() => createMortalityMut.mutate(mortalityForm)}>Submit Review</Button>
+          <Button
+            loading={createMortalityMut.isPending}
+            onClick={() => createMortalityMut.mutate(mortalityForm)}
+          >
+            Submit Review
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -1187,7 +1880,10 @@ function CommitteesTab() {
     queryKey: ["patient-feedback"],
     queryFn: async () => {
       // Check if API method exists (it doesn't yet, so this will return null)
-      if ("listFeedback" in api && typeof (api as { listFeedback?: () => Promise<unknown> }).listFeedback === "function") {
+      if (
+        "listFeedback" in api &&
+        typeof (api as { listFeedback?: () => Promise<unknown> }).listFeedback === "function"
+      ) {
         return await (api as { listFeedback: () => Promise<unknown> }).listFeedback();
       }
       return null;
@@ -1260,38 +1956,81 @@ function CommitteesTab() {
     mutationFn: (committeeId: string) => api.autoScheduleMeetings(committeeId, { months_ahead: 6 }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
-      notifications.show({ title: "Meetings auto-scheduled", message: "Scheduled for the next 6 months", color: "teal" });
+      notifications.show({
+        title: "Meetings auto-scheduled",
+        message: "Scheduled for the next 6 months",
+        color: "teal",
+      });
     },
     onError: () => {
-      notifications.show({ title: "Auto-schedule failed", message: "Could not generate meeting schedule", color: "danger" });
+      notifications.show({
+        title: "Auto-schedule failed",
+        message: "Could not generate meeting schedule",
+        color: "danger",
+      });
     },
   });
 
   const committeeColumns = [
-    { key: "code" as const, label: "Code", render: (c: QualityCommittee) => <Text fw={500}>{c.code}</Text> },
+    {
+      key: "code" as const,
+      label: "Code",
+      render: (c: QualityCommittee) => <Text fw={500}>{c.code}</Text>,
+    },
     { key: "name" as const, label: "Name", render: (c: QualityCommittee) => c.name },
     { key: "type" as const, label: "Type", render: (c: QualityCommittee) => c.committee_type },
-    { key: "frequency" as const, label: "Meeting Frequency", render: (c: QualityCommittee) => c.meeting_frequency.replace(/_/g, " ") },
-    { key: "mandatory" as const, label: "Mandatory", render: (c: QualityCommittee) => c.is_mandatory ? <Badge color="danger" size="sm">Mandatory</Badge> : "---" },
-    { key: "active" as const, label: "Status", render: (c: QualityCommittee) => c.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge> },
+    {
+      key: "frequency" as const,
+      label: "Meeting Frequency",
+      render: (c: QualityCommittee) => c.meeting_frequency.replace(/_/g, " "),
+    },
+    {
+      key: "mandatory" as const,
+      label: "Mandatory",
+      render: (c: QualityCommittee) =>
+        c.is_mandatory ? (
+          <Badge color="danger" size="sm">
+            Mandatory
+          </Badge>
+        ) : (
+          "---"
+        ),
+    },
+    {
+      key: "active" as const,
+      label: "Status",
+      render: (c: QualityCommittee) =>
+        c.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge>,
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (c: QualityCommittee) => (
         <Group gap="xs">
           <Tooltip label="View Meetings">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedCommittee(c); }} aria-label="Calendar Event">
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              onClick={() => {
+                setSelectedCommittee(c);
+              }}
+              aria-label="Calendar Event"
+            >
               <IconCalendarEvent size={16} />
             </ActionIcon>
           </Tooltip>
           {canManage && (
             <Tooltip label="Schedule Meeting">
-              <ActionIcon variant="subtle" color="teal" onClick={() => {
-                setSelectedCommittee(c);
-                setMeetingForm({ committee_id: c.id, scheduled_date: "" });
-                openMeeting();
-              }}
-                aria-label="Add">
+              <ActionIcon
+                variant="subtle"
+                color="teal"
+                onClick={() => {
+                  setSelectedCommittee(c);
+                  setMeetingForm({ committee_id: c.id, scheduled_date: "" });
+                  openMeeting();
+                }}
+                aria-label="Add"
+              >
                 <IconPlus size={16} />
               </ActionIcon>
             </Tooltip>
@@ -1318,27 +2057,42 @@ function CommitteesTab() {
     <Stack>
       <Group justify="space-between">
         <Group>
-          <Text c="dimmed" size="sm">{committees.length} committee(s)</Text>
-          <Button variant="light" color="violet" size="sm" onClick={() => setShowFeedback(!showFeedback)}>
+          <Text c="dimmed" size="sm">
+            {committees.length} committee(s)
+          </Text>
+          <Button
+            variant="light"
+            color="violet"
+            size="sm"
+            onClick={() => setShowFeedback(!showFeedback)}
+          >
             {showFeedback ? "Hide Feedback" : "Show Feedback"}
           </Button>
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCommittee}>New Committee</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCommittee}>
+            New Committee
+          </Button>
         )}
       </Group>
 
       {showFeedback && (
         <Card withBorder shadow="sm" p="md" mb="md">
-          <Text fw={600} mb="md">Patient Feedback Analysis</Text>
+          <Text fw={600} mb="md">
+            Patient Feedback Analysis
+          </Text>
           {feedbackLoading ? (
             <Text c="dimmed">Loading feedback data...</Text>
           ) : !feedbackData ? (
             <>
-              <Text c="dimmed" size="sm" mb="md">No feedback data available. Showing sample structure.</Text>
+              <Text c="dimmed" size="sm" mb="md">
+                No feedback data available. Showing sample structure.
+              </Text>
               <SimpleGrid cols={2} spacing="lg">
                 <div>
-                  <Text size="sm" fw={600} mb="xs">Feedback by Department</Text>
+                  <Text size="sm" fw={600} mb="xs">
+                    Feedback by Department
+                  </Text>
                   <BarChart
                     h={250}
                     data={feedbackByDeptData}
@@ -1348,7 +2102,9 @@ function CommitteesTab() {
                   />
                 </div>
                 <div>
-                  <Text size="sm" fw={600} mb="xs">Feedback by Rating</Text>
+                  <Text size="sm" fw={600} mb="xs">
+                    Feedback by Rating
+                  </Text>
                   <DonutChart
                     data={feedbackByRatingData}
                     withLabelsLine
@@ -1366,12 +2122,20 @@ function CommitteesTab() {
         </Card>
       )}
 
-      <DataTable columns={committeeColumns} data={committees} loading={isLoading} rowKey={(c) => c.id} emptyTitle="No committees" />
+      <DataTable
+        columns={committeeColumns}
+        data={committees}
+        loading={isLoading}
+        rowKey={(c) => c.id}
+        emptyTitle="No committees"
+      />
 
       {/* Meetings for selected committee */}
       {selectedCommittee && (
         <>
-          <Text fw={600} mt="md">Meetings: {selectedCommittee.name}</Text>
+          <Text fw={600} mt="md">
+            Meetings: {selectedCommittee.name}
+          </Text>
           {meetings.length > 0 ? (
             <Table withTableBorder>
               <Table.Thead>
@@ -1388,15 +2152,21 @@ function CommitteesTab() {
                   <Table.Tr key={m.id}>
                     <Table.Td>{m.meeting_number ?? "---"}</Table.Td>
                     <Table.Td>{new Date(m.scheduled_date).toLocaleDateString()}</Table.Td>
-                    <Table.Td>{m.actual_date ? new Date(m.actual_date).toLocaleDateString() : "---"}</Table.Td>
+                    <Table.Td>
+                      {m.actual_date ? new Date(m.actual_date).toLocaleDateString() : "---"}
+                    </Table.Td>
                     <Table.Td>{m.venue ?? "---"}</Table.Td>
-                    <Table.Td><Badge>{m.status}</Badge></Table.Td>
+                    <Table.Td>
+                      <Badge>{m.status}</Badge>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           ) : (
-            <Text c="dimmed" size="sm">No meetings scheduled</Text>
+            <Text c="dimmed" size="sm">
+              No meetings scheduled
+            </Text>
           )}
         </>
       )}
@@ -1404,7 +2174,9 @@ function CommitteesTab() {
       {/* Action Items */}
       {actionItems.length > 0 && (
         <>
-          <Text fw={600} mt="md">Action Items ({actionItems.length})</Text>
+          <Text fw={600} mt="md">
+            Action Items ({actionItems.length})
+          </Text>
           <Table withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -1420,7 +2192,19 @@ function CommitteesTab() {
                   <Table.Td>{a.source_type}</Table.Td>
                   <Table.Td>{a.description ?? "---"}</Table.Td>
                   <Table.Td>{new Date(a.due_date).toLocaleDateString()}</Table.Td>
-                  <Table.Td><Badge color={a.status === "completed" ? "success" : a.status === "overdue" ? "danger" : "primary"}>{a.status}</Badge></Table.Td>
+                  <Table.Td>
+                    <Badge
+                      color={
+                        a.status === "completed"
+                          ? "success"
+                          : a.status === "overdue"
+                            ? "danger"
+                            : "primary"
+                      }
+                    >
+                      {a.status}
+                    </Badge>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -1429,27 +2213,148 @@ function CommitteesTab() {
       )}
 
       {/* Create Committee Drawer */}
-      <Drawer opened={committeeOpened} onClose={closeCommittee} title="New Committee" position="right" size="xl">
+      <Drawer
+        opened={committeeOpened}
+        onClose={closeCommittee}
+        title="New Committee"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Code" required value={committeeForm.code} onChange={(e) => setCommitteeForm({ ...committeeForm, code: e.currentTarget.value })} />
-          <TextInput label="Name" required value={committeeForm.name} onChange={(e) => setCommitteeForm({ ...committeeForm, name: e.currentTarget.value })} />
-          <Textarea label="Description" value={committeeForm.description ?? ""} onChange={(e) => setCommitteeForm({ ...committeeForm, description: e.currentTarget.value || undefined })} />
-          <Select label="Committee Type" required data={["quality_assurance", "infection_control", "pharmacy_therapeutic", "mortality_review", "ethics", "safety", "credentialing", "other"]} value={committeeForm.committee_type} onChange={(v) => setCommitteeForm({ ...committeeForm, committee_type: v ?? "" })} />
-          <TextInput label="Chairperson ID" value={committeeForm.chairperson_id ?? ""} onChange={(e) => setCommitteeForm({ ...committeeForm, chairperson_id: e.currentTarget.value || undefined })} />
-          <TextInput label="Secretary ID" value={committeeForm.secretary_id ?? ""} onChange={(e) => setCommitteeForm({ ...committeeForm, secretary_id: e.currentTarget.value || undefined })} />
-          <Select label="Meeting Frequency" required data={["weekly", "biweekly", "monthly", "quarterly", "biannual", "annual", "as_needed"] satisfies CommitteeFrequencyType[]} value={committeeForm.meeting_frequency} onChange={(v) => setCommitteeForm({ ...committeeForm, meeting_frequency: (v ?? "monthly") as CommitteeFrequencyType })} />
-          <Textarea label="Charter" value={committeeForm.charter ?? ""} onChange={(e) => setCommitteeForm({ ...committeeForm, charter: e.currentTarget.value || undefined })} />
-          <Checkbox label="Mandatory Committee" checked={committeeForm.is_mandatory ?? false} onChange={(e) => setCommitteeForm({ ...committeeForm, is_mandatory: e.currentTarget.checked })} />
-          <Button loading={createCommitteeMut.isPending} onClick={() => createCommitteeMut.mutate(committeeForm)}>Save</Button>
+          <TextInput
+            label="Code"
+            required
+            value={committeeForm.code}
+            onChange={(e) => setCommitteeForm({ ...committeeForm, code: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Name"
+            required
+            value={committeeForm.name}
+            onChange={(e) => setCommitteeForm({ ...committeeForm, name: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Description"
+            value={committeeForm.description ?? ""}
+            onChange={(e) =>
+              setCommitteeForm({
+                ...committeeForm,
+                description: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <Select
+            label="Committee Type"
+            required
+            data={[
+              "quality_assurance",
+              "infection_control",
+              "pharmacy_therapeutic",
+              "mortality_review",
+              "ethics",
+              "safety",
+              "credentialing",
+              "other",
+            ]}
+            value={committeeForm.committee_type}
+            onChange={(v) => setCommitteeForm({ ...committeeForm, committee_type: v ?? "" })}
+          />
+          <TextInput
+            label="Chairperson ID"
+            value={committeeForm.chairperson_id ?? ""}
+            onChange={(e) =>
+              setCommitteeForm({
+                ...committeeForm,
+                chairperson_id: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <TextInput
+            label="Secretary ID"
+            value={committeeForm.secretary_id ?? ""}
+            onChange={(e) =>
+              setCommitteeForm({
+                ...committeeForm,
+                secretary_id: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <Select
+            label="Meeting Frequency"
+            required
+            data={
+              [
+                "weekly",
+                "biweekly",
+                "monthly",
+                "quarterly",
+                "biannual",
+                "annual",
+                "as_needed",
+              ] satisfies CommitteeFrequencyType[]
+            }
+            value={committeeForm.meeting_frequency}
+            onChange={(v) =>
+              setCommitteeForm({
+                ...committeeForm,
+                meeting_frequency: (v ?? "monthly") as CommitteeFrequencyType,
+              })
+            }
+          />
+          <Textarea
+            label="Charter"
+            value={committeeForm.charter ?? ""}
+            onChange={(e) =>
+              setCommitteeForm({ ...committeeForm, charter: e.currentTarget.value || undefined })
+            }
+          />
+          <Checkbox
+            label="Mandatory Committee"
+            checked={committeeForm.is_mandatory ?? false}
+            onChange={(e) =>
+              setCommitteeForm({ ...committeeForm, is_mandatory: e.currentTarget.checked })
+            }
+          />
+          <Button
+            loading={createCommitteeMut.isPending}
+            onClick={() => createCommitteeMut.mutate(committeeForm)}
+          >
+            Save
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Schedule Meeting Drawer */}
-      <Drawer opened={meetingOpened} onClose={closeMeeting} title={`Schedule Meeting: ${selectedCommittee?.name ?? ""}`} position="right" size="sm">
+      <Drawer
+        opened={meetingOpened}
+        onClose={closeMeeting}
+        title={`Schedule Meeting: ${selectedCommittee?.name ?? ""}`}
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <TextInput label="Scheduled Date" type="datetime-local" required value={meetingForm.scheduled_date} onChange={(e) => setMeetingForm({ ...meetingForm, scheduled_date: e.currentTarget.value })} />
-          <TextInput label="Venue" value={meetingForm.venue ?? ""} onChange={(e) => setMeetingForm({ ...meetingForm, venue: e.currentTarget.value || undefined })} />
-          <Button loading={createMeetingMut.isPending} onClick={() => createMeetingMut.mutate(meetingForm)}>Schedule</Button>
+          <TextInput
+            label="Scheduled Date"
+            type="datetime-local"
+            required
+            value={meetingForm.scheduled_date}
+            onChange={(e) =>
+              setMeetingForm({ ...meetingForm, scheduled_date: e.currentTarget.value })
+            }
+          />
+          <TextInput
+            label="Venue"
+            value={meetingForm.venue ?? ""}
+            onChange={(e) =>
+              setMeetingForm({ ...meetingForm, venue: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            loading={createMeetingMut.isPending}
+            onClick={() => createMeetingMut.mutate(meetingForm)}
+          >
+            Schedule
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -1463,10 +2368,13 @@ function AccreditationTab() {
   const qc = useQueryClient();
   const [standardOpened, { open: openStandard, close: closeStandard }] = useDisclosure(false);
   const [complianceOpened, { open: openCompliance, close: closeCompliance }] = useDisclosure(false);
-  const [evidenceModalOpened, { open: openEvidenceModal, close: closeEvidenceModal }] = useDisclosure(false);
+  const [evidenceModalOpened, { open: openEvidenceModal, close: closeEvidenceModal }] =
+    useDisclosure(false);
   const [evidenceData, setEvidenceData] = useState<EvidenceCompilation | null>(null);
   const [bodyFilter, setBodyFilter] = useState<string | null>(null);
-  const [selectedStandard, setSelectedStandard] = useState<QualityAccreditationStandard | null>(null);
+  const [selectedStandard, setSelectedStandard] = useState<QualityAccreditationStandard | null>(
+    null,
+  );
 
   const compileEvidenceMut = useMutation({
     mutationFn: (body: string) => api.compileEvidence(body),
@@ -1475,7 +2383,11 @@ function AccreditationTab() {
       openEvidenceModal();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to compile evidence", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to compile evidence",
+        color: "danger",
+      });
     },
   });
 
@@ -1489,7 +2401,9 @@ function AccreditationTab() {
     queryFn: () => api.listAccreditationCompliance(),
   });
 
-  const complianceMap = new Map(compliance.map((c: QualityAccreditationCompliance) => [c.standard_id, c]));
+  const complianceMap = new Map(
+    compliance.map((c: QualityAccreditationCompliance) => [c.standard_id, c]),
+  );
 
   const [standardForm, setStandardForm] = useState<CreateAccreditationStandardRequest>({
     body: "nabh",
@@ -1522,32 +2436,70 @@ function AccreditationTab() {
   });
 
   // Summary counts
-  const compliantCount = compliance.filter((c: QualityAccreditationCompliance) => c.compliance === "compliant").length;
-  const partialCount = compliance.filter((c: QualityAccreditationCompliance) => c.compliance === "partially_compliant").length;
-  const nonCompliantCount = compliance.filter((c: QualityAccreditationCompliance) => c.compliance === "non_compliant").length;
-  const naCount = compliance.filter((c: QualityAccreditationCompliance) => c.compliance === "not_applicable").length;
+  const compliantCount = compliance.filter(
+    (c: QualityAccreditationCompliance) => c.compliance === "compliant",
+  ).length;
+  const partialCount = compliance.filter(
+    (c: QualityAccreditationCompliance) => c.compliance === "partially_compliant",
+  ).length;
+  const nonCompliantCount = compliance.filter(
+    (c: QualityAccreditationCompliance) => c.compliance === "non_compliant",
+  ).length;
+  const naCount = compliance.filter(
+    (c: QualityAccreditationCompliance) => c.compliance === "not_applicable",
+  ).length;
   const notAssessedCount = standards.length - compliance.length;
 
-  const donutData = useMemo(() => [
-    { name: "Compliant", value: compliantCount, color: "green.6" },
-    { name: "Partial", value: partialCount, color: "yellow.5" },
-    { name: "Non-Compliant", value: nonCompliantCount, color: "red.6" },
-    { name: "N/A", value: naCount, color: "gray.4" },
-    { name: "Not Assessed", value: notAssessedCount > 0 ? notAssessedCount : 0, color: "gray.2" },
-  ].filter((d) => d.value > 0), [compliantCount, partialCount, nonCompliantCount, naCount, notAssessedCount]);
+  const donutData = useMemo(
+    () =>
+      [
+        { name: "Compliant", value: compliantCount, color: "green.6" },
+        { name: "Partial", value: partialCount, color: "yellow.5" },
+        { name: "Non-Compliant", value: nonCompliantCount, color: "red.6" },
+        { name: "N/A", value: naCount, color: "gray.4" },
+        {
+          name: "Not Assessed",
+          value: notAssessedCount > 0 ? notAssessedCount : 0,
+          color: "gray.2",
+        },
+      ].filter((d) => d.value > 0),
+    [compliantCount, partialCount, nonCompliantCount, naCount, notAssessedCount],
+  );
 
   const columns = [
-    { key: "standard_code" as const, label: "Code", render: (s: QualityAccreditationStandard) => <Text fw={500}>{s.standard_code}</Text> },
-    { key: "standard_name" as const, label: "Standard", render: (s: QualityAccreditationStandard) => s.standard_name },
-    { key: "body" as const, label: "Body", render: (s: QualityAccreditationStandard) => <Badge variant="outline">{s.body.toUpperCase()}</Badge> },
-    { key: "chapter" as const, label: "Chapter", render: (s: QualityAccreditationStandard) => s.chapter ?? "---" },
+    {
+      key: "standard_code" as const,
+      label: "Code",
+      render: (s: QualityAccreditationStandard) => <Text fw={500}>{s.standard_code}</Text>,
+    },
+    {
+      key: "standard_name" as const,
+      label: "Standard",
+      render: (s: QualityAccreditationStandard) => s.standard_name,
+    },
+    {
+      key: "body" as const,
+      label: "Body",
+      render: (s: QualityAccreditationStandard) => (
+        <Badge variant="outline">{s.body.toUpperCase()}</Badge>
+      ),
+    },
+    {
+      key: "chapter" as const,
+      label: "Chapter",
+      render: (s: QualityAccreditationStandard) => s.chapter ?? "---",
+    },
     {
       key: "compliance" as const,
       label: "Compliance",
       render: (s: QualityAccreditationStandard) => {
         const c = complianceMap.get(s.id);
         if (!c) return <Badge color="slate">Not Assessed</Badge>;
-        return <Badge color={complianceColors[c.compliance] ?? "slate"}>{c.compliance.replace(/_/g, " ")}</Badge>;
+        return (
+          <Badge color={complianceColors[c.compliance] ?? "slate"}>
+            {c.compliance.replace(/_/g, " ")}
+          </Badge>
+        );
       },
     },
     {
@@ -1555,7 +2507,13 @@ function AccreditationTab() {
       label: "Gap",
       render: (s: QualityAccreditationStandard) => {
         const c = complianceMap.get(s.id);
-        return c?.gap_description ? <Text size="xs" c="danger" lineClamp={1}>{c.gap_description}</Text> : "---";
+        return c?.gap_description ? (
+          <Text size="xs" c="danger" lineClamp={1}>
+            {c.gap_description}
+          </Text>
+        ) : (
+          "---"
+        );
       },
     },
     {
@@ -1565,21 +2523,25 @@ function AccreditationTab() {
         <Group gap="xs">
           {canManage && (
             <Tooltip label="Update Compliance">
-              <ActionIcon variant="subtle" color="primary" onClick={() => {
-                setSelectedStandard(s);
-                const existing = complianceMap.get(s.id);
-                setComplianceForm({
-                  standard_id: s.id,
-                  compliance: existing?.compliance ?? "non_compliant",
-                  evidence_summary: existing?.evidence_summary,
-                  gap_description: existing?.gap_description,
-                  action_plan: existing?.action_plan,
-                  responsible_person_id: existing?.responsible_person_id,
-                  target_date: existing?.target_date,
-                });
-                openCompliance();
-              }}
-                aria-label="Mark complete">
+              <ActionIcon
+                variant="subtle"
+                color="primary"
+                onClick={() => {
+                  setSelectedStandard(s);
+                  const existing = complianceMap.get(s.id);
+                  setComplianceForm({
+                    standard_id: s.id,
+                    compliance: existing?.compliance ?? "non_compliant",
+                    evidence_summary: existing?.evidence_summary,
+                    gap_description: existing?.gap_description,
+                    action_plan: existing?.action_plan,
+                    responsible_person_id: existing?.responsible_person_id,
+                    target_date: existing?.target_date,
+                  });
+                  openCompliance();
+                }}
+                aria-label="Mark complete"
+              >
                 <IconClipboardCheck size={16} />
               </ActionIcon>
             </Tooltip>
@@ -1594,26 +2556,44 @@ function AccreditationTab() {
       {/* Compliance Dashboard */}
       <SimpleGrid cols={4} spacing="md">
         <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total Standards</Text>
-          <Text size="xl" fw={700} mt={4}>{standards.length}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            Total Standards
+          </Text>
+          <Text size="xl" fw={700} mt={4}>
+            {standards.length}
+          </Text>
         </Card>
         <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Compliant</Text>
-          <Text size="xl" fw={700} mt={4} c="success">{compliantCount}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            Compliant
+          </Text>
+          <Text size="xl" fw={700} mt={4} c="success">
+            {compliantCount}
+          </Text>
         </Card>
         <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Partially Compliant</Text>
-          <Text size="xl" fw={700} mt={4} c="yellow.7">{partialCount}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            Partially Compliant
+          </Text>
+          <Text size="xl" fw={700} mt={4} c="yellow.7">
+            {partialCount}
+          </Text>
         </Card>
         <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Non-Compliant</Text>
-          <Text size="xl" fw={700} mt={4} c="danger">{nonCompliantCount}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+            Non-Compliant
+          </Text>
+          <Text size="xl" fw={700} mt={4} c="danger">
+            {nonCompliantCount}
+          </Text>
         </Card>
       </SimpleGrid>
 
       {donutData.length > 0 && (
         <Card withBorder shadow="sm" p="md">
-          <Text fw={600} mb="sm">Compliance Distribution</Text>
+          <Text fw={600} mb="sm">
+            Compliance Distribution
+          </Text>
           <DonutChart
             data={donutData}
             withLabelsLine
@@ -1629,19 +2609,30 @@ function AccreditationTab() {
         <Group>
           <Select
             placeholder="Filter by body"
-            data={["nabh", "nmc", "nabl", "jci", "abdm", "naac", "other"].map((b) => ({ value: b, label: b.toUpperCase() }))}
+            data={["nabh", "nmc", "nabl", "jci", "abdm", "naac", "other"].map((b) => ({
+              value: b,
+              label: b.toUpperCase(),
+            }))}
             value={bodyFilter}
             onChange={setBodyFilter}
             clearable
             w={160}
           />
-          <Badge color="success" variant="light">Compliant: {compliantCount}</Badge>
-          <Badge color="warning" variant="light">Partial: {partialCount}</Badge>
-          <Badge color="danger" variant="light">Non-Compliant: {nonCompliantCount}</Badge>
+          <Badge color="success" variant="light">
+            Compliant: {compliantCount}
+          </Badge>
+          <Badge color="warning" variant="light">
+            Partial: {partialCount}
+          </Badge>
+          <Badge color="danger" variant="light">
+            Non-Compliant: {nonCompliantCount}
+          </Badge>
         </Group>
         <Group>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openStandard}>Add Standard</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openStandard}>
+              Add Standard
+            </Button>
           )}
           {bodyFilter && canManage && (
             <Button
@@ -1657,60 +2648,218 @@ function AccreditationTab() {
         </Group>
       </Group>
 
-      <DataTable columns={columns} data={standards} loading={isLoading} rowKey={(s) => s.id} emptyTitle="No accreditation standards" />
+      <DataTable
+        columns={columns}
+        data={standards}
+        loading={isLoading}
+        rowKey={(s) => s.id}
+        emptyTitle="No accreditation standards"
+      />
 
       {/* Create Standard Drawer */}
-      <Drawer opened={standardOpened} onClose={closeStandard} title="Add Accreditation Standard" position="right" size="xl">
+      <Drawer
+        opened={standardOpened}
+        onClose={closeStandard}
+        title="Add Accreditation Standard"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <Select label="Accreditation Body" required data={(["nabh", "nmc", "nabl", "jci", "abdm", "naac", "other"] as const).map((b) => ({ value: b, label: b.toUpperCase() }))} value={standardForm.body} onChange={(v) => setStandardForm({ ...standardForm, body: (v ?? "nabh") as AccreditationBodyType })} />
-          <TextInput label="Standard Code" required value={standardForm.standard_code} onChange={(e) => setStandardForm({ ...standardForm, standard_code: e.currentTarget.value })} />
-          <TextInput label="Standard Name" required value={standardForm.standard_name} onChange={(e) => setStandardForm({ ...standardForm, standard_name: e.currentTarget.value })} />
-          <TextInput label="Chapter" value={standardForm.chapter ?? ""} onChange={(e) => setStandardForm({ ...standardForm, chapter: e.currentTarget.value || undefined })} />
-          <Textarea label="Description" value={standardForm.description ?? ""} onChange={(e) => setStandardForm({ ...standardForm, description: e.currentTarget.value || undefined })} />
-          <Button loading={createStandardMut.isPending} onClick={() => createStandardMut.mutate(standardForm)}>Save</Button>
+          <Select
+            label="Accreditation Body"
+            required
+            data={(["nabh", "nmc", "nabl", "jci", "abdm", "naac", "other"] as const).map((b) => ({
+              value: b,
+              label: b.toUpperCase(),
+            }))}
+            value={standardForm.body}
+            onChange={(v) =>
+              setStandardForm({ ...standardForm, body: (v ?? "nabh") as AccreditationBodyType })
+            }
+          />
+          <TextInput
+            label="Standard Code"
+            required
+            value={standardForm.standard_code}
+            onChange={(e) =>
+              setStandardForm({ ...standardForm, standard_code: e.currentTarget.value })
+            }
+          />
+          <TextInput
+            label="Standard Name"
+            required
+            value={standardForm.standard_name}
+            onChange={(e) =>
+              setStandardForm({ ...standardForm, standard_name: e.currentTarget.value })
+            }
+          />
+          <TextInput
+            label="Chapter"
+            value={standardForm.chapter ?? ""}
+            onChange={(e) =>
+              setStandardForm({ ...standardForm, chapter: e.currentTarget.value || undefined })
+            }
+          />
+          <Textarea
+            label="Description"
+            value={standardForm.description ?? ""}
+            onChange={(e) =>
+              setStandardForm({ ...standardForm, description: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            loading={createStandardMut.isPending}
+            onClick={() => createStandardMut.mutate(standardForm)}
+          >
+            Save
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Update Compliance Drawer */}
-      <Drawer opened={complianceOpened} onClose={closeCompliance} title={`Compliance: ${selectedStandard?.standard_code ?? ""}`} position="right" size="xl">
+      <Drawer
+        opened={complianceOpened}
+        onClose={closeCompliance}
+        title={`Compliance: ${selectedStandard?.standard_code ?? ""}`}
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <Select label="Compliance Status" required data={(["compliant", "partially_compliant", "non_compliant", "not_applicable"] as const).map((c) => ({ value: c, label: c.replace(/_/g, " ") }))} value={complianceForm.compliance} onChange={(v) => setComplianceForm({ ...complianceForm, compliance: (v ?? "non_compliant") as ComplianceStatusType })} />
-          <Textarea label="Evidence Summary" value={complianceForm.evidence_summary ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, evidence_summary: e.currentTarget.value || undefined })} />
-          <Textarea label="Gap Description" value={complianceForm.gap_description ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, gap_description: e.currentTarget.value || undefined })} />
-          <Textarea label="Action Plan" value={complianceForm.action_plan ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, action_plan: e.currentTarget.value || undefined })} />
-          <TextInput label="Responsible Person ID" value={complianceForm.responsible_person_id ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, responsible_person_id: e.currentTarget.value || undefined })} />
-          <TextInput label="Target Date" type="date" value={complianceForm.target_date ?? ""} onChange={(e) => setComplianceForm({ ...complianceForm, target_date: e.currentTarget.value || undefined })} />
-          <Button loading={updateComplianceMut.isPending} onClick={() => updateComplianceMut.mutate(complianceForm)}>Update Compliance</Button>
+          <Select
+            label="Compliance Status"
+            required
+            data={(
+              ["compliant", "partially_compliant", "non_compliant", "not_applicable"] as const
+            ).map((c) => ({ value: c, label: c.replace(/_/g, " ") }))}
+            value={complianceForm.compliance}
+            onChange={(v) =>
+              setComplianceForm({
+                ...complianceForm,
+                compliance: (v ?? "non_compliant") as ComplianceStatusType,
+              })
+            }
+          />
+          <Textarea
+            label="Evidence Summary"
+            value={complianceForm.evidence_summary ?? ""}
+            onChange={(e) =>
+              setComplianceForm({
+                ...complianceForm,
+                evidence_summary: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <Textarea
+            label="Gap Description"
+            value={complianceForm.gap_description ?? ""}
+            onChange={(e) =>
+              setComplianceForm({
+                ...complianceForm,
+                gap_description: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <Textarea
+            label="Action Plan"
+            value={complianceForm.action_plan ?? ""}
+            onChange={(e) =>
+              setComplianceForm({
+                ...complianceForm,
+                action_plan: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <TextInput
+            label="Responsible Person ID"
+            value={complianceForm.responsible_person_id ?? ""}
+            onChange={(e) =>
+              setComplianceForm({
+                ...complianceForm,
+                responsible_person_id: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <TextInput
+            label="Target Date"
+            type="date"
+            value={complianceForm.target_date ?? ""}
+            onChange={(e) =>
+              setComplianceForm({
+                ...complianceForm,
+                target_date: e.currentTarget.value || undefined,
+              })
+            }
+          />
+          <Button
+            loading={updateComplianceMut.isPending}
+            onClick={() => updateComplianceMut.mutate(complianceForm)}
+          >
+            Update Compliance
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Evidence Compilation Modal */}
-      <Modal opened={evidenceModalOpened} onClose={() => { closeEvidenceModal(); setEvidenceData(null); }} title="Evidence Compilation" size="lg">
+      <Modal
+        opened={evidenceModalOpened}
+        onClose={() => {
+          closeEvidenceModal();
+          setEvidenceData(null);
+        }}
+        title="Evidence Compilation"
+        size="lg"
+      >
         {evidenceData ? (
           <Stack>
             <SimpleGrid cols={3} spacing="md">
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Accreditation Body</Text>
-                <Text fw={600} mt={4}>{evidenceData.accreditation_body.toUpperCase()}</Text>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Accreditation Body
+                </Text>
+                <Text fw={600} mt={4}>
+                  {evidenceData.accreditation_body.toUpperCase()}
+                </Text>
               </Card>
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total Standards</Text>
-                <Text fw={600} mt={4}>{evidenceData.total_standards}</Text>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Total Standards
+                </Text>
+                <Text fw={600} mt={4}>
+                  {evidenceData.total_standards}
+                </Text>
               </Card>
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Compliance Rate</Text>
-                <Text fw={600} mt={4} c={evidenceData.compliance_rate >= 80 ? "success" : evidenceData.compliance_rate >= 50 ? "warning" : "danger"}>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                  Compliance Rate
+                </Text>
+                <Text
+                  fw={600}
+                  mt={4}
+                  c={
+                    evidenceData.compliance_rate >= 80
+                      ? "success"
+                      : evidenceData.compliance_rate >= 50
+                        ? "warning"
+                        : "danger"
+                  }
+                >
                   {evidenceData.compliance_rate.toFixed(1)}%
                 </Text>
               </Card>
             </SimpleGrid>
             <Group>
-              <Badge color="success" variant="light">Compliant: {evidenceData.compliant_count}</Badge>
-              <Badge color="danger" variant="light">Non-Compliant: {evidenceData.non_compliant_items.length}</Badge>
+              <Badge color="success" variant="light">
+                Compliant: {evidenceData.compliant_count}
+              </Badge>
+              <Badge color="danger" variant="light">
+                Non-Compliant: {evidenceData.non_compliant_items.length}
+              </Badge>
             </Group>
             {evidenceData.non_compliant_items.length > 0 && (
               <>
-                <Text fw={600} size="sm" mt="xs">Non-Compliant Items</Text>
+                <Text fw={600} size="sm" mt="xs">
+                  Non-Compliant Items
+                </Text>
                 <Table withTableBorder>
                   <Table.Thead>
                     <Table.Tr>
@@ -1722,7 +2871,9 @@ function AccreditationTab() {
                     {evidenceData.non_compliant_items.map((item, idx) => (
                       <Table.Tr key={idx}>
                         <Table.Td>{idx + 1}</Table.Td>
-                        <Table.Td>{typeof item === "string" ? item : JSON.stringify(item)}</Table.Td>
+                        <Table.Td>
+                          {typeof item === "string" ? item : JSON.stringify(item)}
+                        </Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
@@ -1775,7 +2926,11 @@ function AuditsTab() {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({ title: "Audit created", message: "", color: "success" });
       closeCreate();
-      setForm({ audit_type: "internal", title: "", audit_date: new Date().toISOString().slice(0, 10) });
+      setForm({
+        audit_type: "internal",
+        title: "",
+        audit_date: new Date().toISOString().slice(0, 10),
+      });
     },
   });
 
@@ -1792,7 +2947,11 @@ function AuditsTab() {
     mutationFn: (data: ScheduleAuditsRequest) => api.scheduleAudits(data),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
-      notifications.show({ title: "Audits scheduled", message: `${result.count} audit(s) created`, color: "teal" });
+      notifications.show({
+        title: "Audits scheduled",
+        message: `${result.count} audit(s) created`,
+        color: "teal",
+      });
       closeSchedule();
     },
   });
@@ -1807,12 +2966,13 @@ function AuditsTab() {
 
   const { data: findings = [], isLoading: findingsLoading } = useQuery({
     queryKey: ["quality-audit-findings", selectedAudit?.id],
-    queryFn: () => api.listAuditFindings(selectedAudit!.id),
+    queryFn: () => api.listAuditFindings(selectedAudit?.id),
     enabled: !!selectedAudit,
   });
 
   const createFindingMut = useMutation({
-    mutationFn: (data: CreateAuditFindingRequest) => api.createAuditFinding(selectedAudit!.id, data),
+    mutationFn: (data: CreateAuditFindingRequest) =>
+      api.createAuditFinding(selectedAudit?.id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
@@ -1832,20 +2992,54 @@ function AuditsTab() {
   };
 
   const columns = [
-    { key: "audit_number" as const, label: "Audit #", render: (a: QualityAudit) => <Text fw={500}>{a.audit_number}</Text> },
+    {
+      key: "audit_number" as const,
+      label: "Audit #",
+      render: (a: QualityAudit) => <Text fw={500}>{a.audit_number}</Text>,
+    },
     { key: "title" as const, label: "Title", render: (a: QualityAudit) => a.title },
-    { key: "audit_type" as const, label: "Type", render: (a: QualityAudit) => <Badge variant="light">{a.audit_type}</Badge> },
-    { key: "audit_date" as const, label: "Date", render: (a: QualityAudit) => new Date(a.audit_date).toLocaleDateString() },
-    { key: "score" as const, label: "Score", render: (a: QualityAudit) => a.overall_score != null ? `${a.overall_score}%` : "---" },
-    { key: "nc" as const, label: "NC / Obs / Opp", render: (a: QualityAudit) => `${a.non_conformities} / ${a.observations} / ${a.opportunities}` },
-    { key: "status" as const, label: "Status", render: (a: QualityAudit) => <Badge color={auditStatusColors[a.status] ?? "slate"}>{a.status.replace(/_/g, " ")}</Badge> },
+    {
+      key: "audit_type" as const,
+      label: "Type",
+      render: (a: QualityAudit) => <Badge variant="light">{a.audit_type}</Badge>,
+    },
+    {
+      key: "audit_date" as const,
+      label: "Date",
+      render: (a: QualityAudit) => new Date(a.audit_date).toLocaleDateString(),
+    },
+    {
+      key: "score" as const,
+      label: "Score",
+      render: (a: QualityAudit) => (a.overall_score != null ? `${a.overall_score}%` : "---"),
+    },
+    {
+      key: "nc" as const,
+      label: "NC / Obs / Opp",
+      render: (a: QualityAudit) => `${a.non_conformities} / ${a.observations} / ${a.opportunities}`,
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (a: QualityAudit) => (
+        <Badge color={auditStatusColors[a.status] ?? "slate"}>{a.status.replace(/_/g, " ")}</Badge>
+      ),
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (a: QualityAudit) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon variant="subtle" color="primary" onClick={() => { setSelectedAudit(a); openDetail(); }} aria-label="View details">
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              onClick={() => {
+                setSelectedAudit(a);
+                openDetail();
+              }}
+              aria-label="View details"
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
@@ -1858,64 +3052,155 @@ function AuditsTab() {
     <Stack>
       <Group justify="space-between">
         <Group>
-          <Select placeholder="Status" data={["planned", "in_progress", "completed", "cancelled"]} value={statusFilter} onChange={setStatusFilter} clearable w={160} />
-          <Text c="dimmed" size="sm">{audits.length} audit(s)</Text>
+          <Select
+            placeholder="Status"
+            data={["planned", "in_progress", "completed", "cancelled"]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            clearable
+            w={160}
+          />
+          <Text c="dimmed" size="sm">
+            {audits.length} audit(s)
+          </Text>
         </Group>
         {canCreate && (
           <Group>
-            <Button variant="light" color="primary" leftSection={<IconCalendarEvent size={16} />} onClick={openSchedule}>
+            <Button
+              variant="light"
+              color="primary"
+              leftSection={<IconCalendarEvent size={16} />}
+              onClick={openSchedule}
+            >
               Schedule Audits
             </Button>
-            <Button variant="light" color="violet" leftSection={<IconShieldCheck size={16} />} onClick={openMockInspection}>
+            <Button
+              variant="light"
+              color="violet"
+              leftSection={<IconShieldCheck size={16} />}
+              onClick={openMockInspection}
+            >
               Mock Inspection
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>New Audit</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              New Audit
+            </Button>
           </Group>
         )}
       </Group>
 
-      <DataTable columns={columns} data={audits} loading={isLoading} rowKey={(a) => a.id} emptyTitle="No audits" />
+      <DataTable
+        columns={columns}
+        data={audits}
+        loading={isLoading}
+        rowKey={(a) => a.id}
+        emptyTitle="No audits"
+      />
 
       {/* Create Audit Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title={form.audit_type === "mock" ? "Schedule Mock Inspection" : "New Audit"} position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title={form.audit_type === "mock" ? "Schedule Mock Inspection" : "New Audit"}
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.currentTarget.value })} />
-          <Select label="Audit Type" required data={["internal", "external", "mock", "surveillance", "follow_up"]} value={form.audit_type} onChange={(v) => setForm({ ...form, audit_type: v ?? "internal" })} />
-          <Textarea label="Scope" value={form.scope ?? ""} onChange={(e) => setForm({ ...form, scope: e.currentTarget.value || undefined })} />
-          <DepartmentSelect value={form.department_id ?? ""} onChange={(id) => setForm({ ...form, department_id: id || undefined })} />
-          <TextInput label="Audit Date" type="date" required value={form.audit_date} onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
+          <TextInput
+            label="Title"
+            required
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.currentTarget.value })}
+          />
+          <Select
+            label="Audit Type"
+            required
+            data={["internal", "external", "mock", "surveillance", "follow_up"]}
+            value={form.audit_type}
+            onChange={(v) => setForm({ ...form, audit_type: v ?? "internal" })}
+          />
+          <Textarea
+            label="Scope"
+            value={form.scope ?? ""}
+            onChange={(e) => setForm({ ...form, scope: e.currentTarget.value || undefined })}
+          />
+          <DepartmentSelect
+            value={form.department_id ?? ""}
+            onChange={(id) => setForm({ ...form, department_id: id || undefined })}
+          />
+          <TextInput
+            label="Audit Date"
+            type="date"
+            required
+            value={form.audit_date}
+            onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Audit Detail Drawer */}
-      <Drawer opened={detailOpened} onClose={closeDetail} title={`Audit: ${selectedAudit?.audit_number ?? ""}`} position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title={`Audit: ${selectedAudit?.audit_number ?? ""}`}
+        position="right"
+        size="lg"
+      >
         {selectedAudit && (
           <Stack>
-            <Text fw={600} size="lg">{selectedAudit.title}</Text>
+            <Text fw={600} size="lg">
+              {selectedAudit.title}
+            </Text>
             <Group>
               <Badge variant="light">{selectedAudit.audit_type}</Badge>
-              <Badge color={auditStatusColors[selectedAudit.status] ?? "slate"}>{selectedAudit.status.replace(/_/g, " ")}</Badge>
+              <Badge color={auditStatusColors[selectedAudit.status] ?? "slate"}>
+                {selectedAudit.status.replace(/_/g, " ")}
+              </Badge>
             </Group>
             <Text size="sm">Date: {new Date(selectedAudit.audit_date).toLocaleDateString()}</Text>
             {selectedAudit.scope && <Text size="sm">Scope: {selectedAudit.scope}</Text>}
-            {selectedAudit.report_date && <Text size="sm">Report Date: {new Date(selectedAudit.report_date).toLocaleDateString()}</Text>}
+            {selectedAudit.report_date && (
+              <Text size="sm">
+                Report Date: {new Date(selectedAudit.report_date).toLocaleDateString()}
+              </Text>
+            )}
 
             <Group mt="md">
-              <Badge color="danger" size="lg">Non-Conformities: {selectedAudit.non_conformities}</Badge>
-              <Badge color="orange" size="lg">Observations: {selectedAudit.observations}</Badge>
-              <Badge color="primary" size="lg">Opportunities: {selectedAudit.opportunities}</Badge>
+              <Badge color="danger" size="lg">
+                Non-Conformities: {selectedAudit.non_conformities}
+              </Badge>
+              <Badge color="orange" size="lg">
+                Observations: {selectedAudit.observations}
+              </Badge>
+              <Badge color="primary" size="lg">
+                Opportunities: {selectedAudit.opportunities}
+              </Badge>
             </Group>
 
             {selectedAudit.overall_score != null && (
-              <Text fw={600} size="xl" c={selectedAudit.overall_score >= 80 ? "success" : selectedAudit.overall_score >= 60 ? "warning" : "danger"}>
+              <Text
+                fw={600}
+                size="xl"
+                c={
+                  selectedAudit.overall_score >= 80
+                    ? "success"
+                    : selectedAudit.overall_score >= 60
+                      ? "warning"
+                      : "danger"
+                }
+              >
                 Score: {selectedAudit.overall_score}%
               </Text>
             )}
 
             {Array.isArray(selectedAudit.findings) && selectedAudit.findings.length > 0 && (
               <>
-                <Text fw={600} mt="md">Findings (legacy)</Text>
+                <Text fw={600} mt="md">
+                  Findings (legacy)
+                </Text>
                 <Table withTableBorder>
                   <Table.Thead>
                     <Table.Tr>
@@ -1939,10 +3224,20 @@ function AuditsTab() {
             <Group justify="space-between" mt="md">
               <Text fw={600}>Audit Findings ({findings.length})</Text>
               {canCreate && (
-                <Button size="compact-sm" leftSection={<IconPlus size={14} />} onClick={openFinding}>Add Finding</Button>
+                <Button
+                  size="compact-sm"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={openFinding}
+                >
+                  Add Finding
+                </Button>
               )}
             </Group>
-            {findingsLoading ? <Text c="dimmed" size="sm">Loading findings...</Text> : findings.length > 0 ? (
+            {findingsLoading ? (
+              <Text c="dimmed" size="sm">
+                Loading findings...
+              </Text>
+            ) : findings.length > 0 ? (
               <Table withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
@@ -1956,26 +3251,66 @@ function AuditsTab() {
                 <Table.Tbody>
                   {findings.map((f: AuditFinding) => (
                     <Table.Tr key={f.id}>
-                      <Table.Td><Badge variant="light">{f.finding_type.replace(/_/g, " ")}</Badge></Table.Td>
-                      <Table.Td><Text size="sm" lineClamp={2}>{f.description}</Text></Table.Td>
-                      <Table.Td><Badge color={severityColors[f.severity] ?? "slate"}>{f.severity}</Badge></Table.Td>
-                      <Table.Td><Text size="sm" lineClamp={1}>{f.recommendation ?? "---"}</Text></Table.Td>
-                      <Table.Td><Badge color={f.status === "closed" ? "success" : f.status === "open" ? "danger" : "primary"}>{f.status}</Badge></Table.Td>
+                      <Table.Td>
+                        <Badge variant="light">{f.finding_type.replace(/_/g, " ")}</Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" lineClamp={2}>
+                          {f.description}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge color={severityColors[f.severity] ?? "slate"}>{f.severity}</Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" lineClamp={1}>
+                          {f.recommendation ?? "---"}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          color={
+                            f.status === "closed"
+                              ? "success"
+                              : f.status === "open"
+                                ? "danger"
+                                : "primary"
+                          }
+                        >
+                          {f.status}
+                        </Badge>
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
               </Table>
             ) : (
-              <Text c="dimmed" size="sm">No structured findings recorded</Text>
+              <Text c="dimmed" size="sm">
+                No structured findings recorded
+              </Text>
             )}
           </Stack>
         )}
       </Drawer>
 
       {/* Schedule Audits Drawer */}
-      <Drawer opened={scheduleOpened} onClose={closeSchedule} title="Schedule Audits" position="right" size="xl">
+      <Drawer
+        opened={scheduleOpened}
+        onClose={closeSchedule}
+        title="Schedule Audits"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <MultiSelect label="Departments" required data={departmentOptions} value={scheduleForm.department_ids} onChange={(ids) => setScheduleForm({ ...scheduleForm, department_ids: ids })} searchable placeholder="Select departments..." />
+          <MultiSelect
+            label="Departments"
+            required
+            data={departmentOptions}
+            value={scheduleForm.department_ids}
+            onChange={(ids) => setScheduleForm({ ...scheduleForm, department_ids: ids })}
+            searchable
+            placeholder="Select departments..."
+          />
           <Select
             label="Frequency"
             required
@@ -1983,23 +3318,56 @@ function AuditsTab() {
             value={scheduleForm.frequency}
             onChange={(v) => setScheduleForm({ ...scheduleForm, frequency: v ?? "quarterly" })}
           />
-          <TextInput label="Start Date" type="date" required value={scheduleForm.start_date} onChange={(e) => setScheduleForm({ ...scheduleForm, start_date: e.currentTarget.value })} />
-          <TextInput label="End Date" type="date" required value={scheduleForm.end_date} onChange={(e) => setScheduleForm({ ...scheduleForm, end_date: e.currentTarget.value })} />
-          <Button loading={scheduleAuditsMut.isPending} onClick={() => scheduleAuditsMut.mutate(scheduleForm)}>Schedule</Button>
+          <TextInput
+            label="Start Date"
+            type="date"
+            required
+            value={scheduleForm.start_date}
+            onChange={(e) =>
+              setScheduleForm({ ...scheduleForm, start_date: e.currentTarget.value })
+            }
+          />
+          <TextInput
+            label="End Date"
+            type="date"
+            required
+            value={scheduleForm.end_date}
+            onChange={(e) => setScheduleForm({ ...scheduleForm, end_date: e.currentTarget.value })}
+          />
+          <Button
+            loading={scheduleAuditsMut.isPending}
+            onClick={() => scheduleAuditsMut.mutate(scheduleForm)}
+          >
+            Schedule
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Add Finding Drawer */}
-      <Drawer opened={findingOpened} onClose={closeFinding} title={`Add Finding: ${selectedAudit?.audit_number ?? ""}`} position="right" size="xl">
+      <Drawer
+        opened={findingOpened}
+        onClose={closeFinding}
+        title={`Add Finding: ${selectedAudit?.audit_number ?? ""}`}
+        position="right"
+        size="xl"
+      >
         <Stack>
           <Select
             label="Finding Type"
             required
             data={["non_conformity", "observation", "opportunity_for_improvement", "strength"]}
             value={findingForm.finding_type}
-            onChange={(v) => setFindingForm({ ...findingForm, finding_type: v ?? "non_conformity" })}
+            onChange={(v) =>
+              setFindingForm({ ...findingForm, finding_type: v ?? "non_conformity" })
+            }
           />
-          <Textarea label="Description" required value={findingForm.description} onChange={(e) => setFindingForm({ ...findingForm, description: e.currentTarget.value })} minRows={3} />
+          <Textarea
+            label="Description"
+            required
+            value={findingForm.description}
+            onChange={(e) => setFindingForm({ ...findingForm, description: e.currentTarget.value })}
+            minRows={3}
+          />
           <Select
             label="Severity"
             required
@@ -2007,8 +3375,19 @@ function AuditsTab() {
             value={findingForm.severity}
             onChange={(v) => setFindingForm({ ...findingForm, severity: v ?? "minor" })}
           />
-          <Textarea label="Recommendation" value={findingForm.recommendation ?? ""} onChange={(e) => setFindingForm({ ...findingForm, recommendation: e.currentTarget.value || undefined })} />
-          <Button loading={createFindingMut.isPending} onClick={() => createFindingMut.mutate(findingForm)}>Add Finding</Button>
+          <Textarea
+            label="Recommendation"
+            value={findingForm.recommendation ?? ""}
+            onChange={(e) =>
+              setFindingForm({ ...findingForm, recommendation: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            loading={createFindingMut.isPending}
+            onClick={() => createFindingMut.mutate(findingForm)}
+          >
+            Add Finding
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -2057,71 +3436,196 @@ function AnalyticsReviewsTab() {
   });
 
   const psiColumns = [
-    { key: "indicator_name" as const, label: "Indicator", render: (r: PatientSafetyIndicator) => <Text fw={500}>{r.indicator_name}</Text> },
-    { key: "event_count" as const, label: "Events", render: (r: PatientSafetyIndicator) => String(r.event_count) },
-    { key: "patient_days" as const, label: "Patient Days", render: (r: PatientSafetyIndicator) => String(r.patient_days) },
-    { key: "rate_per_1000" as const, label: "Rate/1000", render: (r: PatientSafetyIndicator) => r.rate_per_1000.toFixed(2) },
-    { key: "benchmark" as const, label: "Benchmark", render: (r: PatientSafetyIndicator) => r.benchmark != null ? r.benchmark.toFixed(2) : "---" },
-    { key: "status" as const, label: "Status", render: (r: PatientSafetyIndicator) => {
-      if (r.benchmark == null) return <Badge color="slate">N/A</Badge>;
-      return r.rate_per_1000 <= r.benchmark
-        ? <Badge color="success">Within</Badge>
-        : <Badge color="danger">Exceeded</Badge>;
-    }},
+    {
+      key: "indicator_name" as const,
+      label: "Indicator",
+      render: (r: PatientSafetyIndicator) => <Text fw={500}>{r.indicator_name}</Text>,
+    },
+    {
+      key: "event_count" as const,
+      label: "Events",
+      render: (r: PatientSafetyIndicator) => String(r.event_count),
+    },
+    {
+      key: "patient_days" as const,
+      label: "Patient Days",
+      render: (r: PatientSafetyIndicator) => String(r.patient_days),
+    },
+    {
+      key: "rate_per_1000" as const,
+      label: "Rate/1000",
+      render: (r: PatientSafetyIndicator) => r.rate_per_1000.toFixed(2),
+    },
+    {
+      key: "benchmark" as const,
+      label: "Benchmark",
+      render: (r: PatientSafetyIndicator) => (r.benchmark != null ? r.benchmark.toFixed(2) : "---"),
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (r: PatientSafetyIndicator) => {
+        if (r.benchmark == null) return <Badge color="slate">N/A</Badge>;
+        return r.rate_per_1000 <= r.benchmark ? (
+          <Badge color="success">Within</Badge>
+        ) : (
+          <Badge color="danger">Exceeded</Badge>
+        );
+      },
+    },
   ];
 
   const scorecardColumns = [
-    { key: "department_name" as const, label: "Department", render: (r: DepartmentScorecard) => <Text fw={500}>{r.department_name}</Text> },
-    { key: "overall_score" as const, label: "Overall Score", render: (r: DepartmentScorecard) => (
-      <Badge color={r.overall_score >= 80 ? "success" : r.overall_score >= 60 ? "warning" : "danger"} size="lg">
-        {r.overall_score.toFixed(1)}%
-      </Badge>
-    )},
-    { key: "indicators" as const, label: "Indicator Scores", render: (r: DepartmentScorecard) => (
-      <Group gap="xs">
-        {Object.entries(r.indicator_scores).slice(0, 4).map(([name, score]) => (
-          <Tooltip key={name} label={name}>
-            <Badge size="sm" variant="light" color={score >= 80 ? "success" : score >= 60 ? "warning" : "danger"}>
-              {score.toFixed(0)}%
-            </Badge>
-          </Tooltip>
-        ))}
-        {Object.keys(r.indicator_scores).length > 4 && (
-          <Text size="xs" c="dimmed">+{Object.keys(r.indicator_scores).length - 4} more</Text>
-        )}
-      </Group>
-    )},
+    {
+      key: "department_name" as const,
+      label: "Department",
+      render: (r: DepartmentScorecard) => <Text fw={500}>{r.department_name}</Text>,
+    },
+    {
+      key: "overall_score" as const,
+      label: "Overall Score",
+      render: (r: DepartmentScorecard) => (
+        <Badge
+          color={r.overall_score >= 80 ? "success" : r.overall_score >= 60 ? "warning" : "danger"}
+          size="lg"
+        >
+          {r.overall_score.toFixed(1)}%
+        </Badge>
+      ),
+    },
+    {
+      key: "indicators" as const,
+      label: "Indicator Scores",
+      render: (r: DepartmentScorecard) => (
+        <Group gap="xs">
+          {Object.entries(r.indicator_scores)
+            .slice(0, 4)
+            .map(([name, score]) => (
+              <Tooltip key={name} label={name}>
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color={score >= 80 ? "success" : score >= 60 ? "warning" : "danger"}
+                >
+                  {score.toFixed(0)}%
+                </Badge>
+              </Tooltip>
+            ))}
+          {Object.keys(r.indicator_scores).length > 4 && (
+            <Text size="xs" c="dimmed">
+              +{Object.keys(r.indicator_scores).length - 4} more
+            </Text>
+          )}
+        </Group>
+      ),
+    },
   ];
 
   const overdueCapaColumns = [
-    { key: "capa_number" as const, label: "CAPA #", render: (r: QualityCapa) => <Text fw={500}>{r.capa_number}</Text> },
-    { key: "capa_type" as const, label: "Type", render: (r: QualityCapa) => <Badge variant="light">{r.capa_type}</Badge> },
-    { key: "description" as const, label: "Description", render: (r: QualityCapa) => <Text size="sm" lineClamp={1}>{r.description ?? "---"}</Text> },
-    { key: "due_date" as const, label: "Due Date", render: (r: QualityCapa) => {
-      const daysOverdue = Math.floor((Date.now() - new Date(r.due_date).getTime()) / (1000 * 60 * 60 * 24));
-      return (
-        <Group gap="xs">
-          <Text size="sm" c="danger">{new Date(r.due_date).toLocaleDateString()}</Text>
-          <Badge color="danger" size="sm">{daysOverdue}d overdue</Badge>
-        </Group>
-      );
-    }},
-    { key: "status" as const, label: "Status", render: (r: QualityCapa) => <Badge color={capaStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge> },
-    { key: "escalation" as const, label: "Escalation", render: (r: QualityCapa) => {
-      const daysOverdue = Math.floor((Date.now() - new Date(r.due_date).getTime()) / (1000 * 60 * 60 * 24));
-      if (daysOverdue > 30) return <Badge color="danger" size="sm">Critical</Badge>;
-      if (daysOverdue > 14) return <Badge color="orange" size="sm">High</Badge>;
-      return <Badge color="warning" size="sm">Standard</Badge>;
-    }},
+    {
+      key: "capa_number" as const,
+      label: "CAPA #",
+      render: (r: QualityCapa) => <Text fw={500}>{r.capa_number}</Text>,
+    },
+    {
+      key: "capa_type" as const,
+      label: "Type",
+      render: (r: QualityCapa) => <Badge variant="light">{r.capa_type}</Badge>,
+    },
+    {
+      key: "description" as const,
+      label: "Description",
+      render: (r: QualityCapa) => (
+        <Text size="sm" lineClamp={1}>
+          {r.description ?? "---"}
+        </Text>
+      ),
+    },
+    {
+      key: "due_date" as const,
+      label: "Due Date",
+      render: (r: QualityCapa) => {
+        const daysOverdue = Math.floor(
+          (Date.now() - new Date(r.due_date).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        return (
+          <Group gap="xs">
+            <Text size="sm" c="danger">
+              {new Date(r.due_date).toLocaleDateString()}
+            </Text>
+            <Badge color="danger" size="sm">
+              {daysOverdue}d overdue
+            </Badge>
+          </Group>
+        );
+      },
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (r: QualityCapa) => (
+        <Badge color={capaStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+      ),
+    },
+    {
+      key: "escalation" as const,
+      label: "Escalation",
+      render: (r: QualityCapa) => {
+        const daysOverdue = Math.floor(
+          (Date.now() - new Date(r.due_date).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (daysOverdue > 30)
+          return (
+            <Badge color="danger" size="sm">
+              Critical
+            </Badge>
+          );
+        if (daysOverdue > 14)
+          return (
+            <Badge color="orange" size="sm">
+              High
+            </Badge>
+          );
+        return (
+          <Badge color="warning" size="sm">
+            Standard
+          </Badge>
+        );
+      },
+    },
   ];
 
   const sentinelColumns = [
-    { key: "incident_number" as const, label: "Incident #", render: (r: QualityIncident) => <Text fw={500}>{r.incident_number}</Text> },
+    {
+      key: "incident_number" as const,
+      label: "Incident #",
+      render: (r: QualityIncident) => <Text fw={500}>{r.incident_number}</Text>,
+    },
     { key: "title" as const, label: "Title", render: (r: QualityIncident) => r.title },
-    { key: "incident_type" as const, label: "Type", render: (r: QualityIncident) => r.incident_type },
-    { key: "severity" as const, label: "Severity", render: (r: QualityIncident) => <Badge color="danger">{r.severity.replace(/_/g, " ")}</Badge> },
-    { key: "status" as const, label: "Status", render: (r: QualityIncident) => <Badge color={incidentStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge> },
-    { key: "incident_date" as const, label: "Date", render: (r: QualityIncident) => new Date(r.incident_date).toLocaleDateString() },
+    {
+      key: "incident_type" as const,
+      label: "Type",
+      render: (r: QualityIncident) => r.incident_type,
+    },
+    {
+      key: "severity" as const,
+      label: "Severity",
+      render: (r: QualityIncident) => <Badge color="danger">{r.severity.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (r: QualityIncident) => (
+        <Badge color={incidentStatusColors[r.status] ?? "slate"}>
+          {r.status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "incident_date" as const,
+      label: "Date",
+      render: (r: QualityIncident) => new Date(r.incident_date).toLocaleDateString(),
+    },
   ];
 
   return (
@@ -2140,60 +3644,111 @@ function AnalyticsReviewsTab() {
         />
         {(subView === "psi" || subView === "scorecard") && (
           <Group>
-            <DateInput value={from} onChange={(d) => setFrom(d)} placeholder="From" clearable w={140} />
+            <DateInput
+              value={from}
+              onChange={(d) => setFrom(d)}
+              placeholder="From"
+              clearable
+              w={140}
+            />
             <DateInput value={to} onChange={(d) => setTo(d)} placeholder="To" clearable w={140} />
           </Group>
         )}
       </Group>
 
       {subView === "psi" && (
-        <DataTable columns={psiColumns} data={psiData} loading={psiLoading} rowKey={(r) => r.indicator_name} emptyTitle="No patient safety indicator data" />
+        <DataTable
+          columns={psiColumns}
+          data={psiData}
+          loading={psiLoading}
+          rowKey={(r) => r.indicator_name}
+          emptyTitle="No patient safety indicator data"
+        />
       )}
 
       {subView === "scorecard" && (
-        <DataTable columns={scorecardColumns} data={scorecardData} loading={scorecardLoading} rowKey={(r) => r.department_id} emptyTitle="No department scorecard data" />
+        <DataTable
+          columns={scorecardColumns}
+          data={scorecardData}
+          loading={scorecardLoading}
+          rowKey={(r) => r.department_id}
+          emptyTitle="No department scorecard data"
+        />
       )}
 
       {subView === "overdue-capas" && (
-        <DataTable columns={overdueCapaColumns} data={overdueCapas} loading={overdueLoading} rowKey={(r) => r.id} emptyTitle="No overdue CAPAs" />
+        <DataTable
+          columns={overdueCapaColumns}
+          data={overdueCapas}
+          loading={overdueLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No overdue CAPAs"
+        />
       )}
 
-      {subView === "committee-dashboard" && (
-        cdLoading ? <Text c="dimmed">Loading committee dashboard...</Text> : committeeDash ? (
+      {subView === "committee-dashboard" &&
+        (cdLoading ? (
+          <Text c="dimmed">Loading committee dashboard...</Text>
+        ) : committeeDash ? (
           <Grid>
             <Grid.Col span={{ base: 6, md: 3 }}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Meetings Scheduled</Text>
-                <Text size="xl" fw={600}>{committeeDash.total_meetings_scheduled}</Text>
+                <Text size="sm" c="dimmed">
+                  Meetings Scheduled
+                </Text>
+                <Text size="xl" fw={600}>
+                  {committeeDash.total_meetings_scheduled}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={{ base: 6, md: 3 }}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Meetings Held</Text>
-                <Text size="xl" fw={600} c="teal">{committeeDash.meetings_held}</Text>
+                <Text size="sm" c="dimmed">
+                  Meetings Held
+                </Text>
+                <Text size="xl" fw={600} c="teal">
+                  {committeeDash.meetings_held}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={{ base: 6, md: 3 }}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Actions Open</Text>
-                <Text size="xl" fw={600} c="orange">{committeeDash.action_items_open}</Text>
+                <Text size="sm" c="dimmed">
+                  Actions Open
+                </Text>
+                <Text size="xl" fw={600} c="orange">
+                  {committeeDash.action_items_open}
+                </Text>
                 {committeeDash.action_items_overdue > 0 && (
-                  <Badge color="danger" size="sm" mt={4}>{committeeDash.action_items_overdue} overdue</Badge>
+                  <Badge color="danger" size="sm" mt={4}>
+                    {committeeDash.action_items_overdue} overdue
+                  </Badge>
                 )}
               </Card>
             </Grid.Col>
             <Grid.Col span={{ base: 6, md: 3 }}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Actions Closed</Text>
-                <Text size="xl" fw={600} c="success">{committeeDash.action_items_closed}</Text>
+                <Text size="sm" c="dimmed">
+                  Actions Closed
+                </Text>
+                <Text size="xl" fw={600} c="success">
+                  {committeeDash.action_items_closed}
+                </Text>
               </Card>
             </Grid.Col>
           </Grid>
-        ) : <Text c="dimmed">No committee data</Text>
-      )}
+        ) : (
+          <Text c="dimmed">No committee data</Text>
+        ))}
 
       {subView === "sentinel" && (
-        <DataTable columns={sentinelColumns} data={sentinelEvents} loading={seLoading} rowKey={(r) => r.id} emptyTitle="No sentinel events" />
+        <DataTable
+          columns={sentinelColumns}
+          data={sentinelEvents}
+          loading={seLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No sentinel events"
+        />
       )}
     </Stack>
   );
@@ -2242,13 +3797,27 @@ export function QualityPage() {
 
       <Tabs defaultValue="indicators" mt="md">
         <Tabs.List>
-          <Tabs.Tab value="indicators" leftSection={<IconChartBar size={16} />}>Indicators</Tabs.Tab>
-          <Tabs.Tab value="documents" leftSection={<IconFileDescription size={16} />}>Documents</Tabs.Tab>
-          <Tabs.Tab value="incidents" leftSection={<IconAlertTriangle size={16} />}>Incidents</Tabs.Tab>
-          <Tabs.Tab value="committees" leftSection={<IconUsers size={16} />}>Committees</Tabs.Tab>
-          <Tabs.Tab value="accreditation" leftSection={<IconAward size={16} />}>Accreditation</Tabs.Tab>
-          <Tabs.Tab value="audits" leftSection={<IconClipboardCheck size={16} />}>Audits</Tabs.Tab>
-          <Tabs.Tab value="analytics" leftSection={<IconTrendingUp size={16} />}>Analytics & Reviews</Tabs.Tab>
+          <Tabs.Tab value="indicators" leftSection={<IconChartBar size={16} />}>
+            Indicators
+          </Tabs.Tab>
+          <Tabs.Tab value="documents" leftSection={<IconFileDescription size={16} />}>
+            Documents
+          </Tabs.Tab>
+          <Tabs.Tab value="incidents" leftSection={<IconAlertTriangle size={16} />}>
+            Incidents
+          </Tabs.Tab>
+          <Tabs.Tab value="committees" leftSection={<IconUsers size={16} />}>
+            Committees
+          </Tabs.Tab>
+          <Tabs.Tab value="accreditation" leftSection={<IconAward size={16} />}>
+            Accreditation
+          </Tabs.Tab>
+          <Tabs.Tab value="audits" leftSection={<IconClipboardCheck size={16} />}>
+            Audits
+          </Tabs.Tab>
+          <Tabs.Tab value="analytics" leftSection={<IconTrendingUp size={16} />}>
+            Analytics & Reviews
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="indicators" pt="md">

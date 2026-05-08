@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_falls_register (tenant_id, patient_id, admission_id, fall_at, location, location_detail, fall_type, contributing_factors, risk_assessment_done, risk_assessment_id, morse_score, injury_level, injury_description, immediate_action, incident_id, rca_required, reported_by, notes, source_module, source_record_id) SELECT i.tenant_id, i.patient_id, a.id, COALESCE(i.incident_date, now()), COALESCE(NULLIF(i.location, ''), 'unspecified'), i.location, CASE WHEN lower(COALESCE(i.description, '')) LIKE '%assisted%' THEN 'assisted' ELSE 'unwitnessed' END, CASE WHEN i.contributing_factors IS NULL THEN ARRAY[]::text[] ELSE ARRAY(SELECT jsonb_array_elements_text(i.contributing_factors)) END, fra.id IS NOT NULL, fra.id, CASE WHEN fra.scale = 'morse' THEN fra.score ELSE NULL END, CASE i.severity::text WHEN 'near_miss' THEN 'none' WHEN 'minor' THEN 'minor' WHEN 'moderate' THEN 'moderate' ELSE 'major' END, COALESCE(i.description, i.title), i.immediate_action, i.id, i.severity::text IN ('major', 'sentinel') OR i.is_reportable, COALESCE(i.reported_by, $3), i.root_cause, $4, i.id FROM quality_incidents i LEFT JOIN LATERAL ( SELECT ad.id, ad.encounter_id FROM admissions ad WHERE ad.tenant_id = i.tenant_id AND ad.patient_id = i.patient_id AND (ad.discharged_at IS NULL OR ad.discharged_at >= i.incident_date) ORDER BY ad.admitted_at DESC LIMIT 1 ) a ON true LEFT JOIN LATERAL ( SELECT fr.id, fr.scale, fr.score FROM fall_risk_assessments fr WHERE fr.tenant_id = i.tenant_id AND fr.encounter_id = a.encounter_id ORDER BY fr.recorded_at DESC LIMIT 1 ) fra ON true WHERE i.id = $1 AND i.tenant_id = $2 AND i.patient_id IS NOT NULL ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET patient_id = EXCLUDED.patient_id, admission_id = EXCLUDED.admission_id, fall_at = EXCLUDED.fall_at, location = EXCLUDED.location, location_detail = EXCLUDED.location_detail, fall_type = EXCLUDED.fall_type, contributing_factors = EXCLUDED.contributing_factors, risk_assessment_done = EXCLUDED.risk_assessment_done, risk_assessment_id = EXCLUDED.risk_assessment_id, morse_score = EXCLUDED.morse_score, injury_level = EXCLUDED.injury_level, injury_description = EXCLUDED.injury_description, immediate_action = EXCLUDED.immediate_action, rca_required = EXCLUDED.rca_required, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "25d55eb0d41aff74b4d198f654f4ec47b3282b076868aa11633bf1a6e6ea67bc"
+}

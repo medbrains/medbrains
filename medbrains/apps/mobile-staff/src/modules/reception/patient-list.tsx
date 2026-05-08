@@ -3,16 +3,16 @@
  * a row to view detail.
  */
 
-import { useState } from "react";
+import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Text, TextInput } from "react-native-paper";
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
-import { listPatients } from "../../api/patients.js";
 import type { PatientRow } from "../../api/patients.js";
-import { useFetch } from "../../lib/use-fetch.js";
+import { listPatients } from "../../api/patients.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { useFetch } from "../../lib/use-fetch.js";
 
 export function PatientListScreen(): ReactNode {
   const router = useModuleRouter();
@@ -60,11 +60,7 @@ export function PatientListScreen(): ReactNode {
       {!loading && !error && data && data.patients.length > 0 && (
         <ScrollView contentContainerStyle={{ padding: SPACING.md }}>
           {data.patients.map((p) => (
-            <PatientRowView
-              key={p.id}
-              row={p}
-              onPress={() => router.push("patient-detail", p)}
-            />
+            <PatientRowView key={p.id} row={p} onPress={() => router.push("patient-detail", p)} />
           ))}
         </ScrollView>
       )}
@@ -72,13 +68,7 @@ export function PatientListScreen(): ReactNode {
   );
 }
 
-function PatientRowView({
-  row,
-  onPress,
-}: {
-  row: PatientRow;
-  onPress: () => void;
-}): ReactNode {
+function PatientRowView({ row, onPress }: { row: PatientRow; onPress: () => void }): ReactNode {
   return (
     <View
       onTouchEnd={onPress}

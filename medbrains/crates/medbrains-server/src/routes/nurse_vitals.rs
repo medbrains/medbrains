@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── vitals_capture_schedules ────────────────────────────────────────
@@ -219,7 +219,7 @@ pub async fn io_balance(
     Query(q): Query<IoBalanceQuery>,
 ) -> Result<Json<IoBalance>, AppError> {
     require_permission(&claims, permissions::nurse::intake_output::VIEW)?;
-    let hours = q.since_hours.unwrap_or(24).max(1).min(720);
+    let hours = q.since_hours.unwrap_or(24).clamp(1, 720);
     let since = Utc::now() - Duration::hours(hours);
 
     let mut tx = state.db.begin().await?;

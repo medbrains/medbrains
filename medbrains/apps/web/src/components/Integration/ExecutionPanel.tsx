@@ -11,8 +11,8 @@ import {
   Text,
 } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { useQuery } from "@tanstack/react-query";
 import type { ExecutionStatus, IntegrationExecution } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 
 interface ExecutionPanelProps {
   pipelineId: string | null;
@@ -33,26 +33,15 @@ function formatTime(ts: string | null): string {
   return new Date(ts).toLocaleString();
 }
 
-export function ExecutionPanel({
-  pipelineId,
-  opened,
-  onClose,
-}: ExecutionPanelProps) {
+export function ExecutionPanel({ pipelineId, opened, onClose }: ExecutionPanelProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["integration", "executions", pipelineId],
-    queryFn: () =>
-      api.listPipelineExecutions(pipelineId ?? "", { per_page: "50" }),
+    queryFn: () => api.listPipelineExecutions(pipelineId ?? "", { per_page: "50" }),
     enabled: opened && Boolean(pipelineId),
   });
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Execution History"
-      position="right"
-      size="lg"
-    >
+    <Drawer opened={opened} onClose={onClose} title="Execution History" position="right" size="lg">
       <ScrollArea h="calc(100vh - 100px)">
         {isLoading && (
           <Box ta="center" py="xl">
@@ -80,11 +69,7 @@ function ExecutionCard({ execution }: { execution: IntegrationExecution }) {
   return (
     <Card padding="sm" radius="sm" withBorder>
       <Group justify="space-between" mb="xs">
-        <Badge
-          color={STATUS_COLORS[execution.status]}
-          variant="light"
-          size="sm"
-        >
+        <Badge color={STATUS_COLORS[execution.status]} variant="light" size="sm">
           {execution.status}
         </Badge>
         <Text size="xs" c="dimmed">

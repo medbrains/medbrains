@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
@@ -14,9 +13,10 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components";
 import { HandoffPanel } from "../components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "../components/crdt/NursingNotesPanel";
@@ -66,7 +66,10 @@ export function NurseActivitiesPage() {
 
   return (
     <div>
-      <PageHeader title="Nurse Activities" subtitle="MAR, vitals, I/O, code blue and shift handoffs" />
+      <PageHeader
+        title="Nurse Activities"
+        subtitle="MAR, vitals, I/O, code blue and shift handoffs"
+      />
       <Tabs value={tab} onChange={(v) => v && setTab(v)} variant="outline">
         <Tabs.List>
           <Tabs.Tab value="mar">MAR</Tabs.Tab>
@@ -114,7 +117,10 @@ function dailyShiftId(): string {
 function MarTab() {
   const qc = useQueryClient();
   const [windowMin, setWindowMin] = useState<number>(60);
-  const [actioning, setActioning] = useState<{ id: string; mode: "administer" | "hold" | "refuse" } | null>(null);
+  const [actioning, setActioning] = useState<{
+    id: string;
+    mode: "administer" | "hold" | "refuse";
+  } | null>(null);
   const [reason, setReason] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -128,7 +134,8 @@ function MarTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mar-due-now"] }),
   });
   const hold = useMutation({
-    mutationFn: (vars: { id: string; reason: string }) => api.holdMar(vars.id, { reason: vars.reason }),
+    mutationFn: (vars: { id: string; reason: string }) =>
+      api.holdMar(vars.id, { reason: vars.reason }),
     onSuccess: () => {
       setActioning(null);
       setReason("");
@@ -136,7 +143,8 @@ function MarTab() {
     },
   });
   const refuse = useMutation({
-    mutationFn: (vars: { id: string; reason: string }) => api.refuseMar(vars.id, { reason: vars.reason }),
+    mutationFn: (vars: { id: string; reason: string }) =>
+      api.refuseMar(vars.id, { reason: vars.reason }),
     onSuccess: () => {
       setActioning(null);
       setReason("");
@@ -263,7 +271,12 @@ function IoTab() {
   });
   const { data: balance } = useQuery({
     queryKey: ["io-balance", encounterId],
-    queryFn: () => api.getEncounterIoBalance(encounterId, 24) as Promise<{ intake_total: number; output_total: number; balance: number }>,
+    queryFn: () =>
+      api.getEncounterIoBalance(encounterId, 24) as Promise<{
+        intake_total: number;
+        output_total: number;
+        balance: number;
+      }>,
     enabled: encounterId.length > 0,
   });
 
@@ -285,15 +298,21 @@ function IoTab() {
       {balance && (
         <Group>
           <Card withBorder padding="md">
-            <Text size="xs" c="dimmed">Intake (24h)</Text>
+            <Text size="xs" c="dimmed">
+              Intake (24h)
+            </Text>
             <Title order={3}>{balance.intake_total} ml</Title>
           </Card>
           <Card withBorder padding="md">
-            <Text size="xs" c="dimmed">Output (24h)</Text>
+            <Text size="xs" c="dimmed">
+              Output (24h)
+            </Text>
             <Title order={3}>{balance.output_total} ml</Title>
           </Card>
           <Card withBorder padding="md">
-            <Text size="xs" c="dimmed">Balance</Text>
+            <Text size="xs" c="dimmed">
+              Balance
+            </Text>
             <Title order={3} c={balance.balance < 0 ? "red" : "green"}>
               {balance.balance > 0 ? "+" : ""}
               {balance.balance} ml
@@ -307,7 +326,9 @@ function IoTab() {
           <Card key={row.id} withBorder padding="sm">
             <Group justify="space-between">
               <Group gap="xs">
-                <Badge color={row.direction === "intake" ? "blue" : "orange"}>{row.direction}</Badge>
+                <Badge color={row.direction === "intake" ? "blue" : "orange"}>
+                  {row.direction}
+                </Badge>
                 <Text fw={500}>{row.category}</Text>
                 <Text>{row.volume_ml} ml</Text>
               </Group>
@@ -385,8 +406,18 @@ function CreateIoModal({
           value={category}
           onChange={(v) => v && setCategory(v)}
         />
-        <NumberInput label="Volume (ml)" value={volume} onChange={(v) => setVolume(typeof v === "number" ? v : 0)} min={1} />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} minRows={2} />
+        <NumberInput
+          label="Volume (ml)"
+          value={volume}
+          onChange={(v) => setVolume(typeof v === "number" ? v : 0)}
+          min={1}
+        />
+        <Textarea
+          label="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.currentTarget.value)}
+          minRows={2}
+        />
         <Group justify="flex-end">
           <Button onClick={() => create.mutate()} loading={create.isPending} disabled={volume <= 0}>
             Save
@@ -443,8 +474,9 @@ function OtherTab() {
   return (
     <Stack>
       <Text c="dimmed">
-        Vitals schedules, pain entries, fall risk assessments, restraint monitoring, wound assessments,
-        SBAR handoffs, and equipment checks are available via the API. Dedicated UIs land in a follow-up.
+        Vitals schedules, pain entries, fall risk assessments, restraint monitoring, wound
+        assessments, SBAR handoffs, and equipment checks are available via the API. Dedicated UIs
+        land in a follow-up.
       </Text>
     </Stack>
   );

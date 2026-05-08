@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Accordion,
   ActionIcon,
@@ -10,15 +11,14 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createDepartmentSchema } from "@medbrains/schemas";
+import { api } from "@medbrains/api";
 import type { CreateDepartmentInput } from "@medbrains/schemas";
+import { createDepartmentSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingDepartment, WorkingHours } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
-import { api } from "@medbrains/api";
 import { CsvImportModal } from "../../components";
 import classes from "./onboarding.module.scss";
 
@@ -84,7 +84,8 @@ function formatWorkingHours(wh?: WorkingHours): string | null {
   if (first.evening) parts.push(`${first.evening.start}-${first.evening.end}`);
   if (parts.length === 0) return null;
 
-  const dayRange = activeDays.length === 6 ? "Mon-Sat" : activeDays.map((d) => d.slice(0, 3)).join(", ");
+  const dayRange =
+    activeDays.length === 6 ? "Mon-Sat" : activeDays.map((d) => d.slice(0, 3)).join(", ");
   return `${dayRange}: ${parts.join(", ")}`;
 }
 
@@ -114,7 +115,12 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
     label: `${d.name} (${d.department_type.replace(/_/g, " ")})`,
   }));
 
-  const updateDayTime = (day: string, session: "morning" | "evening", field: "start" | "end", value: string) => {
+  const updateDayTime = (
+    day: string,
+    session: "morning" | "evening",
+    field: "start" | "end",
+    value: string,
+  ) => {
     setWorkingHours((prev) => {
       const dayData = prev[day] ?? {};
       const sessionData = dayData?.[session] ?? { start: "", end: "" };
@@ -181,22 +187,15 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        Add departments for your hospital. You can quick-add from a template or
-        create custom departments.
+        Add departments for your hospital. You can quick-add from a template or create custom
+        departments.
       </Text>
 
       <Group>
-        <Button
-          variant="light"
-          leftSection={<IconPlus size={16} />}
-          onClick={openModal}
-        >
+        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Department
         </Button>
-        <Button
-          variant="subtle"
-          onClick={addFromTemplate}
-        >
+        <Button variant="subtle" onClick={addFromTemplate}>
           Quick-Add from Template
         </Button>
         <Button
@@ -224,8 +223,7 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
             <div className={classes.facilityInfo}>
               <Text fw={600}>{dept.name}</Text>
               <Text size="sm" c="dimmed">
-                {dept.code} &middot;{" "}
-                {dept.department_type.replace(/_/g, " ")}
+                {dept.code} &middot; {dept.department_type.replace(/_/g, " ")}
                 {dept.parent_local_id && " (sub-department)"}
               </Text>
               {whSummary && (
@@ -325,7 +323,9 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                                 type="time"
                                 label="AM Start"
                                 value={workingHours[day]?.morning?.start ?? ""}
-                                onChange={(e) => updateDayTime(day, "morning", "start", e.currentTarget.value)}
+                                onChange={(e) =>
+                                  updateDayTime(day, "morning", "start", e.currentTarget.value)
+                                }
                               />
                             </Grid.Col>
                             <Grid.Col span={3}>
@@ -334,7 +334,9 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                                 type="time"
                                 label="AM End"
                                 value={workingHours[day]?.morning?.end ?? ""}
-                                onChange={(e) => updateDayTime(day, "morning", "end", e.currentTarget.value)}
+                                onChange={(e) =>
+                                  updateDayTime(day, "morning", "end", e.currentTarget.value)
+                                }
                               />
                             </Grid.Col>
                             <Grid.Col span={3}>
@@ -343,7 +345,9 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                                 type="time"
                                 label="PM Start"
                                 value={workingHours[day]?.evening?.start ?? ""}
-                                onChange={(e) => updateDayTime(day, "evening", "start", e.currentTarget.value)}
+                                onChange={(e) =>
+                                  updateDayTime(day, "evening", "start", e.currentTarget.value)
+                                }
                               />
                             </Grid.Col>
                             <Grid.Col span={3}>
@@ -352,7 +356,9 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                                 type="time"
                                 label="PM End"
                                 value={workingHours[day]?.evening?.end ?? ""}
-                                onChange={(e) => updateDayTime(day, "evening", "end", e.currentTarget.value)}
+                                onChange={(e) =>
+                                  updateDayTime(day, "evening", "end", e.currentTarget.value)
+                                }
                               />
                             </Grid.Col>
                           </Grid>
@@ -364,9 +370,7 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
               </Accordion>
             )}
 
-            <Button type="submit">
-              Add Department
-            </Button>
+            <Button type="submit">Add Department</Button>
           </Stack>
         </form>
       </Modal>

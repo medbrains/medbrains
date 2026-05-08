@@ -17,10 +17,10 @@
 //!
 //! Operating modes:
 //!   - `Strict`     : reject if header missing, signature invalid,
-//!                     or stale. Production.
+//!     or stale. Production.
 //!   - `Permissive` : log a warning but accept. Used for staging
-//!                     while NHA hands over the cert chain. Default
-//!                     in dev environments — never in prod.
+//!     while NHA hands over the cert chain. Default
+//!     in dev environments — never in prod.
 //!
 //! Mode is chosen via `ABDM_SIGNATURE_MODE` env var.
 
@@ -131,7 +131,9 @@ fn structurally_validate(sig: &str, _body_bytes: &[u8]) -> Result<(), SignatureE
         let now = chrono::Utc::now().timestamp();
         let age = now - iat;
         if age < 0 || age > REPLAY_WINDOW_SECS as i64 {
-            return Err(SignatureError::Stale(Duration::from_secs(REPLAY_WINDOW_SECS)));
+            return Err(SignatureError::Stale(Duration::from_secs(
+                REPLAY_WINDOW_SECS,
+            )));
         }
     }
 
@@ -255,7 +257,10 @@ mod tests {
         let stale = chrono::Utc::now().timestamp() - (REPLAY_WINDOW_SECS as i64 + 60);
         let h = header_with(&jws_with_iat(stale));
         let err = verify_signature(&h, b"body", SignatureMode::Strict).unwrap_err();
-        assert_eq!(err, SignatureError::Stale(Duration::from_secs(REPLAY_WINDOW_SECS)));
+        assert_eq!(
+            err,
+            SignatureError::Stale(Duration::from_secs(REPLAY_WINDOW_SECS))
+        );
     }
 
     #[test]
@@ -273,7 +278,10 @@ mod tests {
         let future = chrono::Utc::now().timestamp() + 600;
         let h = header_with(&jws_with_iat(future));
         let err = verify_signature(&h, b"body", SignatureMode::Strict).unwrap_err();
-        assert_eq!(err, SignatureError::Stale(Duration::from_secs(REPLAY_WINDOW_SECS)));
+        assert_eq!(
+            err,
+            SignatureError::Stale(Duration::from_secs(REPLAY_WINDOW_SECS))
+        );
     }
 
     #[test]

@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::quality::{
     AccreditationBody, CapaStatus, CommitteeFrequency, ComplianceStatus, DocumentStatus,
@@ -315,7 +316,8 @@ pub async fn list_indicators(
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(ref category) = params.category {
         sqlx::query_as::<_, QualityIndicator>(
@@ -350,7 +352,8 @@ pub async fn create_indicator(
     require_permission(&claims, permissions::quality::indicators::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityIndicator>(
         "INSERT INTO quality_indicators \
@@ -390,7 +393,8 @@ pub async fn list_indicator_values(
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(indicator_id) = params.indicator_id {
         sqlx::query_as::<_, QualityIndicatorValue>(
@@ -434,7 +438,8 @@ pub async fn record_indicator_value(
         })?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityIndicatorValue>(
         "INSERT INTO quality_indicator_values \
@@ -473,7 +478,8 @@ pub async fn list_documents(
     require_permission(&claims, permissions::quality::documents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = match (&params.status, &params.category) {
         (Some(status), Some(category)) => {
@@ -534,7 +540,8 @@ pub async fn get_document(
     require_permission(&claims, permissions::quality::documents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityDocument>(
         "SELECT * FROM quality_documents WHERE id = $1 AND tenant_id = $2",
@@ -557,7 +564,8 @@ pub async fn create_document(
     require_permission(&claims, permissions::quality::documents::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityDocument>(
         "INSERT INTO quality_documents \
@@ -593,7 +601,8 @@ pub async fn update_document_status(
     require_permission(&claims, permissions::quality::documents::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // When status transitions to approved or released, set approver_id / released_at
     let row = match body.status {
@@ -657,7 +666,8 @@ pub async fn acknowledge_document(
     require_permission(&claims, permissions::quality::documents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify document exists
     let _doc = sqlx::query_as::<_, QualityDocument>(
@@ -699,7 +709,8 @@ pub async fn list_incidents(
     require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = match (&params.status, &params.severity) {
         (Some(status), Some(severity)) => {
@@ -762,7 +773,8 @@ pub async fn get_incident(
     require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityIncident>(
         "SELECT * FROM quality_incidents WHERE id = $1 AND tenant_id = $2",
@@ -796,7 +808,8 @@ pub async fn create_incident(
         .map_err(|_| AppError::BadRequest("Invalid incident_date format".into()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let incident_number = generate_number(&mut tx, &claims.tenant_id, "INC", "INC").await?;
 
@@ -824,6 +837,48 @@ pub async fn create_incident(
     .fetch_one(&mut *tx)
     .await?;
 
+    if matches!(body.severity, IncidentSeverity::Sentinel)
+        || body.incident_type.to_lowercase().contains("sentinel")
+    {
+        crate::routes::nabh_evidence::mirror_sentinel_incident(
+            &mut tx,
+            claims.tenant_id,
+            claims.sub,
+            row.id,
+        )
+        .await?;
+    }
+    if body.incident_type.to_lowercase().contains("fall") {
+        crate::routes::nabh_evidence::mirror_fall_incident(
+            &mut tx,
+            claims.tenant_id,
+            claims.sub,
+            row.id,
+        )
+        .await?;
+    }
+
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::QualityIncidentReported,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "incident_id": row.id,
+            "incident_number": &row.incident_number,
+            "incident_type": &row.incident_type,
+            "severity": row.severity,
+            "patient_id": row.patient_id,
+        }),
+    );
+    if let Some(patient_id) = row.patient_id {
+        event = event.with_patient(patient_id);
+    }
+    if let Some(department_id) = row.department_id {
+        event = event.with_department(department_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -837,7 +892,8 @@ pub async fn update_incident(
     require_permission(&claims, permissions::quality::incidents::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let contributing = body
         .contributing_factors
@@ -890,7 +946,8 @@ pub async fn list_capa(
     require_permission(&claims, permissions::quality::capa::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = match (&params.incident_id, &params.status) {
         (Some(incident_id), Some(status)) => {
@@ -955,7 +1012,8 @@ pub async fn create_capa(
         .map_err(|_| AppError::BadRequest("Invalid due_date format, expected YYYY-MM-DD".into()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let capa_number = generate_number(&mut tx, &claims.tenant_id, "CAPA", "CAPA").await?;
 
@@ -990,7 +1048,8 @@ pub async fn update_capa(
     require_permission(&claims, permissions::quality::capa::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let status_str = body.status.and_then(|s| {
         serde_json::to_value(s)
@@ -1039,7 +1098,8 @@ pub async fn list_committees(
     require_permission(&claims, permissions::quality::committees::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, QualityCommittee>(
         "SELECT * FROM quality_committees \
@@ -1062,7 +1122,8 @@ pub async fn create_committee(
     require_permission(&claims, permissions::quality::committees::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let members = body.members.clone().unwrap_or(serde_json::json!([]));
 
@@ -1104,7 +1165,8 @@ pub async fn list_meetings(
     require_permission(&claims, permissions::quality::committees::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(committee_id) = params.committee_id {
         sqlx::query_as::<_, QualityCommitteeMeeting>(
@@ -1152,7 +1214,8 @@ pub async fn create_meeting(
     let agenda = body.agenda.clone().unwrap_or(serde_json::json!([]));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityCommitteeMeeting>(
         "INSERT INTO quality_committee_meetings \
@@ -1195,7 +1258,8 @@ pub async fn update_meeting(
     });
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityCommitteeMeeting>(
         "UPDATE quality_committee_meetings SET \
@@ -1235,7 +1299,8 @@ pub async fn list_action_items(
     require_permission(&claims, permissions::quality::committees::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = match (&params.source_type, &params.status) {
         (Some(source_type), Some(status)) => {
@@ -1299,7 +1364,8 @@ pub async fn create_action_item(
         .map_err(|_| AppError::BadRequest("Invalid due_date format, expected YYYY-MM-DD".into()))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityActionItem>(
         "INSERT INTO quality_action_items \
@@ -1332,7 +1398,8 @@ pub async fn list_standards(
     require_permission(&claims, permissions::quality::accreditation::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(ref body) = params.body {
         sqlx::query_as::<_, QualityAccreditationStandard>(
@@ -1367,7 +1434,8 @@ pub async fn create_standard(
     require_permission(&claims, permissions::quality::accreditation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let measurable_elements = body
         .measurable_elements
@@ -1407,7 +1475,8 @@ pub async fn list_compliance(
     require_permission(&claims, permissions::quality::accreditation::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(standard_id) = params.standard_id {
         sqlx::query_as::<_, QualityAccreditationCompliance>(
@@ -1452,7 +1521,8 @@ pub async fn update_compliance(
         .unwrap_or(serde_json::json!([]));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityAccreditationCompliance>(
         "INSERT INTO quality_accreditation_compliance \
@@ -1502,7 +1572,8 @@ pub async fn list_audits(
     require_permission(&claims, permissions::quality::audits::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = match (&params.status, &params.department_id) {
         (Some(status), Some(dept_id)) => {
@@ -1563,7 +1634,8 @@ pub async fn get_audit(
     require_permission(&claims, permissions::quality::audits::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityAudit>(
         "SELECT * FROM quality_audits WHERE id = $1 AND tenant_id = $2",
@@ -1591,7 +1663,8 @@ pub async fn create_audit(
         })?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let audit_number = generate_number(&mut tx, &claims.tenant_id, "AUDIT", "AUD").await?;
 
@@ -1631,7 +1704,8 @@ pub async fn update_audit(
         .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, QualityAudit>(
         "UPDATE quality_audits SET \
@@ -1675,7 +1749,8 @@ pub async fn calculate_indicator(
     require_permission(&claims, permissions::quality::indicators::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify indicator exists
     let _indicator = sqlx::query_as::<_, QualityIndicator>(
@@ -1744,7 +1819,8 @@ pub async fn list_pending_acks(
     require_permission(&claims, permissions::quality::documents::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify document exists
     let _doc = sqlx::query_as::<_, QualityDocument>(
@@ -1793,7 +1869,8 @@ pub async fn auto_schedule_meetings(
     require_permission(&claims, permissions::quality::committees::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let committee = sqlx::query_as::<_, QualityCommittee>(
         "SELECT * FROM quality_committees WHERE id = $1 AND tenant_id = $2",
@@ -1870,7 +1947,8 @@ pub async fn compile_evidence(
     require_permission(&claims, permissions::quality::accreditation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Count total standards for this accreditation body
     let total_standards = sqlx::query_scalar::<_, i64>(
@@ -2035,7 +2113,8 @@ pub async fn schedule_audits(
     let prefix = body.title_prefix.as_deref().unwrap_or("Scheduled Audit");
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut created = 0i32;
     let mut current = start;
@@ -2078,7 +2157,8 @@ pub async fn list_audit_findings(
     require_permission(&claims, permissions::quality::audits::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Findings are incidents linked to an audit via contributing_factors JSONB
     let rows = sqlx::query_as::<_, QualityIncident>(
@@ -2106,7 +2186,8 @@ pub async fn create_audit_finding(
     require_permission(&claims, permissions::quality::audits::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify audit exists
     let _audit = sqlx::query_as::<_, QualityAudit>(
@@ -2155,7 +2236,8 @@ pub async fn list_overdue_capas(
     require_permission(&claims, permissions::quality::capa::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, OverdueCapaRow>(
         "SELECT id, capa_number, incident_id, capa_type, description, \
@@ -2184,7 +2266,8 @@ pub async fn committee_dashboard(
     require_permission(&claims, permissions::quality::committees::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, CommitteeDashboardRow>(
         "SELECT c.id AS committee_id, \
@@ -2244,7 +2327,8 @@ pub async fn create_mortality_review(
         }));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let incident_number = generate_number(&mut tx, &claims.tenant_id, "INC", "MR").await?;
 
@@ -2283,7 +2367,8 @@ pub async fn list_sentinel_events(
     require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, QualityIncident>(
         "SELECT * FROM quality_incidents \
@@ -2310,7 +2395,8 @@ pub async fn patient_safety_indicators(
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let from = params
         .from_date
@@ -2367,7 +2453,8 @@ pub async fn department_scorecard(
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let from = params
         .from_date

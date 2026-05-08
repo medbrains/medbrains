@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -13,36 +12,38 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconPencil,
-  IconTrash,
-  IconCheck,
-  IconCopy,
-  IconListDetails,
-  IconChartBar,
-  IconHistory,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  AddOrderSetItemRequest,
+  CreateOrderSetTemplateRequest,
+  OrderSetActivation,
   OrderSetTemplate,
   OrderSetTemplateItem,
-  OrderSetActivation,
-  CreateOrderSetTemplateRequest,
-  AddOrderSetItemRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconChartBar,
+  IconCheck,
+  IconCopy,
+  IconHistory,
+  IconListDetails,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -91,10 +92,7 @@ export function OrderSetsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Order Sets"
-        subtitle="Reusable bundles of orders for standardized care"
-      />
+      <PageHeader title="Order Sets" subtitle="Reusable bundles of orders for standardized care" />
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           <Tabs.Tab value="templates" leftSection={<IconListDetails size={16} />}>
@@ -116,11 +114,7 @@ export function OrderSetsPage() {
         </Tabs.List>
 
         <Tabs.Panel value="templates" pt="md">
-          <TemplatesTab
-            canCreate={canCreate}
-            canUpdate={canUpdate}
-            canApprove={canApprove}
-          />
+          <TemplatesTab canCreate={canCreate} canUpdate={canUpdate} canApprove={canApprove} />
         </Tabs.Panel>
         <Tabs.Panel value="builder" pt="md">
           <BuilderTab canUpdate={canUpdate} />
@@ -175,11 +169,14 @@ function TemplatesTab({
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateOrderSetTemplateRequest) =>
-      api.createOrderSetTemplate(data),
+    mutationFn: (data: CreateOrderSetTemplateRequest) => api.createOrderSetTemplate(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
-      notifications.show({ title: "Created", message: "Order set template created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Order set template created",
+        color: "success",
+      });
       close();
       setForm({ name: "", context: "general" });
     },
@@ -189,7 +186,11 @@ function TemplatesTab({
     mutationFn: (id: string) => api.approveOrderSetTemplate(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
-      notifications.show({ title: "Approved", message: "Template approved for clinical use", color: "success" });
+      notifications.show({
+        title: "Approved",
+        message: "Template approved for clinical use",
+        color: "success",
+      });
     },
   });
 
@@ -197,7 +198,11 @@ function TemplatesTab({
     mutationFn: (id: string) => api.deleteOrderSetTemplate(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
-      notifications.show({ title: "Deactivated", message: "Template deactivated", color: "warning" });
+      notifications.show({
+        title: "Deactivated",
+        message: "Template deactivated",
+        color: "warning",
+      });
     },
   });
 
@@ -205,7 +210,11 @@ function TemplatesTab({
     mutationFn: (id: string) => api.createOrderSetVersion(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
-      notifications.show({ title: "New Version", message: "New version created", color: "primary" });
+      notifications.show({
+        title: "New Version",
+        message: "New version created",
+        color: "primary",
+      });
     },
   });
 
@@ -215,8 +224,14 @@ function TemplatesTab({
       label: "Name",
       render: (r) => (
         <div>
-          <Text size="sm" fw={500}>{r.name}</Text>
-          {r.code && <Text size="xs" c="dimmed">{r.code}</Text>}
+          <Text size="sm" fw={500}>
+            {r.name}
+          </Text>
+          {r.code && (
+            <Text size="xs" c="dimmed">
+              {r.code}
+            </Text>
+          )}
         </div>
       ),
     },
@@ -239,9 +254,13 @@ function TemplatesTab({
       label: "Approved",
       render: (r) =>
         r.approved_at ? (
-          <Badge color="success" variant="light" size="sm">Approved</Badge>
+          <Badge color="success" variant="light" size="sm">
+            Approved
+          </Badge>
         ) : (
-          <Badge color="warning" variant="light" size="sm">Pending</Badge>
+          <Badge color="warning" variant="light" size="sm">
+            Pending
+          </Badge>
         ),
     },
     {
@@ -321,14 +340,15 @@ function TemplatesTab({
         )}
       </Group>
 
-      <DataTable
-        columns={columns}
-        data={templates}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={templates} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Create Order Set Template" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Create Order Set Template"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <TextInput
             label="Name"
@@ -351,7 +371,12 @@ function TemplatesTab({
             label="Context"
             data={CONTEXT_OPTIONS}
             value={form.context}
-            onChange={(v) => setForm({ ...form, context: (v ?? "general") as CreateOrderSetTemplateRequest["context"] })}
+            onChange={(v) =>
+              setForm({
+                ...form,
+                context: (v ?? "general") as CreateOrderSetTemplateRequest["context"],
+              })
+            }
             required
           />
           <TextInput
@@ -368,7 +393,10 @@ function TemplatesTab({
               setForm({
                 ...form,
                 trigger_diagnoses: e.currentTarget.value
-                  ? e.currentTarget.value.split(",").map((s) => s.trim()).filter(Boolean)
+                  ? e.currentTarget.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
                   : undefined,
               })
             }
@@ -414,8 +442,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
   });
 
   const addItemMut = useMutation({
-    mutationFn: (data: AddOrderSetItemRequest) =>
-      api.addOrderSetItem(selectedTemplateId!, data),
+    mutationFn: (data: AddOrderSetItemRequest) => api.addOrderSetItem(selectedTemplateId!, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
       notifications.show({ title: "Added", message: "Item added to template", color: "success" });
@@ -425,11 +452,14 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
   });
 
   const deleteItemMut = useMutation({
-    mutationFn: (itemId: string) =>
-      api.deleteOrderSetItem(selectedTemplateId!, itemId),
+    mutationFn: (itemId: string) => api.deleteOrderSetItem(selectedTemplateId!, itemId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
-      notifications.show({ title: "Removed", message: "Item removed from template", color: "warning" });
+      notifications.show({
+        title: "Removed",
+        message: "Item removed from template",
+        color: "warning",
+      });
     },
   });
 
@@ -459,7 +489,11 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       render: (r) => {
         if (r.item_type === "lab") return <Text size="sm">{r.lab_notes ?? "Lab test"}</Text>;
         if (r.item_type === "medication")
-          return <Text size="sm">{r.drug_name ?? "Medication"} {r.dosage ? `— ${r.dosage}` : ""}</Text>;
+          return (
+            <Text size="sm">
+              {r.drug_name ?? "Medication"} {r.dosage ? `— ${r.dosage}` : ""}
+            </Text>
+          );
         if (r.item_type === "nursing")
           return <Text size="sm">{r.task_description ?? r.task_type ?? "Nursing task"}</Text>;
         return <Text size="sm">{r.diet_type ?? "Diet order"}</Text>;
@@ -470,9 +504,13 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       label: "Mandatory",
       render: (r) =>
         r.is_mandatory ? (
-          <Badge color="danger" variant="light" size="xs">Required</Badge>
+          <Badge color="danger" variant="light" size="xs">
+            Required
+          </Badge>
         ) : (
-          <Text size="xs" c="dimmed">Optional</Text>
+          <Text size="xs" c="dimmed">
+            Optional
+          </Text>
         ),
     },
     {
@@ -526,7 +564,8 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
               <div>
                 <Text fw={600}>{templateDetail.template.name}</Text>
                 <Text size="sm" c="dimmed">
-                  {templateDetail.template.description ?? "No description"} — v{templateDetail.template.version}
+                  {templateDetail.template.description ?? "No description"} — v
+                  {templateDetail.template.version}
                 </Text>
               </div>
               <Badge
@@ -547,21 +586,32 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         </>
       )}
 
-      <Drawer opened={itemDrawer} onClose={closeItem} title="Add Item to Order Set" position="right" size="xl">
+      <Drawer
+        opened={itemDrawer}
+        onClose={closeItem}
+        title="Add Item to Order Set"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <Select
             label="Item Type"
             data={ITEM_TYPE_OPTIONS}
             value={itemForm.item_type}
             onChange={(v) =>
-              setItemForm({ ...itemForm, item_type: (v ?? "lab") as AddOrderSetItemRequest["item_type"] })
+              setItemForm({
+                ...itemForm,
+                item_type: (v ?? "lab") as AddOrderSetItemRequest["item_type"],
+              })
             }
             required
           />
           <NumberInput
             label="Sort Order"
             value={itemForm.sort_order ?? 0}
-            onChange={(v) => setItemForm({ ...itemForm, sort_order: typeof v === "number" ? v : 0 })}
+            onChange={(v) =>
+              setItemForm({ ...itemForm, sort_order: typeof v === "number" ? v : 0 })
+            }
           />
           <Switch
             label="Mandatory (cannot be deselected)"
@@ -571,7 +621,9 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
           <Switch
             label="Selected by default"
             checked={itemForm.default_selected ?? true}
-            onChange={(e) => setItemForm({ ...itemForm, default_selected: e.currentTarget.checked })}
+            onChange={(e) =>
+              setItemForm({ ...itemForm, default_selected: e.currentTarget.checked })
+            }
           />
 
           {/* Type-specific fields */}
@@ -581,12 +633,16 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
                 label="Lab Priority"
                 placeholder="routine / urgent / stat"
                 value={itemForm.lab_priority ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, lab_priority: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, lab_priority: e.currentTarget.value || undefined })
+                }
               />
               <Textarea
                 label="Lab Notes"
                 value={itemForm.lab_notes ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, lab_notes: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, lab_notes: e.currentTarget.value || undefined })
+                }
               />
             </>
           )}
@@ -596,31 +652,41 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
               <TextInput
                 label="Drug Name"
                 value={itemForm.drug_name ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, drug_name: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, drug_name: e.currentTarget.value || undefined })
+                }
               />
               <TextInput
                 label="Dosage"
                 placeholder="e.g. 500mg"
                 value={itemForm.dosage ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, dosage: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, dosage: e.currentTarget.value || undefined })
+                }
               />
               <TextInput
                 label="Frequency"
                 placeholder="e.g. TID, BD"
                 value={itemForm.frequency ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, frequency: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, frequency: e.currentTarget.value || undefined })
+                }
               />
               <TextInput
                 label="Duration"
                 placeholder="e.g. 5 days"
                 value={itemForm.duration ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, duration: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, duration: e.currentTarget.value || undefined })
+                }
               />
               <TextInput
                 label="Route"
                 placeholder="e.g. PO, IV"
                 value={itemForm.route ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, route: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, route: e.currentTarget.value || undefined })
+                }
               />
               <Textarea
                 label="Instructions"
@@ -638,7 +704,9 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
                 label="Task Type"
                 placeholder="e.g. vital_check, wound_care"
                 value={itemForm.task_type ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, task_type: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, task_type: e.currentTarget.value || undefined })
+                }
               />
               <Textarea
                 label="Task Description"
@@ -664,13 +732,18 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
                 label="Diet Type"
                 placeholder="e.g. regular, liquid, NPO"
                 value={itemForm.diet_type ?? ""}
-                onChange={(e) => setItemForm({ ...itemForm, diet_type: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setItemForm({ ...itemForm, diet_type: e.currentTarget.value || undefined })
+                }
               />
               <Textarea
                 label="Diet Instructions"
                 value={itemForm.diet_instructions ?? ""}
                 onChange={(e) =>
-                  setItemForm({ ...itemForm, diet_instructions: e.currentTarget.value || undefined })
+                  setItemForm({
+                    ...itemForm,
+                    diet_instructions: e.currentTarget.value || undefined,
+                  })
                 }
               />
             </>
@@ -718,7 +791,7 @@ function ActivationsTab() {
     {
       key: "patient_id",
       label: "Patient",
-      render: (r) => <Text size="sm">{r.patient_id.slice(0, 8)}...</Text>,
+      render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
     {
       key: "items",
@@ -737,9 +810,7 @@ function ActivationsTab() {
     {
       key: "created_at",
       label: "Activated",
-      render: (r) => (
-        <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>
-      ),
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
     },
     {
       key: "actions",
@@ -764,12 +835,7 @@ function ActivationsTab() {
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={activations}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={activations} loading={isLoading} rowKey={(r) => r.id} />
 
       <Drawer
         opened={detailDrawer}
@@ -781,22 +847,30 @@ function ActivationsTab() {
         {detail && (
           <Stack>
             <Group>
-              <Text size="sm" fw={500}>Version:</Text>
+              <Text size="sm" fw={500}>
+                Version:
+              </Text>
               <Text size="sm">v{detail.activation.template_version}</Text>
             </Group>
             <Group>
-              <Text size="sm" fw={500}>Items:</Text>
+              <Text size="sm" fw={500}>
+                Items:
+              </Text>
               <Text size="sm">
                 {detail.activation.selected_items}/{detail.activation.total_items} selected
               </Text>
             </Group>
             {detail.activation.notes && (
               <Group>
-                <Text size="sm" fw={500}>Notes:</Text>
+                <Text size="sm" fw={500}>
+                  Notes:
+                </Text>
                 <Text size="sm">{detail.activation.notes}</Text>
               </Group>
             )}
-            <Text size="sm" fw={600} mt="md">Items:</Text>
+            <Text size="sm" fw={600} mt="md">
+              Items:
+            </Text>
             {detail.items.map((item) => (
               <Card key={item.id} withBorder p="xs">
                 <Group justify="space-between">
@@ -808,12 +882,12 @@ function ActivationsTab() {
                     >
                       {item.item_type}
                     </Badge>
-                    <Text size="sm">
-                      {item.was_selected ? "Created" : "Skipped"}
-                    </Text>
+                    <Text size="sm">{item.was_selected ? "Created" : "Skipped"}</Text>
                   </Group>
                   {item.skip_reason && (
-                    <Text size="xs" c="dimmed">{item.skip_reason}</Text>
+                    <Text size="xs" c="dimmed">
+                      {item.skip_reason}
+                    </Text>
                   )}
                 </Group>
               </Card>

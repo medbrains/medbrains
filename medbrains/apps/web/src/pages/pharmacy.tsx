@@ -1,5 +1,3 @@
-import { useMemo, useState } from "react";
-import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import {
   ActionIcon,
   Alert,
@@ -18,12 +16,49 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AwareCategory,
+  ComplianceSettings,
+  CreateNdpsEntryRequest,
+  CreateOtcSaleRequest,
+  CreatePharmacyCatalogRequest,
+  CreatePharmacyOrderRequest,
+  CreateStockTransactionRequest,
+  DrugInteractionCheckRequest,
+  DrugInteractionResult,
+  DrugSchedule,
+  DrugUtilizationRow,
+  FormularyCheckResult,
+  FormularyStatus,
+  NdpsRegisterEntry,
+  NearExpiryRow,
+  PharmacyAbcVedRow,
+  PharmacyBatch,
+  PharmacyCatalog,
+  PharmacyConsumptionRow,
+  PharmacyDeadStockRow,
+  PharmacyOrder,
+  PharmacyOrderDetailResponse,
+  PharmacyOrderItemInput,
+  PharmacyPaymentMode,
+  PharmacyPosSale,
+  PharmacyStoreAssignment,
+  PharmacyTransferRequest,
+  PrescriptionAuditEntry,
+  PrescriptionWithItems,
+  RxQueueRow,
+  StockTransactionType,
+  TenantSettingsRow,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCashRegister,
@@ -42,52 +77,27 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  AwareCategory,
-  ComplianceSettings,
-  CreateNdpsEntryRequest,
-  CreateOtcSaleRequest,
-  CreatePharmacyCatalogRequest,
-  CreatePharmacyOrderRequest,
-  CreateStockTransactionRequest,
-  PharmacyDeadStockRow,
-  DrugSchedule,
-  DrugUtilizationRow,
-  FormularyStatus,
-  NdpsRegisterEntry,
-  NearExpiryRow,
-  PharmacyAbcVedRow,
-  PharmacyBatch,
-  PharmacyCatalog,
-  PharmacyConsumptionRow,
-  PharmacyOrder,
-  PharmacyOrderDetailResponse,
-  PharmacyOrderItemInput,
-  PharmacyPaymentMode,
-  PharmacyPosSale,
-  PharmacyStoreAssignment,
-  PharmacyTransferRequest,
-  RxQueueRow,
-  StockTransactionType,
-  TenantSettingsRow,
-  DrugInteractionCheckRequest,
-  DrugInteractionResult,
-  PrescriptionAuditEntry,
-  FormularyCheckResult,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  PageHeader,
+  PrescriptionViews,
+  StatusDot,
+  useClinicalEmit,
+} from "../components";
+import { DrugSearchSelect } from "../components/DrugSearchSelect";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { usePatientName } from "../hooks/usePatientName";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-import { useTranslation } from "react-i18next";
 import { instructionsDisplayText } from "../lib/medication-timing-utils";
-import type { PrescriptionWithItems } from "@medbrains/types";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -177,8 +187,10 @@ function PharmacyPageInner() {
     return defaults;
   }, [complianceRaw]);
 
-  const [interactionModalOpen, { open: openInteractionModal, close: closeInteractionModal }] = useDisclosure(false);
-  const [formularyModalOpen, { open: openFormularyModal, close: closeFormularyModal }] = useDisclosure(false);
+  const [interactionModalOpen, { open: openInteractionModal, close: closeInteractionModal }] =
+    useDisclosure(false);
+  const [formularyModalOpen, { open: openFormularyModal, close: closeFormularyModal }] =
+    useDisclosure(false);
 
   return (
     <div>
@@ -189,10 +201,22 @@ function PharmacyPageInner() {
         color="success"
         actions={
           <Group gap="xs">
-            <Button size="xs" variant="light" color="orange" leftSection={<IconAlertTriangle size={14} />} onClick={openInteractionModal}>
+            <Button
+              size="xs"
+              variant="light"
+              color="orange"
+              leftSection={<IconAlertTriangle size={14} />}
+              onClick={openInteractionModal}
+            >
               Drug Interactions
             </Button>
-            <Button size="xs" variant="light" color="info" leftSection={<IconShieldCheck size={14} />} onClick={openFormularyModal}>
+            <Button
+              size="xs"
+              variant="light"
+              color="info"
+              leftSection={<IconShieldCheck size={14} />}
+              onClick={openFormularyModal}
+            >
               Formulary Check
             </Button>
           </Group>
@@ -204,8 +228,16 @@ function PharmacyPageInner() {
 
       <Tabs defaultValue={canViewRxQueue ? "rx-queue" : "orders"}>
         <Tabs.List mb="md">
-          {canViewRxQueue && <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>{t("rxQueue")}</Tabs.Tab>}
-          {(canCreatePos || canViewPos) && <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>{t("posCounter")}</Tabs.Tab>}
+          {canViewRxQueue && (
+            <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>
+              {t("rxQueue")}
+            </Tabs.Tab>
+          )}
+          {(canCreatePos || canViewPos) && (
+            <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>
+              {t("posCounter")}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="orders">{t("orders")}</Tabs.Tab>
           <Tabs.Tab value="catalog">{t("drugCatalog")}</Tabs.Tab>
           <Tabs.Tab value="stock">{t("stock")}</Tabs.Tab>
@@ -213,8 +245,12 @@ function PharmacyPageInner() {
           {canManageStock && <Tabs.Tab value="batches">{t("batch&Expiry")}</Tabs.Tab>}
           {canViewStores && <Tabs.Tab value="stores">{t("stores&Transfers")}</Tabs.Tab>}
           {canViewAnalytics && <Tabs.Tab value="analytics">{t("analytics&Reports")}</Tabs.Tab>}
-          <Tabs.Tab value="credit-notes" leftSection={<IconReceipt size={14} />}>Credit Notes</Tabs.Tab>
-          <Tabs.Tab value="store-requests" leftSection={<IconPackage size={14} />}>Store Requests</Tabs.Tab>
+          <Tabs.Tab value="credit-notes" leftSection={<IconReceipt size={14} />}>
+            Returns
+          </Tabs.Tab>
+          <Tabs.Tab value="store-requests" leftSection={<IconPackage size={14} />}>
+            Store Requests
+          </Tabs.Tab>
         </Tabs.List>
 
         {canViewRxQueue && (
@@ -271,7 +307,13 @@ function PharmacyPageInner() {
 //  Orders Tab (enhanced)
 // ══════════════════════════════════════════════════════════
 
-function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boolean; canViewReturns: boolean }) {
+function PharmacyOrdersTab({
+  canDispense,
+  canViewReturns,
+}: {
+  canDispense: boolean;
+  canViewReturns: boolean;
+}) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -294,7 +336,11 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
     mutationFn: (id: string) => api.dispenseOrder(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      notifications.show({ title: "Dispensed", message: "Order dispensed successfully", color: "success" });
+      notifications.show({
+        title: "Dispensed",
+        message: "Order dispensed successfully",
+        color: "success",
+      });
       emit("order.dispensed", { order_id: id });
     },
   });
@@ -311,13 +357,25 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
     {
       key: "patient_id",
       label: "Patient",
-      render: (row: PharmacyOrder) => <Text size="sm">{row.patient_id.slice(0, 8)}...</Text>,
+      render: (row: PharmacyOrder) => (
+        <PatientNameCell patientId={row.patient_id} showUhid={false} />
+      ),
     },
     {
       key: "dispensing_type",
       label: "Type",
       render: (row: PharmacyOrder) => (
-        <Badge size="xs" variant="light" color={row.dispensing_type === "otc" ? "teal" : row.dispensing_type === "emergency" ? "danger" : "primary"}>
+        <Badge
+          size="xs"
+          variant="light"
+          color={
+            row.dispensing_type === "otc"
+              ? "teal"
+              : row.dispensing_type === "emergency"
+                ? "danger"
+                : "primary"
+          }
+        >
           {dispensingTypeLabels[row.dispensing_type] ?? row.dispensing_type}
         </Badge>
       ),
@@ -332,7 +390,9 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
     {
       key: "created_at",
       label: "Date",
-      render: (row: PharmacyOrder) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>,
+      render: (row: PharmacyOrder) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "actions",
@@ -340,19 +400,33 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
       render: (row: PharmacyOrder) => (
         <Group gap="xs">
           <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => { setSelectedOrderId(row.id); openDetail(); }}>
+            <ActionIcon
+              variant="subtle"
+              onClick={() => {
+                setSelectedOrderId(row.id);
+                openDetail();
+              }}
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
           {canDispense && row.status === "ordered" && (
             <>
               <Tooltip label="Dispense">
-                <ActionIcon variant="subtle" color="success" onClick={() => dispenseMutation.mutate(row.id)}>
+                <ActionIcon
+                  variant="subtle"
+                  color="success"
+                  onClick={() => dispenseMutation.mutate(row.id)}
+                >
                   <IconCheck size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Cancel">
-                <ActionIcon variant="subtle" color="danger" onClick={() => cancelMutation.mutate(row.id)}>
+                <ActionIcon
+                  variant="subtle"
+                  color="danger"
+                  onClick={() => cancelMutation.mutate(row.id)}
+                >
                   <IconX size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -384,7 +458,13 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
               New Order
             </Button>
-            <Button size="xs" variant="light" color="teal" leftSection={<IconShoppingCart size={14} />} onClick={openOtc}>
+            <Button
+              size="xs"
+              variant="light"
+              color="teal"
+              leftSection={<IconShoppingCart size={14} />}
+              onClick={openOtc}
+            >
               OTC Sale
             </Button>
           </>
@@ -403,8 +483,16 @@ function PharmacyOrdersTab({ canDispense, canViewReturns }: { canDispense: boole
       <CreatePharmacyOrderDrawer opened={createOpened} onClose={closeCreate} />
       <OtcSaleDrawer opened={otcOpened} onClose={closeOtc} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Order Detail" position="right" size="xl">
-        {selectedOrderId && <PharmacyOrderDetail orderId={selectedOrderId} canViewReturns={canViewReturns} />}
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Order Detail"
+        position="right"
+        size="xl"
+      >
+        {selectedOrderId && (
+          <PharmacyOrderDetail orderId={selectedOrderId} canViewReturns={canViewReturns} />
+        )}
       </Drawer>
     </Stack>
   );
@@ -435,9 +523,15 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
     <Drawer opened={opened} onClose={onClose} title="OTC Walk-in Sale" position="right" size="lg">
       <Stack>
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Text fw={600} size="sm">Items</Text>
+        <Text fw={600} size="sm">
+          Items
+        </Text>
         {items.map((item, idx) => (
-          <Card key={idx} withBorder padding="xs">
+          <Card
+            key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
+            withBorder
+            padding="xs"
+          >
             <Stack gap="xs">
               <DrugSearchSelect
                 value={item.catalog_item_id ?? ""}
@@ -455,22 +549,39 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
                 required
               />
               <Group grow>
-            <NumberInput label="Qty" min={1} value={item.quantity} onChange={(v) => {
-              const updated = [...items];
-              updated[idx] = { ...item, quantity: Number(v) };
-              setItems(updated);
-            }} />
-            <NumberInput label="Price" min={0} decimalScale={2} prefix="₹" value={item.unit_price} onChange={(v) => {
-              const updated = [...items];
-              updated[idx] = { ...item, unit_price: Number(v) };
-              setItems(updated);
-            }} />
+                <NumberInput
+                  label="Qty"
+                  min={1}
+                  value={item.quantity}
+                  onChange={(v) => {
+                    const updated = [...items];
+                    updated[idx] = { ...item, quantity: Number(v) };
+                    setItems(updated);
+                  }}
+                />
+                <NumberInput
+                  label="Price"
+                  min={0}
+                  decimalScale={2}
+                  prefix="₹"
+                  value={item.unit_price}
+                  onChange={(v) => {
+                    const updated = [...items];
+                    updated[idx] = { ...item, unit_price: Number(v) };
+                    setItems(updated);
+                  }}
+                />
               </Group>
             </Stack>
           </Card>
         ))}
         <Group>
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}
+          >
             Add Drug
           </Button>
           <Button
@@ -489,8 +600,10 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
 
 function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const canOverrideSafety = useHasPermission(P.PHARMACY.SAFETY_OVERRIDE);
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
+  const [safetyOverrideReason, setSafetyOverrideReason] = useState("");
   const [items, setItems] = useState<(PharmacyOrderItemInput & { catalog_item_id?: string })[]>([
     { drug_name: "", quantity: 1, unit_price: 0 },
   ]);
@@ -499,27 +612,58 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
     mutationFn: (data: CreatePharmacyOrderRequest) => api.createPharmacyOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      notifications.show({ title: "Order created", message: "Pharmacy order placed", color: "success" });
+      notifications.show({
+        title: "Order created",
+        message: "Pharmacy order placed",
+        color: "success",
+      });
       onClose();
       setPatientId("");
       setNotes("");
+      setSafetyOverrideReason("");
       setItems([{ drug_name: "", quantity: 1, unit_price: 0 }]);
     },
-    onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create order", color: "danger" });
+    onError: (error) => {
+      notifications.show({
+        title: "Order blocked",
+        message: error instanceof Error ? error.message : "Failed to create order",
+        color: "danger",
+      });
     },
   });
 
   const orderTotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+  const createError =
+    createMutation.error instanceof Error ? createMutation.error.message : undefined;
 
   return (
     <Drawer opened={opened} onClose={onClose} title="New Pharmacy Order" position="right" size="lg">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
+        <PatientContextBanner patientId={patientId} hideLoadingState />
+        {createError && (
+          <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+            {createError}
+          </Alert>
+        )}
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Text fw={600} size="sm">Medications</Text>
+        {canOverrideSafety && (
+          <Textarea
+            label="Medication safety override reason"
+            value={safetyOverrideReason}
+            onChange={(e) => setSafetyOverrideReason(e.currentTarget.value)}
+            minRows={2}
+          />
+        )}
+        <Text fw={600} size="sm">
+          Medications
+        </Text>
         {items.map((item, idx) => (
-          <Card key={idx} withBorder padding="xs">
+          <Card
+            key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
+            withBorder
+            padding="xs"
+          >
             <Stack gap="xs">
               <DrugSearchSelect
                 value={item.catalog_item_id ?? ""}
@@ -537,23 +681,44 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
                 required
               />
               <Group grow>
-                <NumberInput label="Qty" min={1} value={item.quantity} onChange={(v) => {
-                  const updated = [...items];
-                  updated[idx] = { ...item, quantity: Number(v) };
-                  setItems(updated);
-                }} />
-                <NumberInput label="Unit Price" min={0} decimalScale={2} prefix="₹" value={item.unit_price} onChange={(v) => {
-                  const updated = [...items];
-                  updated[idx] = { ...item, unit_price: Number(v) };
-                  setItems(updated);
-                }} />
+                <NumberInput
+                  label="Qty"
+                  min={1}
+                  value={item.quantity}
+                  onChange={(v) => {
+                    const updated = [...items];
+                    updated[idx] = { ...item, quantity: Number(v) };
+                    setItems(updated);
+                  }}
+                />
+                <NumberInput
+                  label="Unit Price"
+                  min={0}
+                  decimalScale={2}
+                  prefix="₹"
+                  value={item.unit_price}
+                  onChange={(v) => {
+                    const updated = [...items];
+                    updated[idx] = { ...item, unit_price: Number(v) };
+                    setItems(updated);
+                  }}
+                />
                 <Stack gap={0} justify="flex-end" pb={2}>
-                  <Text size="xs" c="dimmed">Subtotal</Text>
-                  <Text size="sm" fw={600}>₹{(item.quantity * item.unit_price).toFixed(2)}</Text>
+                  <Text size="xs" c="dimmed">
+                    Subtotal
+                  </Text>
+                  <Text size="sm" fw={600}>
+                    ₹{(item.quantity * item.unit_price).toFixed(2)}
+                  </Text>
                 </Stack>
               </Group>
               {items.length > 1 && (
-                <Button size="xs" variant="subtle" color="danger" onClick={() => setItems(items.filter((_, i) => i !== idx))}>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="danger"
+                  onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                >
                   Remove
                 </Button>
               )}
@@ -561,14 +726,26 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
           </Card>
         ))}
         <Group justify="space-between">
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}
+          >
             Add Drug
           </Button>
           <Text fw={700}>Total: ₹{orderTotal.toFixed(2)}</Text>
         </Group>
         <Button
           fullWidth
-          onClick={() => createMutation.mutate({ patient_id: patientId, notes: notes || undefined, items })}
+          onClick={() =>
+            createMutation.mutate({
+              patient_id: patientId,
+              notes: notes || undefined,
+              items,
+              safety_override_reason: safetyOverrideReason.trim() || undefined,
+            })
+          }
           loading={createMutation.isPending}
           disabled={!patientId || items.every((i) => !i.drug_name)}
         >
@@ -579,7 +756,13 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
   );
 }
 
-function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; canViewReturns: boolean }) {
+function PharmacyOrderDetail({
+  orderId,
+  canViewReturns,
+}: {
+  orderId: string;
+  canViewReturns: boolean;
+}) {
   const [showAudit, setShowAudit] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
@@ -596,6 +779,10 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
     queryFn: () => api.getPrescription(prescriptionId as string),
     enabled: !!prescriptionId,
   });
+
+  // Patient identity for labels — UUID slice is medically dangerous on a
+  // dispensed-medication label, so resolve to real name + UHID.
+  const { data: patientName } = usePatientName(detail?.order.patient_id);
 
   if (!detail) return <Text c="dimmed">Loading...</Text>;
 
@@ -615,8 +802,11 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
         </Group>
       </Group>
       {detail.order.dispensed_at && (
-        <Text size="xs" c="dimmed">Dispensed: {new Date(detail.order.dispensed_at).toLocaleString()}</Text>
+        <Text size="xs" c="dimmed">
+          Dispensed: {new Date(detail.order.dispensed_at).toLocaleString()}
+        </Text>
       )}
+      <PatientContextBanner patientId={detail.order.patient_id} hideLoadingState />
 
       {/* View mode toggle — show schedule view when prescription data is available */}
       {hasRxItems && (
@@ -639,6 +829,8 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Drug</Table.Th>
+              <Table.Th>Batch</Table.Th>
+              <Table.Th>Expiry</Table.Th>
               <Table.Th>Qty</Table.Th>
               <Table.Th>Unit Price</Table.Th>
               <Table.Th>Total</Table.Th>
@@ -649,18 +841,42 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
             {detail.items.map((item) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.drug_name}</Table.Td>
+                <Table.Td>{item.batch_number ?? "\u2014"}</Table.Td>
+                <Table.Td>
+                  {item.expiry_date ? <ExpiryCell date={item.expiry_date} /> : "\u2014"}
+                </Table.Td>
                 <Table.Td>{item.quantity}</Table.Td>
-                <Table.Td>{"\u20B9"}{item.unit_price}</Table.Td>
-                <Table.Td>{"\u20B9"}{item.total_price}</Table.Td>
-                {canViewReturns && <Table.Td>{item.quantity_returned > 0 ? item.quantity_returned : "—"}</Table.Td>}
+                <Table.Td>
+                  {"\u20B9"}
+                  {item.unit_price}
+                </Table.Td>
+                <Table.Td>
+                  {"\u20B9"}
+                  {item.total_price}
+                </Table.Td>
+                {canViewReturns && (
+                  <Table.Td>{item.quantity_returned > 0 ? item.quantity_returned : "—"}</Table.Td>
+                )}
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
 
+      {/* FEFO assistance: when the order is awaiting dispense, surface
+          earliest-expiry batches so the dispenser doesn't need to flip
+          to the Batches tab to apply First-Expiry-First-Out. */}
+      {detail.order.status === "ordered" && detail.items.length > 0 && (
+        <NearExpiryHints drugNames={Array.from(new Set(detail.items.map((i) => i.drug_name)))} />
+      )}
+
       <Group gap="xs">
-        <Button variant="light" size="xs" leftSection={<IconClipboardList size={14} />} onClick={() => setShowAudit(!showAudit)}>
+        <Button
+          variant="light"
+          size="xs"
+          leftSection={<IconClipboardList size={14} />}
+          onClick={() => setShowAudit(!showAudit)}
+        >
           {showAudit ? "Hide" : "Show"} Prescription Audit Trail
         </Button>
         {hasRxItems && (
@@ -671,14 +887,19 @@ function PharmacyOrderDetail({ orderId, canViewReturns }: { orderId: string; can
       </Group>
       {showAudit && <PrescriptionAuditTrail prescriptionId={orderId} />}
       {showLabels && hasRxItems && (
-        <PharmacyLabel items={rxData.items} patientName={detail.order.patient_id.slice(0, 8)} uhid={detail.order.patient_id.slice(0, 8)} date={new Date().toLocaleDateString()} />
+        <PharmacyLabel
+          items={rxData.items}
+          patientName={patientName?.full_name ?? ""}
+          uhid={patientName?.uhid ?? ""}
+          date={new Date().toLocaleDateString()}
+        />
       )}
 
       {hasRxItems && (
         <PrescriptionViews
           prescriptions={[rxData]}
-          patientName={detail.order.patient_id.slice(0, 8)}
-          uhid={detail.order.patient_id.slice(0, 8)}
+          patientName={patientName?.full_name ?? ""}
+          uhid={patientName?.uhid ?? ""}
           allergies={[]}
         />
       )}
@@ -694,8 +915,18 @@ function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) 
     queryFn: () => api.prescriptionAudit(prescriptionId),
   });
 
-  if (isLoading) return <Text size="sm" c="dimmed">Loading audit trail...</Text>;
-  if (entries.length === 0) return <Text size="sm" c="dimmed">No audit entries found.</Text>;
+  if (isLoading)
+    return (
+      <Text size="sm" c="dimmed">
+        Loading audit trail...
+      </Text>
+    );
+  if (entries.length === 0)
+    return (
+      <Text size="sm" c="dimmed">
+        No audit entries found.
+      </Text>
+    );
 
   return (
     <Table striped>
@@ -710,14 +941,32 @@ function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) 
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {(entries as PrescriptionAuditEntry[]).map((entry, idx) => (
-          <Table.Tr key={idx}>
-            <Table.Td><Badge size="xs" variant="light">{entry.action}</Badge></Table.Td>
-            <Table.Td><Text size="sm">{entry.field_name}</Text></Table.Td>
-            <Table.Td><Text size="sm" c="dimmed">{entry.old_value ?? "—"}</Text></Table.Td>
-            <Table.Td><Text size="sm">{entry.new_value ?? "—"}</Text></Table.Td>
-            <Table.Td><Text size="sm">{entry.changed_by.slice(0, 8)}...</Text></Table.Td>
-            <Table.Td><Text size="xs" c="dimmed">{new Date(entry.changed_at).toLocaleString()}</Text></Table.Td>
+        {(entries as PrescriptionAuditEntry[]).map((entry) => (
+          <Table.Tr key={`${entry.changed_at}-${entry.action}-${entry.field_name}`}>
+            <Table.Td>
+              <Badge size="xs" variant="light">
+                {entry.action}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{entry.field_name}</Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm" c="dimmed">
+                {entry.old_value ?? "—"}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{entry.new_value ?? "—"}</Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{entry.changed_by.slice(0, 8)}...</Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="xs" c="dimmed">
+                {new Date(entry.changed_at).toLocaleString()}
+              </Text>
+            </Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>
@@ -746,6 +995,7 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
     <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="lg">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
+        <PatientContextBanner patientId={patientId} hideLoadingState />
         <DrugSearchSelect
           value={drugId}
           onChange={(id) => setDrugId(id)}
@@ -762,12 +1012,23 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
 
         {checkMutation.data && (checkMutation.data as DrugInteractionResult[]).length > 0 && (
           <Stack gap="xs">
-            <Text fw={600} size="sm">Interactions Found:</Text>
-            {(checkMutation.data as DrugInteractionResult[]).map((r, idx) => (
-              <Alert key={idx} color={severityColors[r.severity] ?? "gray"} variant="light" title={r.interacting_drug}>
+            <Text fw={600} size="sm">
+              Interactions Found:
+            </Text>
+            {(checkMutation.data as DrugInteractionResult[]).map((r) => (
+              <Alert
+                key={`${r.interacting_drug}-${r.interaction_type}-${r.severity}`}
+                color={severityColors[r.severity] ?? "gray"}
+                variant="light"
+                title={r.interacting_drug}
+              >
                 <Group gap="xs" mb={4}>
-                  <Badge color={severityColors[r.severity] ?? "gray"} size="sm">{r.severity}</Badge>
-                  <Badge variant="outline" size="sm">{r.interaction_type}</Badge>
+                  <Badge color={severityColors[r.severity] ?? "gray"} size="sm">
+                    {r.severity}
+                  </Badge>
+                  <Badge variant="outline" size="sm">
+                    {r.interaction_type}
+                  </Badge>
                 </Group>
                 <Text size="sm">{r.description}</Text>
               </Alert>
@@ -799,12 +1060,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
   return (
     <Modal opened={opened} onClose={onClose} title="Formulary Check" size="md">
       <Stack>
-        <DrugSearchSelect
-          value={drugId}
-          onChange={(id) => setDrugId(id)}
-          label="Drug"
-          required
-        />
+        <DrugSearchSelect value={drugId} onChange={(id) => setDrugId(id)} label="Drug" required />
         <Button
           onClick={() => checkMutation.mutate({ drug_id: drugId })}
           loading={checkMutation.isPending}
@@ -829,10 +1085,14 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
               )}
               {result.alternative_drugs?.length > 0 && (
                 <Stack gap={4}>
-                  <Text size="sm" fw={500}>Formulary Alternatives:</Text>
+                  <Text size="sm" fw={500}>
+                    Formulary Alternatives:
+                  </Text>
                   <Group gap={4}>
-                    {result.alternative_drugs.map((alt, idx) => (
-                      <Badge key={idx} variant="light" color="primary" size="sm">{alt}</Badge>
+                    {result.alternative_drugs.map((alt) => (
+                      <Badge key={alt} variant="light" color="primary" size="sm">
+                        {alt}
+                      </Badge>
                     ))}
                   </Group>
                 </Stack>
@@ -849,7 +1109,13 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
 //  Catalog Tab
 // ══════════════════════════════════════════════════════════
 
-function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; compliance: ComplianceSettings }) {
+function PharmacyCatalogTab({
+  canManage,
+  compliance,
+}: {
+  canManage: boolean;
+  compliance: ComplianceSettings;
+}) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [formularyFilter, setFormularyFilter] = useState<string | null>(null);
@@ -875,51 +1141,125 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text> },
-    { key: "name", label: "Name", render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text> },
-    { key: "generic_name", label: "Generic", render: (row: PharmacyCatalog) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text> },
-    { key: "category", label: "Category", render: (row: PharmacyCatalog) => <Text size="sm">{row.category ?? "\u2014"}</Text> },
-    { key: "base_price", label: "Price", render: (row: PharmacyCatalog) => <Text size="sm">{"\u20B9"}{row.base_price}</Text> },
-    { key: "current_stock", label: "Stock", render: (row: PharmacyCatalog) => (
-      <Text size="sm" c={row.current_stock < row.reorder_level ? "danger" : undefined} fw={row.current_stock < row.reorder_level ? 700 : undefined}>
-        {row.current_stock}
-        {row.current_stock < row.reorder_level && <IconAlertTriangle size={12} style={{ marginLeft: 4, verticalAlign: "middle" }} />}
-      </Text>
-    )},
+    {
+      key: "code",
+      label: "Code",
+      render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text>,
+    },
+    {
+      key: "name",
+      label: "Name",
+      render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text>,
+    },
+    {
+      key: "generic_name",
+      label: "Generic",
+      render: (row: PharmacyCatalog) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text>,
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (row: PharmacyCatalog) => <Text size="sm">{row.category ?? "\u2014"}</Text>,
+    },
+    {
+      key: "base_price",
+      label: "Price",
+      render: (row: PharmacyCatalog) => (
+        <Text size="sm">
+          {"\u20B9"}
+          {row.base_price}
+        </Text>
+      ),
+    },
+    {
+      key: "current_stock",
+      label: "Stock",
+      render: (row: PharmacyCatalog) => (
+        <Text
+          size="sm"
+          c={row.current_stock < row.reorder_level ? "danger" : undefined}
+          fw={row.current_stock < row.reorder_level ? 700 : undefined}
+        >
+          {row.current_stock}
+          {row.current_stock < row.reorder_level && (
+            <IconAlertTriangle size={12} style={{ marginLeft: 4, verticalAlign: "middle" }} />
+          )}
+        </Text>
+      ),
+    },
     {
       key: "regulatory",
       label: "Regulatory",
       render: (row: PharmacyCatalog) => (
         <Group gap={2}>
           {compliance.show_schedule_badges && row.drug_schedule && (
-            <Badge size="xs" variant="light" color={row.drug_schedule === "X" || row.drug_schedule === "NDPS" ? "danger" : row.drug_schedule === "H1" ? "orange" : "primary"}>
+            <Badge
+              size="xs"
+              variant="light"
+              color={
+                row.drug_schedule === "X" || row.drug_schedule === "NDPS"
+                  ? "danger"
+                  : row.drug_schedule === "H1"
+                    ? "orange"
+                    : "primary"
+              }
+            >
               Sch-{row.drug_schedule}
             </Badge>
           )}
           {compliance.show_controlled_warnings && row.is_controlled && (
-            <Badge size="xs" variant="filled" color="danger">CTRL</Badge>
+            <Badge size="xs" variant="filled" color="danger">
+              CTRL
+            </Badge>
           )}
           {compliance.show_formulary_status && row.formulary_status !== "approved" && (
-            <Badge size="xs" variant="light" color={row.formulary_status === "restricted" ? "warning" : "gray"}>
+            <Badge
+              size="xs"
+              variant="light"
+              color={row.formulary_status === "restricted" ? "warning" : "gray"}
+            >
               {row.formulary_status === "restricted" ? "Restricted" : "Non-Formulary"}
             </Badge>
           )}
           {compliance.show_aware_category && row.aware_category && (
-            <Badge size="xs" variant="light" color={row.aware_category === "reserve" ? "danger" : row.aware_category === "watch" ? "orange" : "success"}>
+            <Badge
+              size="xs"
+              variant="light"
+              color={
+                row.aware_category === "reserve"
+                  ? "danger"
+                  : row.aware_category === "watch"
+                    ? "orange"
+                    : "success"
+              }
+            >
               AWaRe: {row.aware_category}
             </Badge>
           )}
         </Group>
       ),
     },
-    { key: "is_active", label: "Active", render: (row: PharmacyCatalog) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: PharmacyCatalog) =>
+        row.is_active ? (
+          <IconCheck size={14} color="success" />
+        ) : (
+          <IconX size={14} color="danger" />
+        ),
+    },
   ];
 
   return (
     <Stack>
       <Group>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Drug
           </Button>
         )}
@@ -939,41 +1279,140 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput
+              label="Code"
+              required
+              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Name"
+              required
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
           </Group>
           <Group grow>
-            <TextInput label="Generic Name" onChange={(e) => setForm({ ...form, generic_name: e.currentTarget.value || undefined })} />
-            <Select label="Category" data={DRUG_CATEGORIES} onChange={(v) => setForm({ ...form, category: v || undefined })} clearable searchable />
+            <TextInput
+              label="Generic Name"
+              onChange={(e) =>
+                setForm({ ...form, generic_name: e.currentTarget.value || undefined })
+              }
+            />
+            <Select
+              label="Category"
+              data={DRUG_CATEGORIES}
+              onChange={(v) => setForm({ ...form, category: v || undefined })}
+              clearable
+              searchable
+            />
           </Group>
           <Group grow>
-            <TextInput label="Manufacturer" onChange={(e) => setForm({ ...form, manufacturer: e.currentTarget.value || undefined })} />
-            <TextInput label="Unit" onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="Manufacturer"
+              onChange={(e) =>
+                setForm({ ...form, manufacturer: e.currentTarget.value || undefined })
+              }
+            />
+            <TextInput
+              label="Unit"
+              onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })}
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Base Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, base_price: Number(v) })} />
-            <NumberInput label="Tax %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, tax_percent: Number(v) })} />
-            <NumberInput label="Reorder Level" min={0} onChange={(v) => setForm({ ...form, reorder_level: Number(v) || undefined })} />
+            <NumberInput
+              label="Base Price"
+              required
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, base_price: Number(v) })}
+            />
+            <NumberInput
+              label="Tax %"
+              min={0}
+              max={100}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, tax_percent: Number(v) })}
+            />
+            <NumberInput
+              label="Reorder Level"
+              min={0}
+              onChange={(v) => setForm({ ...form, reorder_level: Number(v) || undefined })}
+            />
           </Group>
-          <Text fw={600} size="sm" mt="xs">Regulatory Classification</Text>
+          <Text fw={600} size="sm" mt="xs">
+            Regulatory Classification
+          </Text>
           <Group grow>
-            <Select label="Drug Schedule" placeholder="Select schedule" data={[
-              { value: "H", label: "H" }, { value: "H1", label: "H1" }, { value: "X", label: "X" },
-              { value: "G", label: "G" }, { value: "OTC", label: "OTC" }, { value: "NDPS", label: "NDPS" },
-            ]} value={form.drug_schedule ?? null} onChange={(v) => setForm({ ...form, drug_schedule: (v as DrugSchedule) || undefined })} clearable />
-            <Select label="Formulary Status" placeholder="Select status" data={[
-              { value: "approved", label: "Approved" }, { value: "restricted", label: "Restricted" }, { value: "non_formulary", label: "Non-Formulary" },
-            ]} value={form.formulary_status ?? null} onChange={(v) => setForm({ ...form, formulary_status: (v as FormularyStatus) || undefined })} clearable />
-            <Select label="AWaRe Category" description="For antibiotics only" placeholder="Select category" data={[
-              { value: "access", label: "Access" }, { value: "watch", label: "Watch" }, { value: "reserve", label: "Reserve" },
-            ]} value={form.aware_category ?? null} onChange={(v) => setForm({ ...form, aware_category: (v as AwareCategory) || undefined })} clearable />
+            <Select
+              label="Drug Schedule"
+              placeholder="Select schedule"
+              data={[
+                { value: "H", label: "H" },
+                { value: "H1", label: "H1" },
+                { value: "X", label: "X" },
+                { value: "G", label: "G" },
+                { value: "OTC", label: "OTC" },
+                { value: "NDPS", label: "NDPS" },
+              ]}
+              value={form.drug_schedule ?? null}
+              onChange={(v) =>
+                setForm({ ...form, drug_schedule: (v as DrugSchedule) || undefined })
+              }
+              clearable
+            />
+            <Select
+              label="Formulary Status"
+              placeholder="Select status"
+              data={[
+                { value: "approved", label: "Approved" },
+                { value: "restricted", label: "Restricted" },
+                { value: "non_formulary", label: "Non-Formulary" },
+              ]}
+              value={form.formulary_status ?? null}
+              onChange={(v) =>
+                setForm({ ...form, formulary_status: (v as FormularyStatus) || undefined })
+              }
+              clearable
+            />
+            <Select
+              label="AWaRe Category"
+              description="For antibiotics only"
+              placeholder="Select category"
+              data={[
+                { value: "access", label: "Access" },
+                { value: "watch", label: "Watch" },
+                { value: "reserve", label: "Reserve" },
+              ]}
+              value={form.aware_category ?? null}
+              onChange={(v) =>
+                setForm({ ...form, aware_category: (v as AwareCategory) || undefined })
+              }
+              clearable
+            />
           </Group>
           <Group grow>
-            <TextInput label="INN Name" placeholder="International Nonproprietary Name" onChange={(e) => setForm({ ...form, inn_name: e.currentTarget.value || undefined })} />
-            <TextInput label="ATC Code" placeholder="e.g. J01CA04" onChange={(e) => setForm({ ...form, atc_code: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="INN Name"
+              placeholder="International Nonproprietary Name"
+              onChange={(e) => setForm({ ...form, inn_name: e.currentTarget.value || undefined })}
+            />
+            <TextInput
+              label="ATC Code"
+              placeholder="e.g. J01CA04"
+              onChange={(e) => setForm({ ...form, atc_code: e.currentTarget.value || undefined })}
+            />
           </Group>
-          <Switch label="Controlled Substance" checked={form.is_controlled ?? false} onChange={(e) => setForm({ ...form, is_controlled: e.currentTarget.checked || undefined })} />
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreatePharmacyCatalogRequest)} loading={createMutation.isPending}>
+          <Switch
+            label="Controlled Substance"
+            checked={form.is_controlled ?? false}
+            onChange={(e) =>
+              setForm({ ...form, is_controlled: e.currentTarget.checked || undefined })
+            }
+          />
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreatePharmacyCatalogRequest)}
+            loading={createMutation.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -990,7 +1429,9 @@ function PharmacyCatalogTab({ canManage, compliance }: { canManage: boolean; com
 function StockTab({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateStockTransactionRequest>>({ transaction_type: "receipt" as StockTransactionType });
+  const [form, setForm] = useState<Partial<CreateStockTransactionRequest>>({
+    transaction_type: "receipt" as StockTransactionType,
+  });
 
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["pharmacy-stock"],
@@ -1004,16 +1445,31 @@ function StockTab({ canManage }: { canManage: boolean }) {
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
-      notifications.show({ title: "Stock updated", message: "Transaction recorded", color: "success" });
-      emit("stock.movement", { transaction_type: variables.transaction_type, quantity: variables.quantity });
+      notifications.show({
+        title: "Stock updated",
+        message: "Transaction recorded",
+        color: "success",
+      });
+      emit("stock.movement", {
+        transaction_type: variables.transaction_type,
+        quantity: variables.quantity,
+      });
       setShowForm(false);
       setForm({ transaction_type: "receipt" as StockTransactionType });
     },
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text> },
-    { key: "name", label: "Drug Name", render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text> },
+    {
+      key: "code",
+      label: "Code",
+      render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text>,
+    },
+    {
+      key: "name",
+      label: "Drug Name",
+      render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text>,
+    },
     {
       key: "current_stock",
       label: "Current Stock",
@@ -1023,15 +1479,23 @@ function StockTab({ canManage }: { canManage: boolean }) {
         </Badge>
       ),
     },
-    { key: "reorder_level", label: "Reorder Level", render: (row: PharmacyCatalog) => <Text size="sm">{row.reorder_level}</Text> },
+    {
+      key: "reorder_level",
+      label: "Reorder Level",
+      render: (row: PharmacyCatalog) => <Text size="sm">{row.reorder_level}</Text>,
+    },
     {
       key: "status",
       label: "Status",
       render: (row: PharmacyCatalog) =>
         row.current_stock < row.reorder_level ? (
-          <Badge color="danger" variant="filled" size="sm">Low Stock</Badge>
+          <Badge color="danger" variant="filled" size="sm">
+            Low Stock
+          </Badge>
         ) : (
-          <Badge color="success" variant="light" size="sm">OK</Badge>
+          <Badge color="success" variant="light" size="sm">
+            OK
+          </Badge>
         ),
     },
   ];
@@ -1040,23 +1504,52 @@ function StockTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPackage size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPackage size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             New Stock Transaction
           </Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
-          <DrugSearchSelect value={form.catalog_item_id ?? ""} onChange={(id) => setForm({ ...form, catalog_item_id: id })} required />
+          <DrugSearchSelect
+            value={form.catalog_item_id ?? ""}
+            onChange={(id) => setForm({ ...form, catalog_item_id: id })}
+            required
+          />
           <Group grow>
-            <Select label="Type" data={[
-              { value: "receipt", label: "Receipt (In)" }, { value: "issue", label: "Issue (Out)" },
-              { value: "return", label: "Return" }, { value: "adjustment", label: "Adjustment" },
-            ]} value={form.transaction_type} onChange={(v) => setForm({ ...form, transaction_type: (v ?? "receipt") as StockTransactionType })} />
-            <NumberInput label="Quantity" required min={1} onChange={(v) => setForm({ ...form, quantity: Number(v) })} />
+            <Select
+              label="Type"
+              data={[
+                { value: "receipt", label: "Receipt (In)" },
+                { value: "issue", label: "Issue (Out)" },
+                { value: "return", label: "Return" },
+                { value: "adjustment", label: "Adjustment" },
+              ]}
+              value={form.transaction_type}
+              onChange={(v) =>
+                setForm({ ...form, transaction_type: (v ?? "receipt") as StockTransactionType })
+              }
+            />
+            <NumberInput
+              label="Quantity"
+              required
+              min={1}
+              onChange={(v) => setForm({ ...form, quantity: Number(v) })}
+            />
           </Group>
-          <TextInput label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button size="xs" onClick={() => createTxMutation.mutate(form as CreateStockTransactionRequest)} loading={createTxMutation.isPending}>
+          <TextInput
+            label="Notes"
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            size="xs"
+            onClick={() => createTxMutation.mutate(form as CreateStockTransactionRequest)}
+            loading={createTxMutation.isPending}
+          >
             Record Transaction
           </Button>
         </Stack>
@@ -1091,25 +1584,69 @@ function NdpsRegisterTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
-      notifications.show({ title: "NDPS Entry", message: "Register entry recorded", color: "success" });
+      notifications.show({
+        title: "NDPS Entry",
+        message: "Register entry recorded",
+        color: "success",
+      });
       setShowForm(false);
       setForm({ action: "receipt" });
     },
   });
 
   const actionColors: Record<string, string> = {
-    receipt: "success", dispensed: "primary", destroyed: "danger", transferred: "orange", adjustment: "gray",
+    receipt: "success",
+    dispensed: "primary",
+    destroyed: "danger",
+    transferred: "orange",
+    adjustment: "gray",
   };
 
   const columns = [
-    { key: "action", label: "Action", render: (row: NdpsRegisterEntry) => (
-      <Badge size="xs" color={actionColors[row.action] ?? "gray"}>{row.action}</Badge>
-    )},
-    { key: "quantity", label: "Qty", render: (row: NdpsRegisterEntry) => <Text size="sm">{row.quantity}</Text> },
-    { key: "balance_after", label: "Balance", render: (row: NdpsRegisterEntry) => <Text size="sm" fw={700}>{row.balance_after}</Text> },
-    { key: "dispensed_by", label: "By", render: (row: NdpsRegisterEntry) => <Text size="sm">{row.dispensed_by?.slice(0, 8) ?? "\u2014"}</Text> },
-    { key: "witnessed_by", label: "Witness", render: (row: NdpsRegisterEntry) => <Text size="sm">{row.witnessed_by?.slice(0, 8) ?? "\u2014"}</Text> },
-    { key: "created_at", label: "Date", render: (row: NdpsRegisterEntry) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text> },
+    {
+      key: "action",
+      label: "Action",
+      render: (row: NdpsRegisterEntry) => (
+        <Badge size="xs" color={actionColors[row.action] ?? "gray"}>
+          {row.action}
+        </Badge>
+      ),
+    },
+    {
+      key: "quantity",
+      label: "Qty",
+      render: (row: NdpsRegisterEntry) => <Text size="sm">{row.quantity}</Text>,
+    },
+    {
+      key: "balance_after",
+      label: "Balance",
+      render: (row: NdpsRegisterEntry) => (
+        <Text size="sm" fw={700}>
+          {row.balance_after}
+        </Text>
+      ),
+    },
+    {
+      key: "dispensed_by",
+      label: "By",
+      render: (row: NdpsRegisterEntry) => (
+        <Text size="sm">{row.dispensed_by?.slice(0, 8) ?? "\u2014"}</Text>
+      ),
+    },
+    {
+      key: "witnessed_by",
+      label: "Witness",
+      render: (row: NdpsRegisterEntry) => (
+        <Text size="sm">{row.witnessed_by?.slice(0, 8) ?? "\u2014"}</Text>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Date",
+      render: (row: NdpsRegisterEntry) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
+    },
   ];
 
   return (
@@ -1117,7 +1654,12 @@ function NdpsRegisterTab() {
       {balance?.entries && balance.entries.length > 0 && (
         <Group gap="sm">
           {balance.entries.map((b) => (
-            <Badge key={b.catalog_item_id} size="lg" variant="light" leftSection={<IconLock size={12} />}>
+            <Badge
+              key={b.catalog_item_id}
+              size="lg"
+              variant="light"
+              leftSection={<IconLock size={12} />}
+            >
               {b.drug_name}: {b.balance}
             </Badge>
           ))}
@@ -1125,28 +1667,60 @@ function NdpsRegisterTab() {
       )}
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Manual Entry
           </Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
-          <DrugSearchSelect value={form.catalog_item_id ?? ""} onChange={(id) => setForm({ ...form, catalog_item_id: id })} required />
+          <DrugSearchSelect
+            value={form.catalog_item_id ?? ""}
+            onChange={(id) => setForm({ ...form, catalog_item_id: id })}
+            required
+          />
           <Group grow>
-            <Select label="Action" data={[
-              { value: "receipt", label: "Receipt" }, { value: "destroyed", label: "Destroyed" },
-              { value: "transferred", label: "Transferred" }, { value: "adjustment", label: "Adjustment" },
-            ]} value={form.action ?? "receipt"} onChange={(v) => setForm({ ...form, action: v as CreateNdpsEntryRequest["action"] })} />
-            <NumberInput label="Quantity" required min={1} onChange={(v) => setForm({ ...form, quantity: Number(v) })} />
+            <Select
+              label="Action"
+              data={[
+                { value: "receipt", label: "Receipt" },
+                { value: "destroyed", label: "Destroyed" },
+                { value: "transferred", label: "Transferred" },
+                { value: "adjustment", label: "Adjustment" },
+              ]}
+              value={form.action ?? "receipt"}
+              onChange={(v) => setForm({ ...form, action: v as CreateNdpsEntryRequest["action"] })}
+            />
+            <NumberInput
+              label="Quantity"
+              required
+              min={1}
+              onChange={(v) => setForm({ ...form, quantity: Number(v) })}
+            />
           </Group>
-          <TextInput label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateNdpsEntryRequest)} loading={createMutation.isPending}>
+          <TextInput
+            label="Notes"
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateNdpsEntryRequest)}
+            loading={createMutation.isPending}
+          >
             Record
           </Button>
         </Stack>
       )}
-      <DataTable columns={columns} data={data?.entries ?? []} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={data?.entries ?? []}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+      />
     </Stack>
   );
 }
@@ -1183,18 +1757,114 @@ function BatchLedgerView() {
   });
 
   const columns = [
-    { key: "batch_number", label: "Batch #", render: (row: PharmacyBatch) => <Text fw={500} size="sm">{row.batch_number}</Text> },
-    { key: "expiry_date", label: "Expiry", render: (row: PharmacyBatch) => {
-      const days = Math.ceil((new Date(row.expiry_date).getTime() - Date.now()) / 86400000);
-      return <Text size="sm" c={days < 30 ? "danger" : days < 60 ? "orange" : undefined}>{row.expiry_date}</Text>;
-    }},
-    { key: "quantity_received", label: "Received", render: (row: PharmacyBatch) => <Text size="sm">{row.quantity_received}</Text> },
-    { key: "quantity_dispensed", label: "Dispensed", render: (row: PharmacyBatch) => <Text size="sm">{row.quantity_dispensed}</Text> },
-    { key: "quantity_on_hand", label: "On Hand", render: (row: PharmacyBatch) => <Badge size="sm" color={row.quantity_on_hand <= 0 ? "danger" : "success"} variant="light">{row.quantity_on_hand}</Badge> },
-    { key: "store_location_id", label: "Location", render: (row: PharmacyBatch) => <Text size="sm">{row.store_location_id?.slice(0, 8) ?? "\u2014"}</Text> },
+    {
+      key: "batch_number",
+      label: "Batch #",
+      render: (row: PharmacyBatch) => (
+        <Text fw={500} size="sm">
+          {row.batch_number}
+        </Text>
+      ),
+    },
+    {
+      key: "expiry_date",
+      label: "Expiry",
+      render: (row: PharmacyBatch) => {
+        const days = Math.ceil((new Date(row.expiry_date).getTime() - Date.now()) / 86400000);
+        return (
+          <Text size="sm" c={days < 30 ? "danger" : days < 60 ? "orange" : undefined}>
+            {row.expiry_date}
+          </Text>
+        );
+      },
+    },
+    {
+      key: "quantity_received",
+      label: "Received",
+      render: (row: PharmacyBatch) => <Text size="sm">{row.quantity_received}</Text>,
+    },
+    {
+      key: "quantity_dispensed",
+      label: "Dispensed",
+      render: (row: PharmacyBatch) => <Text size="sm">{row.quantity_dispensed}</Text>,
+    },
+    {
+      key: "quantity_on_hand",
+      label: "On Hand",
+      render: (row: PharmacyBatch) => (
+        <Badge size="sm" color={row.quantity_on_hand <= 0 ? "danger" : "success"} variant="light">
+          {row.quantity_on_hand}
+        </Badge>
+      ),
+    },
+    {
+      key: "store_location_id",
+      label: "Location",
+      render: (row: PharmacyBatch) => (
+        <Text size="sm">{row.store_location_id?.slice(0, 8) ?? "\u2014"}</Text>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={batches} loading={isLoading} rowKey={(row) => row.id} />;
+  return (
+    <DataTable columns={columns} data={batches} loading={isLoading} rowKey={(row) => row.id} />
+  );
+}
+
+// Compact expiry cell for inline use inside order detail tables. Color
+// matches the NearExpiryView convention: red < 30d, orange < 60d.
+function ExpiryCell({ date }: { date: string }) {
+  const days = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
+  const color = days < 0 ? "danger" : days < 30 ? "danger" : days < 60 ? "orange" : undefined;
+  return (
+    <Text size="xs" c={color} fw={days < 60 ? 600 : 400}>
+      {date}
+      {days >= 0 ? ` (${days}d)` : " (expired)"}
+    </Text>
+  );
+}
+
+// Surfaces the earliest-expiry batches for the drugs in this order so
+// dispensers can apply FEFO at a glance. Filters the global near-expiry
+// report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
+function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
+  const nameSet = useMemo(() => new Set(drugNames.map((n) => n.toLowerCase())), [drugNames]);
+  const { data: rows = [] } = useQuery({
+    queryKey: ["pharmacy-near-expiry-hints"],
+    queryFn: () => api.getNearExpiryReport({ days: "180" }),
+    enabled: drugNames.length > 0,
+  });
+  const relevant = rows.filter((r) => nameSet.has(r.drug_name.toLowerCase())).slice(0, 8);
+  if (relevant.length === 0) return null;
+  return (
+    <Stack gap={4}>
+      <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+        FEFO suggestions — earliest-expiry batches in stock
+      </Text>
+      <Table withRowBorders={false}>
+        <Table.Tbody>
+          {relevant.map((r) => (
+            <Table.Tr key={`${r.drug_name}-${r.batch_number}`}>
+              <Table.Td>
+                <Text size="xs">{r.drug_name}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs" ff="monospace">
+                  Batch {r.batch_number}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <ExpiryCell date={r.expiry_date} />
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs">on-hand: {r.quantity_on_hand}</Text>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Stack>
+  );
 }
 
 function NearExpiryView() {
@@ -1204,22 +1874,68 @@ function NearExpiryView() {
   });
 
   const columns = [
-    { key: "drug_name", label: "Drug", render: (row: NearExpiryRow) => <Text size="sm">{row.drug_name}</Text> },
-    { key: "batch_number", label: "Batch #", render: (row: NearExpiryRow) => <Text size="sm">{row.batch_number}</Text> },
-    { key: "expiry_date", label: "Expiry", render: (row: NearExpiryRow) => (
-      <Text size="sm" c={row.days_until_expiry < 30 ? "danger" : row.days_until_expiry < 60 ? "orange" : "warning"} fw={700}>
-        {row.expiry_date}
-      </Text>
-    )},
-    { key: "quantity_on_hand", label: "On Hand", render: (row: NearExpiryRow) => <Text size="sm">{row.quantity_on_hand}</Text> },
-    { key: "days_until_expiry", label: "Days Left", render: (row: NearExpiryRow) => (
-      <Badge size="sm" color={row.days_until_expiry < 30 ? "danger" : row.days_until_expiry < 60 ? "orange" : "warning"}>
-        {row.days_until_expiry}d
-      </Badge>
-    )},
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (row: NearExpiryRow) => <Text size="sm">{row.drug_name}</Text>,
+    },
+    {
+      key: "batch_number",
+      label: "Batch #",
+      render: (row: NearExpiryRow) => <Text size="sm">{row.batch_number}</Text>,
+    },
+    {
+      key: "expiry_date",
+      label: "Expiry",
+      render: (row: NearExpiryRow) => (
+        <Text
+          size="sm"
+          c={
+            row.days_until_expiry < 30
+              ? "danger"
+              : row.days_until_expiry < 60
+                ? "orange"
+                : "warning"
+          }
+          fw={700}
+        >
+          {row.expiry_date}
+        </Text>
+      ),
+    },
+    {
+      key: "quantity_on_hand",
+      label: "On Hand",
+      render: (row: NearExpiryRow) => <Text size="sm">{row.quantity_on_hand}</Text>,
+    },
+    {
+      key: "days_until_expiry",
+      label: "Days Left",
+      render: (row: NearExpiryRow) => (
+        <Badge
+          size="sm"
+          color={
+            row.days_until_expiry < 30
+              ? "danger"
+              : row.days_until_expiry < 60
+                ? "orange"
+                : "warning"
+          }
+        >
+          {row.days_until_expiry}d
+        </Badge>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => `${row.batch_number}-${row.expiry_date}`} />;
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={isLoading}
+      rowKey={(row) => `${row.batch_number}-${row.expiry_date}`}
+    />
+  );
 }
 
 function DeadStockView() {
@@ -1229,14 +1945,51 @@ function DeadStockView() {
   });
 
   const columns = [
-    { key: "drug_name", label: "Drug", render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.drug_name}</Text> },
-    { key: "current_stock", label: "Stock", render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.current_stock}</Text> },
-    { key: "stock_value", label: "Value", render: (row: PharmacyDeadStockRow) => <Text size="sm">{"\u20B9"}{Number(row.stock_value).toLocaleString()}</Text> },
-    { key: "last_dispensed_date", label: "Last Dispensed", render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.last_dispensed_date ? new Date(row.last_dispensed_date).toLocaleDateString() : "Never"}</Text> },
-    { key: "days_idle", label: "Days Idle", render: (row: PharmacyDeadStockRow) => <Badge size="sm" color="orange">{row.days_idle ?? "N/A"}</Badge> },
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.drug_name}</Text>,
+    },
+    {
+      key: "current_stock",
+      label: "Stock",
+      render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.current_stock}</Text>,
+    },
+    {
+      key: "stock_value",
+      label: "Value",
+      render: (row: PharmacyDeadStockRow) => (
+        <Text size="sm">
+          {"\u20B9"}
+          {Number(row.stock_value).toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "last_dispensed_date",
+      label: "Last Dispensed",
+      render: (row: PharmacyDeadStockRow) => (
+        <Text size="sm">
+          {row.last_dispensed_date
+            ? new Date(row.last_dispensed_date).toLocaleDateString()
+            : "Never"}
+        </Text>
+      ),
+    },
+    {
+      key: "days_idle",
+      label: "Days Idle",
+      render: (row: PharmacyDeadStockRow) => (
+        <Badge size="sm" color="orange">
+          {row.days_idle ?? "N/A"}
+        </Badge>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
+  return (
+    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1269,13 +2022,44 @@ function PharmacyLocationsView() {
   });
 
   const columns = [
-    { key: "store_location_id", label: "Location", render: (row: PharmacyStoreAssignment) => <Text size="sm">{row.store_location_id.slice(0, 8)}...</Text> },
-    { key: "is_central", label: "Central", render: (row: PharmacyStoreAssignment) => row.is_central ? <Badge color="primary" size="xs">Central</Badge> : <Text size="sm">Satellite</Text> },
-    { key: "serves_departments", label: "Departments", render: (row: PharmacyStoreAssignment) => <Text size="sm">{row.serves_departments?.length ?? 0} depts</Text> },
-    { key: "created_at", label: "Created", render: (row: PharmacyStoreAssignment) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text> },
+    {
+      key: "store_location_id",
+      label: "Location",
+      render: (row: PharmacyStoreAssignment) => (
+        <Text size="sm">{row.store_location_id.slice(0, 8)}...</Text>
+      ),
+    },
+    {
+      key: "is_central",
+      label: "Central",
+      render: (row: PharmacyStoreAssignment) =>
+        row.is_central ? (
+          <Badge color="primary" size="xs">
+            Central
+          </Badge>
+        ) : (
+          <Text size="sm">Satellite</Text>
+        ),
+    },
+    {
+      key: "serves_departments",
+      label: "Departments",
+      render: (row: PharmacyStoreAssignment) => (
+        <Text size="sm">{row.serves_departments?.length ?? 0} depts</Text>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Created",
+      render: (row: PharmacyStoreAssignment) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={assignments} loading={isLoading} rowKey={(row) => row.id} />;
+  return (
+    <DataTable columns={columns} data={assignments} loading={isLoading} rowKey={(row) => row.id} />
+  );
 }
 
 function TransfersView() {
@@ -1291,33 +2075,76 @@ function TransfersView() {
     mutationFn: (id: string) => api.approvePharmacyTransfer(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
-      notifications.show({ title: "Transfer Approved", message: "Transfer request approved", color: "success" });
+      notifications.show({
+        title: "Transfer Approved",
+        message: "Transfer request approved",
+        color: "success",
+      });
     },
   });
 
   const transferStatusColors: Record<string, string> = {
-    draft: "gray", approved: "primary", transferred: "success", cancelled: "danger",
+    draft: "gray",
+    approved: "primary",
+    transferred: "success",
+    cancelled: "danger",
   };
 
   const columns = [
-    { key: "from_location_id", label: "From", render: (row: PharmacyTransferRequest) => <Text size="sm">{row.from_location_id.slice(0, 8)}...</Text> },
-    { key: "to_location_id", label: "To", render: (row: PharmacyTransferRequest) => <Text size="sm">{row.to_location_id.slice(0, 8)}...</Text> },
-    { key: "status", label: "Status", render: (row: PharmacyTransferRequest) => <Badge size="xs" color={transferStatusColors[row.status] ?? "gray"}>{row.status}</Badge> },
-    { key: "created_at", label: "Date", render: (row: PharmacyTransferRequest) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text> },
-    { key: "actions", label: "Actions", render: (row: PharmacyTransferRequest) => (
-      <Group gap="xs">
-        {canManage && row.status === "draft" && (
-          <Tooltip label="Approve">
-            <ActionIcon variant="subtle" color="success" onClick={() => approveMutation.mutate(row.id)}>
-              <IconCheck size={16} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </Group>
-    )},
+    {
+      key: "from_location_id",
+      label: "From",
+      render: (row: PharmacyTransferRequest) => (
+        <Text size="sm">{row.from_location_id.slice(0, 8)}...</Text>
+      ),
+    },
+    {
+      key: "to_location_id",
+      label: "To",
+      render: (row: PharmacyTransferRequest) => (
+        <Text size="sm">{row.to_location_id.slice(0, 8)}...</Text>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: PharmacyTransferRequest) => (
+        <Badge size="xs" color={transferStatusColors[row.status] ?? "gray"}>
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Date",
+      render: (row: PharmacyTransferRequest) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: PharmacyTransferRequest) => (
+        <Group gap="xs">
+          {canManage && row.status === "draft" && (
+            <Tooltip label="Approve">
+              <ActionIcon
+                variant="subtle"
+                color="success"
+                onClick={() => approveMutation.mutate(row.id)}
+              >
+                <IconCheck size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={transfers} loading={isLoading} rowKey={(row) => row.id} />;
+  return (
+    <DataTable columns={columns} data={transfers} loading={isLoading} rowKey={(row) => row.id} />
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1352,13 +2179,40 @@ function ConsumptionView() {
   });
 
   const columns = [
-    { key: "drug_name", label: "Drug", render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.drug_name}</Text> },
-    { key: "category", label: "Category", render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.category ?? "\u2014"}</Text> },
-    { key: "total_dispensed", label: "Total Dispensed", render: (row: PharmacyConsumptionRow) => <Text size="sm" fw={700}>{row.total_dispensed}</Text> },
-    { key: "total_value", label: "Total Value", render: (row: PharmacyConsumptionRow) => <Text size="sm">{"\u20B9"}{Number(row.total_value).toLocaleString()}</Text> },
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.drug_name}</Text>,
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.category ?? "\u2014"}</Text>,
+    },
+    {
+      key: "total_dispensed",
+      label: "Total Dispensed",
+      render: (row: PharmacyConsumptionRow) => (
+        <Text size="sm" fw={700}>
+          {row.total_dispensed}
+        </Text>
+      ),
+    },
+    {
+      key: "total_value",
+      label: "Total Value",
+      render: (row: PharmacyConsumptionRow) => (
+        <Text size="sm">
+          {"\u20B9"}
+          {Number(row.total_value).toLocaleString()}
+        </Text>
+      ),
+    },
   ];
 
-  return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
+  return (
+    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+  );
 }
 
 function AbcVedView() {
@@ -1371,13 +2225,47 @@ function AbcVedView() {
   const vedColors: Record<string, string> = { V: "danger", E: "orange", D: "success" };
 
   const columns = [
-    { key: "drug_name", label: "Drug", render: (row: PharmacyAbcVedRow) => <Text size="sm">{row.drug_name}</Text> },
-    { key: "annual_value", label: "Annual Value", render: (row: PharmacyAbcVedRow) => <Text size="sm">{"\u20B9"}{Number(row.annual_value).toLocaleString()}</Text> },
-    { key: "abc_class", label: "ABC", render: (row: PharmacyAbcVedRow) => <Badge size="xs" color={abcColors[row.abc_class] ?? "gray"}>{row.abc_class}</Badge> },
-    { key: "ved_class", label: "VED", render: (row: PharmacyAbcVedRow) => row.ved_class ? <Badge size="xs" color={vedColors[row.ved_class] ?? "gray"}>{row.ved_class}</Badge> : <Text size="sm">{"\u2014"}</Text> },
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (row: PharmacyAbcVedRow) => <Text size="sm">{row.drug_name}</Text>,
+    },
+    {
+      key: "annual_value",
+      label: "Annual Value",
+      render: (row: PharmacyAbcVedRow) => (
+        <Text size="sm">
+          {"\u20B9"}
+          {Number(row.annual_value).toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "abc_class",
+      label: "ABC",
+      render: (row: PharmacyAbcVedRow) => (
+        <Badge size="xs" color={abcColors[row.abc_class] ?? "gray"}>
+          {row.abc_class}
+        </Badge>
+      ),
+    },
+    {
+      key: "ved_class",
+      label: "VED",
+      render: (row: PharmacyAbcVedRow) =>
+        row.ved_class ? (
+          <Badge size="xs" color={vedColors[row.ved_class] ?? "gray"}>
+            {row.ved_class}
+          </Badge>
+        ) : (
+          <Text size="sm">{"\u2014"}</Text>
+        ),
+    },
   ];
 
-  return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
+  return (
+    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+  );
 }
 
 function UtilizationView() {
@@ -1387,17 +2275,56 @@ function UtilizationView() {
   });
 
   const columns = [
-    { key: "drug_name", label: "Drug", render: (row: DrugUtilizationRow) => <Text size="sm">{row.drug_name}</Text> },
-    { key: "generic_name", label: "Generic", render: (row: DrugUtilizationRow) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text> },
-    { key: "aware_category", label: "AWaRe", render: (row: DrugUtilizationRow) => row.aware_category
-      ? <Badge size="xs" color={row.aware_category === "reserve" ? "danger" : row.aware_category === "watch" ? "orange" : "success"}>{row.aware_category}</Badge>
-      : <Text size="sm">{"\u2014"}</Text>
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (row: DrugUtilizationRow) => <Text size="sm">{row.drug_name}</Text>,
     },
-    { key: "total_dispensed", label: "Dispensed", render: (row: DrugUtilizationRow) => <Text size="sm" fw={700}>{row.total_dispensed}</Text> },
-    { key: "unique_patients", label: "Patients", render: (row: DrugUtilizationRow) => <Text size="sm">{row.unique_patients}</Text> },
+    {
+      key: "generic_name",
+      label: "Generic",
+      render: (row: DrugUtilizationRow) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text>,
+    },
+    {
+      key: "aware_category",
+      label: "AWaRe",
+      render: (row: DrugUtilizationRow) =>
+        row.aware_category ? (
+          <Badge
+            size="xs"
+            color={
+              row.aware_category === "reserve"
+                ? "danger"
+                : row.aware_category === "watch"
+                  ? "orange"
+                  : "success"
+            }
+          >
+            {row.aware_category}
+          </Badge>
+        ) : (
+          <Text size="sm">{"\u2014"}</Text>
+        ),
+    },
+    {
+      key: "total_dispensed",
+      label: "Dispensed",
+      render: (row: DrugUtilizationRow) => (
+        <Text size="sm" fw={700}>
+          {row.total_dispensed}
+        </Text>
+      ),
+    },
+    {
+      key: "unique_patients",
+      label: "Patients",
+      render: (row: DrugUtilizationRow) => <Text size="sm">{row.unique_patients}</Text>,
+    },
   ];
 
-  return <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />;
+  return (
+    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1433,7 +2360,11 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
   const reviewMutation = useMutation({
     mutationFn: (data: { id: string; action: string; notes?: string; rejection_reason?: string }) =>
-      api.reviewPrescription(data.id, { action: data.action, notes: data.notes, rejection_reason: data.rejection_reason }),
+      api.reviewPrescription(data.id, {
+        action: data.action,
+        notes: data.notes,
+        rejection_reason: data.rejection_reason,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
       closeReview();
@@ -1460,41 +2391,120 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   }
 
   const columns = [
-    { key: "patient_name", label: "Patient", render: (row: RxQueueRow) => <Text size="sm" fw={600}>{row.patient_name}</Text> },
-    { key: "doctor_name", label: "Doctor", render: (row: RxQueueRow) => <Text size="sm">{row.doctor_name}</Text> },
-    { key: "source", label: "Source", render: (row: RxQueueRow) => <Badge size="xs" variant="light">{row.source}</Badge> },
-    { key: "priority", label: "Priority", render: (row: RxQueueRow) => (
-      <Badge size="xs" color={row.priority === "urgent" ? "danger" : row.priority === "high" ? "orange" : "gray"}>{row.priority}</Badge>
-    ) },
-    { key: "status", label: "Status", render: (row: RxQueueRow) => (
-      <Badge size="xs" color={rxStatusColors[row.status] ?? "gray"}>{row.status.replace(/_/g, " ")}</Badge>
-    ) },
-    { key: "allergy_count", label: "Allergies", render: (row: RxQueueRow) => (
-      row.allergy_count > 0 ? <Badge size="xs" color="danger">{row.allergy_count} alerts</Badge> : <Text size="sm" c="dimmed">None</Text>
-    ) },
-    { key: "received_at", label: "Received", render: (row: RxQueueRow) => <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text> },
     {
-      key: "actions", label: "Actions", render: (row: RxQueueRow) => (
+      key: "patient_name",
+      label: "Patient",
+      render: (row: RxQueueRow) => (
+        <Text size="sm" fw={600}>
+          {row.patient_name}
+        </Text>
+      ),
+    },
+    {
+      key: "doctor_name",
+      label: "Doctor",
+      render: (row: RxQueueRow) => <Text size="sm">{row.doctor_name}</Text>,
+    },
+    {
+      key: "source",
+      label: "Source",
+      render: (row: RxQueueRow) => (
+        <Badge size="xs" variant="light">
+          {row.source}
+        </Badge>
+      ),
+    },
+    {
+      key: "priority",
+      label: "Priority",
+      render: (row: RxQueueRow) => (
+        <Badge
+          size="xs"
+          color={row.priority === "urgent" ? "danger" : row.priority === "high" ? "orange" : "gray"}
+        >
+          {row.priority}
+        </Badge>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: RxQueueRow) => (
+        <Badge size="xs" color={rxStatusColors[row.status] ?? "gray"}>
+          {row.status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "allergy_count",
+      label: "Allergies",
+      render: (row: RxQueueRow) =>
+        row.allergy_count > 0 ? (
+          <Badge size="xs" color="danger">
+            {row.allergy_count} alerts
+          </Badge>
+        ) : (
+          <Text size="sm" c="dimmed">
+            None
+          </Text>
+        ),
+    },
+    {
+      key: "received_at",
+      label: "Received",
+      render: (row: RxQueueRow) => (
+        <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: RxQueueRow) => (
         <Group gap={4}>
           <Tooltip label="View prescription">
-            <ActionIcon size="sm" variant="subtle" onClick={() => { setSelectedId(row.id); }} aria-label="View details">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              onClick={() => {
+                setSelectedId(row.id);
+              }}
+              aria-label="View details"
+            >
               <IconEye size={14} />
             </ActionIcon>
           </Tooltip>
           {canReview && row.status === "pending_review" && (
             <>
-              <Tooltip label="Approve & dispense">
-                <ActionIcon size="sm" color="success" variant="light" onClick={() => handleOpenReview(row.id, "approved")} aria-label="Approve">
+              <Tooltip label="Approve and create billing indent">
+                <ActionIcon
+                  size="sm"
+                  color="success"
+                  variant="light"
+                  onClick={() => handleOpenReview(row.id, "approved")}
+                  aria-label="Approve"
+                >
                   <IconCheck size={14} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Hold for review">
-                <ActionIcon size="sm" color="warning" variant="light" onClick={() => handleOpenReview(row.id, "on_hold")} aria-label="Hold">
+                <ActionIcon
+                  size="sm"
+                  color="warning"
+                  variant="light"
+                  onClick={() => handleOpenReview(row.id, "on_hold")}
+                  aria-label="Hold"
+                >
                   <IconClock size={14} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Reject prescription">
-                <ActionIcon size="sm" color="danger" variant="light" onClick={() => handleOpenReview(row.id, "rejected")} aria-label="Reject">
+                <ActionIcon
+                  size="sm"
+                  color="danger"
+                  variant="light"
+                  onClick={() => handleOpenReview(row.id, "rejected")}
+                  aria-label="Reject"
+                >
                   <IconX size={14} />
                 </ActionIcon>
               </Tooltip>
@@ -1509,14 +2519,19 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>Prescription Queue</Text>
-        <Select size="xs" placeholder="All statuses" clearable w={180}
+        <Select
+          size="xs"
+          placeholder="All statuses"
+          clearable
+          w={180}
           data={[
             { value: "pending_review", label: "Pending Review" },
-            { value: "approved", label: "Approved" },
+            { value: "dispensing", label: "Billing / Dispense" },
             { value: "rejected", label: "Rejected" },
             { value: "on_hold", label: "On Hold" },
           ]}
-          value={filterStatus} onChange={setFilterStatus}
+          value={filterStatus}
+          onChange={setFilterStatus}
         />
       </Group>
       <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
@@ -1529,19 +2544,57 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
         position="right"
         size="xl"
       >
-        {selectedId && <RxDetailView rxQueueId={selectedId} canReview={canReview} onReview={(action) => { handleOpenReview(selectedId, action); }} />}
+        {selectedId && (
+          <RxDetailView
+            rxQueueId={selectedId}
+            canReview={canReview}
+            onReview={(action) => {
+              handleOpenReview(selectedId, action);
+            }}
+          />
+        )}
       </Drawer>
 
-      <Modal opened={reviewOpened} onClose={closeReview} title={`${reviewAction === "approved" ? "Approve" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`} size="sm">
+      <Modal
+        opened={reviewOpened}
+        onClose={closeReview}
+        title={`${reviewAction === "approved" ? "Approve and bill" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`}
+        size="sm"
+      >
         <Stack>
-          <Textarea label="Notes" value={reviewNotes} onChange={(e) => setReviewNotes(e.currentTarget.value)} />
+          <Textarea
+            label="Notes"
+            value={reviewNotes}
+            onChange={(e) => setReviewNotes(e.currentTarget.value)}
+          />
           {reviewAction === "rejected" && (
-            <Textarea label="Rejection Reason" required value={rejectionReason} onChange={(e) => setRejectionReason(e.currentTarget.value)} />
+            <Textarea
+              label="Rejection Reason"
+              required
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.currentTarget.value)}
+            />
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={closeReview}>Cancel</Button>
-            <Button color={reviewAction === "rejected" ? "danger" : reviewAction === "on_hold" ? "warning" : "success"} loading={reviewMutation.isPending} onClick={handleSubmitReview}>
-              {reviewAction === "approved" ? "Approve & Dispense" : reviewAction === "on_hold" ? "Put on Hold" : "Reject"}
+            <Button variant="default" onClick={closeReview}>
+              Cancel
+            </Button>
+            <Button
+              color={
+                reviewAction === "rejected"
+                  ? "danger"
+                  : reviewAction === "on_hold"
+                    ? "warning"
+                    : "success"
+              }
+              loading={reviewMutation.isPending}
+              onClick={handleSubmitReview}
+            >
+              {reviewAction === "approved"
+                ? "Approve & Create Billing Indent"
+                : reviewAction === "on_hold"
+                  ? "Put on Hold"
+                  : "Reject"}
             </Button>
           </Group>
         </Stack>
@@ -1551,7 +2604,15 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 }
 
 /** Detail view for a single Rx queue entry — shows prescription items, allergies, 4 views */
-function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; canReview: boolean; onReview: (action: string) => void }) {
+function RxDetailView({
+  rxQueueId,
+  canReview,
+  onReview,
+}: {
+  rxQueueId: string;
+  canReview: boolean;
+  onReview: (action: string) => void;
+}) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["pharmacy-rx-detail", rxQueueId],
     queryFn: () => api.getRxDetail(rxQueueId),
@@ -1559,62 +2620,119 @@ function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; c
   });
 
   if (isLoading) return <Loader />;
-  if (error) return <Alert color="danger" variant="light" title="Error">{String(error)}</Alert>;
+  if (error)
+    return (
+      <Alert color="danger" variant="light" title="Error">
+        {String(error)}
+      </Alert>
+    );
   if (!data) return <Text c="dimmed">No prescription data</Text>;
 
-  const { prescription, items, allergies } = data as unknown as { prescription: Record<string, unknown>; items: unknown[]; allergies: unknown[] };
-  const rxItems = items as { drug_name: string; dosage: string; frequency: string; duration: string; route?: string; instructions?: string }[];
+  const { prescription, items, allergies } = data as unknown as {
+    prescription: Record<string, unknown>;
+    items: unknown[];
+    allergies: unknown[];
+  };
+  const rxItems = items as {
+    drug_name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    route?: string;
+    instructions?: string;
+  }[];
   const allergyNames = (allergies as { allergen_name: string }[]).map((a) => a.allergen_name);
   const patientId = prescription.patient_id as string;
   const status = prescription.status as string;
 
   // Build PrescriptionWithItems format for the 4-view component
-  const rxForViews: PrescriptionWithItems[] = [{
-    prescription: {
-      id: prescription.prescription_id as string,
-      tenant_id: prescription.tenant_id as string,
-      encounter_id: prescription.encounter_id as string,
-      doctor_id: prescription.doctor_id as string,
-      notes: null,
-      created_at: prescription.received_at as string,
-      updated_at: prescription.received_at as string,
+  const rxForViews: PrescriptionWithItems[] = [
+    {
+      prescription: {
+        id: prescription.prescription_id as string,
+        tenant_id: prescription.tenant_id as string,
+        encounter_id: prescription.encounter_id as string,
+        doctor_id: prescription.doctor_id as string,
+        notes: null,
+        created_at: prescription.received_at as string,
+        updated_at: prescription.received_at as string,
+      },
+      items: rxItems.map((it, idx) => ({
+        id: `item-${idx}`,
+        tenant_id: prescription.tenant_id as string,
+        prescription_id: prescription.prescription_id as string,
+        drug_name: it.drug_name,
+        dosage: it.dosage,
+        frequency: it.frequency,
+        duration: it.duration,
+        route: it.route ?? null,
+        instructions: it.instructions ?? null,
+        created_at: prescription.received_at as string,
+      })),
     },
-    items: rxItems.map((it, idx) => ({
-      id: `item-${idx}`,
-      tenant_id: prescription.tenant_id as string,
-      prescription_id: prescription.prescription_id as string,
-      drug_name: it.drug_name,
-      dosage: it.dosage,
-      frequency: it.frequency,
-      duration: it.duration,
-      route: it.route ?? null,
-      instructions: it.instructions ?? null,
-      created_at: prescription.received_at as string,
-    })),
-  }];
+  ];
 
   return (
     <Stack>
+      <PatientContextBanner patientId={patientId} hideLoadingState />
       {/* Allergy alert */}
       {allergyNames.length > 0 && (
-        <Alert color="danger" variant="light" title="Drug Allergies" icon={<IconAlertTriangle size={16} />}>
-          <Group gap={6}>{allergyNames.map((a) => <Badge key={a} color="danger" size="sm">{a}</Badge>)}</Group>
+        <Alert
+          color="danger"
+          variant="light"
+          title="Drug Allergies"
+          icon={<IconAlertTriangle size={16} />}
+        >
+          <Group gap={6}>
+            {allergyNames.map((a) => (
+              <Badge key={a} color="danger" size="sm">
+                {a}
+              </Badge>
+            ))}
+          </Group>
         </Alert>
       )}
 
       {/* Status + actions */}
       <Group justify="space-between">
-        <Badge size="lg" color={rxStatusColors[status] ?? "gray"}>{status.replace(/_/g, " ")}</Badge>
+        <Badge size="lg" color={rxStatusColors[status] ?? "gray"}>
+          {status.replace(/_/g, " ")}
+        </Badge>
         <Group gap="xs">
           {canReview && status === "pending_review" && (
             <>
-              <Button size="xs" color="success" leftSection={<IconCheck size={14} />} onClick={() => onReview("approved")}>Approve & Dispense</Button>
-              <Button size="xs" color="warning" variant="light" leftSection={<IconClock size={14} />} onClick={() => onReview("on_hold")}>Hold</Button>
-              <Button size="xs" color="danger" variant="light" leftSection={<IconX size={14} />} onClick={() => onReview("rejected")}>Reject</Button>
+              <Button
+                size="xs"
+                color="success"
+                leftSection={<IconCheck size={14} />}
+                onClick={() => onReview("approved")}
+              >
+                Approve & Create Billing
+              </Button>
+              <Button
+                size="xs"
+                color="warning"
+                variant="light"
+                leftSection={<IconClock size={14} />}
+                onClick={() => onReview("on_hold")}
+              >
+                Hold
+              </Button>
+              <Button
+                size="xs"
+                color="danger"
+                variant="light"
+                leftSection={<IconX size={14} />}
+                onClick={() => onReview("rejected")}
+              >
+                Reject
+              </Button>
             </>
           )}
           {status === "approved" && (
-            <Button size="xs" color="primary" leftSection={<IconShoppingCart size={14} />}>Create Dispense Order</Button>
+            <Button size="xs" color="primary" leftSection={<IconShoppingCart size={14} />}>
+              Create Dispense Order
+            </Button>
           )}
         </Group>
       </Group>
@@ -1635,11 +2753,15 @@ function RxDetailView({ rxQueueId, canReview, onReview }: { rxQueueId: string; c
           </Table.Thead>
           <Table.Tbody>
             {rxItems.map((it, idx) => (
-              <Table.Tr key={idx}>
+              <Table.Tr key={`${it.drug_name}-${it.dosage}-${it.frequency}`}>
                 <Table.Td>{idx + 1}</Table.Td>
                 <Table.Td fw={600}>{it.drug_name}</Table.Td>
                 <Table.Td c="primary">{it.dosage}</Table.Td>
-                <Table.Td><Badge size="xs" variant="light">{it.frequency}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge size="xs" variant="light">
+                    {it.frequency}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>{it.duration}</Table.Td>
                 <Table.Td>{it.route ?? "—"}</Table.Td>
                 <Table.Td c="dimmed">{instructionsDisplayText(it.instructions) ?? "—"}</Table.Td>
@@ -1717,9 +2839,14 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
     setCart((prev) => {
       const existing = prev.find((c) => c.catalog_item_id === itemId);
       if (existing) {
-        return prev.map((c) => c.catalog_item_id === itemId ? { ...c, quantity: c.quantity + 1 } : c);
+        return prev.map((c) =>
+          c.catalog_item_id === itemId ? { ...c, quantity: c.quantity + 1 } : c,
+        );
       }
-      return [...prev, { catalog_item_id: itemId, drug_name: drugName, quantity: 1, unit_price: 0 }];
+      return [
+        ...prev,
+        { catalog_item_id: itemId, drug_name: drugName, quantity: 1, unit_price: 0 },
+      ];
     });
   }
 
@@ -1728,11 +2855,13 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
   }
 
   function updateQuantity(itemId: string, quantity: number) {
-    setCart((prev) => prev.map((c) => c.catalog_item_id === itemId ? { ...c, quantity } : c));
+    setCart((prev) => prev.map((c) => (c.catalog_item_id === itemId ? { ...c, quantity } : c)));
   }
 
   function updatePrice(itemId: string, price: number) {
-    setCart((prev) => prev.map((c) => c.catalog_item_id === itemId ? { ...c, unit_price: price } : c));
+    setCart((prev) =>
+      prev.map((c) => (c.catalog_item_id === itemId ? { ...c, unit_price: price } : c)),
+    );
   }
 
   function handleSubmitSale() {
@@ -1756,11 +2885,46 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
   }
 
   const saleColumns = [
-    { key: "sale_number", label: "Sale #", render: (row: PharmacyPosSale) => <Text size="sm" fw={600}>{row.sale_number}</Text> },
-    { key: "patient_name", label: "Customer", render: (row: PharmacyPosSale) => <Text size="sm">{row.patient_name ?? "Walk-in"}</Text> },
-    { key: "total_amount", label: "Total", render: (row: PharmacyPosSale) => <Text size="sm" fw={700}>{"\u20B9"}{Number(row.total_amount).toLocaleString()}</Text> },
-    { key: "payment_mode", label: "Payment", render: (row: PharmacyPosSale) => <Badge size="xs" variant="light">{row.payment_mode}</Badge> },
-    { key: "created_at", label: "Time", render: (row: PharmacyPosSale) => <Text size="sm">{new Date(row.created_at).toLocaleTimeString()}</Text> },
+    {
+      key: "sale_number",
+      label: "Sale #",
+      render: (row: PharmacyPosSale) => (
+        <Text size="sm" fw={600}>
+          {row.sale_number}
+        </Text>
+      ),
+    },
+    {
+      key: "patient_name",
+      label: "Customer",
+      render: (row: PharmacyPosSale) => <Text size="sm">{row.patient_name ?? "Walk-in"}</Text>,
+    },
+    {
+      key: "total_amount",
+      label: "Total",
+      render: (row: PharmacyPosSale) => (
+        <Text size="sm" fw={700}>
+          {"\u20B9"}
+          {Number(row.total_amount).toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "payment_mode",
+      label: "Payment",
+      render: (row: PharmacyPosSale) => (
+        <Badge size="xs" variant="light">
+          {row.payment_mode}
+        </Badge>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Time",
+      render: (row: PharmacyPosSale) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleTimeString()}</Text>
+      ),
+    },
   ];
 
   return (
@@ -1768,27 +2932,48 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
       {daySummary && (
         <Group gap="lg">
           <Card withBorder p="xs" style={{ flex: 1 }}>
-            <Text size="xs" c="dimmed">Sales Today</Text>
-            <Text size="lg" fw={700}>{daySummary.total_sales}</Text>
+            <Text size="xs" c="dimmed">
+              Sales Today
+            </Text>
+            <Text size="lg" fw={700}>
+              {daySummary.total_sales}
+            </Text>
           </Card>
           <Card withBorder p="xs" style={{ flex: 1 }}>
-            <Text size="xs" c="dimmed">Revenue</Text>
-            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.total_revenue).toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Revenue
+            </Text>
+            <Text size="lg" fw={700}>
+              {"\u20B9"}
+              {Number(daySummary.total_revenue).toLocaleString()}
+            </Text>
           </Card>
           <Card withBorder p="xs" style={{ flex: 1 }}>
-            <Text size="xs" c="dimmed">Cash</Text>
-            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.cash_total).toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Cash
+            </Text>
+            <Text size="lg" fw={700}>
+              {"\u20B9"}
+              {Number(daySummary.cash_total).toLocaleString()}
+            </Text>
           </Card>
           <Card withBorder p="xs" style={{ flex: 1 }}>
-            <Text size="xs" c="dimmed">Card/UPI</Text>
-            <Text size="lg" fw={700}>{"\u20B9"}{Number(daySummary.card_total + daySummary.upi_total).toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Card/UPI
+            </Text>
+            <Text size="lg" fw={700}>
+              {"\u20B9"}
+              {Number(daySummary.card_total + daySummary.upi_total).toLocaleString()}
+            </Text>
           </Card>
         </Group>
       )}
 
       {canCreate && (
         <Card withBorder p="md">
-          <Text fw={600} mb="sm">New Sale</Text>
+          <Text fw={600} mb="sm">
+            New Sale
+          </Text>
           <Group mb="sm" align="flex-end">
             <DrugSearchSelect
               label="Add Drug"
@@ -1798,8 +2983,20 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                 addToCart(id, drug?.name ?? id);
               }}
             />
-            <TextInput size="xs" label="Customer" value={patientName} onChange={(e) => setPatientName(e.currentTarget.value)} w={160} />
-            <TextInput size="xs" label="Phone" value={patientPhone} onChange={(e) => setPatientPhone(e.currentTarget.value)} w={130} />
+            <TextInput
+              size="xs"
+              label="Customer"
+              value={patientName}
+              onChange={(e) => setPatientName(e.currentTarget.value)}
+              w={160}
+            />
+            <TextInput
+              size="xs"
+              label="Phone"
+              value={patientPhone}
+              onChange={(e) => setPatientPhone(e.currentTarget.value)}
+              w={130}
+            />
           </Group>
 
           {cart.length > 0 && (
@@ -1816,16 +3013,44 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
               <Table.Tbody>
                 {cart.map((item) => (
                   <Table.Tr key={item.catalog_item_id}>
-                    <Table.Td><Text size="sm">{item.drug_name}</Text></Table.Td>
                     <Table.Td>
-                      <NumberInput size="xs" w={70} min={1} value={item.quantity} onChange={(val) => updateQuantity(item.catalog_item_id, Number(val))} />
+                      <Text size="sm">{item.drug_name}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <NumberInput size="xs" w={90} min={0} decimalScale={2} prefix={"\u20B9"} value={item.unit_price} onChange={(val) => updatePrice(item.catalog_item_id, Number(val))} />
+                      <NumberInput
+                        size="xs"
+                        w={70}
+                        min={1}
+                        value={item.quantity}
+                        onChange={(val) => updateQuantity(item.catalog_item_id, Number(val))}
+                      />
                     </Table.Td>
-                    <Table.Td><Text size="sm" fw={600}>{"\u20B9"}{(item.quantity * item.unit_price).toFixed(2)}</Text></Table.Td>
                     <Table.Td>
-                      <ActionIcon size="sm" color="red" variant="light" onClick={() => removeFromCart(item.catalog_item_id)}><IconX size={14} /></ActionIcon>
+                      <NumberInput
+                        size="xs"
+                        w={90}
+                        min={0}
+                        decimalScale={2}
+                        prefix={"\u20B9"}
+                        value={item.unit_price}
+                        onChange={(val) => updatePrice(item.catalog_item_id, Number(val))}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>
+                        {"\u20B9"}
+                        {(item.quantity * item.unit_price).toFixed(2)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => removeFromCart(item.catalog_item_id)}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -1836,24 +3061,63 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
           {cart.length > 0 && (
             <Group justify="space-between" align="flex-end">
               <Group gap="sm">
-                <NumberInput size="xs" label="Discount %" w={80} min={0} max={100} value={discountPercent} onChange={setDiscountPercent} />
-                <Select size="xs" label="Payment" w={120}
+                <NumberInput
+                  size="xs"
+                  label="Discount %"
+                  w={80}
+                  min={0}
+                  max={100}
+                  value={discountPercent}
+                  onChange={setDiscountPercent}
+                />
+                <Select
+                  size="xs"
+                  label="Payment"
+                  w={120}
                   data={[
                     { value: "cash", label: "Cash" },
                     { value: "card", label: "Card" },
                     { value: "upi", label: "UPI" },
                     { value: "mixed", label: "Mixed" },
                   ]}
-                  value={paymentMode} onChange={(v) => setPaymentMode((v ?? "cash") as PharmacyPaymentMode)}
+                  value={paymentMode}
+                  onChange={(v) => setPaymentMode((v ?? "cash") as PharmacyPaymentMode)}
                 />
-                <NumberInput size="xs" label="Received" w={100} min={0} decimalScale={2} prefix={"\u20B9"} value={amountReceived} onChange={setAmountReceived} />
+                <NumberInput
+                  size="xs"
+                  label="Received"
+                  w={100}
+                  min={0}
+                  decimalScale={2}
+                  prefix={"\u20B9"}
+                  value={amountReceived}
+                  onChange={setAmountReceived}
+                />
               </Group>
               <Stack gap={2} align="flex-end">
-                <Text size="sm">Subtotal: {"\u20B9"}{subtotal.toFixed(2)} | GST: {"\u20B9"}{gstAmount.toFixed(2)} | Total: <b>{"\u20B9"}{totalAmount.toFixed(2)}</b></Text>
-                {changeDue > 0 && <Text size="xs" c="green">Change: {"\u20B9"}{changeDue.toFixed(2)}</Text>}
-                <Button size="xs" color="primary" loading={createMutation.isPending} onClick={handleSubmitSale}
+                <Text size="sm">
+                  Subtotal: {"\u20B9"}
+                  {subtotal.toFixed(2)} | GST: {"\u20B9"}
+                  {gstAmount.toFixed(2)} | Total:{" "}
+                  <b>
+                    {"\u20B9"}
+                    {totalAmount.toFixed(2)}
+                  </b>
+                </Text>
+                {changeDue > 0 && (
+                  <Text size="xs" c="green">
+                    Change: {"\u20B9"}
+                    {changeDue.toFixed(2)}
+                  </Text>
+                )}
+                <Button
+                  size="xs"
+                  color="primary"
+                  loading={createMutation.isPending}
+                  onClick={handleSubmitSale}
                   disabled={cart.length === 0 || Number(amountReceived) < totalAmount}
-                  leftSection={<IconShoppingCart size={14} />}>
+                  leftSection={<IconShoppingCart size={14} />}
+                >
                   Complete Sale
                 </Button>
               </Stack>
@@ -1862,8 +3126,15 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
         </Card>
       )}
 
-      <Text fw={600} mt="md">Today's Sales</Text>
-      <DataTable columns={saleColumns} data={sales} loading={salesLoading} rowKey={(row) => row.id} />
+      <Text fw={600} mt="md">
+        Today's Sales
+      </Text>
+      <DataTable
+        columns={saleColumns}
+        data={sales}
+        loading={salesLoading}
+        rowKey={(row) => row.id}
+      />
     </Stack>
   );
 }

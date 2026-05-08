@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -10,19 +9,15 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { BedTypeRow } from "@medbrains/types";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 // ── Form state for create / edit modal ──────────────────
 
@@ -67,12 +62,8 @@ export function BedTypesSettings() {
   // ── Mutations ───────────────────────────────────────────
 
   const createMutation = useMutation({
-    mutationFn: (data: {
-      code: string;
-      name: string;
-      daily_rate: number;
-      description?: string;
-    }) => api.createBedType(data),
+    mutationFn: (data: { code: string; name: string; daily_rate: number; description?: string }) =>
+      api.createBedType(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -93,13 +84,8 @@ export function BedTypesSettings() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: Record<string, unknown>;
-    }) => api.updateBedType(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      api.updateBedType(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -194,17 +180,13 @@ export function BedTypesSettings() {
     deleteMutation.mutate(id);
   };
 
-  const updateField = <K extends keyof BedTypeFormState>(
-    key: K,
-    value: BedTypeFormState[K],
-  ) => {
+  const updateField = <K extends keyof BedTypeFormState>(key: K, value: BedTypeFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   // ── Format currency ─────────────────────────────────────
 
-  const formatRate = (rate: number): string =>
-    `\u20B9${rate.toLocaleString("en-IN")}/day`;
+  const formatRate = (rate: number): string => `\u20B9${rate.toLocaleString("en-IN")}/day`;
 
   // ── Loading / Error states ──────────────────────────────
 
@@ -221,8 +203,7 @@ export function BedTypesSettings() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load bed types:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load bed types: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );
@@ -238,10 +219,7 @@ export function BedTypesSettings() {
         <Text fw={600} size="lg">
           Bed Types
         </Text>
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={openCreateModal}
-        >
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreateModal}>
           Add Bed Type
         </Button>
       </Group>
@@ -278,11 +256,7 @@ export function BedTypesSettings() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={bt.is_active ? "success" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={bt.is_active ? "success" : "slate"} variant="light" size="sm">
                     {bt.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -352,9 +326,7 @@ export function BedTypesSettings() {
             min={0}
             decimalScale={2}
             value={form.daily_rate}
-            onChange={(value) =>
-              updateField("daily_rate", typeof value === "number" ? value : 0)
-            }
+            onChange={(value) => updateField("daily_rate", typeof value === "number" ? value : 0)}
             required
           />
           <Textarea
@@ -388,14 +360,10 @@ export function BedTypesSettings() {
       >
         <Stack gap="md">
           <Text size="sm">
-            Are you sure you want to delete this bed type? This action cannot be
-            undone.
+            Are you sure you want to delete this bed type? This action cannot be undone.
           </Text>
           <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => setDeleteConfirmId(null)}
-            >
+            <Button variant="default" onClick={() => setDeleteConfirmId(null)}>
               Cancel
             </Button>
             <Button

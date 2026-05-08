@@ -71,17 +71,22 @@ impl AuthzBackend for PgAuthzBackend {
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
 
+        // Caveated tuples must not resolve until their request-time context
+        // is evaluated. The Postgres fallback does not yet run the caveat
+        // evaluator in SQL, so it intentionally denies caveated tuples.
+
         // 1. Direct user grant
         let direct: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1 FROM relation_tuples
                  WHERE tenant_id = $1
                    AND object_type = $2 AND object_id = $3
-                   AND relation = ANY($4)
-                   AND status = 'active'
-                   AND (expires_at IS NULL OR expires_at > now())
-                   AND subject_type = 'user' AND subject_id = $5
-             )",
+	                   AND relation = ANY($4)
+	                   AND status = 'active'
+	                   AND (expires_at IS NULL OR expires_at > now())
+	                   AND caveat IS NULL
+	                   AND subject_type = 'user' AND subject_id = $5
+	             )",
         )
         .bind(ctx.tenant_id)
         .bind(object_type)
@@ -102,11 +107,12 @@ impl AuthzBackend for PgAuthzBackend {
                  SELECT 1 FROM relation_tuples
                  WHERE tenant_id = $1
                    AND object_type = $2 AND object_id = $3
-                   AND relation = ANY($4)
-                   AND status = 'active'
-                   AND (expires_at IS NULL OR expires_at > now())
-                   AND subject_type = 'role' AND subject_id = $5
-             )",
+	                   AND relation = ANY($4)
+	                   AND status = 'active'
+	                   AND (expires_at IS NULL OR expires_at > now())
+	                   AND caveat IS NULL
+	                   AND subject_type = 'role' AND subject_id = $5
+	             )",
         )
         .bind(ctx.tenant_id)
         .bind(object_type)
@@ -123,18 +129,18 @@ impl AuthzBackend for PgAuthzBackend {
 
         // 3. Department grant — if any of caller's department_ids matches
         if !ctx.department_ids.is_empty() {
-            let dept_strs: Vec<String> =
-                ctx.department_ids.iter().map(Uuid::to_string).collect();
+            let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
             let dept: bool = sqlx::query_scalar(
                 "SELECT EXISTS (
                      SELECT 1 FROM relation_tuples
                      WHERE tenant_id = $1
                        AND object_type = $2 AND object_id = $3
-                       AND relation = ANY($4)
-                       AND status = 'active'
-                       AND (expires_at IS NULL OR expires_at > now())
-                       AND subject_type = 'department' AND subject_id = ANY($5)
-                 )",
+	                       AND relation = ANY($4)
+	                       AND status = 'active'
+	                       AND (expires_at IS NULL OR expires_at > now())
+	                       AND caveat IS NULL
+	                       AND subject_type = 'department' AND subject_id = ANY($5)
+	                 )",
             )
             .bind(ctx.tenant_id)
             .bind(object_type)
@@ -161,11 +167,12 @@ impl AuthzBackend for PgAuthzBackend {
                   AND (m.expires_at IS NULL OR m.expires_at > now())
                  WHERE rt.tenant_id = $1
                    AND rt.object_type = $2 AND rt.object_id = $3
-                   AND rt.relation = ANY($4)
-                   AND rt.status = 'active'
-                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
-                   AND rt.subject_type = 'group'
-             )",
+	                   AND rt.relation = ANY($4)
+	                   AND rt.status = 'active'
+	                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
+	                   AND rt.caveat IS NULL
+	                   AND rt.subject_type = 'group'
+	             )",
         )
         .bind(ctx.tenant_id)
         .bind(object_type)
@@ -270,17 +277,17 @@ impl AuthzBackend for PgAuthzBackend {
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
 
-        let dept_strs: Vec<String> =
-            ctx.department_ids.iter().map(Uuid::to_string).collect();
+        let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
 
         let rows: Vec<(Uuid,)> = sqlx::query_as(
             "SELECT DISTINCT object_id FROM relation_tuples
              WHERE tenant_id = $1
                AND object_type = $2
-               AND relation = ANY($3)
-               AND status = 'active'
-               AND (expires_at IS NULL OR expires_at > now())
-               AND (
+	               AND relation = ANY($3)
+	               AND status = 'active'
+	               AND (expires_at IS NULL OR expires_at > now())
+	               AND caveat IS NULL
+	               AND (
                   (subject_type = 'user' AND subject_id = $4)
                   OR (subject_type = 'role' AND subject_id = $5)
                   OR (subject_type = 'department' AND subject_id = ANY($6))
@@ -357,11 +364,7 @@ impl AuthzBackend for PgAuthzBackend {
         Ok(tuple_id)
     }
 
-    async fn revoke_tuple(
-        &self,
-        ctx: &AuthzContext,
-        tuple_id: Uuid,
-    ) -> Result<(), AuthzError> {
+    async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
         sqlx::query(

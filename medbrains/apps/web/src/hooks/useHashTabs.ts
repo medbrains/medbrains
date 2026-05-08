@@ -63,10 +63,7 @@ export function useHashTabs(
       let hash: string;
       if (nested) {
         const parentTab = readHash().split(SEPARATOR)[0] ?? "";
-        hash =
-          next === defaultValue
-            ? parentTab
-            : `${parentTab}${SEPARATOR}${next}`;
+        hash = next === defaultValue ? parentTab : `${parentTab}${SEPARATOR}${next}`;
       } else {
         hash = next === defaultValue ? "" : next;
       }

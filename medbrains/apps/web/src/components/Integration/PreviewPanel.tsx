@@ -1,14 +1,6 @@
-import {
-  Badge,
-  Box,
-  Collapse,
-  Group,
-  Table,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { Badge, Box, Collapse, Group, Table, Text, UnstyledButton } from "@mantine/core";
 import type { FieldMapping, MappingSource } from "@medbrains/types";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { evaluateMapping, type MappingEvalResult } from "./transformEvaluator";
 
@@ -78,11 +70,7 @@ export function PreviewPanel({ mappings, sampleData }: PreviewPanelProps) {
       >
         <Group gap="xs" justify="space-between">
           <Group gap={4}>
-            {collapsed ? (
-              <IconChevronRight size={14} />
-            ) : (
-              <IconChevronDown size={14} />
-            )}
+            {collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
             <Text size="xs" fw={700} tt="uppercase" c="dimmed">
               Data Preview
             </Text>

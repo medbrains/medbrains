@@ -28,9 +28,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -223,7 +221,8 @@ pub async fn check_basket(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let warnings = run_basket_checks(&mut tx, &claims.tenant_id, &body.patient_id, &body.items).await?;
+    let warnings =
+        run_basket_checks(&mut tx, &claims.tenant_id, &body.patient_id, &body.items).await?;
     tx.commit().await?;
 
     Ok(Json(CheckBasketResponse { warnings }))
@@ -258,19 +257,39 @@ pub async fn sign_basket(
     let warnings =
         run_basket_checks(&mut tx, &claims.tenant_id, &body.patient_id, &body.items).await?;
     if let Some(unacked) = first_unacknowledged_block(&warnings, &body.warnings_acknowledged) {
+        if !warning_is_overrideable(&unacked.code) {
+            return Err(AppError::BadRequest(format!(
+                "blocking warning '{}' cannot be overridden; resolve the unsafe order before signing",
+                unacked.code
+            )));
+        }
         return Err(AppError::BadRequest(format!(
             "blocking warning '{}' must be acknowledged with override_reason before signing",
             unacked.code
         )));
+    }
+    if warnings.iter().any(|warning| {
+        warning.severity == WarningSeverity::Block
+            && warning_is_overrideable(&warning.code)
+            && ack_for_warning(&body.warnings_acknowledged, &warning.code).is_some()
+    }) {
+        require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
     }
 
     // Dispatch each item to its in-tx creation path. Any failure aborts
     // the whole basket via tx rollback.
     let mut created: Vec<CreatedOrderRef> = Vec::with_capacity(body.items.len());
     for (idx, item) in body.items.iter().enumerate() {
-        let r = dispatch_item(&mut tx, &claims, &body.encounter_id, &body.patient_id, item)
-            .await
-            .map_err(|e| AppError::BadRequest(format!("basket item #{idx} failed: {e}")))?;
+        let r = dispatch_item(
+            &mut tx,
+            &claims,
+            &body.encounter_id,
+            &body.patient_id,
+            item,
+            &body.warnings_acknowledged,
+        )
+        .await
+        .map_err(|e| AppError::BadRequest(format!("basket item #{idx} failed: {e}")))?;
         created.push(CreatedOrderRef {
             item_index: idx,
             order_type: r.order_type,
@@ -513,11 +532,7 @@ pub async fn preview_cost(
     }))
 }
 
-async fn lookup_setting_decimal(
-    state: &AppState,
-    tenant_id: &Uuid,
-    key: &str,
-) -> Option<Decimal> {
+async fn lookup_setting_decimal(state: &AppState, tenant_id: &Uuid, key: &str) -> Option<Decimal> {
     let val: Option<Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND key = $2 LIMIT 1",
@@ -590,7 +605,19 @@ pub async fn carry_forward(
     let mut out: Vec<CarryForwardItem> = Vec::new();
 
     // Pharmacy prescriptions
-    let drugs = sqlx::query_as::<_, (Uuid, Uuid, String, String, String, String, Option<i32>, DateTime<Utc>)>(
+    let drugs = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            String,
+            String,
+            String,
+            String,
+            Option<i32>,
+            DateTime<Utc>,
+        ),
+    >(
         "SELECT id, drug_id, drug_name, dose, frequency, route, duration_days, created_at \
          FROM pharmacy_prescriptions \
          WHERE tenant_id = $1 AND encounter_id = $2 \
@@ -791,6 +818,7 @@ async fn dispatch_item(
     encounter_id: &Uuid,
     patient_id: &Uuid,
     item: &BasketItem,
+    acks: &[WarningAck],
 ) -> Result<ItemResult, AppError> {
     match item {
         BasketItem::Lab(it) => {
@@ -802,7 +830,10 @@ async fn dispatch_item(
                 notes: it.notes.clone().or_else(|| it.indication.clone()),
             };
             let order = super::lab::create_order_in_tx(tx, claims, &req).await?;
-            Ok(ItemResult { order_type: "lab".to_owned(), order_id: order.id })
+            Ok(ItemResult {
+                order_type: "lab".to_owned(),
+                order_id: order.id,
+            })
         }
         BasketItem::Radiology(it) => {
             let req = super::radiology::CreateOrderRequest {
@@ -819,7 +850,10 @@ async fn dispatch_item(
                 allergy_flagged: it.allergy_flagged,
             };
             let order = super::radiology::create_order_in_tx(tx, claims, &req).await?;
-            Ok(ItemResult { order_type: "radiology".to_owned(), order_id: order.id })
+            Ok(ItemResult {
+                order_type: "radiology".to_owned(),
+                order_id: order.id,
+            })
         }
         BasketItem::Diet(it) => {
             let req = super::diet::CreateDietOrderRequest {
@@ -840,9 +874,13 @@ async fn dispatch_item(
                 preferences: None,
             };
             let order = super::diet::create_diet_order_in_tx(tx, claims, &req).await?;
-            Ok(ItemResult { order_type: "diet".to_owned(), order_id: order.id })
+            Ok(ItemResult {
+                order_type: "diet".to_owned(),
+                order_id: order.id,
+            })
         }
         BasketItem::Drug(it) => {
+            let override_reason = drug_override_reason_for_item(acks, it);
             let req = super::pharmacy::CreateOrderRequest {
                 prescription_id: None,
                 patient_id: *patient_id,
@@ -858,9 +896,14 @@ async fn dispatch_item(
                 discharge_summary_id: None,
                 billing_package_id: None,
                 store_location_id: None,
+                safety_override_reason: override_reason.clone(),
+                allergy_override_reason: override_reason,
             };
             let result = super::pharmacy::create_order_in_tx(tx, claims, &req).await?;
-            Ok(ItemResult { order_type: "drug".to_owned(), order_id: result.order.id })
+            Ok(ItemResult {
+                order_type: "drug".to_owned(),
+                order_id: result.order.id,
+            })
         }
         BasketItem::Procedure(_) => Err(AppError::BadRequest(
             "procedure orders via basket — Phase 2".to_owned(),
@@ -921,32 +964,110 @@ async fn run_basket_checks(
         }
     }
 
+    // Rule: duplicate medication inside the current basket
+    for (left_idx, left_item) in items.iter().enumerate() {
+        let BasketItem::Drug(left) = left_item else {
+            continue;
+        };
+        for (right_idx, right_item) in items.iter().enumerate().skip(left_idx + 1) {
+            let BasketItem::Drug(right) = right_item else {
+                continue;
+            };
+            if left.drug_id == right.drug_id {
+                warnings.push(BasketWarning {
+                    code: "DUPLICATE_MEDICATION_IN_BASKET".to_owned(),
+                    severity: WarningSeverity::Block,
+                    message: format!(
+                        "{} appears more than once in this order basket",
+                        left.drug_name
+                    ),
+                    refs: vec![left_idx, right_idx],
+                    detail: Some(json!({ "drug_id": left.drug_id })),
+                });
+            }
+        }
+    }
+
+    let drug_safety_inputs = items
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, item)| {
+            let BasketItem::Drug(drug) = item else {
+                return None;
+            };
+            Some((
+                idx,
+                super::pharmacy::MedicationSafetyItem {
+                    catalog_item_id: Some(drug.drug_id),
+                    drug_name: drug.drug_name.clone(),
+                    quantity: drug.quantity,
+                },
+            ))
+        })
+        .collect::<Vec<_>>();
+    if !drug_safety_inputs.is_empty() {
+        let safety_items = drug_safety_inputs
+            .iter()
+            .map(|(_, item)| item.clone())
+            .collect::<Vec<_>>();
+        let drug_warnings = super::pharmacy::evaluate_medication_safety_in_tx(
+            tx,
+            tenant_id,
+            patient_id,
+            &safety_items,
+        )
+        .await?;
+        for warning in drug_warnings {
+            let item_idx = drug_safety_inputs
+                .iter()
+                .find(|(_, item)| {
+                    item.catalog_item_id == warning.catalog_item_id
+                        && item.drug_name == warning.drug_name
+                })
+                .map(|(idx, _)| *idx)
+                .unwrap_or(0);
+            warnings.push(BasketWarning {
+                code: warning.code,
+                severity: match warning.severity {
+                    super::pharmacy::MedicationSafetySeverity::Warn => WarningSeverity::Warn,
+                    super::pharmacy::MedicationSafetySeverity::Block => WarningSeverity::Block,
+                },
+                message: warning.message,
+                refs: vec![item_idx],
+                detail: Some(warning.detail),
+            });
+        }
+    }
+
     // Rule: Schedule X drug requires paper serial number
     for (idx, item) in items.iter().enumerate() {
         if let BasketItem::Drug(it) = item {
-            let row: Option<(Option<String>,)> = sqlx::query_as(
-                "SELECT drug_schedule FROM pharmacy_catalog \
-                 WHERE id = $1 AND tenant_id = $2",
+            let row = sqlx::query!(
+                r#"
+                SELECT drug_schedule
+                FROM pharmacy_catalog
+                WHERE id = $1 AND tenant_id = $2
+                "#,
+                it.drug_id,
+                *tenant_id
             )
-            .bind(it.drug_id)
-            .bind(tenant_id)
             .fetch_optional(&mut **tx)
-            .await
-            .ok()
-            .flatten();
-            if let Some((Some(schedule),)) = row {
-                if schedule.eq_ignore_ascii_case("X") && it.schedule_x_serial.is_none() {
-                    warnings.push(BasketWarning {
-                        code: "SCHEDULE_X_REQUIRES_PAPER".to_owned(),
-                        severity: WarningSeverity::Block,
-                        message: format!(
-                            "{} is Schedule X — paper Rx serial number required",
-                            it.drug_name
-                        ),
-                        refs: vec![idx],
-                        detail: Some(json!({ "drug_schedule": schedule })),
-                    });
-                }
+            .await?;
+            if let Some(row) = row
+                && let Some(schedule) = row.drug_schedule
+                && schedule.eq_ignore_ascii_case("X")
+                && it.schedule_x_serial.is_none()
+            {
+                warnings.push(BasketWarning {
+                    code: "SCHEDULE_X_REQUIRES_PAPER".to_owned(),
+                    severity: WarningSeverity::Block,
+                    message: format!(
+                        "{} is Schedule X — paper Rx serial number required",
+                        it.drug_name
+                    ),
+                    refs: vec![idx],
+                    detail: Some(json!({ "drug_schedule": schedule })),
+                });
             }
         }
     }
@@ -975,10 +1096,44 @@ fn first_unacknowledged_block<'a>(
 ) -> Option<&'a BasketWarning> {
     warnings.iter().find(|w| {
         w.severity == WarningSeverity::Block
-            && !acks
-                .iter()
-                .any(|a| a.code == w.code && !a.override_reason.trim().is_empty())
+            && (!warning_is_overrideable(&w.code) || ack_for_warning(acks, &w.code).is_none())
     })
+}
+
+fn warning_is_overrideable(code: &str) -> bool {
+    !matches!(code, "SCHEDULE_X_REQUIRES_PAPER")
+        && super::pharmacy::medication_safety_warning_is_overrideable(code)
+}
+
+fn ack_for_warning<'a>(acks: &'a [WarningAck], code: &str) -> Option<&'a str> {
+    acks.iter()
+        .find(|ack| ack.code == code && !ack.override_reason.trim().is_empty())
+        .map(|ack| ack.override_reason.trim())
+}
+
+fn drug_override_reason_for_item(acks: &[WarningAck], _item: &BasketDrugItem) -> Option<String> {
+    let reasons = acks
+        .iter()
+        .filter(|ack| {
+            warning_is_overrideable(&ack.code)
+                && matches!(
+                    ack.code.as_str(),
+                    "DRUG_ALLERGY_CONFLICT"
+                        | "DUPLICATE_ACTIVE_MEDICATION_ORDER"
+                        | "DUPLICATE_MEDICATION_IN_BASKET"
+                        | "CONTROLLED_DRUG_ACK_REQUIRED"
+                        | "HIGH_RISK_MEDICATION_ACK_REQUIRED"
+                        | "RESTRICTED_FORMULARY_ACK_REQUIRED"
+                )
+                && !ack.override_reason.trim().is_empty()
+        })
+        .map(|ack| format!("{}: {}", ack.code, ack.override_reason.trim()))
+        .collect::<Vec<_>>();
+    if reasons.is_empty() {
+        None
+    } else {
+        Some(reasons.join("; "))
+    }
 }
 
 // ══════════════════════════════════════════════════════════

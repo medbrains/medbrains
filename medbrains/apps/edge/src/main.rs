@@ -9,8 +9,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
-use medbrains_edge::{DocStore, MerkleAudit, SyncServer};
 use medbrains_edge::sync::Frame;
+use medbrains_edge::{DocStore, MerkleAudit, SyncServer};
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -32,6 +32,8 @@ struct Cli {
 struct Config {
     /// e.g. "0.0.0.0:7811"
     listen: String,
+    /// Disable in public standalone installs that do not need LAN discovery.
+    mdns_enabled: Option<bool>,
     /// Hostname to advertise via mDNS (must end with `.local.`)
     mdns_hostname: String,
     /// Friendly service name shown in tools like `dns-sd -B`
@@ -50,8 +52,8 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let cfg_bytes = std::fs::read_to_string(&cli.config)
-        .with_context(|| format!("read {:?}", cli.config))?;
+    let cfg_bytes =
+        std::fs::read_to_string(&cli.config).with_context(|| format!("read {:?}", cli.config))?;
     let cfg: Config = toml::from_str(&cfg_bytes)?;
 
     let docs = DocStore::new(cfg.docs_path);
@@ -64,18 +66,24 @@ async fn main() -> Result<()> {
 
     // mDNS — let devices on the LAN find us by service type
     // `_medbrains-sync._tcp.local.`
-    let mdns = ServiceDaemon::new()?;
-    let port = listen.port();
-    let info = ServiceInfo::new(
-        "_medbrains-sync._tcp.local.",
-        &cfg.service_name,
-        &cfg.mdns_hostname,
-        "",
-        port,
-        None,
-    )?;
-    mdns.register(info).context("mDNS register")?;
-    info!(service = %cfg.service_name, hostname = %cfg.mdns_hostname, port, "mDNS service announced");
+    let _mdns = if cfg.mdns_enabled.unwrap_or(true) {
+        let mdns = ServiceDaemon::new()?;
+        let port = listen.port();
+        let info = ServiceInfo::new(
+            "_medbrains-sync._tcp.local.",
+            &cfg.service_name,
+            &cfg.mdns_hostname,
+            "",
+            port,
+            None,
+        )?;
+        mdns.register(info).context("mDNS register")?;
+        info!(service = %cfg.service_name, hostname = %cfg.mdns_hostname, port, "mDNS service announced");
+        Some(mdns)
+    } else {
+        info!("mDNS service announcement disabled");
+        None
+    };
 
     loop {
         let (stream, peer) = match listener.accept().await {
@@ -135,7 +143,14 @@ async fn handle_conn(
         };
 
         let response: Frame = match (frame, session_tenant) {
-            (Frame::Hello { protocol, tenant_id, .. }, _) => {
+            (
+                Frame::Hello {
+                    protocol,
+                    tenant_id,
+                    ..
+                },
+                _,
+            ) => {
                 if protocol != medbrains_edge::PROTOCOL_VERSION {
                     Frame::Error {
                         message: format!(
@@ -186,8 +201,6 @@ where
     S: SinkExt<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     let s = serde_json::to_string(frame)?;
-    tx.send(Message::Text(s.into()))
-        .await
-        .context("ws write")?;
+    tx.send(Message::Text(s.into())).await.context("ws write")?;
     Ok(())
 }

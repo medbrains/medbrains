@@ -16,13 +16,23 @@ variable "hostname" {
 }
 
 variable "domain" {
-  description = "Public domain to bind via Caddy (e.g. hims.alagappahospital.com)."
+  description = "Public domain to bind at the edge (e.g. hims.alagappahospital.com)."
   type        = string
 }
 
 variable "admin_email" {
   description = "Email passed to Let's Encrypt for cert issuance + recovery."
   type        = string
+}
+
+variable "edge_proxy" {
+  description = "Standalone edge proxy. Pingora is the only supported target."
+  type        = string
+  default     = "pingora"
+  validation {
+    condition     = var.edge_proxy == "pingora"
+    error_message = "edge_proxy must be pingora."
+  }
 }
 
 # ── AWS EC2 / k3s shared (single-host tiers) ─────────────────────────
@@ -149,10 +159,16 @@ variable "ssh_private_key" {
   default     = ""
 }
 
+variable "ssh_private_key_path" {
+  description = "SSH private key path on the operator machine. Used by aws-ec2 local OpenSSH deploys so passphrase-protected keys can use the local keychain/agent."
+  type        = string
+  default     = ""
+}
+
 # ── Bootstrap inputs (Starter only — image-based tiers ignore) ───────
 
 variable "binaries_dir" {
-  description = "Local path containing the pre-built `medbrains-server` and `medbrains-archive` binaries. Starter only."
+  description = "Local path containing the pre-built `medbrains-server`, `medbrains-archive`, `medbrains-proxy`, and `medbrains-edge` binaries. Starter only."
   type        = string
   default     = ""
 }
@@ -173,4 +189,10 @@ variable "reset_pgdata" {
   description = "Starter only — wipe the postgres named volume on next apply. Use only when migrations are incompatible with existing data."
   type        = bool
   default     = false
+}
+
+variable "kms_key_arns" {
+  description = "Optional hospital-scoped KMS CMKs by purpose: app, db, audit, secrets. Empty map falls back to provider-managed encryption defaults."
+  type        = map(string)
+  default     = {}
 }

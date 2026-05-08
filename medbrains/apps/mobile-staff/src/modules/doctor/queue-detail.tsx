@@ -5,21 +5,17 @@
  * transitions per the cache policy).
  */
 
-import { useState } from "react";
+import { P } from "@medbrains/types";
+import { Badge, Card, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
-import { Badge, Card, COLORS, SPACING } from "@medbrains/ui-mobile";
-import { P } from "@medbrains/types";
-import {
-  callQueue,
-  completeQueueEntry,
-  startConsultation,
-} from "../../api/opd.js";
 import type { QueueEntry } from "../../api/opd.js";
-import { useHasPermission } from "../../lib/permissions.js";
+import { callQueue, completeQueueEntry, startConsultation } from "../../api/opd.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { useHasPermission } from "../../lib/permissions.js";
 
 export interface QueueDetailScreenProps {
   entry: QueueEntry;
@@ -66,22 +62,14 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
         </Card>
 
         {error && (
-          <Text
-            variant="bodySmall"
-            style={{ color: COLORS.red, marginTop: SPACING.sm }}
-          >
+          <Text variant="bodySmall" style={{ color: COLORS.red, marginTop: SPACING.sm }}>
             {error}
           </Text>
         )}
 
         <View style={{ gap: SPACING.sm, marginTop: SPACING.md }}>
           {entry.status === "waiting" && canCall && (
-            <Button
-              mode="contained"
-              loading={busy}
-              disabled={busy}
-              onPress={() => run(callQueue)}
-            >
+            <Button mode="contained" loading={busy} disabled={busy} onPress={() => run(callQueue)}>
               Call patient
             </Button>
           )}

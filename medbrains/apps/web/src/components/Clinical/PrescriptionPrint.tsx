@@ -1,7 +1,7 @@
-import { useRef } from "react";
 import { Button, Group, Modal, Stack } from "@mantine/core";
-import { IconPrinter } from "@tabler/icons-react";
 import type { PrescriptionWithItems } from "@medbrains/types";
+import { IconPrinter } from "@tabler/icons-react";
+import { useRef } from "react";
 import styles from "./prescription-print.module.scss";
 
 interface PrescriptionPrintProps {
@@ -65,7 +65,7 @@ export function PrescriptionPrint({
         </head>
         <body>
           ${content.innerHTML}
-          <script>window.onload = function() { window.print(); window.close(); }<\/script>
+          <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
       </html>
     `);
@@ -142,9 +142,7 @@ export function PrescriptionPrint({
 
             {/* Footer */}
             <div className={styles.footer}>
-              <div className={styles.dateSection}>
-                Date: {prescDate}
-              </div>
+              <div className={styles.dateSection}>Date: {prescDate}</div>
               <div className={styles.signatureSection}>
                 {doctorName && <div className={styles.doctorName}>Dr. {doctorName}</div>}
                 <div className={styles.signatureLine}>Signature & Seal</div>
@@ -154,7 +152,9 @@ export function PrescriptionPrint({
         </div>
 
         <Group justify="flex-end" className={styles.noPrint}>
-          <Button variant="subtle" onClick={onClose}>Close</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Close
+          </Button>
           <Button leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
             Print
           </Button>

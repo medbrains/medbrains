@@ -1,14 +1,15 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
   Button,
+  Code,
   Divider,
   Drawer,
   Grid,
   Group,
   JsonInput,
   Modal,
+  MultiSelect,
   NumberInput,
   Radio,
   Select,
@@ -16,40 +17,41 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
-  MultiSelect,
-  Code,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconPencil,
-  IconTrash,
-  IconSearch,
-  IconShieldCheck,
-  IconX,
-  IconCertificate,
-  IconScale,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  ConsentTemplate,
   ConsentAuditEntry,
   ConsentSignatureMetadata,
   ConsentSummaryItem,
+  ConsentTemplate,
+  CreateConsentSignatureRequest,
   CreateConsentTemplateRequest,
   UpdateConsentTemplateRequest,
-  CreateConsentSignatureRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconCertificate,
+  IconPencil,
+  IconPlus,
+  IconScale,
+  IconSearch,
+  IconShieldCheck,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -347,7 +349,11 @@ function TemplatesTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeDeathCert();
-      notifications.show({ title: "Created", message: "Death certificate template created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Death certificate template created",
+        color: "success",
+      });
     },
   });
 
@@ -356,7 +362,11 @@ function TemplatesTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeMlo();
-      notifications.show({ title: "Created", message: "Medico-legal opinion template created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Medico-legal opinion template created",
+        color: "success",
+      });
     },
   });
 
@@ -405,12 +415,7 @@ function TemplatesTab({
           )}
         </Group>
       </Group>
-      <DataTable
-        columns={columns}
-        data={templates}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={templates} loading={isLoading} rowKey={(r) => r.id} />
       <Drawer
         opened={opened}
         onClose={() => {
@@ -526,14 +531,53 @@ function TemplateForm({
 
   return (
     <Stack>
-      <TextInput label="Code" required value={code} onChange={(e) => setCode(e.target.value)} disabled={!!initial} />
+      <TextInput
+        label="Code"
+        required
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        disabled={!!initial}
+      />
       <TextInput label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
       <Select label="Category" data={TEMPLATE_CATEGORIES} value={category} onChange={setCategory} />
-      <NumberInput label="Version" value={version} onChange={(v) => setVersion(Number(v))} min={1} />
-      <JsonInput label="Body Text (JSON by language)" value={bodyText} onChange={setBodyText} minRows={4} formatOnBlur autosize />
-      <JsonInput label="Risks Section (optional)" value={risksSection} onChange={setRisksSection} minRows={2} formatOnBlur autosize />
-      <JsonInput label="Alternatives Section (optional)" value={alternativesSection} onChange={setAlternativesSection} minRows={2} formatOnBlur autosize />
-      <JsonInput label="Benefits Section (optional)" value={benefitsSection} onChange={setBenefitsSection} minRows={2} formatOnBlur autosize />
+      <NumberInput
+        label="Version"
+        value={version}
+        onChange={(v) => setVersion(Number(v))}
+        min={1}
+      />
+      <JsonInput
+        label="Body Text (JSON by language)"
+        value={bodyText}
+        onChange={setBodyText}
+        minRows={4}
+        formatOnBlur
+        autosize
+      />
+      <JsonInput
+        label="Risks Section (optional)"
+        value={risksSection}
+        onChange={setRisksSection}
+        minRows={2}
+        formatOnBlur
+        autosize
+      />
+      <JsonInput
+        label="Alternatives Section (optional)"
+        value={alternativesSection}
+        onChange={setAlternativesSection}
+        minRows={2}
+        formatOnBlur
+        autosize
+      />
+      <JsonInput
+        label="Benefits Section (optional)"
+        value={benefitsSection}
+        onChange={setBenefitsSection}
+        minRows={2}
+        formatOnBlur
+        autosize
+      />
       <MultiSelect
         label="Required Fields"
         data={REQUIRED_FIELD_OPTIONS}
@@ -541,12 +585,33 @@ function TemplateForm({
         onChange={setRequiredFields}
       />
       <Group>
-        <Switch label="Requires Witness" checked={requiresWitness} onChange={(e) => setRequiresWitness(e.currentTarget.checked)} />
-        <Switch label="Requires Doctor" checked={requiresDoctor} onChange={(e) => setRequiresDoctor(e.currentTarget.checked)} />
-        <Switch label="Read-Aloud Required" checked={isReadAloud} onChange={(e) => setIsReadAloud(e.currentTarget.checked)} />
-        <Switch label="Active" checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />
+        <Switch
+          label="Requires Witness"
+          checked={requiresWitness}
+          onChange={(e) => setRequiresWitness(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Requires Doctor"
+          checked={requiresDoctor}
+          onChange={(e) => setRequiresDoctor(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Read-Aloud Required"
+          checked={isReadAloud}
+          onChange={(e) => setIsReadAloud(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Active"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.currentTarget.checked)}
+        />
       </Group>
-      <NumberInput label="Validity (days, blank = no expiry)" value={validityDays} onChange={setValidityDays} min={1} />
+      <NumberInput
+        label="Validity (days, blank = no expiry)"
+        value={validityDays}
+        onChange={setValidityDays}
+        min={1}
+      />
       <NumberInput label="Sort Order" value={sortOrder} onChange={(v) => setSortOrder(Number(v))} />
       <Button onClick={handleSubmit} loading={loading}>
         {initial ? "Update" : "Create"}
@@ -639,25 +704,55 @@ function DeathCertificateForm({
 
       <Grid>
         <Grid.Col span={6}>
-          <TextInput label="Name of Deceased" required value={deceasedName} onChange={(e) => setDeceasedName(e.target.value)} />
+          <TextInput
+            label="Name of Deceased"
+            required
+            value={deceasedName}
+            onChange={(e) => setDeceasedName(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={3}>
           <NumberInput label="Age (years)" value={age} onChange={setAge} min={0} max={150} />
         </Grid.Col>
         <Grid.Col span={3}>
-          <Select label="Sex" data={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} value={sex} onChange={setSex} />
+          <Select
+            label="Sex"
+            data={[
+              { value: "male", label: "Male" },
+              { value: "female", label: "Female" },
+              { value: "other", label: "Other" },
+            ]}
+            value={sex}
+            onChange={setSex}
+          />
         </Grid.Col>
       </Grid>
 
       <Grid>
         <Grid.Col span={4}>
-          <TextInput label="Date of Death" type="date" required value={dateOfDeath} onChange={(e) => setDateOfDeath(e.target.value)} />
+          <TextInput
+            label="Date of Death"
+            type="date"
+            required
+            value={dateOfDeath}
+            onChange={(e) => setDateOfDeath(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={4}>
-          <TextInput label="Time of Death" type="time" required value={timeOfDeath} onChange={(e) => setTimeOfDeath(e.target.value)} />
+          <TextInput
+            label="Time of Death"
+            type="time"
+            required
+            value={timeOfDeath}
+            onChange={(e) => setTimeOfDeath(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={4}>
-          <TextInput label="Place of Death" value={placeOfDeath} onChange={(e) => setPlaceOfDeath(e.target.value)} />
+          <TextInput
+            label="Place of Death"
+            value={placeOfDeath}
+            onChange={(e) => setPlaceOfDeath(e.target.value)}
+          />
         </Grid.Col>
       </Grid>
 
@@ -666,29 +761,70 @@ function DeathCertificateForm({
       <Text size="xs" c="dimmed">
         Part I: Disease or condition directly leading to death and its chain of causation.
       </Text>
-      <TextInput label="(a) Immediate Cause" required value={causeImmediate} onChange={(e) => setCauseImmediate(e.target.value)} description="Disease or condition directly leading to death" />
-      <TextInput label="(b) Antecedent Cause" value={causeAntecedent} onChange={(e) => setCauseAntecedent(e.target.value)} description="Due to (or as a consequence of)" />
-      <TextInput label="(c) Underlying Cause" value={causeUnderlying} onChange={(e) => setCauseUnderlying(e.target.value)} description="Due to (or as a consequence of)" />
+      <TextInput
+        label="(a) Immediate Cause"
+        required
+        value={causeImmediate}
+        onChange={(e) => setCauseImmediate(e.target.value)}
+        description="Disease or condition directly leading to death"
+      />
+      <TextInput
+        label="(b) Antecedent Cause"
+        value={causeAntecedent}
+        onChange={(e) => setCauseAntecedent(e.target.value)}
+        description="Due to (or as a consequence of)"
+      />
+      <TextInput
+        label="(c) Underlying Cause"
+        value={causeUnderlying}
+        onChange={(e) => setCauseUnderlying(e.target.value)}
+        description="Due to (or as a consequence of)"
+      />
 
       <Text size="xs" c="dimmed" mt="xs">
-        Part II: Other significant conditions contributing to the death but not related to the cause.
+        Part II: Other significant conditions contributing to the death but not related to the
+        cause.
       </Text>
-      <Textarea label="Other Significant Conditions" value={causeOtherSignificant} onChange={(e) => setCauseOtherSignificant(e.target.value)} minRows={2} />
+      <Textarea
+        label="Other Significant Conditions"
+        value={causeOtherSignificant}
+        onChange={(e) => setCauseOtherSignificant(e.target.value)}
+        minRows={2}
+      />
 
       <Divider label="Manner and Circumstances" labelPosition="left" />
 
       <Grid>
         <Grid.Col span={6}>
-          <Select label="Manner of Death" data={MANNER_OF_DEATH_OPTIONS} value={mannerOfDeath} onChange={setMannerOfDeath} />
+          <Select
+            label="Manner of Death"
+            data={MANNER_OF_DEATH_OPTIONS}
+            value={mannerOfDeath}
+            onChange={setMannerOfDeath}
+          />
         </Grid.Col>
         <Grid.Col span={6}>
-          <TextInput label="Duration of Illness" value={durationOfIllness} onChange={(e) => setDurationOfIllness(e.target.value)} placeholder="e.g. 3 months, 2 years" />
+          <TextInput
+            label="Duration of Illness"
+            value={durationOfIllness}
+            onChange={(e) => setDurationOfIllness(e.target.value)}
+            placeholder="e.g. 3 months, 2 years"
+          />
         </Grid.Col>
       </Grid>
 
       <Group>
-        <Switch label="Autopsy Requested" checked={autopsyRequested} onChange={(e) => setAutopsyRequested(e.currentTarget.checked)} />
-        <Switch label="Medico-Legal Case" checked={isMedicoLegal} onChange={(e) => setIsMedicoLegal(e.currentTarget.checked)} color="danger" />
+        <Switch
+          label="Autopsy Requested"
+          checked={autopsyRequested}
+          onChange={(e) => setAutopsyRequested(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Medico-Legal Case"
+          checked={isMedicoLegal}
+          onChange={(e) => setIsMedicoLegal(e.currentTarget.checked)}
+          color="danger"
+        />
       </Group>
 
       {isMedicoLegal && (
@@ -701,16 +837,40 @@ function DeathCertificateForm({
 
       <Grid>
         <Grid.Col span={6}>
-          <TextInput label="Certifying Doctor Name" required value={certifyingDoctor} onChange={(e) => setCertifyingDoctor(e.target.value)} />
+          <TextInput
+            label="Certifying Doctor Name"
+            required
+            value={certifyingDoctor}
+            onChange={(e) => setCertifyingDoctor(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={6}>
-          <TextInput label="Medical Registration No." required value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} />
+          <TextInput
+            label="Medical Registration No."
+            required
+            value={registrationNumber}
+            onChange={(e) => setRegistrationNumber(e.target.value)}
+          />
         </Grid.Col>
       </Grid>
-      <TextInput label="Witness Name" value={witnessName} onChange={(e) => setWitnessName(e.target.value)} />
-      <Textarea label="Additional Notes" value={notes} onChange={(e) => setNotes(e.target.value)} minRows={2} />
+      <TextInput
+        label="Witness Name"
+        value={witnessName}
+        onChange={(e) => setWitnessName(e.target.value)}
+      />
+      <Textarea
+        label="Additional Notes"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        minRows={2}
+      />
 
-      <Button onClick={handleSubmit} loading={loading} color="primary" leftSection={<IconCertificate size={16} />}>
+      <Button
+        onClick={handleSubmit}
+        loading={loading}
+        color="primary"
+        leftSection={<IconCertificate size={16} />}
+      >
         Create Death Certificate Template
       </Button>
     </Stack>
@@ -795,10 +955,22 @@ function MedicoLegalOpinionForm({
 
       <Grid>
         <Grid.Col span={6}>
-          <TextInput label="Case Reference / FIR No." required value={caseReference} onChange={(e) => setCaseReference(e.target.value)} description="MLC number or FIR reference" />
+          <TextInput
+            label="Case Reference / FIR No."
+            required
+            value={caseReference}
+            onChange={(e) => setCaseReference(e.target.value)}
+            description="MLC number or FIR reference"
+          />
         </Grid.Col>
         <Grid.Col span={6}>
-          <TextInput label="Date of Examination" type="date" required value={examinationDate} onChange={(e) => setExaminationDate(e.target.value)} />
+          <TextInput
+            label="Date of Examination"
+            type="date"
+            required
+            value={examinationDate}
+            onChange={(e) => setExaminationDate(e.target.value)}
+          />
         </Grid.Col>
       </Grid>
 
@@ -806,13 +978,27 @@ function MedicoLegalOpinionForm({
 
       <Grid>
         <Grid.Col span={6}>
-          <TextInput label="Patient Name" required value={patientName} onChange={(e) => setPatientName(e.target.value)} />
+          <TextInput
+            label="Patient Name"
+            required
+            value={patientName}
+            onChange={(e) => setPatientName(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={3}>
           <NumberInput label="Age" value={patientAge} onChange={setPatientAge} min={0} max={150} />
         </Grid.Col>
         <Grid.Col span={3}>
-          <Select label="Sex" data={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} value={patientSex} onChange={setPatientSex} />
+          <Select
+            label="Sex"
+            data={[
+              { value: "male", label: "Male" },
+              { value: "female", label: "Female" },
+              { value: "other", label: "Other" },
+            ]}
+            value={patientSex}
+            onChange={setPatientSex}
+          />
         </Grid.Col>
       </Grid>
 
@@ -884,7 +1070,11 @@ function MedicoLegalOpinionForm({
 
       <Divider label="Fitness for Discharge" labelPosition="left" />
 
-      <Radio.Group value={fitnessForDischarge} onChange={setFitnessForDischarge} label="Fitness for Discharge">
+      <Radio.Group
+        value={fitnessForDischarge}
+        onChange={setFitnessForDischarge}
+        label="Fitness for Discharge"
+      >
         <Group mt={4}>
           <Radio value="yes" label="Yes — Fit for discharge" />
           <Radio value="no" label="No — Requires admission" />
@@ -906,16 +1096,36 @@ function MedicoLegalOpinionForm({
 
       <Grid>
         <Grid.Col span={6}>
-          <TextInput label="Examining Doctor Name" required value={examiningDoctor} onChange={(e) => setExaminingDoctor(e.target.value)} />
+          <TextInput
+            label="Examining Doctor Name"
+            required
+            value={examiningDoctor}
+            onChange={(e) => setExaminingDoctor(e.target.value)}
+          />
         </Grid.Col>
         <Grid.Col span={6}>
-          <TextInput label="Medical Registration No." required value={doctorRegistrationNo} onChange={(e) => setDoctorRegistrationNo(e.target.value)} />
+          <TextInput
+            label="Medical Registration No."
+            required
+            value={doctorRegistrationNo}
+            onChange={(e) => setDoctorRegistrationNo(e.target.value)}
+          />
         </Grid.Col>
       </Grid>
 
-      <Textarea label="Additional Notes" value={notes} onChange={(e) => setNotes(e.target.value)} minRows={2} />
+      <Textarea
+        label="Additional Notes"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        minRows={2}
+      />
 
-      <Button onClick={handleSubmit} loading={loading} color="primary" leftSection={<IconScale size={16} />}>
+      <Button
+        onClick={handleSubmit}
+        loading={loading}
+        color="primary"
+        leftSection={<IconScale size={16} />}
+      >
         Create Medico-Legal Opinion Template
       </Button>
     </Stack>
@@ -942,18 +1152,23 @@ function AuditTab() {
   });
 
   const [detailEntry, setDetailEntry] = useState<ConsentAuditEntry | null>(null);
+  const contextPatientId = patientId.trim().length >= 32 ? patientId.trim() : null;
 
   const columns: Column<ConsentAuditEntry>[] = [
     {
       key: "patient_id",
       label: "Patient",
-      render: (r) => <Text size="sm" ff="monospace">{r.patient_id.slice(0, 8)}</Text>,
+      render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
     {
       key: "consent_source",
       label: "Source",
       render: (r) => (
-        <Badge color={r.consent_source === "patient_consent" ? "primary" : "violet"} variant="light" size="sm">
+        <Badge
+          color={r.consent_source === "patient_consent" ? "primary" : "violet"}
+          variant="light"
+          size="sm"
+        >
           {r.consent_source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -988,7 +1203,11 @@ function AuditTab() {
     {
       key: "change_reason",
       label: "Reason",
-      render: (r) => <Text size="sm" lineClamp={1}>{r.change_reason ?? "—"}</Text>,
+      render: (r) => (
+        <Text size="sm" lineClamp={1}>
+          {r.change_reason ?? "—"}
+        </Text>
+      ),
     },
     {
       key: "created_at",
@@ -999,7 +1218,12 @@ function AuditTab() {
       key: "detail",
       label: "",
       render: (r) => (
-        <ActionIcon variant="subtle" size="sm" onClick={() => setDetailEntry(r)} aria-label="Search">
+        <ActionIcon
+          variant="subtle"
+          size="sm"
+          onClick={() => setDetailEntry(r)}
+          aria-label="Search"
+        >
           <IconSearch size={14} />
         </ActionIcon>
       ),
@@ -1047,22 +1271,53 @@ function AuditTab() {
           w={200}
         />
       </Group>
+      <PatientContextBanner patientId={contextPatientId} hideLoadingState />
       <DataTable columns={columns} data={entries} loading={isLoading} rowKey={(r) => r.id} />
-      <Modal opened={!!detailEntry} onClose={() => setDetailEntry(null)} title="Audit Entry Detail" size="lg">
+      <Modal
+        opened={!!detailEntry}
+        onClose={() => setDetailEntry(null)}
+        title="Audit Entry Detail"
+        size="lg"
+      >
         {detailEntry && (
           <Stack gap="xs">
-            <Text size="sm"><strong>ID:</strong> {detailEntry.id}</Text>
-            <Text size="sm"><strong>Patient:</strong> {detailEntry.patient_id}</Text>
-            <Text size="sm"><strong>Consent ID:</strong> {detailEntry.consent_id}</Text>
-            <Text size="sm"><strong>Source:</strong> {detailEntry.consent_source}</Text>
-            <Text size="sm"><strong>Action:</strong> {detailEntry.action}</Text>
-            <Text size="sm"><strong>Status:</strong> {detailEntry.old_status ?? "—"} → {detailEntry.new_status ?? "—"}</Text>
-            <Text size="sm"><strong>Changed By:</strong> {detailEntry.changed_by ?? "—"}</Text>
-            <Text size="sm"><strong>Reason:</strong> {detailEntry.change_reason ?? "—"}</Text>
-            <Text size="sm"><strong>IP:</strong> {detailEntry.ip_address ?? "—"}</Text>
-            <Text size="sm"><strong>User Agent:</strong> {detailEntry.user_agent ?? "—"}</Text>
-            <Text size="sm"><strong>Timestamp:</strong> {new Date(detailEntry.created_at).toLocaleString()}</Text>
-            <Text size="sm" fw={600}>Metadata:</Text>
+            <Text size="sm">
+              <strong>ID:</strong> {detailEntry.id}
+            </Text>
+            <Text size="sm">
+              <strong>Patient:</strong> {detailEntry.patient_id}
+            </Text>
+            <Text size="sm">
+              <strong>Consent ID:</strong> {detailEntry.consent_id}
+            </Text>
+            <Text size="sm">
+              <strong>Source:</strong> {detailEntry.consent_source}
+            </Text>
+            <Text size="sm">
+              <strong>Action:</strong> {detailEntry.action}
+            </Text>
+            <Text size="sm">
+              <strong>Status:</strong> {detailEntry.old_status ?? "—"} →{" "}
+              {detailEntry.new_status ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>Changed By:</strong> {detailEntry.changed_by ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>Reason:</strong> {detailEntry.change_reason ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>IP:</strong> {detailEntry.ip_address ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>User Agent:</strong> {detailEntry.user_agent ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>Timestamp:</strong> {new Date(detailEntry.created_at).toLocaleString()}
+            </Text>
+            <Text size="sm" fw={600}>
+              Metadata:
+            </Text>
             <Code block>{JSON.stringify(detailEntry.metadata, null, 2)}</Code>
           </Stack>
         )}
@@ -1096,17 +1351,30 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-summary"] });
-      notifications.show({ title: "Revoked", message: "Consent has been revoked", color: "orange" });
+      notifications.show({
+        title: "Revoked",
+        message: "Consent has been revoked",
+        color: "orange",
+      });
     },
   });
+  const contextPatientId = patientId.trim().length >= 32 ? patientId.trim() : null;
 
   const columns: Column<ConsentSummaryItem>[] = [
-    { key: "consent_type", label: "Type", render: (r) => <Text size="sm">{r.consent_type.replace(/_/g, " ")}</Text> },
+    {
+      key: "consent_type",
+      label: "Type",
+      render: (r) => <Text size="sm">{r.consent_type.replace(/_/g, " ")}</Text>,
+    },
     {
       key: "source",
       label: "Source",
       render: (r) => (
-        <Badge color={r.source === "patient_consent" ? "primary" : "violet"} variant="light" size="sm">
+        <Badge
+          color={r.source === "patient_consent" ? "primary" : "violet"}
+          variant="light"
+          size="sm"
+        >
           {r.source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -1128,14 +1396,23 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
     {
       key: "consent_id",
       label: "Consent ID",
-      render: (r) => <Text size="sm" ff="monospace">{r.consent_id.slice(0, 8)}</Text>,
+      render: (r) => (
+        <Text size="sm" ff="monospace">
+          {r.consent_id.slice(0, 8)}
+        </Text>
+      ),
     },
     {
       key: "actions",
       label: "",
       render: (r) => {
         if (!canRevoke) return null;
-        if (r.status === "withdrawn" || r.status === "expired" || r.status === "denied" || r.status === "refused") {
+        if (
+          r.status === "withdrawn" ||
+          r.status === "expired" ||
+          r.status === "denied" ||
+          r.status === "refused"
+        ) {
           return null;
         }
         return (
@@ -1175,6 +1452,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
           Check Consents
         </Button>
       </Group>
+      <PatientContextBanner patientId={contextPatientId} hideLoadingState />
       {searched && (
         <DataTable
           columns={columns}
@@ -1228,7 +1506,11 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       key: "consent_source",
       label: "Source",
       render: (r) => (
-        <Badge color={r.consent_source === "patient_consent" ? "primary" : "violet"} variant="light" size="sm">
+        <Badge
+          color={r.consent_source === "patient_consent" ? "primary" : "violet"}
+          variant="light"
+          size="sm"
+        >
           {r.consent_source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -1236,7 +1518,11 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
     {
       key: "consent_id",
       label: "Consent ID",
-      render: (r) => <Text size="sm" ff="monospace">{r.consent_id.slice(0, 8)}</Text>,
+      render: (r) => (
+        <Text size="sm" ff="monospace">
+          {r.consent_id.slice(0, 8)}
+        </Text>
+      ),
     },
     {
       key: "signature_type",
@@ -1262,11 +1548,22 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       label: "",
       render: (r) => (
         <Group gap={4}>
-          <ActionIcon variant="subtle" size="sm" onClick={() => setDetailSig(r)} aria-label="Search">
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            onClick={() => setDetailSig(r)}
+            aria-label="Search"
+          >
             <IconSearch size={14} />
           </ActionIcon>
           {canManage && (
-            <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMut.mutate(r.id)} aria-label="Delete">
+            <ActionIcon
+              variant="subtle"
+              color="danger"
+              size="sm"
+              onClick={() => deleteMut.mutate(r.id)}
+              aria-label="Delete"
+            >
               <IconTrash size={14} />
             </ActionIcon>
           )}
@@ -1297,31 +1594,56 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       </Group>
       <DataTable columns={columns} data={signatures} loading={isLoading} rowKey={(r) => r.id} />
       <Drawer opened={opened} onClose={close} title="Record Signature" position="right" size="lg">
-        <SignatureForm
-          onSubmit={(vals) => createMut.mutate(vals)}
-          loading={createMut.isPending}
-        />
+        <SignatureForm onSubmit={(vals) => createMut.mutate(vals)} loading={createMut.isPending} />
       </Drawer>
-      <Modal opened={!!detailSig} onClose={() => setDetailSig(null)} title="Signature Detail" size="lg">
+      <Modal
+        opened={!!detailSig}
+        onClose={() => setDetailSig(null)}
+        title="Signature Detail"
+        size="lg"
+      >
         {detailSig && (
           <Stack gap="xs">
-            <Text size="sm"><strong>ID:</strong> {detailSig.id}</Text>
-            <Text size="sm"><strong>Source:</strong> {detailSig.consent_source}</Text>
-            <Text size="sm"><strong>Consent ID:</strong> {detailSig.consent_id}</Text>
-            <Text size="sm"><strong>Type:</strong> {detailSig.signature_type.replace(/_/g, " ")}</Text>
+            <Text size="sm">
+              <strong>ID:</strong> {detailSig.id}
+            </Text>
+            <Text size="sm">
+              <strong>Source:</strong> {detailSig.consent_source}
+            </Text>
+            <Text size="sm">
+              <strong>Consent ID:</strong> {detailSig.consent_id}
+            </Text>
+            <Text size="sm">
+              <strong>Type:</strong> {detailSig.signature_type.replace(/_/g, " ")}
+            </Text>
             {detailSig.signature_image_url && (
-              <Text size="sm"><strong>Signature Image:</strong> {detailSig.signature_image_url}</Text>
+              <Text size="sm">
+                <strong>Signature Image:</strong> {detailSig.signature_image_url}
+              </Text>
             )}
             {detailSig.video_consent_url && (
-              <Text size="sm"><strong>Video:</strong> {detailSig.video_consent_url}</Text>
+              <Text size="sm">
+                <strong>Video:</strong> {detailSig.video_consent_url}
+              </Text>
             )}
             {detailSig.aadhaar_esign_ref && (
-              <Text size="sm"><strong>Aadhaar Ref:</strong> {detailSig.aadhaar_esign_ref}</Text>
+              <Text size="sm">
+                <strong>Aadhaar Ref:</strong> {detailSig.aadhaar_esign_ref}
+              </Text>
             )}
-            <Text size="sm"><strong>Witness:</strong> {detailSig.witness_name ?? "—"} ({detailSig.witness_designation ?? "—"})</Text>
-            <Text size="sm"><strong>Doctor Signature:</strong> {detailSig.doctor_signature_url ?? "—"}</Text>
-            <Text size="sm"><strong>Captured:</strong> {new Date(detailSig.captured_at).toLocaleString()}</Text>
-            <Text size="sm"><strong>Captured By:</strong> {detailSig.captured_by ?? "—"}</Text>
+            <Text size="sm">
+              <strong>Witness:</strong> {detailSig.witness_name ?? "—"} (
+              {detailSig.witness_designation ?? "—"})
+            </Text>
+            <Text size="sm">
+              <strong>Doctor Signature:</strong> {detailSig.doctor_signature_url ?? "—"}
+            </Text>
+            <Text size="sm">
+              <strong>Captured:</strong> {new Date(detailSig.captured_at).toLocaleString()}
+            </Text>
+            <Text size="sm">
+              <strong>Captured By:</strong> {detailSig.captured_by ?? "—"}
+            </Text>
           </Stack>
         )}
       </Modal>
@@ -1351,7 +1673,8 @@ function SignatureForm({
     onSubmit({
       consent_source: consentSource ?? "patient_consent",
       consent_id: consentId,
-      signature_type: (sigType ?? "pen_on_paper") as CreateConsentSignatureRequest["signature_type"],
+      signature_type: (sigType ??
+        "pen_on_paper") as CreateConsentSignatureRequest["signature_type"],
       signature_image_url: sigImageUrl || undefined,
       video_consent_url: videoUrl || undefined,
       aadhaar_esign_ref: aadhaarRef || undefined,
@@ -1374,15 +1697,54 @@ function SignatureForm({
         onChange={setConsentSource}
         required
       />
-      <TextInput label="Consent ID (UUID)" required value={consentId} onChange={(e) => setConsentId(e.target.value)} />
-      <Select label="Signature Type" data={SIGNATURE_TYPES} value={sigType} onChange={setSigType} required />
-      <TextInput label="Signature Image URL" value={sigImageUrl} onChange={(e) => setSigImageUrl(e.target.value)} />
-      <TextInput label="Video Consent URL" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} />
-      <TextInput label="Aadhaar e-Sign Reference" value={aadhaarRef} onChange={(e) => setAadhaarRef(e.target.value)} />
-      <TextInput label="Witness Name" value={witnessName} onChange={(e) => setWitnessName(e.target.value)} />
-      <Textarea label="Witness Designation" value={witnessDesignation} onChange={(e) => setWitnessDesignation(e.target.value)} />
-      <TextInput label="Witness Signature URL" value={witnessSigUrl} onChange={(e) => setWitnessSigUrl(e.target.value)} />
-      <TextInput label="Doctor Signature URL" value={doctorSigUrl} onChange={(e) => setDoctorSigUrl(e.target.value)} />
+      <TextInput
+        label="Consent ID (UUID)"
+        required
+        value={consentId}
+        onChange={(e) => setConsentId(e.target.value)}
+      />
+      <Select
+        label="Signature Type"
+        data={SIGNATURE_TYPES}
+        value={sigType}
+        onChange={setSigType}
+        required
+      />
+      <TextInput
+        label="Signature Image URL"
+        value={sigImageUrl}
+        onChange={(e) => setSigImageUrl(e.target.value)}
+      />
+      <TextInput
+        label="Video Consent URL"
+        value={videoUrl}
+        onChange={(e) => setVideoUrl(e.target.value)}
+      />
+      <TextInput
+        label="Aadhaar e-Sign Reference"
+        value={aadhaarRef}
+        onChange={(e) => setAadhaarRef(e.target.value)}
+      />
+      <TextInput
+        label="Witness Name"
+        value={witnessName}
+        onChange={(e) => setWitnessName(e.target.value)}
+      />
+      <Textarea
+        label="Witness Designation"
+        value={witnessDesignation}
+        onChange={(e) => setWitnessDesignation(e.target.value)}
+      />
+      <TextInput
+        label="Witness Signature URL"
+        value={witnessSigUrl}
+        onChange={(e) => setWitnessSigUrl(e.target.value)}
+      />
+      <TextInput
+        label="Doctor Signature URL"
+        value={doctorSigUrl}
+        onChange={(e) => setDoctorSigUrl(e.target.value)}
+      />
       <Button onClick={handleSubmit} loading={loading}>
         Record Signature
       </Button>

@@ -10,11 +10,11 @@ import {
   Title,
 } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { useAuthStore } from "@medbrains/stores";
 import type { OnboardingInitInput } from "@medbrains/schemas";
+import { useAuthStore } from "@medbrains/stores";
+import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
-import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
 
 import { AdminStep } from "./AdminStep";
@@ -27,12 +27,12 @@ import { GeoRegulatoryStep } from "./GeoRegulatoryStep";
 import { HospitalStep } from "./HospitalStep";
 import { LocationsStep } from "./LocationsStep";
 import { ModulesStep } from "./ModulesStep";
+import classes from "./onboarding.module.scss";
 import { ReviewStep } from "./ReviewStep";
 import { SequencesStep } from "./SequencesStep";
 import { ServicesStep } from "./ServicesStep";
 import { UsersStep } from "./UsersStep";
 import { WelcomeStep } from "./WelcomeStep";
-import classes from "./onboarding.module.scss";
 
 const steps = [
   { label: "Welcome", description: "Prerequisites" },
@@ -67,9 +67,7 @@ export function OnboardingPage() {
   });
 
   const goNext = useCallback(() => {
-    setCompletedSteps((prev) =>
-      prev.includes(active + 1) ? prev : [...prev, active + 1],
-    );
+    setCompletedSteps((prev) => (prev.includes(active + 1) ? prev : [...prev, active + 1]));
     setActive((c) => Math.min(steps.length - 1, c + 1));
   }, [active]);
 
@@ -119,7 +117,9 @@ export function OnboardingPage() {
       <div className={classes.wizardContainer}>
         <Container size="sm" py={120} ta="center">
           <Loader size="md" />
-          <Text c="dimmed" mt="md">Checking system status...</Text>
+          <Text c="dimmed" mt="md">
+            Checking system status...
+          </Text>
         </Container>
       </div>
     );
@@ -146,11 +146,7 @@ export function OnboardingPage() {
           <Badge variant="light" size="lg">
             Step {active + 1} of {steps.length}
           </Badge>
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={() => navigate("/login")}
-          >
+          <Button variant="subtle" size="xs" onClick={() => navigate("/login")}>
             Already registered? Log in
           </Button>
         </Group>
@@ -177,11 +173,7 @@ export function OnboardingPage() {
             }}
           >
             {steps.map((step) => (
-              <Stepper.Step
-                key={step.label}
-                label={step.label}
-                description={step.description}
-              />
+              <Stepper.Step key={step.label} label={step.label} description={step.description} />
             ))}
           </Stepper>
 

@@ -468,33 +468,30 @@ pub async fn submit_requisition(
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
-    let department_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM departments WHERE id = $1",
-    )
-    .bind(req.department_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let department_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
+            .bind(req.department_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
-    let requested_by_name = sqlx::query_scalar::<_, String>(
-        "SELECT full_name FROM users WHERE id = $1",
-    )
-    .bind(req.requested_by)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let requested_by_name =
+        sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+            .bind(req.requested_by)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
-    let items_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1",
-    )
-    .bind(req.id)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
+    let items_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1")
+            .bind(req.id)
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(0);
 
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
@@ -613,10 +610,8 @@ pub async fn approve_requisition(
 
     // Auto-draft PO for pharmacy indents on approval
     if requisition.indent_type == IndentType::Pharmacy && new_status != "rejected" {
-        let approved_items: Vec<&IndentItem> = items
-            .iter()
-            .filter(|i| i.quantity_approved > 0)
-            .collect();
+        let approved_items: Vec<&IndentItem> =
+            items.iter().filter(|i| i.quantity_approved > 0).collect();
 
         if !approved_items.is_empty() {
             let vendor_id: Option<Uuid> = sqlx::query_scalar(
@@ -680,15 +675,14 @@ pub async fn approve_requisition(
     tx.commit().await?;
 
     // Enrich payload with department name for orchestration
-    let department_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM departments WHERE id = $1",
-    )
-    .bind(requisition.department_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let department_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
+            .bind(requisition.department_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,

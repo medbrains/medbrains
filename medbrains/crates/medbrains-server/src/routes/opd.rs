@@ -8,6 +8,7 @@ use axum::{
 };
 use chrono::DateTime;
 use chrono::{NaiveDate, Utc};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::consultation::{
     ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket, Icd10Code,
     MedicalCertificate, PatientFeedback, PatientReminder, Prescription, PrescriptionItem,
@@ -78,6 +79,12 @@ pub struct ListQueueQuery {
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
     pub status: Option<String>,
+    /// When true, restrict the result to entries where `doctor_id`
+    /// equals the calling user's id. Lets a doctor's UI ask for
+    /// "my queue today" without having to know the user's own
+    /// staff record. Combined with `doctor_id` it acts as an AND
+    /// (typical use is `mine=true` alone).
+    pub mine: Option<bool>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -257,17 +264,13 @@ pub async fn list_encounters(
 
     // ── ReBAC scope — only encounters caller has `view` on ─────
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
         Some(
             state
                 .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "encounter",
-                    medbrains_authz::Relation::Viewer,
-                )
+                .list_accessible(&authz_ctx, "encounter", medbrains_authz::Relation::Viewer)
                 .await
                 .unwrap_or_default(),
         )
@@ -457,6 +460,26 @@ pub async fn create_encounter(
     .fetch_one(&mut *tx)
     .await?;
 
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::OpdEncounterCreated,
+        encounter.id,
+        claims.sub,
+        serde_json::json!({
+            "encounter_id": encounter.id,
+            "patient_id": encounter.patient_id,
+            "queue_id": queue.id,
+            "token_number": queue.token_number,
+            "visit_type": &encounter.visit_type,
+        }),
+    )
+    .with_patient(encounter.patient_id)
+    .with_encounter(encounter.id);
+    if let Some(department_id) = encounter.department_id {
+        event = event.with_department(department_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
@@ -533,7 +556,12 @@ pub async fn get_encounter(
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", id)
+        .check(
+            &authz_ctx,
+            medbrains_authz::Relation::Viewer,
+            "encounter",
+            id,
+        )
         .await
         .unwrap_or(false);
     if !allowed {
@@ -634,6 +662,14 @@ pub async fn list_queue(
         conditions.push(format!("q.doctor_id = ${bind_idx}"));
         binds.push(Bind {
             uuid_val: Some(doc),
+            string_val: None,
+        });
+        bind_idx += 1;
+    }
+    if params.mine.unwrap_or(false) {
+        conditions.push(format!("q.doctor_id = ${bind_idx}"));
+        binds.push(Bind {
+            uuid_val: Some(claims.sub),
             string_val: None,
         });
         bind_idx += 1;
@@ -823,15 +859,14 @@ pub async fn complete_queue_entry(
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
-    let department_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM departments WHERE id = $1",
-    )
-    .bind(q.department_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let department_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
+            .bind(q.department_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
     let doctor_name = if let Some(did) = q.doctor_id {
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
@@ -1016,14 +1051,13 @@ pub async fn create_consultation(
 
     // Resolve patient_id from the encounter so inline lab/radiology
     // orders carry the right FK without a second client round-trip.
-    let patient_id: Uuid = sqlx::query_scalar(
-        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let patient_id: Uuid =
+        sqlx::query_scalar("SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2")
+            .bind(encounter_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, Consultation>(
         "INSERT INTO consultations \
@@ -1455,15 +1489,14 @@ pub async fn create_prescription(
         "Unknown".to_owned()
     };
 
-    let rx_doctor_name = sqlx::query_scalar::<_, String>(
-        "SELECT full_name FROM users WHERE id = $1",
-    )
-    .bind(rx.doctor_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let rx_doctor_name =
+        sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+            .bind(rx.doctor_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
     // Emit integration event (non-blocking — failures logged, not propagated)
     let _ = crate::orchestration::lifecycle::emit_after_event(
@@ -3152,25 +3185,23 @@ pub async fn admit_from_opd(
     .flatten()
     .unwrap_or_else(|| "Unknown".to_owned());
 
-    let admit_doctor_name = sqlx::query_scalar::<_, String>(
-        "SELECT full_name FROM users WHERE id = $1",
-    )
-    .bind(doctor_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let admit_doctor_name =
+        sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+            .bind(doctor_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
-    let admit_dept_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM departments WHERE id = $1",
-    )
-    .bind(body.department_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
+    let admit_dept_name =
+        sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
+            .bind(body.department_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Unknown".to_owned());
 
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,

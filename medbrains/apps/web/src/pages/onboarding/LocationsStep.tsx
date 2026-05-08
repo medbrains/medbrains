@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -9,15 +10,14 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createLocationSchema } from "@medbrains/schemas";
-import type { CreateLocationInput } from "@medbrains/schemas";
 import { api } from "@medbrains/api";
+import type { CreateLocationInput } from "@medbrains/schemas";
+import { createLocationSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingLocation } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconTrash, IconUpload } from "@tabler/icons-react";
 import { CsvImportModal } from "../../components";
 import classes from "./onboarding.module.scss";
 
@@ -83,8 +83,8 @@ export function LocationsStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        Build your campus-to-bed hierarchy. Start with a campus, then add
-        buildings, floors, rooms, and beds.
+        Build your campus-to-bed hierarchy. Start with a campus, then add buildings, floors, rooms,
+        and beds.
       </Text>
 
       {locations.length === 0 && (
@@ -134,11 +134,7 @@ export function LocationsStep({ onNext, onBack }: Props) {
         onImport={api.importLocations}
       />
 
-      <Modal
-        opened={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Location"
-      >
+      <Modal opened={showModal} onClose={() => setShowModal(false)} title="Add Location">
         <form onSubmit={handleAdd}>
           <Stack gap="sm">
             <Controller
@@ -165,7 +161,9 @@ export function LocationsStep({ onNext, onBack }: Props) {
                   onChange={field.onChange}
                   clearable
                   placeholder={watchedLevel === "campus" ? "None (root)" : "Select parent"}
-                  description={watchedLevel !== "campus" ? "Required for non-campus locations" : undefined}
+                  description={
+                    watchedLevel !== "campus" ? "Required for non-campus locations" : undefined
+                  }
                   error={form.formState.errors.parent_id?.message}
                 />
               )}
@@ -184,9 +182,7 @@ export function LocationsStep({ onNext, onBack }: Props) {
               {...form.register("name")}
               error={form.formState.errors.name?.message}
             />
-            <Button type="submit">
-              Add Location
-            </Button>
+            <Button type="submit">Add Location</Button>
           </Stack>
         </form>
       </Modal>

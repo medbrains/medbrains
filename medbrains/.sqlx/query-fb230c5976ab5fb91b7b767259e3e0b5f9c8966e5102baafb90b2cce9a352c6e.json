@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE er_visits\n             SET is_mlc = true, updated_at = now()\n             WHERE id = $1 AND tenant_id = $2\n             RETURNING patient_id, chief_complaint, notes",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "chief_complaint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "notes",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "fb230c5976ab5fb91b7b767259e3e0b5f9c8966e5102baafb90b2cce9a352c6e"
+}

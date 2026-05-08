@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -13,16 +12,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { LocationRow } from "@medbrains/types";
-import { SelectLabel, CreateLocationModal } from "../../../components";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { CreateLocationModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
 
 // ── Constants ─────────────────────────────────────────────
@@ -123,8 +118,7 @@ function LocationModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      api.updateLocation(editingLocation!.id, data),
+    mutationFn: (data: Record<string, unknown>) => api.updateLocation(editingLocation?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Location updated",
@@ -202,12 +196,7 @@ function LocationModal({
           required
         />
         <Select
-          label={
-            <SelectLabel
-              label="Parent Location"
-              onCreate={parentInline.openCreateModal}
-            />
-          }
+          label={<SelectLabel label="Parent Location" onCreate={parentInline.openCreateModal} />}
           data={parentOptions}
           value={parentId}
           onChange={setParentId}
@@ -364,10 +353,20 @@ export function LocationsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon variant="subtle" color="primary" onClick={() => openEdit(loc)} aria-label="Edit">
+          <ActionIcon
+            variant="subtle"
+            color="primary"
+            onClick={() => openEdit(loc)}
+            aria-label="Edit"
+          >
             <IconPencil size={16} />
           </ActionIcon>
-          <ActionIcon variant="subtle" color="danger" onClick={() => setDeleteTarget(loc)} aria-label="Delete">
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            onClick={() => setDeleteTarget(loc)}
+            aria-label="Delete"
+          >
             <IconTrash size={16} />
           </ActionIcon>
         </Group>

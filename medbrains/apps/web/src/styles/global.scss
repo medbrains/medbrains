@@ -53,6 +53,11 @@ body {
   50% { opacity: 0.6; }
 }
 
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -86,6 +91,7 @@ body {
   background: var(--mb-header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--mb-border-subtle);
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -97,20 +103,20 @@ body {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ── HEADINGS — negative tracking for tighter display type ────
+// ── TYPOGRAPHY — clinical readability over display styling ───
 // ═══════════════════════════════════════════════════════════════
 
-// Heading — negative tracking for tighter display type (Stripe/Apple-inspired)
-h1, .mantine-Title-root[data-order="1"] { letter-spacing: -0.025em; }
-h2, .mantine-Title-root[data-order="2"] { letter-spacing: -0.02em; }
-h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
+h1,
+h2,
+h3,
+.mantine-Title-root {
+  letter-spacing: 0;
+}
 
-// IBM Carbon-inspired micro-tracking for small labels — improves readability
-// on dense clinical screens (vitals, lab values, table headers)
 .mantine-InputWrapper-label,
 .mantine-Table-th,
 .mantine-Badge-label {
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -149,12 +155,12 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   &[data-variant="filled"] {
     box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.08),
-      0 2px 8px rgba(31, 67, 50, 0.15);
+      0 8px 20px rgba(20, 184, 166, 0.2);
 
     &:hover:not(:disabled) {
       box-shadow:
         0 2px 4px rgba(0, 0, 0, 0.1),
-        0 6px 16px rgba(31, 67, 50, 0.25);
+        0 10px 26px rgba(20, 184, 166, 0.28);
       transform: translateY(-1px);
     }
 
@@ -167,25 +173,25 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   &[data-variant="default"] {
     background: var(--mb-card-bg);
     border-color: var(--mb-border);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 
     &:hover:not(:disabled) {
-      border-color: var(--mb-text-faint);
+      border-color: var(--mb-active-border);
       box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.06),
-        0 4px 12px rgba(0, 0, 0, 0.04);
+        0 2px 4px rgba(15, 23, 42, 0.06),
+        0 8px 18px rgba(20, 184, 166, 0.08);
       transform: translateY(-1px);
     }
 
     &::after {
-      background: radial-gradient(circle at center, rgba(31, 67, 50, 0.04) 0%, transparent 70%);
+      background: radial-gradient(circle at center, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
     }
   }
 
   // ── Light (tertiary) — tinted bg, subtle lift ──
   &[data-variant="light"] {
     &:hover:not(:disabled) {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 8px 20px rgba(20, 184, 166, 0.1);
       transform: translateY(-1px);
     }
   }
@@ -196,15 +202,15 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
 
     &:hover:not(:disabled) {
-      background: var(--mantine-color-primary-0, #f3f7f5);
-      box-shadow: 0 2px 6px rgba(31, 67, 50, 0.08);
+      background: var(--mb-accent-gradient-soft, var(--mantine-color-primary-0));
+      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.1);
     }
   }
 
   // ── Subtle — text only, tint bg on hover ──
   &[data-variant="subtle"] {
     &:hover:not(:disabled) {
-      background: var(--mantine-color-primary-0, #f3f7f5);
+      background: var(--mb-accent-gradient-soft, var(--mantine-color-primary-0));
     }
   }
 
@@ -253,9 +259,18 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 
   &[data-variant="subtle"] {
     &:hover:not(:disabled) {
-      background: var(--mb-bg-content);
+      background: var(--mb-accent-gradient-soft, var(--mb-bg-content));
+      color: var(--mb-active-text);
       transform: scale(1.05);
     }
+  }
+}
+
+.mantine-ThemeIcon-root {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+
+  &[data-variant="light"] {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   }
 }
 
@@ -305,12 +320,12 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   }
 }
 
-// Input labels — Inter Tight 12/500 per design `.lbl`
+// Input labels — compact but readable for dense clinical forms
 .mantine-InputWrapper-label,
 .mantine-Input-label {
   font-weight: 500;
   color: var(--fc-ink);
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
 
   // Required asterisk → code-red, per design
   .mantine-InputWrapper-required {
@@ -334,11 +349,20 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 
 .mantine-Badge-root {
   font-weight: 600;
-  letter-spacing: 0.02em;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  letter-spacing: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 
   &[data-variant="light"] {
     border: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+  }
+
+  &[data-variant="filled"] {
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  }
+
+  &:hover {
+    filter: saturate(1.08);
   }
 
   // Badges that indicate live/active status pulse subtly
@@ -361,13 +385,30 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 .mantine-Card-root,
 .mantine-Paper-root {
   background: var(--mb-card-bg);
+  border: 1px solid var(--mb-border-subtle);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 // ─── Stat cards: entrance + hover lift + left accent ───
 .stat-card {
   animation: scaleIn 0.25s ease-out backwards;
   transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
-  border-left: 3px solid transparent;
+  border-left: 4px solid transparent;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: var(--mb-accent-gradient);
+    opacity: 0.72;
+  }
+
+  .mantine-ThemeIcon-root {
+    animation: iconFloat 2.6s ease-in-out infinite;
+  }
 
   @for $i from 1 through 8 {
     &:nth-child(#{$i}) {
@@ -376,9 +417,9 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   }
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--mb-card-hover-shadow);
     transform: translateY(-2px);
-    border-left-color: var(--mantine-color-primary-5, #1F4332);
+    border-left-color: var(--mb-active-border);
   }
 }
 
@@ -388,11 +429,24 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(50, 50, 93, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--mb-card-hover-shadow);
     transform: translateY(-3px);
   }
 
   &:active { transform: scale(0.99); }
+}
+
+.quick-action-card {
+  border-radius: var(--mantine-radius-lg);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.84)),
+    var(--mb-accent-gradient-soft);
+  border: 1px solid var(--mb-border-subtle);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+
+  .mantine-ThemeIcon-root {
+    animation: iconFloat 2.6s ease-in-out infinite;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -406,12 +460,12 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 
 .mantine-Table-th {
   background: var(--mb-table-header-bg) !important;
-  color: var(--mb-text-muted) !important;
+  color: var(--mb-active-text) !important;
   font-weight: 600 !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-family: var(--font-mono, "JetBrains Mono", monospace) !important;
+  letter-spacing: 0;
+  font-family: var(--font-sans) !important;
   border-bottom: 1px solid var(--mb-table-border) !important;
   padding-top: 10px !important;
   padding-bottom: 10px !important;
@@ -444,6 +498,7 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 
 .mantine-Table-tbody .mantine-Table-tr:hover {
   background-color: var(--mb-table-hover) !important;
+  box-shadow: inset 3px 0 0 var(--mb-active-border);
 }
 
 // ── Mono styling for IDs, codes, UHIDs in tables ──
@@ -451,7 +506,7 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
   font-family: var(--font-mono, "JetBrains Mono", monospace);
   font-size: 12px;
   color: var(--mb-text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 // ── Empty table state ──
@@ -511,16 +566,25 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 }
 
 .mantine-Tabs-tab {
+  color: var(--mb-text-secondary) !important;
+  font-weight: 600;
   transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
               color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
               box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover:not(:disabled) {
+    color: var(--mb-active-text) !important;
+    background: var(--mb-nav-hover-bg, var(--mantine-color-primary-0));
+  }
 
   &:active:not(:disabled) {
     transform: scale(0.97);
   }
 
   &[data-active] {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+    color: var(--mb-active-text) !important;
+    background: var(--mb-nav-active-bg, var(--mantine-color-primary-1));
+    box-shadow: var(--mb-nav-active-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
   }
 }
 
@@ -579,25 +643,20 @@ h3, .mantine-Title-root[data-order="3"] { letter-spacing: -0.015em; }
 // ═══════════════════════════════════════════════════════════════
 
 .gradient-accent {
-  background: linear-gradient(135deg, #1F4332 0%, #2d5a43 50%, #B8924A 100%);
+  background: var(--mb-accent-gradient);
   color: white;
   border: none;
-  box-shadow: 0 4px 16px rgba(31, 67, 50, 0.3);
+  box-shadow: 0 10px 26px rgba(20, 184, 166, 0.28);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    box-shadow: 0 6px 24px rgba(31, 67, 50, 0.4);
+    box-shadow: 0 12px 34px rgba(14, 165, 233, 0.26);
     transform: translateY(-1px);
   }
 }
 
 .gradient-accent-soft {
-  background: linear-gradient(
-    135deg,
-    rgba(31, 67, 50, 0.1) 0%,
-    rgba(45, 90, 67, 0.1) 50%,
-    rgba(184, 146, 74, 0.1) 100%
-  );
+  background: var(--mb-accent-gradient-soft);
 }
 
 // ═══════════════════════════════════════════════════════════════

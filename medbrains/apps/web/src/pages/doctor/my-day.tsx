@@ -14,7 +14,6 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import {
@@ -22,10 +21,11 @@ import {
   IconAlertTriangle,
   IconCalendar,
   IconClipboardCheck,
-  IconStethoscope,
   IconSignature,
+  IconStethoscope,
   IconUserCog,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
@@ -100,9 +100,7 @@ export function MyDayPage() {
               : undefined
           }
           icon={<IconSignature size={20} stroke={1.5} />}
-          color={
-            (myDay?.pending_signoffs.overdue ?? 0) > 0 ? "danger" : "warning"
-          }
+          color={(myDay?.pending_signoffs.overdue ?? 0) > 0 ? "danger" : "warning"}
         />
         <StatCard
           label="OT cases today"
@@ -122,7 +120,9 @@ export function MyDayPage() {
         <Card padding="md" mb="md" withBorder>
           <Group justify="space-between">
             <div>
-              <Text fw={600} size="sm">Currently covering for</Text>
+              <Text fw={600} size="sm">
+                Currently covering for
+              </Text>
               <Text size="xs" c="dimmed">
                 {myDay.coverage.length} active assignment(s)
               </Text>
@@ -258,12 +258,7 @@ function QuickAction({
   badge?: number;
 }) {
   return (
-    <Card
-      padding="sm"
-      withBorder
-      onClick={onClick}
-      style={{ cursor: "pointer" }}
-    >
+    <Card padding="sm" withBorder onClick={onClick} style={{ cursor: "pointer" }}>
       <Group gap="sm" wrap="nowrap" align="flex-start">
         <ThemeIcon variant="light" size={32} radius="md">
           {icon}

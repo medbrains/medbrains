@@ -44,13 +44,13 @@ export function useCrdtDoc(
 
   const status = useSyncExternalStore<CrdtConnectionStatus>(
     (cb) => store.onStatus(() => cb()),
-    () => readStoreStatus(store),
+    () => store.getStatus(),
     () => "connecting",
   );
 
   const unsyncedOps = useSyncExternalStore<number>(
     (cb) => store.onUnsynced(() => cb()),
-    () => readUnsynced(store),
+    () => store.getUnsyncedOps(),
     () => 0,
   );
 
@@ -61,30 +61,6 @@ export function useCrdtDoc(
     unsyncedOps,
   };
 }
-
-// helpers — useSyncExternalStore wants a snapshot getter, so expose
-// the latest value via a tiny accessor that the store updates on
-// every callback.
-
-const statusCache = new WeakMap<CrdtStore, CrdtConnectionStatus>();
-const unsyncedCache = new WeakMap<CrdtStore, number>();
-
-function readStoreStatus(s: CrdtStore): CrdtConnectionStatus {
-  return statusCache.get(s) ?? "connecting";
-}
-
-function readUnsynced(s: CrdtStore): number {
-  return unsyncedCache.get(s) ?? 0;
-}
-
-// One-time wiring per store: as soon as we touch readStoreStatus the
-// next render after onStatus fires we want a fresh value. We achieve
-// this by piggy-backing on the subscription's first callback.
-//
-// (Skipped here for brevity — the cache primes itself the first time
-// the subscription fires; React renders again with cb() and reads
-// the just-written cache. For test environments with no WS, the
-// status stays at "connecting" which is the correct fallback.)
 
 function emptyDoc(): LoroDoc {
   // Lazy import so SSR builds without the wasm don't crash. In a

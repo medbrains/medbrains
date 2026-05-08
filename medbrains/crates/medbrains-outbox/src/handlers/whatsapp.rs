@@ -40,11 +40,7 @@ impl Handler for WhatsAppSendHandler {
         self.event_type
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         let to = payload
             .get("to")
             .and_then(Value::as_str)
@@ -72,38 +68,37 @@ impl Handler for WhatsAppSendHandler {
             .map_err(|e| HandlerError::Permanent(format!("WHATSAPP_ACCESS_TOKEN: {e}")))?;
 
         // Build the message body. Prefer template; fall back to text.
-        let message_body = if let Some(template_name) =
-            payload.get("template_name").and_then(Value::as_str)
-        {
-            let language = payload
-                .get("language")
-                .and_then(Value::as_str)
-                .unwrap_or("en");
-            let mut tmpl = json!({
-                "name": template_name,
-                "language": { "code": language },
-            });
-            if let Some(comps) = payload.get("components") {
-                tmpl["components"] = comps.clone();
-            }
-            json!({
-                "messaging_product": "whatsapp",
-                "to": to,
-                "type": "template",
-                "template": tmpl,
-            })
-        } else if let Some(text) = payload.get("text").and_then(Value::as_str) {
-            json!({
-                "messaging_product": "whatsapp",
-                "to": to,
-                "type": "text",
-                "text": { "body": text },
-            })
-        } else {
-            return Err(HandlerError::Permanent(
-                "payload must include template_name or text".to_owned(),
-            ));
-        };
+        let message_body =
+            if let Some(template_name) = payload.get("template_name").and_then(Value::as_str) {
+                let language = payload
+                    .get("language")
+                    .and_then(Value::as_str)
+                    .unwrap_or("en");
+                let mut tmpl = json!({
+                    "name": template_name,
+                    "language": { "code": language },
+                });
+                if let Some(comps) = payload.get("components") {
+                    tmpl["components"] = comps.clone();
+                }
+                json!({
+                    "messaging_product": "whatsapp",
+                    "to": to,
+                    "type": "template",
+                    "template": tmpl,
+                })
+            } else if let Some(text) = payload.get("text").and_then(Value::as_str) {
+                json!({
+                    "messaging_product": "whatsapp",
+                    "to": to,
+                    "type": "text",
+                    "text": { "body": text },
+                })
+            } else {
+                return Err(HandlerError::Permanent(
+                    "payload must include template_name or text".to_owned(),
+                ));
+            };
 
         let url = format!("{META_GRAPH_BASE}/{phone_number_id}/messages");
         let resp = ctx

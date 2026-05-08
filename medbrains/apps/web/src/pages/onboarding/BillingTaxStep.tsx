@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -12,18 +13,17 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { createTaxCategorySchema, createPaymentMethodSchema } from "@medbrains/schemas";
-import type { CreateTaxCategoryInput, CreatePaymentMethodInput } from "@medbrains/schemas";
+import type { CreatePaymentMethodInput, CreateTaxCategoryInput } from "@medbrains/schemas";
+import { createPaymentMethodSchema, createTaxCategorySchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type {
   OnboardingPaymentMethod,
   OnboardingTaxCategory,
   TaxApplicability,
 } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconCash, IconPercentage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconCash, IconPercentage, IconPlus, IconTrash } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -37,7 +37,12 @@ const applicabilityOptions = [
   { value: "zero_rated", label: "Zero Rated" },
 ];
 
-const templateTaxCategories: Array<{ code: string; name: string; rate_percent: number; applicability: TaxApplicability }> = [
+const templateTaxCategories: Array<{
+  code: string;
+  name: string;
+  rate_percent: number;
+  applicability: TaxApplicability;
+}> = [
   { code: "GST-5", name: "GST 5%", rate_percent: 5, applicability: "taxable" },
   { code: "GST-12", name: "GST 12%", rate_percent: 12, applicability: "taxable" },
   { code: "GST-18", name: "GST 18%", rate_percent: 18, applicability: "taxable" },
@@ -167,7 +172,9 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
           <div key={cat.local_id} className={classes.facilityCard}>
             <div className={classes.facilityInfo}>
               <Text fw={600}>{cat.name}</Text>
-              <Text size="sm" c="dimmed">{cat.code}</Text>
+              <Text size="sm" c="dimmed">
+                {cat.code}
+              </Text>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Badge variant="light" color={cat.applicability === "exempt" ? "slate" : "primary"}>
@@ -213,10 +220,16 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
           <div key={pm.local_id} className={classes.facilityCard}>
             <div className={classes.facilityInfo}>
               <Text fw={600}>{pm.name}</Text>
-              <Text size="sm" c="dimmed">{pm.code}</Text>
+              <Text size="sm" c="dimmed">
+                {pm.code}
+              </Text>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {pm.is_default && <Badge variant="filled" size="xs" color="teal">Default</Badge>}
+              {pm.is_default && (
+                <Badge variant="filled" size="xs" color="teal">
+                  Default
+                </Badge>
+              )}
               <ActionIcon
                 variant="subtle"
                 color="danger"
@@ -231,11 +244,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
       </div>
 
       {/* Tax Modal */}
-      <Modal
-        opened={showTaxModal}
-        onClose={() => setShowTaxModal(false)}
-        title="Add Tax Category"
-      >
+      <Modal opened={showTaxModal} onClose={() => setShowTaxModal(false)} title="Add Tax Category">
         <form onSubmit={handleAddTax}>
           <Stack gap="sm">
             <TextInput
@@ -280,10 +289,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
                 />
               )}
             />
-            <TextInput
-              label="Description"
-              {...taxForm.register("description")}
-            />
+            <TextInput label="Description" {...taxForm.register("description")} />
             <Button type="submit">Add Tax Category</Button>
           </Stack>
         </form>

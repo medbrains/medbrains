@@ -13,6 +13,7 @@ use medbrains_core::billing::{
     InvoiceDiscount, InvoiceItem, JournalEntry, JournalEntryLine, PatientAdvance, Payment,
     RatePlan, RatePlanItem, Receipt, Refund, TdsDeduction, TpaRateCard,
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,16 @@ pub(crate) struct AutoChargeInput {
     pub description_override: Option<String>,
     pub unit_price_override: Option<Decimal>,
     pub tax_percent_override: Option<Decimal>,
+}
+
+/// NABH 27 traceability: pharmacy dispenses propagate batch + expiry
+/// so a recall query can identify affected patients from the invoice
+/// line. Lab, radiology, room charges, etc. don't carry this and call
+/// `auto_charge` (which threads `BatchTrace::default()` internally).
+#[derive(Default, Clone)]
+pub(crate) struct BatchTrace {
+    pub batch_number: Option<String>,
+    pub expiry_date: Option<NaiveDate>,
 }
 
 pub(crate) struct AutoChargeResult {
@@ -73,7 +84,14 @@ pub(crate) async fn is_auto_billing_enabled(
 
     match val {
         Some(v) => Ok(v.as_bool().unwrap_or_else(|| v.as_str() == Some("true"))),
-        None => Ok(false),
+        // Default-on: auto-billing should be the standard behaviour
+        // when a clinical action (lab order completed, Rx dispensed,
+        // imaging reported) emits its event. Operators can disable
+        // per-module by writing `auto_charge_<module> = false` to
+        // tenant_settings. This is opposite to the prior default
+        // (false) which silently dropped charges and triggered the
+        // "consumption report not affected after dispense" feedback.
+        None => Ok(true),
     }
 }
 
@@ -165,10 +183,21 @@ struct RatePlanOverride {
 
 /// Auto-charge: find or create a draft invoice for the encounter, then add item.
 /// Fails gracefully (returns Ok) — caller should not let billing errors block module operations.
+/// Standard auto_charge — no batch traceability (lab, radiology,
+/// room rent, etc.). Pharmacy uses `auto_charge_with_batch` instead.
 pub(crate) async fn auto_charge(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     input: AutoChargeInput,
+) -> Result<AutoChargeResult, AppError> {
+    auto_charge_with_batch(tx, tenant_id, input, BatchTrace::default()).await
+}
+
+pub(crate) async fn auto_charge_with_batch(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    input: AutoChargeInput,
+    batch: BatchTrace,
 ) -> Result<AutoChargeResult, AppError> {
     // 1. Idempotency: check if this source_id is already charged
     let existing = sqlx::query_scalar::<_, Uuid>(
@@ -263,12 +292,13 @@ pub(crate) async fn auto_charge(
     let total =
         unit_price * Decimal::from(input.quantity) * (Decimal::ONE + tax_pct / Decimal::from(100));
 
-    // 4. Insert item
+    // 4. Insert item — including batch_number + expiry_date when the
+    // source carries them (pharmacy dispense). Migration 0109.
     let item_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO invoice_items \
          (tenant_id, invoice_id, charge_code, description, source, source_id, \
-          quantity, unit_price, tax_percent, total_price) \
-         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, $10) \
+          quantity, unit_price, tax_percent, total_price, batch_number, expiry_date) \
+         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, $10, $11, $12) \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -281,6 +311,8 @@ pub(crate) async fn auto_charge(
     .bind(unit_price)
     .bind(tax_pct)
     .bind(total)
+    .bind(&batch.batch_number)
+    .bind(batch.expiry_date)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -419,7 +451,7 @@ async fn recalculate_invoice_totals(
     invoice_id: Uuid,
     tenant_id: Uuid,
 ) -> Result<(), AppError> {
-    sqlx::query(
+    sqlx::query!(
         "UPDATE invoices SET \
          subtotal = COALESCE((SELECT SUM(unit_price * quantity) FROM invoice_items \
            WHERE invoice_id = $1 AND tenant_id = $2), 0), \
@@ -429,13 +461,235 @@ async fn recalculate_invoice_totals(
            WHERE invoice_id = $1 AND tenant_id = $2), 0), \
          updated_at = now() \
          WHERE id = $1 AND tenant_id = $2",
+        invoice_id,
+        tenant_id,
     )
-    .bind(invoice_id)
-    .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
 
     Ok(())
+}
+
+pub(crate) async fn reverse_auto_charge_for_source(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    source: &str,
+    source_id: Uuid,
+    reversed_by: Uuid,
+    reason: &str,
+) -> Result<Option<Uuid>, AppError> {
+    reverse_auto_charge_quantity_for_source(
+        tx,
+        tenant_id,
+        source,
+        source_id,
+        None,
+        reversed_by,
+        reason,
+        source,
+        source_id,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn reverse_auto_charge_quantity_for_source(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    source: &str,
+    source_id: Uuid,
+    reversal_quantity: Option<i32>,
+    reversed_by: Uuid,
+    reason: &str,
+    reversal_source_module: &str,
+    reversal_source_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    let original_id = sqlx::query_scalar!(
+        "SELECT id
+         FROM invoice_items
+         WHERE tenant_id = $1
+           AND source::text = $2
+           AND source_id = $3
+           AND reversal_of_id IS NULL
+           AND total_price > 0
+         ORDER BY created_at
+         LIMIT 1",
+        tenant_id,
+        source,
+        source_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    match original_id {
+        Some(item_id) => {
+            reverse_invoice_item_by_id_in_tx(
+                tx,
+                tenant_id,
+                item_id,
+                reversal_quantity,
+                reversed_by,
+                reason,
+                reversal_source_module,
+                reversal_source_id,
+            )
+            .await
+        }
+        None => Ok(None),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn reverse_invoice_item_by_id_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    item_id: Uuid,
+    reversal_quantity: Option<i32>,
+    reversed_by: Uuid,
+    reason: &str,
+    reversal_source_module: &str,
+    reversal_source_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    let original = sqlx::query!(
+        r#"SELECT id, invoice_id, charge_code, description, source::text AS "source!",
+                  source_id, quantity, unit_price, tax_percent, total_price,
+                  gst_rate, gst_type::text AS "gst_type!", cgst_amount, sgst_amount,
+                  igst_amount, hsn_sac_code, ordering_doctor_id, department_id,
+                  pharmacy_order_id, pharmacy_batch_id, batch_number, expiry_date,
+                  source_module
+           FROM invoice_items
+           WHERE id = $1
+             AND tenant_id = $2
+             AND reversal_of_id IS NULL
+             AND total_price > 0
+           LIMIT 1"#,
+        item_id,
+        tenant_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some(original) = original else {
+        return Ok(None);
+    };
+
+    if let Some(existing) = sqlx::query!(
+        "SELECT id
+         FROM invoice_items
+         WHERE tenant_id = $1
+           AND reversal_source_module = $2
+           AND reversal_source_id = $3
+         LIMIT 1",
+        tenant_id,
+        reversal_source_module,
+        reversal_source_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    {
+        recalculate_invoice_totals(tx, original.invoice_id, *tenant_id).await?;
+        return Ok(Some(existing.id));
+    }
+
+    let already_reversed = sqlx::query_scalar!(
+        "SELECT COALESCE(SUM(ABS(quantity)), 0)::BIGINT
+         FROM invoice_items
+         WHERE tenant_id = $1 AND reversal_of_id = $2",
+        tenant_id,
+        original.id,
+    )
+    .fetch_one(&mut **tx)
+    .await?
+    .unwrap_or(0);
+    let already_reversed = i32::try_from(already_reversed).unwrap_or(i32::MAX);
+    let remaining_quantity = original.quantity.saturating_sub(already_reversed);
+    let requested_quantity = reversal_quantity.unwrap_or(remaining_quantity);
+    let quantity_to_reverse = requested_quantity.min(remaining_quantity).max(0);
+
+    if quantity_to_reverse == 0 {
+        return Ok(None);
+    }
+
+    let original_quantity = Decimal::from(original.quantity);
+    let reversal_quantity_decimal = Decimal::from(quantity_to_reverse);
+    let gross_multiplier = Decimal::ONE + original.tax_percent / Decimal::from(100);
+    let reversal_total = original.unit_price * reversal_quantity_decimal * gross_multiplier;
+    let reversal_ratio = reversal_quantity_decimal / original_quantity;
+    let reversal_cgst = original.cgst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
+    let reversal_sgst = original.sgst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
+    let reversal_igst = original.igst_amount.unwrap_or(Decimal::ZERO) * reversal_ratio;
+    let negative_quantity = -quantity_to_reverse;
+    let negative_total = -reversal_total;
+    let negative_cgst = -reversal_cgst;
+    let negative_sgst = -reversal_sgst;
+    let negative_igst = -reversal_igst;
+
+    sqlx::query!(
+        "UPDATE invoice_items
+         SET reversed_at = COALESCE(reversed_at, now()),
+             reversed_by = COALESCE(reversed_by, $3),
+             reversal_reason = COALESCE(reversal_reason, $4)
+         WHERE id = $1 AND tenant_id = $2",
+        original.id,
+        tenant_id,
+        reversed_by,
+        reason,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    let reversal_id = sqlx::query_scalar!(
+        r#"INSERT INTO invoice_items
+           (tenant_id, invoice_id, charge_code, description, source, source_id,
+            quantity, unit_price, tax_percent, total_price, gst_rate, gst_type,
+            cgst_amount, sgst_amount, igst_amount, hsn_sac_code, ordering_doctor_id,
+            department_id, pharmacy_order_id, pharmacy_batch_id, batch_number, expiry_date,
+            source_module, reversal_of_id, is_reversal, reversed_at, reversed_by,
+            reversal_reason, reversal_source_module, reversal_source_id)
+           VALUES ($1, $2, $3, $4, $5::text::charge_source, $6,
+                   $7, $8, $9, $10, $11, $12::text::gst_type,
+                   $13, $14, $15, $16, $17,
+                   $18, $19, $20, $21, $22,
+                   COALESCE($23, 'manual'), $24, true, now(), $25,
+                   $26, $27, $28)
+           RETURNING id"#,
+        tenant_id,
+        original.invoice_id,
+        original.charge_code,
+        format!(
+            "Reversal - {} x {}",
+            original.description, quantity_to_reverse
+        ),
+        original.source,
+        original.source_id,
+        negative_quantity,
+        original.unit_price,
+        original.tax_percent,
+        negative_total,
+        original.gst_rate,
+        original.gst_type,
+        negative_cgst,
+        negative_sgst,
+        negative_igst,
+        original.hsn_sac_code,
+        original.ordering_doctor_id,
+        original.department_id,
+        original.pharmacy_order_id,
+        original.pharmacy_batch_id,
+        original.batch_number,
+        original.expiry_date,
+        original.source_module,
+        original.id,
+        reversed_by,
+        reason,
+        reversal_source_module,
+        reversal_source_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    recalculate_invoice_totals(tx, original.invoice_id, *tenant_id).await?;
+    Ok(Some(reversal_id))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -455,17 +709,13 @@ pub async fn list_invoices(
 
     // ── ReBAC scope — invoices the caller has `view` on ──────
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
         Some(
             state
                 .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "invoice",
-                    medbrains_authz::Relation::Viewer,
-                )
+                .list_accessible(&authz_ctx, "invoice", medbrains_authz::Relation::Viewer)
                 .await
                 .unwrap_or_default(),
         )
@@ -616,6 +866,26 @@ pub async fn create_invoice(
     )
     .await;
 
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BillingInvoiceCreated,
+        invoice.id,
+        claims.sub,
+        serde_json::json!({
+            "invoice_id": invoice.id,
+            "patient_id": invoice.patient_id,
+            "encounter_id": invoice.encounter_id,
+            "invoice_number": &invoice.invoice_number,
+            "total_amount": invoice.total_amount,
+            "status": format!("{:?}", invoice.status),
+        }),
+    )
+    .with_patient(invoice.patient_id);
+    if let Some(encounter_id) = invoice.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     // Enrich payload with patient details for orchestration
@@ -633,8 +903,8 @@ pub async fn create_invoice(
     .ok()
     .flatten();
 
-    let (patient_name, uhid, department_name) = patient_info
-        .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned(), None));
+    let (patient_name, uhid, department_name) =
+        patient_info.unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned(), None));
 
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
@@ -743,6 +1013,27 @@ pub async fn update_invoice(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if let Some(ref i) = inv {
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BillingInvoiceFinalized,
+            i.id,
+            claims.sub,
+            serde_json::json!({
+                "invoice_id": i.id,
+                "patient_id": i.patient_id,
+                "encounter_id": i.encounter_id,
+                "invoice_number": &i.invoice_number,
+                "status": format!("{:?}", i.status),
+            }),
+        )
+        .with_patient(i.patient_id);
+        if let Some(encounter_id) = i.encounter_id {
+            event = event.with_encounter(encounter_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
     inv.map_or_else(|| Err(AppError::NotFound), |i| Ok(Json(i)))
 }
@@ -809,24 +1100,45 @@ pub async fn remove_invoice_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM invoice_items WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3",
+    let belongs_to_invoice = sqlx::query_scalar!(
+        "SELECT id FROM invoice_items
+         WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3
+         LIMIT 1",
+        item_id,
+        invoice_id,
+        claims.tenant_id,
     )
-    .bind(item_id)
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
-    if result.rows_affected() == 0 {
+    if belongs_to_invoice.is_none() {
         tx.commit().await?;
         return Err(AppError::NotFound);
     }
 
-    recalculate_invoice_totals(&mut tx, invoice_id, claims.tenant_id).await?;
+    let reversal_id = reverse_invoice_item_by_id_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        item_id,
+        None,
+        claims.sub,
+        "Invoice item voided",
+        "billing_invoice_item_void",
+        item_id,
+    )
+    .await?;
+
+    let Some(reversal_id) = reversal_id else {
+        tx.commit().await?;
+        return Err(AppError::NotFound);
+    };
+
     tx.commit().await?;
 
-    Ok(Json(serde_json::json!({ "deleted": true })))
+    Ok(Json(serde_json::json!({
+        "status": "reversed",
+        "reversal_item_id": reversal_id
+    })))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -902,6 +1214,15 @@ pub async fn record_payment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let invoice_patient_id = sqlx::query_scalar!(
+        "SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2",
+        invoice_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
     let payment = sqlx::query_as::<_, Payment>(
         "INSERT INTO payments \
          (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
@@ -934,6 +1255,23 @@ pub async fn record_payment(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BillingPaymentReceived,
+        payment.id,
+        claims.sub,
+        serde_json::json!({
+            "payment_id": payment.id,
+            "invoice_id": invoice_id,
+            "patient_id": invoice_patient_id,
+            "amount": payment.amount,
+            "payment_mode": format!("{:?}", payment.mode),
+            "receipt_number": payment.reference_number.as_deref(),
+        }),
+    )
+    .with_patient(invoice_patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
@@ -6426,11 +6764,11 @@ pub async fn copay_calculation(
             .ok_or(AppError::NotFound)?;
 
     // Fetch insurance verification for the patient
-    let verification = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>, Option<Decimal>)>(
-        "SELECT copay_percent, copay_fixed, max_coverage_amount \
+    let verification = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
+        "SELECT co_pay_percent, out_of_pocket_max \
          FROM insurance_verifications \
          WHERE patient_id = $1 AND tenant_id = $2 \
-           AND verification_status = 'verified' \
+           AND status = 'verified' \
          ORDER BY verified_at DESC LIMIT 1",
     )
     .bind(invoice.patient_id)
@@ -6443,16 +6781,10 @@ pub async fn copay_calculation(
     let total = invoice.total_amount;
 
     match verification {
-        Some((copay_pct, copay_fixed, max_coverage)) => {
-            let copay_from_pct = copay_pct
+        Some((copay_pct, max_coverage)) => {
+            let copay = copay_pct
                 .map(|pct| total * pct / Decimal::from(100))
                 .unwrap_or_default();
-            let copay_from_fixed = copay_fixed.unwrap_or_default();
-            let copay = if copay_from_pct > Decimal::ZERO {
-                copay_from_pct
-            } else {
-                copay_from_fixed
-            };
             let max_cov = max_coverage.unwrap_or(total);
             let insurance_pays = (total - copay).min(max_cov);
             let patient_pays = total - insurance_pays;
@@ -6461,7 +6793,6 @@ pub async fn copay_calculation(
                 "invoice_id": body.invoice_id,
                 "invoice_total": total,
                 "copay_percent": copay_pct,
-                "copay_fixed": copay_fixed,
                 "max_coverage": max_coverage,
                 "insurance_pays": insurance_pays,
                 "patient_pays": patient_pays,
@@ -7114,7 +7445,7 @@ pub async fn auto_match_bank_transactions(
 
     for txn in &unmatched {
         // Strategy 1 — exact reference match against claim_number.
-        let claim_by_ref: Option<(Uuid, rust_decimal::Decimal, Option<rust_decimal::Decimal>)> =
+        let claim_by_ref: Option<(Uuid, Decimal, Option<Decimal>)> =
             if let Some(reference) = &txn.reference_number {
                 sqlx::query_as(
                     "SELECT id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
@@ -7155,19 +7486,18 @@ pub async fn auto_match_bank_transactions(
         let (claim, low_confidence) = if claim.is_some() {
             (claim, false)
         } else {
-            let by_amount: Option<(Uuid, rust_decimal::Decimal, Option<rust_decimal::Decimal>)> =
-                sqlx::query_as(
-                    "SELECT id, approved_amount::NUMERIC, settled_amount \
+            let by_amount: Option<(Uuid, Decimal, Option<Decimal>)> = sqlx::query_as(
+                "SELECT id, approved_amount::NUMERIC, settled_amount \
                      FROM insurance_claims \
                      WHERE tenant_id = $1 AND status = 'approved' \
                        AND approved_amount IS NOT NULL \
                        AND ABS(approved_amount - $2) < 1 \
                      ORDER BY submitted_at DESC LIMIT 1",
-                )
-                .bind(claims.tenant_id)
-                .bind(txn.credit_amount)
-                .fetch_optional(&mut *tx)
-                .await?;
+            )
+            .bind(claims.tenant_id)
+            .bind(txn.credit_amount)
+            .fetch_optional(&mut *tx)
+            .await?;
             (by_amount, true)
         };
 
@@ -7176,16 +7506,14 @@ pub async fn auto_match_bank_transactions(
         };
 
         let variance = approved - txn.credit_amount;
-        let new_recon_status = if variance.abs() < rust_decimal::Decimal::ONE && !low_confidence {
+        let new_recon_status = if variance.abs() < Decimal::ONE && !low_confidence {
             "matched"
         } else {
             variance_flagged += 1;
             "discrepancy"
         };
 
-        let new_settled = prior_settled
-            .unwrap_or(rust_decimal::Decimal::ZERO)
-            + txn.credit_amount;
+        let new_settled = prior_settled.unwrap_or(Decimal::ZERO) + txn.credit_amount;
 
         // Update the bank_transaction row.
         sqlx::query(
@@ -7252,8 +7580,8 @@ pub async fn auto_match_bank_transactions(
 struct UnmatchedCredit {
     id: Uuid,
     #[allow(dead_code)]
-    transaction_date: chrono::NaiveDate,
-    credit_amount: rust_decimal::Decimal,
+    transaction_date: NaiveDate,
+    credit_amount: Decimal,
     reference_number: Option<String>,
     description: Option<String>,
 }
@@ -7281,11 +7609,11 @@ fn extract_claim_number_from_description(desc: &str) -> Option<String> {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PayerAgingBucket {
     pub tpa_name: Option<String>,
-    pub bucket_0_30: rust_decimal::Decimal,
-    pub bucket_30_60: rust_decimal::Decimal,
-    pub bucket_60_90: rust_decimal::Decimal,
-    pub bucket_90_plus: rust_decimal::Decimal,
-    pub total_outstanding: rust_decimal::Decimal,
+    pub bucket_0_30: Decimal,
+    pub bucket_30_60: Decimal,
+    pub bucket_60_90: Decimal,
+    pub bucket_90_plus: Decimal,
+    pub total_outstanding: Decimal,
     pub claim_count: i64,
 }
 

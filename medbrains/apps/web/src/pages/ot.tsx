@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -13,30 +12,14 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   ThemeIcon,
   Tooltip,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import {
-  IconCalendar,
-  IconChartBar,
-  IconCheck,
-  IconCircleCheck,
-  IconCircleDashed,
-  IconClock,
-  IconEye,
-  IconPlayerPlay,
-  IconPlus,
-  IconScissors,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -54,8 +37,8 @@ import type {
   CreateSurgeonPreferenceRequest,
   OtAnesthesiaRecord,
   OtBooking,
-  OtCaseRecord,
   OtCasePriority,
+  OtCaseRecord,
   OtConsumableCategory,
   OtConsumableUsage,
   OtPostopRecord,
@@ -70,7 +53,26 @@ import type {
   UpdatePreopAssessmentRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconCalendar,
+  IconChartBar,
+  IconCheck,
+  IconCircleCheck,
+  IconCircleDashed,
+  IconClock,
+  IconEye,
+  IconPlayerPlay,
+  IconPlus,
+  IconScissors,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "../components";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const bookingStatusColors: Record<string, string> = {
@@ -104,7 +106,9 @@ export function OtPage() {
           <Tabs.Tab value="bookings">Bookings</Tabs.Tab>
           <Tabs.Tab value="rooms">Rooms</Tabs.Tab>
           <Tabs.Tab value="preferences">Surgeon Preferences</Tabs.Tab>
-          <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>Reports</Tabs.Tab>
+          <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>
+            Reports
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="schedule" pt="md">
@@ -184,22 +188,41 @@ function ScheduleTab() {
         <Table.Tbody>
           {isLoading && (
             <Table.Tr>
-              <Table.Td colSpan={5}><Text c="dimmed">Loading...</Text></Table.Td>
+              <Table.Td colSpan={5}>
+                <Text c="dimmed">Loading...</Text>
+              </Table.Td>
             </Table.Tr>
           )}
           {(data ?? []).map((b: OtBooking) => (
             <Table.Tr key={b.id}>
               <Table.Td>
-                <Text size="sm">{new Date(b.scheduled_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                <Text size="sm">
+                  {new Date(b.scheduled_start).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
               </Table.Td>
               <Table.Td>
-                <Text size="sm" fw={500}>{b.procedure_name}</Text>
+                <Text size="sm" fw={500}>
+                  {b.procedure_name}
+                </Text>
               </Table.Td>
               <Table.Td>
-                <Text size="sm" c="dimmed">{b.patient_id.slice(0, 8)}</Text>
+                <PatientNameCell patientId={b.patient_id} showUhid={false} />
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light" color={b.priority === "emergency" ? "danger" : b.priority === "urgent" ? "orange" : "slate"}>
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color={
+                    b.priority === "emergency"
+                      ? "danger"
+                      : b.priority === "urgent"
+                        ? "orange"
+                        : "slate"
+                  }
+                >
                   {b.priority}
                 </Badge>
               </Table.Td>
@@ -210,7 +233,11 @@ function ScheduleTab() {
           ))}
           {!isLoading && (data ?? []).length === 0 && (
             <Table.Tr>
-              <Table.Td colSpan={5}><Text c="dimmed" size="sm">No bookings for this date</Text></Table.Td>
+              <Table.Td colSpan={5}>
+                <Text c="dimmed" size="sm">
+                  No bookings for this date
+                </Text>
+              </Table.Td>
             </Table.Tr>
           )}
         </Table.Tbody>
@@ -240,12 +267,16 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "procedure_name",
       label: "Procedure",
-      render: (r: OtBooking) => <Text size="sm" fw={500}>{r.procedure_name}</Text>,
+      render: (r: OtBooking) => (
+        <Text size="sm" fw={500}>
+          {r.procedure_name}
+        </Text>
+      ),
     },
     {
       key: "patient_id",
       label: "Patient",
-      render: (r: OtBooking) => <Text size="sm" c="dimmed">{r.patient_id.slice(0, 8)}</Text>,
+      render: (r: OtBooking) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
     {
       key: "scheduled_date",
@@ -256,7 +287,13 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
       key: "priority",
       label: "Priority",
       render: (r: OtBooking) => (
-        <Badge size="sm" variant="light" color={r.priority === "emergency" ? "danger" : r.priority === "urgent" ? "orange" : "slate"}>
+        <Badge
+          size="sm"
+          variant="light"
+          color={
+            r.priority === "emergency" ? "danger" : r.priority === "urgent" ? "orange" : "slate"
+          }
+        >
           {r.priority}
         </Badge>
       ),
@@ -264,14 +301,23 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "status",
       label: "Status",
-      render: (r: OtBooking) => <StatusDot color={bookingStatusColors[r.status] ?? "slate"} label={r.status} />,
+      render: (r: OtBooking) => (
+        <StatusDot color={bookingStatusColors[r.status] ?? "slate"} label={r.status} />
+      ),
     },
     {
       key: "actions",
       label: "",
       render: (r: OtBooking) => (
         <Tooltip label="View">
-          <ActionIcon variant="subtle" onClick={() => { setDetailId(r.id); openDetail(); }} aria-label="View details">
+          <ActionIcon
+            variant="subtle"
+            onClick={() => {
+              setDetailId(r.id);
+              openDetail();
+            }}
+            aria-label="View details"
+          >
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -315,7 +361,13 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
 
       <CreateBookingDrawer opened={createOpened} onClose={closeCreate} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Booking Detail" position="right" size="xl">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Booking Detail"
+        position="right"
+        size="xl"
+      >
         {detailId && <BookingDetail bookingId={detailId} />}
       </Drawer>
     </Stack>
@@ -334,19 +386,47 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
       onClose();
       setForm({});
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create booking", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to create booking", color: "danger" }),
   });
 
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
       <Stack>
-        <PatientSearchSelect value={form.patient_id ?? ""} onChange={(id) => setForm({ ...form, patient_id: id })} required />
-        <TextInput label="OT Room ID" required onChange={(e) => setForm({ ...form, ot_room_id: e.currentTarget.value })} />
-        <TextInput label="Primary Surgeon ID" required onChange={(e) => setForm({ ...form, primary_surgeon_id: e.currentTarget.value })} />
-        <TextInput label="Procedure Name" required onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })} />
-        <TextInput label="Scheduled Date" placeholder="YYYY-MM-DD" onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })} />
-        <TextInput label="Scheduled Start (ISO)" onChange={(e) => setForm({ ...form, scheduled_start: e.currentTarget.value })} />
-        <TextInput label="Scheduled End (ISO)" onChange={(e) => setForm({ ...form, scheduled_end: e.currentTarget.value })} />
+        <PatientSearchSelect
+          value={form.patient_id ?? ""}
+          onChange={(id) => setForm({ ...form, patient_id: id })}
+          required
+        />
+        <PatientContextBanner patientId={form.patient_id} hideLoadingState />
+        <TextInput
+          label="OT Room ID"
+          required
+          onChange={(e) => setForm({ ...form, ot_room_id: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Primary Surgeon ID"
+          required
+          onChange={(e) => setForm({ ...form, primary_surgeon_id: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Procedure Name"
+          required
+          onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Scheduled Date"
+          placeholder="YYYY-MM-DD"
+          onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Scheduled Start (ISO)"
+          onChange={(e) => setForm({ ...form, scheduled_start: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Scheduled End (ISO)"
+          onChange={(e) => setForm({ ...form, scheduled_end: e.currentTarget.value })}
+        />
         <Select
           label="Priority"
           data={[
@@ -357,8 +437,14 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
           value={form.priority ?? "elective"}
           onChange={(v) => setForm({ ...form, priority: (v ?? "elective") as OtCasePriority })}
         />
-        <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-        <Button onClick={() => mutation.mutate(form as CreateOtBookingRequest)} loading={mutation.isPending}>
+        <Textarea
+          label="Notes"
+          onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+        />
+        <Button
+          onClick={() => mutation.mutate(form as CreateOtBookingRequest)}
+          loading={mutation.isPending}
+        >
           Create Booking
         </Button>
       </Stack>
@@ -423,7 +509,11 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
   const [showReason, setShowReason] = useState<"cancel" | "postpone" | null>(null);
 
   const statusMutation = useMutation({
-    mutationFn: (payload: { status: string; cancellation_reason?: string; postpone_reason?: string }) =>
+    mutationFn: (payload: {
+      status: string;
+      cancellation_reason?: string;
+      postpone_reason?: string;
+    }) =>
       api.updateOtBookingStatus(b.id, payload as Parameters<typeof api.updateOtBookingStatus>[1]),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-booking", b.id] });
@@ -433,13 +523,16 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
       setShowReason(null);
       setReason("");
     },
-    onError: () => notifications.show({ title: "Error", message: "Status update failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Status update failed", color: "danger" }),
   });
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Text fw={700} size="lg">{b.procedure_name}</Text>
+        <Text fw={700} size="lg">
+          {b.procedure_name}
+        </Text>
         <Badge color={bookingStatusColors[b.status] ?? "slate"} variant="light" size="lg">
           {b.status.replace("_", " ")}
         </Badge>
@@ -447,32 +540,50 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
 
       <Text size="sm">Date: {b.scheduled_date}</Text>
       <Text size="sm">
-        Time: {new Date(b.scheduled_start).toLocaleTimeString()} - {new Date(b.scheduled_end).toLocaleTimeString()}
+        Time: {new Date(b.scheduled_start).toLocaleTimeString()} -{" "}
+        {new Date(b.scheduled_end).toLocaleTimeString()}
       </Text>
-      <Text size="sm">Patient: {b.patient_id.slice(0, 8)}</Text>
+      <PatientContextBanner patientId={b.patient_id} hideLoadingState />
       {b.laterality && <Text size="sm">Laterality: {b.laterality}</Text>}
-      {b.estimated_duration_min && <Text size="sm">Estimated Duration: {b.estimated_duration_min} min</Text>}
+      {b.estimated_duration_min && (
+        <Text size="sm">Estimated Duration: {b.estimated_duration_min} min</Text>
+      )}
 
       <Group gap="xs">
         <Checkbox label="Consent" checked={b.consent_obtained} readOnly size="xs" />
         <Checkbox label="Site Marked" checked={b.site_marked} readOnly size="xs" />
         <Checkbox label="Blood Arranged" checked={b.blood_arranged} readOnly size="xs" />
       </Group>
-      {b.notes && <Text size="sm" c="dimmed">{b.notes}</Text>}
+      {b.notes && (
+        <Text size="sm" c="dimmed">
+          {b.notes}
+        </Text>
+      )}
 
       {canUpdate && (
         <Stack gap="xs" mt="md">
-          <Text size="sm" fw={600}>Status Transitions</Text>
+          <Text size="sm" fw={600}>
+            Status Transitions
+          </Text>
 
           {b.status === "requested" && (
             <Group>
-              <Button size="sm" color="primary" leftSection={<IconCheck size={14} />}
+              <Button
+                size="sm"
+                color="primary"
+                leftSection={<IconCheck size={14} />}
                 loading={statusMutation.isPending}
-                onClick={() => statusMutation.mutate({ status: "confirmed" })}>
+                onClick={() => statusMutation.mutate({ status: "confirmed" })}
+              >
                 Confirm
               </Button>
-              <Button size="sm" color="danger" variant="light" leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}>
+              <Button
+                size="sm"
+                color="danger"
+                variant="light"
+                leftSection={<IconX size={14} />}
+                onClick={() => setShowReason("cancel")}
+              >
                 Cancel
               </Button>
             </Group>
@@ -480,17 +591,36 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
 
           {b.status === "confirmed" && (
             <Group>
-              <Button size="sm" color="success" leftSection={<IconPlayerPlay size={14} />}
+              <Button
+                size="sm"
+                color="success"
+                leftSection={<IconPlayerPlay size={14} />}
                 loading={statusMutation.isPending}
-                onClick={() => statusMutation.mutate({ status: "in_progress", actual_start: new Date().toISOString() } as Parameters<typeof statusMutation.mutate>[0])}>
+                onClick={() =>
+                  statusMutation.mutate({
+                    status: "in_progress",
+                    actual_start: new Date().toISOString(),
+                  } as Parameters<typeof statusMutation.mutate>[0])
+                }
+              >
                 Start Surgery
               </Button>
-              <Button size="sm" color="orange" variant="light" leftSection={<IconClock size={14} />}
-                onClick={() => setShowReason("postpone")}>
+              <Button
+                size="sm"
+                color="orange"
+                variant="light"
+                leftSection={<IconClock size={14} />}
+                onClick={() => setShowReason("postpone")}
+              >
                 Postpone
               </Button>
-              <Button size="sm" color="danger" variant="light" leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}>
+              <Button
+                size="sm"
+                color="danger"
+                variant="light"
+                leftSection={<IconX size={14} />}
+                onClick={() => setShowReason("cancel")}
+              >
                 Cancel
               </Button>
             </Group>
@@ -498,13 +628,27 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
 
           {b.status === "in_progress" && (
             <Group>
-              <Button size="sm" color="teal" leftSection={<IconCircleCheck size={14} />}
+              <Button
+                size="sm"
+                color="teal"
+                leftSection={<IconCircleCheck size={14} />}
                 loading={statusMutation.isPending}
-                onClick={() => statusMutation.mutate({ status: "completed", actual_end: new Date().toISOString() } as Parameters<typeof statusMutation.mutate>[0])}>
+                onClick={() =>
+                  statusMutation.mutate({
+                    status: "completed",
+                    actual_end: new Date().toISOString(),
+                  } as Parameters<typeof statusMutation.mutate>[0])
+                }
+              >
                 Complete Surgery
               </Button>
-              <Button size="sm" color="danger" variant="light" leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}>
+              <Button
+                size="sm"
+                color="danger"
+                variant="light"
+                leftSection={<IconX size={14} />}
+                onClick={() => setShowReason("cancel")}
+              >
                 Cancel
               </Button>
             </Group>
@@ -518,15 +662,29 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 onChange={(e) => setReason(e.currentTarget.value)}
               />
               <Group>
-                <Button size="sm" color={showReason === "cancel" ? "danger" : "orange"}
+                <Button
+                  size="sm"
+                  color={showReason === "cancel" ? "danger" : "orange"}
                   loading={statusMutation.isPending}
-                  onClick={() => statusMutation.mutate({
-                    status: showReason === "cancel" ? "cancelled" : "postponed",
-                    ...(showReason === "cancel" ? { cancellation_reason: reason } : { postpone_reason: reason }),
-                  })}>
+                  onClick={() =>
+                    statusMutation.mutate({
+                      status: showReason === "cancel" ? "cancelled" : "postponed",
+                      ...(showReason === "cancel"
+                        ? { cancellation_reason: reason }
+                        : { postpone_reason: reason }),
+                    })
+                  }
+                >
                   Confirm {showReason === "cancel" ? "Cancellation" : "Postpone"}
                 </Button>
-                <Button size="sm" variant="subtle" onClick={() => { setShowReason(null); setReason(""); }}>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => {
+                    setShowReason(null);
+                    setReason("");
+                  }}
+                >
                   Back
                 </Button>
               </Group>
@@ -534,10 +692,20 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
           )}
 
           {(b.status === "completed" || b.status === "cancelled" || b.status === "postponed") && (
-            <Text size="sm" c="dimmed">No further transitions available.</Text>
+            <Text size="sm" c="dimmed">
+              No further transitions available.
+            </Text>
           )}
-          {b.cancellation_reason && <Text size="sm" c="danger">Cancellation reason: {b.cancellation_reason}</Text>}
-          {b.postpone_reason && <Text size="sm" c="orange">Postpone reason: {b.postpone_reason}</Text>}
+          {b.cancellation_reason && (
+            <Text size="sm" c="danger">
+              Cancellation reason: {b.cancellation_reason}
+            </Text>
+          )}
+          {b.postpone_reason && (
+            <Text size="sm" c="orange">
+              Postpone reason: {b.postpone_reason}
+            </Text>
+          )}
         </Stack>
       )}
     </Stack>
@@ -569,21 +737,26 @@ function PreopTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: CreatePreopAssessmentRequest) => api.createPreopAssessment(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
-      notifications.show({ title: "Saved", message: "Pre-op assessment recorded", color: "success" });
+      notifications.show({
+        title: "Saved",
+        message: "Pre-op assessment recorded",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to save assessment", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to save assessment", color: "danger" }),
   });
 
   const [updateForm, setUpdateForm] = useState<Partial<UpdatePreopAssessmentRequest>>({});
   const updateMutation = useMutation({
-    mutationFn: (d: UpdatePreopAssessmentRequest) =>
-      api.updatePreopAssessment(bookingId, d),
+    mutationFn: (d: UpdatePreopAssessmentRequest) => api.updatePreopAssessment(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
       notifications.show({ title: "Updated", message: "Assessment updated", color: "success" });
       setEditing(false);
     },
-    onError: () => notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -594,27 +767,53 @@ function PreopTab({ bookingId }: { bookingId: string }) {
       <Stack>
         <Group justify="space-between">
           <Text fw={600}>Pre-Operative Assessment</Text>
-          <Badge color={a.clearance_status === "cleared" ? "success" : a.clearance_status === "not_cleared" ? "danger" : "warning"}>
+          <Badge
+            color={
+              a.clearance_status === "cleared"
+                ? "success"
+                : a.clearance_status === "not_cleared"
+                  ? "danger"
+                  : "warning"
+            }
+          >
             {a.clearance_status.replace("_", " ")}
           </Badge>
         </Group>
-        {a.asa_class && <Text size="sm">ASA Class: {a.asa_class.replace("_", " ").toUpperCase()}</Text>}
+        {a.asa_class && (
+          <Text size="sm">ASA Class: {a.asa_class.replace("_", " ").toUpperCase()}</Text>
+        )}
         <Group gap="md">
           <Checkbox label="Fasting" checked={a.fasting_status} readOnly size="xs" />
           <Checkbox label="Labs Reviewed" checked={a.lab_results_reviewed} readOnly size="xs" />
           <Checkbox label="Imaging Reviewed" checked={a.imaging_reviewed} readOnly size="xs" />
-          <Checkbox label="Blood Group Confirmed" checked={a.blood_group_confirmed} readOnly size="xs" />
+          <Checkbox
+            label="Blood Group Confirmed"
+            checked={a.blood_group_confirmed}
+            readOnly
+            size="xs"
+          />
         </Group>
         {a.npo_since && <Text size="sm">NPO Since: {a.npo_since}</Text>}
         {a.allergies_noted && <Text size="sm">Allergies: {a.allergies_noted}</Text>}
         {a.current_medications && <Text size="sm">Medications: {a.current_medications}</Text>}
         {a.conditions && <Text size="sm">Conditions: {a.conditions}</Text>}
-        <Text size="xs" c="dimmed">Assessed at: {new Date(a.assessed_at).toLocaleString()}</Text>
+        <Text size="xs" c="dimmed">
+          Assessed at: {new Date(a.assessed_at).toLocaleString()}
+        </Text>
         {canCreate && (
-          <Button size="sm" variant="light" onClick={() => {
-            setUpdateForm({ clearance_status: a.clearance_status, asa_class: a.asa_class ?? undefined });
-            setEditing(true);
-          }}>Edit Assessment</Button>
+          <Button
+            size="sm"
+            variant="light"
+            onClick={() => {
+              setUpdateForm({
+                clearance_status: a.clearance_status,
+                asa_class: a.asa_class ?? undefined,
+              });
+              setEditing(true);
+            }}
+          >
+            Edit Assessment
+          </Button>
         )}
       </Stack>
     );
@@ -624,7 +823,8 @@ function PreopTab({ bookingId }: { bookingId: string }) {
     return (
       <Stack>
         <Text fw={600}>Edit Assessment</Text>
-        <Select label="Clearance Status"
+        <Select
+          label="Clearance Status"
           data={[
             { value: "pending", label: "Pending" },
             { value: "cleared", label: "Cleared" },
@@ -632,45 +832,104 @@ function PreopTab({ bookingId }: { bookingId: string }) {
             { value: "conditional", label: "Conditional" },
           ]}
           value={updateForm.clearance_status ?? assessment.clearance_status}
-          onChange={(v) => setUpdateForm({ ...updateForm, clearance_status: (v ?? "pending") as PreopClearanceStatus })}
+          onChange={(v) =>
+            setUpdateForm({
+              ...updateForm,
+              clearance_status: (v ?? "pending") as PreopClearanceStatus,
+            })
+          }
         />
-        <Select label="ASA Class"
+        <Select
+          label="ASA Class"
           data={asaOptions}
           value={updateForm.asa_class ?? assessment.asa_class ?? null}
-          onChange={(v) => setUpdateForm({ ...updateForm, asa_class: (v ?? undefined) as AsaClassification | undefined })}
+          onChange={(v) =>
+            setUpdateForm({
+              ...updateForm,
+              asa_class: (v ?? undefined) as AsaClassification | undefined,
+            })
+          }
           clearable
         />
         <Group>
-          <Button size="sm" onClick={() => updateMutation.mutate(updateForm as UpdatePreopAssessmentRequest)}
-            loading={updateMutation.isPending}>Save</Button>
-          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button
+            size="sm"
+            onClick={() => updateMutation.mutate(updateForm as UpdatePreopAssessmentRequest)}
+            loading={updateMutation.isPending}
+          >
+            Save
+          </Button>
+          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
         </Group>
       </Stack>
     );
   }
 
-  if (!canCreate) return <Text c="dimmed" size="sm">No pre-op assessment recorded.</Text>;
+  if (!canCreate)
+    return (
+      <Text c="dimmed" size="sm">
+        No pre-op assessment recorded.
+      </Text>
+    );
 
   return (
     <Stack>
       <Text fw={600}>Create Pre-Op Assessment</Text>
-      <Select label="ASA Class" data={asaOptions} clearable
-        onChange={(v) => setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })} />
-      <Checkbox label="Fasting" checked={form.fasting_status ?? false}
-        onChange={(e) => setForm({ ...form, fasting_status: e.currentTarget.checked })} />
-      <TextInput label="NPO Since" placeholder="e.g. 22:00"
-        onChange={(e) => setForm({ ...form, npo_since: e.currentTarget.value || undefined })} />
-      <Checkbox label="Lab Results Reviewed" checked={form.lab_results_reviewed ?? false}
-        onChange={(e) => setForm({ ...form, lab_results_reviewed: e.currentTarget.checked })} />
-      <Checkbox label="Imaging Reviewed" checked={form.imaging_reviewed ?? false}
-        onChange={(e) => setForm({ ...form, imaging_reviewed: e.currentTarget.checked })} />
-      <Checkbox label="Blood Group Confirmed" checked={form.blood_group_confirmed ?? false}
-        onChange={(e) => setForm({ ...form, blood_group_confirmed: e.currentTarget.checked })} />
-      <TextInput label="Allergies" onChange={(e) => setForm({ ...form, allergies_noted: e.currentTarget.value || undefined })} />
-      <TextInput label="Current Medications" onChange={(e) => setForm({ ...form, current_medications: e.currentTarget.value || undefined })} />
-      <Textarea label="Conditions" onChange={(e) => setForm({ ...form, conditions: e.currentTarget.value || undefined })} />
-      <Button onClick={() => createMutation.mutate(form as CreatePreopAssessmentRequest)}
-        loading={createMutation.isPending}>Save Assessment</Button>
+      <Select
+        label="ASA Class"
+        data={asaOptions}
+        clearable
+        onChange={(v) =>
+          setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })
+        }
+      />
+      <Checkbox
+        label="Fasting"
+        checked={form.fasting_status ?? false}
+        onChange={(e) => setForm({ ...form, fasting_status: e.currentTarget.checked })}
+      />
+      <TextInput
+        label="NPO Since"
+        placeholder="e.g. 22:00"
+        onChange={(e) => setForm({ ...form, npo_since: e.currentTarget.value || undefined })}
+      />
+      <Checkbox
+        label="Lab Results Reviewed"
+        checked={form.lab_results_reviewed ?? false}
+        onChange={(e) => setForm({ ...form, lab_results_reviewed: e.currentTarget.checked })}
+      />
+      <Checkbox
+        label="Imaging Reviewed"
+        checked={form.imaging_reviewed ?? false}
+        onChange={(e) => setForm({ ...form, imaging_reviewed: e.currentTarget.checked })}
+      />
+      <Checkbox
+        label="Blood Group Confirmed"
+        checked={form.blood_group_confirmed ?? false}
+        onChange={(e) => setForm({ ...form, blood_group_confirmed: e.currentTarget.checked })}
+      />
+      <TextInput
+        label="Allergies"
+        onChange={(e) => setForm({ ...form, allergies_noted: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Current Medications"
+        onChange={(e) =>
+          setForm({ ...form, current_medications: e.currentTarget.value || undefined })
+        }
+      />
+      <Textarea
+        label="Conditions"
+        onChange={(e) => setForm({ ...form, conditions: e.currentTarget.value || undefined })}
+      />
+      <Button
+        onClick={() => createMutation.mutate(form as CreatePreopAssessmentRequest)}
+        loading={createMutation.isPending}
+      >
+        Save Assessment
+      </Button>
     </Stack>
   );
 }
@@ -709,9 +968,18 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: CreateSafetyChecklistRequest) => api.createSafetyChecklist(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
-      notifications.show({ title: "Created", message: "Checklist phase started", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Checklist phase started",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create checklist", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to create checklist",
+        color: "danger",
+      }),
   });
 
   const completeMutation = useMutation({
@@ -721,7 +989,8 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
       notifications.show({ title: "Completed", message: "Phase completed", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to complete phase", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to complete phase", color: "danger" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -743,19 +1012,44 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
         const completed = checklist?.completed ?? false;
 
         return (
-          <Card key={phase} withBorder padding="sm"
-            style={{ borderColor: completed ? "var(--mantine-color-green-5)" : checklist ? "var(--mantine-color-yellow-5)" : undefined }}>
+          <Card
+            key={phase}
+            withBorder
+            padding="sm"
+            style={{
+              borderColor: completed
+                ? "var(--mantine-color-green-5)"
+                : checklist
+                  ? "var(--mantine-color-yellow-5)"
+                  : undefined,
+            }}
+          >
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon size="sm" variant="light"
-                  color={completed ? "success" : checklist ? "warning" : "slate"}>
+                <ThemeIcon
+                  size="sm"
+                  variant="light"
+                  color={completed ? "success" : checklist ? "warning" : "slate"}
+                >
                   {completed ? <IconCircleCheck size={14} /> : <IconCircleDashed size={14} />}
                 </ThemeIcon>
                 <Text fw={500}>{phaseLabels[phase]}</Text>
               </Group>
-              {completed && <Badge color="success" size="sm">Completed</Badge>}
-              {checklist && !completed && <Badge color="warning" size="sm">In Progress</Badge>}
-              {!checklist && <Badge color="slate" size="sm">Not Started</Badge>}
+              {completed && (
+                <Badge color="success" size="sm">
+                  Completed
+                </Badge>
+              )}
+              {checklist && !completed && (
+                <Badge color="warning" size="sm">
+                  In Progress
+                </Badge>
+              )}
+              {!checklist && (
+                <Badge color="slate" size="sm">
+                  Not Started
+                </Badge>
+              )}
             </Group>
 
             {checklist?.completed_at && (
@@ -765,18 +1059,28 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
             )}
 
             {canCreate && !checklist && (
-              <Button size="xs" mt="xs" variant="light"
+              <Button
+                size="xs"
+                mt="xs"
+                variant="light"
                 disabled={blocked}
                 loading={createMutation.isPending}
-                onClick={() => createMutation.mutate({ phase, items: {} })}>
-                {blocked ? `Complete ${phaseLabels[PHASES[PHASES.indexOf(phase) - 1] as ChecklistPhase]} first` : `Start ${phaseLabels[phase]}`}
+                onClick={() => createMutation.mutate({ phase, items: {} })}
+              >
+                {blocked
+                  ? `Complete ${phaseLabels[PHASES[PHASES.indexOf(phase) - 1] as ChecklistPhase]} first`
+                  : `Start ${phaseLabels[phase]}`}
               </Button>
             )}
 
             {canCreate && checklist && !completed && (
-              <Button size="xs" mt="xs" color="success"
+              <Button
+                size="xs"
+                mt="xs"
+                color="success"
                 loading={completeMutation.isPending}
-                onClick={() => completeMutation.mutate({ id: checklist.id })}>
+                onClick={() => completeMutation.mutate({ id: checklist.id })}
+              >
                 Mark Complete
               </Button>
             )}
@@ -811,7 +1115,12 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["ot-case-record", bookingId] });
       notifications.show({ title: "Saved", message: "Case record created", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to save case record", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to save case record",
+        color: "danger",
+      }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -822,75 +1131,194 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
     return (
       <Stack>
         <Text fw={600}>Surgical Case Record</Text>
-        <Text size="sm" fw={500}>Procedure: {record.procedure_performed}</Text>
-        {record.incision_time && <Text size="sm">Incision: {new Date(record.incision_time).toLocaleTimeString()}</Text>}
-        {record.closure_time && <Text size="sm">Closure: {new Date(record.closure_time).toLocaleTimeString()}</Text>}
-        {record.patient_in_time && <Text size="sm">Patient In: {new Date(record.patient_in_time).toLocaleTimeString()}</Text>}
-        {record.patient_out_time && <Text size="sm">Patient Out: {new Date(record.patient_out_time).toLocaleTimeString()}</Text>}
+        <Text size="sm" fw={500}>
+          Procedure: {record.procedure_performed}
+        </Text>
+        {record.incision_time && (
+          <Text size="sm">Incision: {new Date(record.incision_time).toLocaleTimeString()}</Text>
+        )}
+        {record.closure_time && (
+          <Text size="sm">Closure: {new Date(record.closure_time).toLocaleTimeString()}</Text>
+        )}
+        {record.patient_in_time && (
+          <Text size="sm">Patient In: {new Date(record.patient_in_time).toLocaleTimeString()}</Text>
+        )}
+        {record.patient_out_time && (
+          <Text size="sm">
+            Patient Out: {new Date(record.patient_out_time).toLocaleTimeString()}
+          </Text>
+        )}
         {record.findings && <Text size="sm">Findings: {record.findings}</Text>}
         {record.technique && <Text size="sm">Technique: {record.technique}</Text>}
-        {record.complications && <Text size="sm" c="danger">Complications: {record.complications}</Text>}
-        {record.blood_loss_ml != null && <Text size="sm">Blood Loss: {record.blood_loss_ml} ml</Text>}
-
-        <Text size="sm" fw={500} mt="xs">Counts</Text>
-        <Group gap="md">
-          <Checkbox label="Instruments (before)" checked={record.instrument_count_correct_before ?? false} readOnly size="xs"
-            color={record.instrument_count_correct_before ? "success" : "danger"} />
-          <Checkbox label="Instruments (after)" checked={record.instrument_count_correct_after ?? false} readOnly size="xs"
-            color={record.instrument_count_correct_after ? "success" : "danger"} />
-          <Checkbox label="Sponges" checked={record.sponge_count_correct ?? false} readOnly size="xs"
-            color={record.sponge_count_correct ? "success" : "danger"} />
-        </Group>
-        {(record.instrument_count_correct_before === false || record.instrument_count_correct_after === false || record.sponge_count_correct === false) && (
-          <Text size="xs" c="danger" fw={600}>WARNING: Count discrepancy detected — verify immediately!</Text>
+        {record.complications && (
+          <Text size="sm" c="danger">
+            Complications: {record.complications}
+          </Text>
         )}
-        {record.notes && <Text size="sm" c="dimmed">{record.notes}</Text>}
+        {record.blood_loss_ml != null && (
+          <Text size="sm">Blood Loss: {record.blood_loss_ml} ml</Text>
+        )}
+
+        <Text size="sm" fw={500} mt="xs">
+          Counts
+        </Text>
+        <Group gap="md">
+          <Checkbox
+            label="Instruments (before)"
+            checked={record.instrument_count_correct_before ?? false}
+            readOnly
+            size="xs"
+            color={record.instrument_count_correct_before ? "success" : "danger"}
+          />
+          <Checkbox
+            label="Instruments (after)"
+            checked={record.instrument_count_correct_after ?? false}
+            readOnly
+            size="xs"
+            color={record.instrument_count_correct_after ? "success" : "danger"}
+          />
+          <Checkbox
+            label="Sponges"
+            checked={record.sponge_count_correct ?? false}
+            readOnly
+            size="xs"
+            color={record.sponge_count_correct ? "success" : "danger"}
+          />
+        </Group>
+        {(record.instrument_count_correct_before === false ||
+          record.instrument_count_correct_after === false ||
+          record.sponge_count_correct === false) && (
+          <Text size="xs" c="danger" fw={600}>
+            WARNING: Count discrepancy detected — verify immediately!
+          </Text>
+        )}
+        {record.notes && (
+          <Text size="sm" c="dimmed">
+            {record.notes}
+          </Text>
+        )}
       </Stack>
     );
   }
 
-  if (!canCreate) return <Text c="dimmed" size="sm">No case record yet.</Text>;
+  if (!canCreate)
+    return (
+      <Text c="dimmed" size="sm">
+        No case record yet.
+      </Text>
+    );
 
   return (
     <Stack>
       <Text fw={600}>Create Case Record</Text>
-      <TextInput label="Procedure Performed" required
-        onChange={(e) => setForm({ ...form, procedure_performed: e.currentTarget.value })} />
-      <Textarea label="Findings" onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })} />
-      <Textarea label="Technique" onChange={(e) => setForm({ ...form, technique: e.currentTarget.value || undefined })} />
-      <Textarea label="Complications" onChange={(e) => setForm({ ...form, complications: e.currentTarget.value || undefined })} />
-      <NumberInput label="Blood Loss (ml)" min={0}
-        onChange={(v) => setForm({ ...form, blood_loss_ml: typeof v === "number" ? v : undefined })} />
-      <TextInput label="Incision Time (ISO)" placeholder="Auto-filled or manual"
-        onChange={(e) => setForm({ ...form, incision_time: e.currentTarget.value || undefined })} />
-      <TextInput label="Closure Time (ISO)"
-        onChange={(e) => setForm({ ...form, closure_time: e.currentTarget.value || undefined })} />
-      <TextInput label="Patient In Time (ISO)"
-        onChange={(e) => setForm({ ...form, patient_in_time: e.currentTarget.value || undefined })} />
-      <TextInput label="Patient Out Time (ISO)"
-        onChange={(e) => setForm({ ...form, patient_out_time: e.currentTarget.value || undefined })} />
+      <TextInput
+        label="Procedure Performed"
+        required
+        onChange={(e) => setForm({ ...form, procedure_performed: e.currentTarget.value })}
+      />
+      <Textarea
+        label="Findings"
+        onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })}
+      />
+      <Textarea
+        label="Technique"
+        onChange={(e) => setForm({ ...form, technique: e.currentTarget.value || undefined })}
+      />
+      <Textarea
+        label="Complications"
+        onChange={(e) => setForm({ ...form, complications: e.currentTarget.value || undefined })}
+      />
+      <NumberInput
+        label="Blood Loss (ml)"
+        min={0}
+        onChange={(v) => setForm({ ...form, blood_loss_ml: typeof v === "number" ? v : undefined })}
+      />
+      <TextInput
+        label="Incision Time (ISO)"
+        placeholder="Auto-filled or manual"
+        onChange={(e) => setForm({ ...form, incision_time: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Closure Time (ISO)"
+        onChange={(e) => setForm({ ...form, closure_time: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Patient In Time (ISO)"
+        onChange={(e) => setForm({ ...form, patient_in_time: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Patient Out Time (ISO)"
+        onChange={(e) => setForm({ ...form, patient_out_time: e.currentTarget.value || undefined })}
+      />
 
-      <Text size="sm" fw={500} mt="xs">Instrument & Sponge Counts</Text>
-      <Checkbox label="Instruments correct (before)" checked={form.instrument_count_correct_before ?? false}
-        onChange={(e) => setForm({ ...form, instrument_count_correct_before: e.currentTarget.checked })} />
-      <Checkbox label="Instruments correct (after)" checked={form.instrument_count_correct_after ?? false}
-        onChange={(e) => setForm({ ...form, instrument_count_correct_after: e.currentTarget.checked })} />
-      <Checkbox label="Sponges correct" checked={form.sponge_count_correct ?? false}
-        onChange={(e) => setForm({ ...form, sponge_count_correct: e.currentTarget.checked })} />
-      {(!form.instrument_count_correct_before || !form.instrument_count_correct_after || !form.sponge_count_correct) && (
-        <Text size="xs" c="danger" fw={600}>WARNING: Unchecked counts require verification before closure.</Text>
+      <Text size="sm" fw={500} mt="xs">
+        Instrument & Sponge Counts
+      </Text>
+      <Checkbox
+        label="Instruments correct (before)"
+        checked={form.instrument_count_correct_before ?? false}
+        onChange={(e) =>
+          setForm({ ...form, instrument_count_correct_before: e.currentTarget.checked })
+        }
+      />
+      <Checkbox
+        label="Instruments correct (after)"
+        checked={form.instrument_count_correct_after ?? false}
+        onChange={(e) =>
+          setForm({ ...form, instrument_count_correct_after: e.currentTarget.checked })
+        }
+      />
+      <Checkbox
+        label="Sponges correct"
+        checked={form.sponge_count_correct ?? false}
+        onChange={(e) => setForm({ ...form, sponge_count_correct: e.currentTarget.checked })}
+      />
+      {(!form.instrument_count_correct_before ||
+        !form.instrument_count_correct_after ||
+        !form.sponge_count_correct) && (
+        <Text size="xs" c="danger" fw={600}>
+          WARNING: Unchecked counts require verification before closure.
+        </Text>
       )}
 
-      <Textarea label="Specimens" placeholder="List specimens collected"
-        onChange={(e) => setForm({ ...form, specimens: e.currentTarget.value ? [e.currentTarget.value] : undefined })} />
-      <Textarea label="Implants" placeholder="List implants used"
-        onChange={(e) => setForm({ ...form, implants: e.currentTarget.value ? [e.currentTarget.value] : undefined })} />
-      <Textarea label="Drains" placeholder="List drains placed"
-        onChange={(e) => setForm({ ...form, drains: e.currentTarget.value ? [e.currentTarget.value] : undefined })} />
-      <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
+      <Textarea
+        label="Specimens"
+        placeholder="List specimens collected"
+        onChange={(e) =>
+          setForm({
+            ...form,
+            specimens: e.currentTarget.value ? [e.currentTarget.value] : undefined,
+          })
+        }
+      />
+      <Textarea
+        label="Implants"
+        placeholder="List implants used"
+        onChange={(e) =>
+          setForm({
+            ...form,
+            implants: e.currentTarget.value ? [e.currentTarget.value] : undefined,
+          })
+        }
+      />
+      <Textarea
+        label="Drains"
+        placeholder="List drains placed"
+        onChange={(e) =>
+          setForm({ ...form, drains: e.currentTarget.value ? [e.currentTarget.value] : undefined })
+        }
+      />
+      <Textarea
+        label="Notes"
+        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      />
 
-      <Button onClick={() => createMutation.mutate(form as CreateCaseRecordRequest)}
-        loading={createMutation.isPending}>Save Case Record</Button>
+      <Button
+        onClick={() => createMutation.mutate(form as CreateCaseRecordRequest)}
+        loading={createMutation.isPending}
+      >
+        Save Case Record
+      </Button>
     </Stack>
   );
 }
@@ -924,9 +1352,18 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: CreateAnesthesiaRecordRequest) => api.createAnesthesiaRecord(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-anesthesia", bookingId] });
-      notifications.show({ title: "Saved", message: "Anesthesia record created", color: "success" });
+      notifications.show({
+        title: "Saved",
+        message: "Anesthesia record created",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to save anesthesia record", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to save anesthesia record",
+        color: "danger",
+      }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -938,37 +1375,95 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
       <Stack>
         <Text fw={600}>Anesthesia Record</Text>
         <Text size="sm">Type: {record.anesthesia_type.replace("_", " ")}</Text>
-        {record.asa_class && <Text size="sm">ASA Class: {record.asa_class.replace("_", " ").toUpperCase()}</Text>}
-        {record.induction_time && <Text size="sm">Induction: {new Date(record.induction_time).toLocaleTimeString()}</Text>}
-        {record.intubation_time && <Text size="sm">Intubation: {new Date(record.intubation_time).toLocaleTimeString()}</Text>}
-        {record.extubation_time && <Text size="sm">Extubation: {new Date(record.extubation_time).toLocaleTimeString()}</Text>}
-        {record.complications && <Text size="sm" c="danger">Complications: {record.complications}</Text>}
-        {record.notes && <Text size="sm" c="dimmed">{record.notes}</Text>}
+        {record.asa_class && (
+          <Text size="sm">ASA Class: {record.asa_class.replace("_", " ").toUpperCase()}</Text>
+        )}
+        {record.induction_time && (
+          <Text size="sm">Induction: {new Date(record.induction_time).toLocaleTimeString()}</Text>
+        )}
+        {record.intubation_time && (
+          <Text size="sm">Intubation: {new Date(record.intubation_time).toLocaleTimeString()}</Text>
+        )}
+        {record.extubation_time && (
+          <Text size="sm">Extubation: {new Date(record.extubation_time).toLocaleTimeString()}</Text>
+        )}
+        {record.complications && (
+          <Text size="sm" c="danger">
+            Complications: {record.complications}
+          </Text>
+        )}
+        {record.notes && (
+          <Text size="sm" c="dimmed">
+            {record.notes}
+          </Text>
+        )}
       </Stack>
     );
   }
 
-  if (!canCreate) return <Text c="dimmed" size="sm">No anesthesia record yet.</Text>;
+  if (!canCreate)
+    return (
+      <Text c="dimmed" size="sm">
+        No anesthesia record yet.
+      </Text>
+    );
 
   return (
     <Stack>
       <Text fw={600}>Create Anesthesia Record</Text>
-      <Select label="Anesthesia Type" data={anesthesiaTypeOptions} required
+      <Select
+        label="Anesthesia Type"
+        data={anesthesiaTypeOptions}
+        required
         value={form.anesthesia_type ?? "general"}
-        onChange={(v) => setForm({ ...form, anesthesia_type: (v ?? "general") as AnesthesiaType })} />
-      <Select label="ASA Class" data={asaOptions} clearable
-        onChange={(v) => setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })} />
-      <TextInput label="Induction Time (ISO)"
-        onChange={(e) => setForm({ ...form, induction_time: e.currentTarget.value || undefined })} />
-      <TextInput label="Intubation Time (ISO)"
-        onChange={(e) => setForm({ ...form, intubation_time: e.currentTarget.value || undefined })} />
-      <Textarea label="Airway Details" placeholder="Airway assessment details"
-        onChange={(e) => setForm({ ...form, airway_details: e.currentTarget.value ? { notes: e.currentTarget.value } : undefined })} />
-      <Textarea label="Drugs Administered" placeholder="List drugs, doses, routes"
-        onChange={(e) => setForm({ ...form, drugs_administered: e.currentTarget.value ? [e.currentTarget.value] : undefined })} />
-      <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-      <Button onClick={() => createMutation.mutate(form as CreateAnesthesiaRecordRequest)}
-        loading={createMutation.isPending}>Save Anesthesia Record</Button>
+        onChange={(v) => setForm({ ...form, anesthesia_type: (v ?? "general") as AnesthesiaType })}
+      />
+      <Select
+        label="ASA Class"
+        data={asaOptions}
+        clearable
+        onChange={(v) =>
+          setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })
+        }
+      />
+      <TextInput
+        label="Induction Time (ISO)"
+        onChange={(e) => setForm({ ...form, induction_time: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Intubation Time (ISO)"
+        onChange={(e) => setForm({ ...form, intubation_time: e.currentTarget.value || undefined })}
+      />
+      <Textarea
+        label="Airway Details"
+        placeholder="Airway assessment details"
+        onChange={(e) =>
+          setForm({
+            ...form,
+            airway_details: e.currentTarget.value ? { notes: e.currentTarget.value } : undefined,
+          })
+        }
+      />
+      <Textarea
+        label="Drugs Administered"
+        placeholder="List drugs, doses, routes"
+        onChange={(e) =>
+          setForm({
+            ...form,
+            drugs_administered: e.currentTarget.value ? [e.currentTarget.value] : undefined,
+          })
+        }
+      />
+      <Textarea
+        label="Notes"
+        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      />
+      <Button
+        onClick={() => createMutation.mutate(form as CreateAnesthesiaRecordRequest)}
+        loading={createMutation.isPending}
+      >
+        Save Anesthesia Record
+      </Button>
     </Stack>
   );
 }
@@ -1000,21 +1495,26 @@ function PostopTab({ bookingId }: { bookingId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Saved", message: "Post-op record created", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to save post-op record", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to save post-op record",
+        color: "danger",
+      }),
   });
 
   const [editing, setEditing] = useState(false);
   const [updateForm, setUpdateForm] = useState<Partial<UpdatePostopRecordRequest>>({});
 
   const updateMutation = useMutation({
-    mutationFn: (d: UpdatePostopRecordRequest) =>
-      api.updatePostopRecord(bookingId, d),
+    mutationFn: (d: UpdatePostopRecordRequest) => api.updatePostopRecord(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Updated", message: "Post-op record updated", color: "success" });
       setEditing(false);
     },
-    onError: () => notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1026,26 +1526,52 @@ function PostopTab({ bookingId }: { bookingId: string }) {
       <Stack>
         <Group justify="space-between">
           <Text fw={600}>Post-Op / PACU Recovery</Text>
-          <Badge color={record.recovery_status === "discharged" || record.recovery_status === "shifted_to_ward" ? "success" :
-            record.recovery_status === "shifted_to_icu" ? "orange" : "primary"}>
+          <Badge
+            color={
+              record.recovery_status === "discharged" ||
+              record.recovery_status === "shifted_to_ward"
+                ? "success"
+                : record.recovery_status === "shifted_to_icu"
+                  ? "orange"
+                  : "primary"
+            }
+          >
             {record.recovery_status.replace(/_/g, " ")}
           </Badge>
         </Group>
-        {record.arrival_time && <Text size="sm">Arrival: {new Date(record.arrival_time).toLocaleTimeString()}</Text>}
-        {record.discharge_time && <Text size="sm">Discharge: {new Date(record.discharge_time).toLocaleTimeString()}</Text>}
-        {record.aldrete_score_arrival != null && <Text size="sm">Aldrete (arrival): {record.aldrete_score_arrival}/10</Text>}
-        {record.aldrete_score_discharge != null && <Text size="sm">Aldrete (discharge): {record.aldrete_score_discharge}/10</Text>}
+        {record.arrival_time && (
+          <Text size="sm">Arrival: {new Date(record.arrival_time).toLocaleTimeString()}</Text>
+        )}
+        {record.discharge_time && (
+          <Text size="sm">Discharge: {new Date(record.discharge_time).toLocaleTimeString()}</Text>
+        )}
+        {record.aldrete_score_arrival != null && (
+          <Text size="sm">Aldrete (arrival): {record.aldrete_score_arrival}/10</Text>
+        )}
+        {record.aldrete_score_discharge != null && (
+          <Text size="sm">Aldrete (discharge): {record.aldrete_score_discharge}/10</Text>
+        )}
         {record.pain_assessment && <Text size="sm">Pain: {record.pain_assessment}</Text>}
         {record.fluid_orders && <Text size="sm">Fluid Orders: {record.fluid_orders}</Text>}
         {record.diet_orders && <Text size="sm">Diet: {record.diet_orders}</Text>}
         {record.activity_orders && <Text size="sm">Activity: {record.activity_orders}</Text>}
         {record.disposition && <Text size="sm">Disposition: {record.disposition}</Text>}
-        {record.notes && <Text size="sm" c="dimmed">{record.notes}</Text>}
+        {record.notes && (
+          <Text size="sm" c="dimmed">
+            {record.notes}
+          </Text>
+        )}
         {canCreate && (
-          <Button size="sm" variant="light" onClick={() => {
-            setUpdateForm({ recovery_status: record.recovery_status });
-            setEditing(true);
-          }}>Update Recovery</Button>
+          <Button
+            size="sm"
+            variant="light"
+            onClick={() => {
+              setUpdateForm({ recovery_status: record.recovery_status });
+              setEditing(true);
+            }}
+          >
+            Update Recovery
+          </Button>
         )}
       </Stack>
     );
@@ -1055,48 +1581,114 @@ function PostopTab({ bookingId }: { bookingId: string }) {
     return (
       <Stack>
         <Text fw={600}>Update Post-Op Recovery</Text>
-        <Select label="Recovery Status" data={recoveryStatusOptions}
+        <Select
+          label="Recovery Status"
+          data={recoveryStatusOptions}
           value={updateForm.recovery_status ?? record.recovery_status}
-          onChange={(v) => setUpdateForm({ ...updateForm, recovery_status: (v ?? "in_recovery") as PostopRecoveryStatus })} />
-        <NumberInput label="Aldrete Score (discharge)" min={0} max={10}
+          onChange={(v) =>
+            setUpdateForm({
+              ...updateForm,
+              recovery_status: (v ?? "in_recovery") as PostopRecoveryStatus,
+            })
+          }
+        />
+        <NumberInput
+          label="Aldrete Score (discharge)"
+          min={0}
+          max={10}
           value={updateForm.aldrete_score_discharge ?? record.aldrete_score_discharge ?? undefined}
-          onChange={(v) => setUpdateForm({ ...updateForm, aldrete_score_discharge: typeof v === "number" ? v : undefined })} />
-        <TextInput label="Discharge Time (ISO)" placeholder="Auto or manual"
-          onChange={(e) => setUpdateForm({ ...updateForm, discharge_time: e.currentTarget.value || undefined })} />
-        <TextInput label="Disposition"
-          onChange={(e) => setUpdateForm({ ...updateForm, disposition: e.currentTarget.value || undefined })} />
-        <Textarea label="Notes"
-          onChange={(e) => setUpdateForm({ ...updateForm, notes: e.currentTarget.value || undefined })} />
+          onChange={(v) =>
+            setUpdateForm({
+              ...updateForm,
+              aldrete_score_discharge: typeof v === "number" ? v : undefined,
+            })
+          }
+        />
+        <TextInput
+          label="Discharge Time (ISO)"
+          placeholder="Auto or manual"
+          onChange={(e) =>
+            setUpdateForm({ ...updateForm, discharge_time: e.currentTarget.value || undefined })
+          }
+        />
+        <TextInput
+          label="Disposition"
+          onChange={(e) =>
+            setUpdateForm({ ...updateForm, disposition: e.currentTarget.value || undefined })
+          }
+        />
+        <Textarea
+          label="Notes"
+          onChange={(e) =>
+            setUpdateForm({ ...updateForm, notes: e.currentTarget.value || undefined })
+          }
+        />
         <Group>
-          <Button size="sm" onClick={() => updateMutation.mutate(updateForm as UpdatePostopRecordRequest)}
-            loading={updateMutation.isPending}>Save</Button>
-          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button
+            size="sm"
+            onClick={() => updateMutation.mutate(updateForm as UpdatePostopRecordRequest)}
+            loading={updateMutation.isPending}
+          >
+            Save
+          </Button>
+          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
         </Group>
       </Stack>
     );
   }
 
-  if (!canCreate) return <Text c="dimmed" size="sm">No post-op record yet.</Text>;
+  if (!canCreate)
+    return (
+      <Text c="dimmed" size="sm">
+        No post-op record yet.
+      </Text>
+    );
 
   return (
     <Stack>
       <Text fw={600}>Create Post-Op Record</Text>
-      <TextInput label="Arrival Time (ISO)" placeholder="PACU arrival"
-        onChange={(e) => setForm({ ...form, arrival_time: e.currentTarget.value || undefined })} />
-      <NumberInput label="Aldrete Score (arrival)" min={0} max={10}
-        onChange={(v) => setForm({ ...form, aldrete_score_arrival: typeof v === "number" ? v : undefined })} />
-      <TextInput label="Pain Assessment" placeholder="e.g. NRS 4/10"
-        onChange={(e) => setForm({ ...form, pain_assessment: e.currentTarget.value || undefined })} />
-      <TextInput label="Fluid Orders"
-        onChange={(e) => setForm({ ...form, fluid_orders: e.currentTarget.value || undefined })} />
-      <TextInput label="Diet Orders"
-        onChange={(e) => setForm({ ...form, diet_orders: e.currentTarget.value || undefined })} />
-      <TextInput label="Activity Orders"
-        onChange={(e) => setForm({ ...form, activity_orders: e.currentTarget.value || undefined })} />
-      <Textarea label="Notes"
-        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-      <Button onClick={() => createMutation.mutate(form as CreatePostopRecordRequest)}
-        loading={createMutation.isPending}>Save Post-Op Record</Button>
+      <TextInput
+        label="Arrival Time (ISO)"
+        placeholder="PACU arrival"
+        onChange={(e) => setForm({ ...form, arrival_time: e.currentTarget.value || undefined })}
+      />
+      <NumberInput
+        label="Aldrete Score (arrival)"
+        min={0}
+        max={10}
+        onChange={(v) =>
+          setForm({ ...form, aldrete_score_arrival: typeof v === "number" ? v : undefined })
+        }
+      />
+      <TextInput
+        label="Pain Assessment"
+        placeholder="e.g. NRS 4/10"
+        onChange={(e) => setForm({ ...form, pain_assessment: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Fluid Orders"
+        onChange={(e) => setForm({ ...form, fluid_orders: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Diet Orders"
+        onChange={(e) => setForm({ ...form, diet_orders: e.currentTarget.value || undefined })}
+      />
+      <TextInput
+        label="Activity Orders"
+        onChange={(e) => setForm({ ...form, activity_orders: e.currentTarget.value || undefined })}
+      />
+      <Textarea
+        label="Notes"
+        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      />
+      <Button
+        onClick={() => createMutation.mutate(form as CreatePostopRecordRequest)}
+        loading={createMutation.isPending}
+      >
+        Save Post-Op Record
+      </Button>
     </Stack>
   );
 }
@@ -1125,20 +1717,30 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
       label: "Room",
       render: (r: OtRoom) => (
         <Stack gap={0}>
-          <Text size="sm" fw={500}>{r.name}</Text>
-          <Text size="xs" c="dimmed">{r.code}</Text>
+          <Text size="sm" fw={500}>
+            {r.name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {r.code}
+          </Text>
         </Stack>
       ),
     },
     {
       key: "status",
       label: "Status",
-      render: (r: OtRoom) => <StatusDot color={roomStatusColors[r.status] ?? "slate"} label={r.status} />,
+      render: (r: OtRoom) => (
+        <StatusDot color={roomStatusColors[r.status] ?? "slate"} label={r.status} />
+      ),
     },
     {
       key: "is_active",
       label: "Active",
-      render: (r: OtRoom) => <Badge variant="light" color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>,
+      render: (r: OtRoom) => (
+        <Badge variant="light" color={r.is_active ? "success" : "slate"}>
+          {r.is_active ? "Yes" : "No"}
+        </Badge>
+      ),
     },
   ];
 
@@ -1146,7 +1748,9 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Add Room</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Add Room
+          </Button>
         </Group>
       )}
       <DataTable
@@ -1179,9 +1783,21 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Room" position="right" size="sm">
       <Stack>
-        <TextInput label="Room Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} />
-        <Button onClick={() => mutation.mutate({ name, code })} loading={mutation.isPending}>Create</Button>
+        <TextInput
+          label="Room Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Code"
+          required
+          value={code}
+          onChange={(e) => setCode(e.currentTarget.value)}
+        />
+        <Button onClick={() => mutation.mutate({ name, code })} loading={mutation.isPending}>
+          Create
+        </Button>
       </Stack>
     </Drawer>
   );
@@ -1201,7 +1817,11 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
     {
       key: "procedure_name",
       label: "Procedure",
-      render: (r: OtSurgeonPreference) => <Text size="sm" fw={500}>{r.procedure_name}</Text>,
+      render: (r: OtSurgeonPreference) => (
+        <Text size="sm" fw={500}>
+          {r.procedure_name}
+        </Text>
+      ),
     },
     {
       key: "position",
@@ -1216,7 +1836,11 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
     {
       key: "special_instructions",
       label: "Notes",
-      render: (r: OtSurgeonPreference) => <Text size="sm" lineClamp={1}>{r.special_instructions ?? "\u2014"}</Text>,
+      render: (r: OtSurgeonPreference) => (
+        <Text size="sm" lineClamp={1}>
+          {r.special_instructions ?? "\u2014"}
+        </Text>
+      ),
     },
   ];
 
@@ -1224,7 +1848,9 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Add Preference Card</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Add Preference Card
+          </Button>
         </Group>
       )}
       <DataTable
@@ -1253,15 +1879,46 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Surgeon Preference Card" position="right" size="xl">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="Surgeon Preference Card"
+      position="right"
+      size="xl"
+    >
       <Stack>
-        <TextInput label="Surgeon ID" required onChange={(e) => setForm({ ...form, surgeon_id: e.currentTarget.value })} />
-        <TextInput label="Procedure Name" required onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })} />
-        <TextInput label="Position" onChange={(e) => setForm({ ...form, position: e.currentTarget.value || undefined })} />
-        <TextInput label="Skin Prep" onChange={(e) => setForm({ ...form, skin_prep: e.currentTarget.value || undefined })} />
-        <TextInput label="Draping" onChange={(e) => setForm({ ...form, draping: e.currentTarget.value || undefined })} />
-        <Textarea label="Special Instructions" onChange={(e) => setForm({ ...form, special_instructions: e.currentTarget.value || undefined })} />
-        <Button onClick={() => mutation.mutate(form as CreateSurgeonPreferenceRequest)} loading={mutation.isPending}>
+        <TextInput
+          label="Surgeon ID"
+          required
+          onChange={(e) => setForm({ ...form, surgeon_id: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Procedure Name"
+          required
+          onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })}
+        />
+        <TextInput
+          label="Position"
+          onChange={(e) => setForm({ ...form, position: e.currentTarget.value || undefined })}
+        />
+        <TextInput
+          label="Skin Prep"
+          onChange={(e) => setForm({ ...form, skin_prep: e.currentTarget.value || undefined })}
+        />
+        <TextInput
+          label="Draping"
+          onChange={(e) => setForm({ ...form, draping: e.currentTarget.value || undefined })}
+        />
+        <Textarea
+          label="Special Instructions"
+          onChange={(e) =>
+            setForm({ ...form, special_instructions: e.currentTarget.value || undefined })
+          }
+        />
+        <Button
+          onClick={() => mutation.mutate(form as CreateSurgeonPreferenceRequest)}
+          loading={mutation.isPending}
+        >
           Save
         </Button>
       </Stack>
@@ -1337,39 +1994,78 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
       </Group>
 
       {totalCost > 0 && (
-        <Badge size="lg" variant="light" color="primary">Total Cost: {totalCost.toFixed(2)}</Badge>
+        <Badge size="lg" variant="light" color="primary">
+          Total Cost: {totalCost.toFixed(2)}
+        </Badge>
       )}
 
       {showForm && (
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <TextInput label="Item Name" required value={itemName} onChange={(e) => setItemName(e.currentTarget.value)} />
-            <Select label="Category" data={CONSUMABLE_CATEGORIES} value={category} onChange={setCategory} required />
+            <TextInput
+              label="Item Name"
+              required
+              value={itemName}
+              onChange={(e) => setItemName(e.currentTarget.value)}
+            />
+            <Select
+              label="Category"
+              data={CONSUMABLE_CATEGORIES}
+              value={category}
+              onChange={setCategory}
+              required
+            />
             <Group grow>
-              <NumberInput label="Quantity" value={quantity} onChange={setQuantity} min={0.01} decimalScale={2} required />
-              <TextInput label="Unit" placeholder="pcs, ml, etc." value={unit} onChange={(e) => setUnit(e.currentTarget.value)} />
+              <NumberInput
+                label="Quantity"
+                value={quantity}
+                onChange={setQuantity}
+                min={0.01}
+                decimalScale={2}
+                required
+              />
+              <TextInput
+                label="Unit"
+                placeholder="pcs, ml, etc."
+                value={unit}
+                onChange={(e) => setUnit(e.currentTarget.value)}
+              />
             </Group>
             <Group grow>
-              <NumberInput label="Unit Price" value={unitPrice} onChange={setUnitPrice} min={0} decimalScale={2} />
-              <TextInput label="Batch Number" value={batchNumber} onChange={(e) => setBatchNumber(e.currentTarget.value)} />
+              <NumberInput
+                label="Unit Price"
+                value={unitPrice}
+                onChange={setUnitPrice}
+                min={0}
+                decimalScale={2}
+              />
+              <TextInput
+                label="Batch Number"
+                value={batchNumber}
+                onChange={(e) => setBatchNumber(e.currentTarget.value)}
+              />
             </Group>
             <Group>
               <Button
                 size="sm"
-                onClick={() => createMutation.mutate({
-                  item_name: itemName,
-                  category: category as OtConsumableCategory,
-                  quantity: Number(quantity),
-                  unit: unit || undefined,
-                  unit_price: unitPrice ? Number(unitPrice) : undefined,
-                  batch_number: batchNumber || undefined,
-                })}
+                onClick={() =>
+                  createMutation.mutate({
+                    item_name: itemName,
+                    category: category as OtConsumableCategory,
+                    quantity: Number(quantity),
+                    unit: unit || undefined,
+                    unit_price: unitPrice ? Number(unitPrice) : undefined,
+                    batch_number: batchNumber || undefined,
+                  })
+                }
                 loading={createMutation.isPending}
                 disabled={!itemName || !category}
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -1378,7 +2074,9 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No consumables recorded for this surgery.</Text>
+        <Text c="dimmed" size="sm">
+          No consumables recorded for this surgery.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -1395,15 +2093,39 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
           <Table.Tbody>
             {rows.map((c) => (
               <Table.Tr key={c.id}>
-                <Table.Td><Text size="sm">{c.item_name}</Text></Table.Td>
-                <Table.Td><Badge size="sm" variant="light">{c.category.replace(/_/g, " ")}</Badge></Table.Td>
-                <Table.Td><Text size="sm">{c.quantity} {c.unit ?? ""}</Text></Table.Td>
-                <Table.Td><Text size="sm">{c.unit_price?.toFixed(2) ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm" fw={500}>{((c.unit_price ?? 0) * c.quantity).toFixed(2)}</Text></Table.Td>
-                <Table.Td><Text size="sm">{c.batch_number ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm">{c.item_name}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {c.category.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {c.quantity} {c.unit ?? ""}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{c.unit_price?.toFixed(2) ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {((c.unit_price ?? 0) * c.quantity).toFixed(2)}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{c.batch_number ?? "—"}</Text>
+                </Table.Td>
                 {canManage && (
                   <Table.Td>
-                    <ActionIcon size="sm" variant="light" color="danger" onClick={() => deleteMutation.mutate(c.id)} aria-label="Delete">
+                    <ActionIcon
+                      size="sm"
+                      variant="light"
+                      color="danger"
+                      onClick={() => deleteMutation.mutate(c.id)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -1434,16 +2156,32 @@ function OtReportsTab() {
 
   return (
     <Stack>
-      <Text fw={500} size="lg">OT Utilization Report</Text>
+      <Text fw={500} size="lg">
+        OT Utilization Report
+      </Text>
       <Group>
-        <TextInput label="From" type="date" value={from} onChange={(e) => setFrom(e.currentTarget.value)} w={180} />
-        <TextInput label="To" type="date" value={to} onChange={(e) => setTo(e.currentTarget.value)} w={180} />
+        <TextInput
+          label="From"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.currentTarget.value)}
+          w={180}
+        />
+        <TextInput
+          label="To"
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.currentTarget.value)}
+          w={180}
+        />
       </Group>
 
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No data for the selected period.</Text>
+        <Text c="dimmed" size="sm">
+          No data for the selected period.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -1457,10 +2195,22 @@ function OtReportsTab() {
           <Table.Tbody>
             {rows.map((r) => (
               <Table.Tr key={r.room_id}>
-                <Table.Td><Text size="sm" fw={500}>{r.room_name}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.total_bookings}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.total_surgery_minutes ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.avg_turnaround_minutes != null ? r.avg_turnaround_minutes.toFixed(1) : "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {r.room_name}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.total_bookings}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.total_surgery_minutes ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {r.avg_turnaround_minutes != null ? r.avg_turnaround_minutes.toFixed(1) : "—"}
+                  </Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>

@@ -1,4 +1,3 @@
-import React from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Avatar, Card, Chip, Surface, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,10 +20,22 @@ interface UpcomingAppointment {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: "appointment", icon: "calendar-plus", label: "Book Appointment", color: "#228be6", onPress: () => {} },
+  {
+    id: "appointment",
+    icon: "calendar-plus",
+    label: "Book Appointment",
+    color: "#228be6",
+    onPress: () => {},
+  },
   { id: "lab", icon: "flask", label: "Lab Results", color: "#40c057", onPress: () => {} },
   { id: "prescription", icon: "pill", label: "Prescriptions", color: "#fab005", onPress: () => {} },
-  { id: "records", icon: "file-document", label: "Medical Records", color: "#7950f2", onPress: () => {} },
+  {
+    id: "records",
+    icon: "file-document",
+    label: "Medical Records",
+    color: "#7950f2",
+    onPress: () => {},
+  },
 ];
 
 function QuickActionButton({ action }: { action: QuickAction }) {
@@ -45,9 +56,7 @@ function AppointmentCard({ appointment }: { appointment: UpcomingAppointment }) 
       <Card.Content style={styles.appointmentContent}>
         <View style={styles.appointmentLeft}>
           <View style={styles.dateBox}>
-            <Text style={styles.dateDay}>
-              {new Date(appointment.date).getDate()}
-            </Text>
+            <Text style={styles.dateDay}>{new Date(appointment.date).getDate()}</Text>
             <Text style={styles.dateMonth}>
               {new Date(appointment.date).toLocaleString("en", { month: "short" })}
             </Text>
@@ -67,9 +76,7 @@ function AppointmentCard({ appointment }: { appointment: UpcomingAppointment }) 
               mode="flat"
               style={[
                 styles.statusChip,
-                appointment.status === "confirmed"
-                  ? styles.statusConfirmed
-                  : styles.statusPending,
+                appointment.status === "confirmed" ? styles.statusConfirmed : styles.statusPending,
               ]}
             >
               {appointment.status}
@@ -159,11 +166,7 @@ export function PatientDashboard() {
             <Text variant="bodyMedium" style={styles.emptyText}>
               No upcoming appointments
             </Text>
-            <Text
-              variant="labelMedium"
-              style={{ color: theme.colors.primary }}
-              onPress={() => {}}
-            >
+            <Text variant="labelMedium" style={{ color: theme.colors.primary }} onPress={() => {}}>
               Book an appointment
             </Text>
           </Surface>

@@ -17,15 +17,15 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { api } from "@medbrains/api";
+import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -106,10 +106,7 @@ export default function GroupsPage() {
               <Table.Td>
                 <Group gap="xs">
                   <Tooltip label="Members">
-                    <ActionIcon
-                      variant="subtle"
-                      onClick={() => setMemberDrawerGroup(g)}
-                    >
+                    <ActionIcon variant="subtle" onClick={() => setMemberDrawerGroup(g)}>
                       <IconUsers size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -143,10 +140,7 @@ export default function GroupsPage() {
         target={editTarget}
       />
 
-      <GroupMembersDrawer
-        group={memberDrawerGroup}
-        onClose={() => setMemberDrawerGroup(null)}
-      />
+      <GroupMembersDrawer group={memberDrawerGroup} onClose={() => setMemberDrawerGroup(null)} />
     </Stack>
   );
 }
@@ -196,7 +190,7 @@ function GroupFormModal({
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      api.updateAccessGroup(target!.id, {
+      api.updateAccessGroup(target?.id, {
         code: code.trim(),
         name: name.trim(),
         description: description.trim() || undefined,
@@ -257,13 +251,7 @@ function GroupFormModal({
 
 // ── Members drawer ─────────────────────────────────────────────────
 
-function GroupMembersDrawer({
-  group,
-  onClose,
-}: {
-  group: GroupRow | null;
-  onClose: () => void;
-}) {
+function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: () => void }) {
   const qc = useQueryClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
@@ -276,13 +264,13 @@ function GroupMembersDrawer({
 
   const membersQuery = useQuery({
     queryKey: ["access-group-members", group?.id],
-    queryFn: () => api.listAccessGroupMembers(group!.id),
+    queryFn: () => api.listAccessGroupMembers(group?.id),
     enabled: !!group,
   });
 
   const addMutation = useMutation({
     mutationFn: () =>
-      api.addAccessGroupMember(group!.id, {
+      api.addAccessGroupMember(group?.id, {
         user_id: userId!,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
       }),
@@ -296,7 +284,7 @@ function GroupMembersDrawer({
   });
 
   const removeMutation = useMutation({
-    mutationFn: (uid: string) => api.removeAccessGroupMember(group!.id, uid),
+    mutationFn: (uid: string) => api.removeAccessGroupMember(group?.id, uid),
     onSuccess: () => {
       notifications.show({ message: "Member removed", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });

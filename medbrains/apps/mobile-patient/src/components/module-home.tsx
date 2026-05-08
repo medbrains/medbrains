@@ -4,18 +4,11 @@
  * optional summary tiles backed by a list endpoint.
  */
 
+import type { IntentTone } from "@medbrains/ui-mobile";
+import { Badge, Card, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
-import {
-  Badge,
-  Card,
-  COLORS,
-  EcgLoader,
-  Empty,
-  SPACING,
-} from "@medbrains/ui-mobile";
-import type { IntentTone } from "@medbrains/ui-mobile";
 import { useHasPermission } from "../lib/permissions.js";
 
 export interface ModuleAction {
@@ -72,17 +65,11 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
         >
           {eyebrow}
         </Text>
-        <Text
-          variant="headlineMedium"
-          style={{ color: COLORS.brand, marginTop: 4 }}
-        >
+        <Text variant="headlineMedium" style={{ color: COLORS.brand, marginTop: 4 }}>
           {title}
         </Text>
         {description && (
-          <Text
-            variant="bodyMedium"
-            style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}
-          >
+          <Text variant="bodyMedium" style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}>
             {description}
           </Text>
         )}
@@ -107,8 +94,7 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
         </View>
       )}
       {!loading && actions.length === 0 && <Empty title={emptyTitle} />}
-      {!loading &&
-        actions.map((a) => <ActionRow key={a.id} action={a} />)}
+      {!loading && actions.map((a) => <ActionRow key={a.id} action={a} />)}
     </ScrollView>
   );
 }
@@ -148,17 +134,12 @@ function ActionRow({ action }: { action: ModuleAction }) {
           {action.label}
         </Text>
         {action.description && (
-          <Text
-            variant="bodySmall"
-            style={{ color: COLORS.brandDeep, opacity: 0.7, marginTop: 2 }}
-          >
+          <Text variant="bodySmall" style={{ color: COLORS.brandDeep, opacity: 0.7, marginTop: 2 }}>
             {action.description}
           </Text>
         )}
       </View>
-      {action.badge && (
-        <Badge label={action.badge.label} tone={action.badge.tone} />
-      )}
+      {action.badge && <Badge label={action.badge.label} tone={action.badge.tone} />}
     </View>
   );
 }

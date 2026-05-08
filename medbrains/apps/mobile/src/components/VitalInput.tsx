@@ -1,4 +1,3 @@
-import React from "react";
 import { StyleSheet, View } from "react-native";
 import { HelperText, Surface, Text, TextInput } from "react-native-paper";
 

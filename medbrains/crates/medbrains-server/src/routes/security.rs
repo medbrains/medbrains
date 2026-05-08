@@ -263,7 +263,8 @@ pub async fn list_zones(
     require_permission(&claims, permissions::security::access::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityZone>("SELECT * FROM security_zones ORDER BY zone_code")
         .fetch_all(&mut *tx)
@@ -281,7 +282,8 @@ pub async fn create_zone(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityZone>(
         "INSERT INTO security_zones \
@@ -318,7 +320,8 @@ pub async fn update_zone(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityZone>(
         "UPDATE security_zones SET \
@@ -362,7 +365,8 @@ pub async fn list_access_logs(
     require_permission(&claims, permissions::security::access::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityAccessLog>(
         "SELECT * FROM security_access_logs \
@@ -393,7 +397,8 @@ pub async fn create_access_log(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityAccessLog>(
         "INSERT INTO security_access_logs \
@@ -437,7 +442,8 @@ pub async fn list_access_cards(
     require_permission(&claims, permissions::security::access::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityAccessCard>(
         "SELECT * FROM security_access_cards \
@@ -462,7 +468,8 @@ pub async fn create_access_card(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityAccessCard>(
         "INSERT INTO security_access_cards \
@@ -497,7 +504,8 @@ pub async fn update_access_card(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityAccessCard>(
         "UPDATE security_access_cards SET \
@@ -526,7 +534,8 @@ pub async fn deactivate_access_card(
     require_permission(&claims, permissions::security::access::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityAccessCard>(
         "UPDATE security_access_cards SET \
@@ -555,7 +564,8 @@ pub async fn list_cameras(
     require_permission(&claims, permissions::security::cctv::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityCamera>(
         "SELECT * FROM security_cameras \
@@ -580,7 +590,8 @@ pub async fn create_camera(
     require_permission(&claims, permissions::security::cctv::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityCamera>(
         "INSERT INTO security_cameras \
@@ -617,7 +628,8 @@ pub async fn update_camera(
     require_permission(&claims, permissions::security::cctv::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityCamera>(
         "UPDATE security_cameras SET \
@@ -663,7 +675,8 @@ pub async fn list_incidents(
     require_permission(&claims, permissions::security::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityIncident>(
         "SELECT * FROM security_incidents \
@@ -690,7 +703,8 @@ pub async fn get_incident(
     require_permission(&claims, permissions::security::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row =
         sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
@@ -710,7 +724,8 @@ pub async fn create_incident(
     require_permission(&claims, permissions::security::incidents::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let incident_number = format!(
         "SEC-{}-{}",
@@ -763,7 +778,8 @@ pub async fn update_incident(
     require_permission(&claims, permissions::security::incidents::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // If status is being set to resolved, auto-fill resolved_at/resolved_by
     let is_resolving = body.status.as_deref() == Some("resolved");
@@ -828,7 +844,8 @@ pub async fn list_patient_tags(
     require_permission(&claims, permissions::security::patient_safety::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityPatientTag>(
         "SELECT * FROM security_patient_tags \
@@ -855,7 +872,8 @@ pub async fn create_patient_tag(
     require_permission(&claims, permissions::security::patient_safety::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityPatientTag>(
         "INSERT INTO security_patient_tags \
@@ -887,7 +905,8 @@ pub async fn deactivate_patient_tag(
     require_permission(&claims, permissions::security::patient_safety::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityPatientTag>(
         "UPDATE security_patient_tags SET \
@@ -916,7 +935,8 @@ pub async fn list_tag_alerts(
     require_permission(&claims, permissions::security::patient_safety::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityTagAlert>(
         "SELECT * FROM security_tag_alerts \
@@ -942,7 +962,8 @@ pub async fn resolve_tag_alert(
     require_permission(&claims, permissions::security::patient_safety::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityTagAlert>(
         "UPDATE security_tag_alerts SET \
@@ -973,7 +994,8 @@ pub async fn list_debriefs(
     require_permission(&claims, permissions::security::debriefs::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SecurityCodeDebrief>(
         "SELECT * FROM security_code_debriefs ORDER BY debrief_date DESC LIMIT 200",
@@ -993,7 +1015,8 @@ pub async fn get_debrief(
     require_permission(&claims, permissions::security::debriefs::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityCodeDebrief>(
         "SELECT * FROM security_code_debriefs WHERE id = $1",
@@ -1014,7 +1037,8 @@ pub async fn create_debrief(
     require_permission(&claims, permissions::security::debriefs::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SecurityCodeDebrief>(
         "INSERT INTO security_code_debriefs \

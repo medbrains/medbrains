@@ -1,7 +1,11 @@
 variable "tier" {
   type        = string
-  description = "Buyer tier: starter | growth | enterprise | enterprise-k3s. Set TF_VAR_tier in medbrains/infra/.env."
+  description = "Buyer tier: test | demo | starter | growth | enterprise | enterprise-k3s. Set TF_VAR_tier in medbrains/infra/.env."
   default     = "starter"
+  validation {
+    condition     = contains(["test", "demo", "starter", "growth", "enterprise", "enterprise-k3s"], var.tier)
+    error_message = "tier must be one of: test, demo, starter, growth, enterprise, enterprise-k3s."
+  }
 }
 
 variable "domain" {
@@ -22,6 +26,16 @@ variable "admin_email" {
   default     = ""
 }
 
+variable "edge_proxy" {
+  type        = string
+  description = "Standalone edge proxy. Pingora is the only supported target."
+  default     = "pingora"
+  validation {
+    condition     = var.edge_proxy == "pingora"
+    error_message = "edge_proxy must be pingora."
+  }
+}
+
 # ── AWS ──
 
 variable "aws_ssh_key_name" {
@@ -32,8 +46,8 @@ variable "aws_ssh_key_name" {
 
 variable "aws_instance_type" {
   type        = string
-  description = "EC2 instance type. t4g.small (ARM, 2 vCPU / 2 GB, ~₹1,200/mo) is the Starter default — fits docker postgres + medbrains-server binary + Caddy. Bump to t4g.medium for Enterprise-k3s."
-  default     = "t4g.small"
+  description = "Optional EC2 instance type override. Empty uses the cost package default: test=t4g.small, demo/starter=t4g.medium, enterprise-k3s=t4g.medium."
+  default     = ""
 }
 
 variable "ssh_private_key_path" {

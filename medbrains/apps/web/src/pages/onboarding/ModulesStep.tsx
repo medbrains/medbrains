@@ -20,21 +20,111 @@ interface ModuleDef {
 }
 
 const DEFAULT_MODULES: ModuleDef[] = [
-  { code: "registration", name: "Patient Registration", description: "Patient registration, UHID generation, demographics", depends_on: [], has_masters: false },
-  { code: "opd", name: "OPD", description: "Outpatient department queues, consultations, prescriptions", depends_on: ["registration"], has_masters: true },
-  { code: "ipd", name: "IPD", description: "Inpatient admissions, bed management, discharge", depends_on: ["registration"], has_masters: true },
-  { code: "lab", name: "Laboratory / LIS", description: "Lab test catalog, orders, results, verification", depends_on: [], has_masters: true },
-  { code: "pharmacy", name: "Pharmacy", description: "Drug catalog, dispensing, stock management", depends_on: [], has_masters: true },
-  { code: "billing", name: "Billing & Revenue", description: "Invoices, payments, charge master, insurance", depends_on: ["registration"], has_masters: true },
-  { code: "radiology", name: "Radiology / RIS", description: "Imaging orders, PACS integration, reporting", depends_on: [], has_masters: true },
-  { code: "blood_bank", name: "Blood Bank", description: "Blood inventory, cross-match, transfusion", depends_on: [], has_masters: false },
-  { code: "ot", name: "Operation Theatre", description: "Surgery scheduling, OT management", depends_on: ["ipd"], has_masters: false },
-  { code: "emergency", name: "Emergency", description: "Triage, emergency admissions, trauma protocols", depends_on: ["registration"], has_masters: false },
-  { code: "nursing", name: "Nursing", description: "Nursing assessments, care plans, task management", depends_on: ["ipd"], has_masters: false },
-  { code: "diet", name: "Diet & Nutrition", description: "Meal planning, therapeutic diets, kitchen management", depends_on: ["ipd"], has_masters: false },
-  { code: "hr", name: "Human Resources", description: "Staff management, attendance, payroll", depends_on: [], has_masters: false },
-  { code: "inventory", name: "Inventory & Stores", description: "Purchase orders, stock management, vendors", depends_on: [], has_masters: false },
-  { code: "reports", name: "Reports & Analytics", description: "Dashboards, MIS reports, data analytics", depends_on: [], has_masters: false },
+  {
+    code: "registration",
+    name: "Patient Registration",
+    description: "Patient registration, UHID generation, demographics",
+    depends_on: [],
+    has_masters: false,
+  },
+  {
+    code: "opd",
+    name: "OPD",
+    description: "Outpatient department queues, consultations, prescriptions",
+    depends_on: ["registration"],
+    has_masters: true,
+  },
+  {
+    code: "ipd",
+    name: "IPD",
+    description: "Inpatient admissions, bed management, discharge",
+    depends_on: ["registration"],
+    has_masters: true,
+  },
+  {
+    code: "lab",
+    name: "Laboratory / LIS",
+    description: "Lab test catalog, orders, results, verification",
+    depends_on: [],
+    has_masters: true,
+  },
+  {
+    code: "pharmacy",
+    name: "Pharmacy",
+    description: "Drug catalog, dispensing, stock management",
+    depends_on: [],
+    has_masters: true,
+  },
+  {
+    code: "billing",
+    name: "Billing & Revenue",
+    description: "Invoices, payments, charge master, insurance",
+    depends_on: ["registration"],
+    has_masters: true,
+  },
+  {
+    code: "radiology",
+    name: "Radiology / RIS",
+    description: "Imaging orders, PACS integration, reporting",
+    depends_on: [],
+    has_masters: true,
+  },
+  {
+    code: "blood_bank",
+    name: "Blood Bank",
+    description: "Blood inventory, cross-match, transfusion",
+    depends_on: [],
+    has_masters: false,
+  },
+  {
+    code: "ot",
+    name: "Operation Theatre",
+    description: "Surgery scheduling, OT management",
+    depends_on: ["ipd"],
+    has_masters: false,
+  },
+  {
+    code: "emergency",
+    name: "Emergency",
+    description: "Triage, emergency admissions, trauma protocols",
+    depends_on: ["registration"],
+    has_masters: false,
+  },
+  {
+    code: "nursing",
+    name: "Nursing",
+    description: "Nursing assessments, care plans, task management",
+    depends_on: ["ipd"],
+    has_masters: false,
+  },
+  {
+    code: "diet",
+    name: "Diet & Nutrition",
+    description: "Meal planning, therapeutic diets, kitchen management",
+    depends_on: ["ipd"],
+    has_masters: false,
+  },
+  {
+    code: "hr",
+    name: "Human Resources",
+    description: "Staff management, attendance, payroll",
+    depends_on: [],
+    has_masters: false,
+  },
+  {
+    code: "inventory",
+    name: "Inventory & Stores",
+    description: "Purchase orders, stock management, vendors",
+    depends_on: [],
+    has_masters: false,
+  },
+  {
+    code: "reports",
+    name: "Reports & Analytics",
+    description: "Dashboards, MIS reports, data analytics",
+    depends_on: [],
+    has_masters: false,
+  },
 ];
 
 export function ModulesStep({ onNext, onBack }: Props) {
@@ -50,9 +140,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
       // Auto-enable dependencies
       const mod = DEFAULT_MODULES.find((m) => m.code === code);
       if (mod) {
-        const missingDeps = mod.depends_on.filter(
-          (dep) => getStatus(dep) !== "enabled",
-        );
+        const missingDeps = mod.depends_on.filter((dep) => getStatus(dep) !== "enabled");
         for (const dep of missingDeps) {
           setModuleStatus(dep, "enabled");
         }
@@ -67,8 +155,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
     } else {
       // Warn about dependents
       const dependents = DEFAULT_MODULES.filter(
-        (m) =>
-          getStatus(m.code) === "enabled" && m.depends_on.includes(code),
+        (m) => getStatus(m.code) === "enabled" && m.depends_on.includes(code),
       );
       if (dependents.length > 0) {
         const names = dependents.map((m) => m.name).join(", ");
@@ -115,10 +202,9 @@ export function ModulesStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        Enable or disable modules based on your hospital&apos;s needs. For
-        enabled modules with master data templates, click &quot;Seed
-        Defaults&quot; to pre-populate configuration. You can change these later
-        from the admin settings.
+        Enable or disable modules based on your hospital&apos;s needs. For enabled modules with
+        master data templates, click &quot;Seed Defaults&quot; to pre-populate configuration. You
+        can change these later from the admin settings.
       </Text>
 
       <div className={classes.moduleGrid}>
@@ -142,13 +228,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
                     variant="light"
                     size="xs"
                     mt={8}
-                    leftSection={
-                      isSeeded ? (
-                        <IconCheck size={14} />
-                      ) : (
-                        <IconDatabase size={14} />
-                      )
-                    }
+                    leftSection={isSeeded ? <IconCheck size={14} /> : <IconDatabase size={14} />}
                     color={isSeeded ? "success" : "primary"}
                     loading={seeding === mod.code}
                     disabled={isSeeded}
@@ -169,9 +249,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
               </div>
               <Switch
                 checked={isEnabled}
-                onChange={(e) =>
-                  handleToggle(mod.code, e.currentTarget.checked)
-                }
+                onChange={(e) => handleToggle(mod.code, e.currentTarget.checked)}
               />
             </div>
           );

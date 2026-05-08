@@ -47,8 +47,5 @@ pub fn verify_rs256(
     if iss != expected_issuer {
         return Err(CryptoError::Verify);
     }
-    payload
-        .claim("payload")
-        .cloned()
-        .ok_or(CryptoError::Verify)
+    payload.claim("payload").cloned().ok_or(CryptoError::Verify)
 }

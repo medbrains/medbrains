@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-import { useHashTabs } from "../../../hooks/useHashTabs";
 import {
   ActionIcon,
   Badge,
@@ -13,24 +11,37 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type {
+  CustomRole,
+  DepartmentRow,
+  Facility,
+  SetupUser,
+  UserFacilityAssignment,
+} from "@medbrains/types";
 import {
+  IconBuilding,
   IconCheck,
   IconPencil,
   IconPlus,
-  IconTrash,
-  IconBuilding,
-  IconUsers,
   IconShieldCheck,
+  IconTrash,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type { SetupUser, CustomRole, DepartmentRow, Facility, UserFacilityAssignment } from "@medbrains/types";
-import { DataTable, SelectLabel, CreateRoleModal, CreateDepartmentModal } from "../../../components";
+import { useEffect, useState } from "react";
+import {
+  CreateDepartmentModal,
+  CreateRoleModal,
+  DataTable,
+  SelectLabel,
+} from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
+import { useHashTabs } from "../../../hooks/useHashTabs";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -101,7 +112,7 @@ function UserModal({
 
   useEffect(() => {
     if (deptInline.pendingSelect) {
-      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect!.id]);
+      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id]);
       deptInline.clearPendingSelect();
     }
   }, [deptInline.pendingSelect, deptInline.clearPendingSelect]);
@@ -133,7 +144,7 @@ function UserModal({
   // Load existing user facility assignments when editing
   const { data: userFacilities } = useQuery({
     queryKey: ["user-facilities", editingUser?.id],
-    queryFn: () => api.listUserFacilities(editingUser!.id),
+    queryFn: () => api.listUserFacilities(editingUser?.id),
     staleTime: 30_000,
     enabled: opened && !!editingUser,
   });
@@ -168,7 +179,9 @@ function UserModal({
       setConsultationFee(editingUser.consultation_fee ?? "");
       setDepartmentIds(editingUser.department_ids ?? []);
       setFacilityIds(userFacilities?.map((f: UserFacilityAssignment) => f.facility_id) ?? []);
-      setPrimaryFacilityId(userFacilities?.find((f: UserFacilityAssignment) => f.is_primary)?.facility_id ?? null);
+      setPrimaryFacilityId(
+        userFacilities?.find((f: UserFacilityAssignment) => f.is_primary)?.facility_id ?? null,
+      );
     } else {
       setFullName("");
       setUsername("");
@@ -186,8 +199,7 @@ function UserModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) =>
-      api.createSetupUser(data),
+    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) => api.createSetupUser(data),
     onSuccess: async (newUser) => {
       if (facilityIds.length > 0) {
         try {
@@ -218,8 +230,7 @@ function UserModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      api.updateSetupUser(editingUser!.id, data),
+    mutationFn: (data: Record<string, unknown>) => api.updateSetupUser(editingUser?.id, data),
     onSuccess: async () => {
       if (editingUser) {
         try {
@@ -266,8 +277,7 @@ function UserModal({
             specialization: specialization || undefined,
             medical_registration_number: medRegNumber || undefined,
             qualification: qualification || undefined,
-            consultation_fee:
-              consultationFee !== "" ? Number(consultationFee) : undefined,
+            consultation_fee: consultationFee !== "" ? Number(consultationFee) : undefined,
             department_ids: departmentIds.length > 0 ? departmentIds : undefined,
           }
         : {};
@@ -341,12 +351,7 @@ function UserModal({
           />
         )}
         <Select
-          label={
-            <SelectLabel
-              label="Role"
-              onCreate={roleInline.openCreateModal}
-            />
-          }
+          label={<SelectLabel label="Role" onCreate={roleInline.openCreateModal} />}
           placeholder="Select role"
           data={roleOptions}
           value={role}
@@ -411,12 +416,7 @@ function UserModal({
               decimalScale={2}
             />
             <MultiSelect
-              label={
-                <SelectLabel
-                  label="Departments"
-                  onCreate={deptInline.openCreateModal}
-                />
-              }
+              label={<SelectLabel label="Departments" onCreate={deptInline.openCreateModal} />}
               placeholder="Select departments"
               data={departmentOptions}
               value={departmentIds}
@@ -471,11 +471,11 @@ function DeleteUserModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteSetupUser(user!.id),
+    mutationFn: () => api.deleteSetupUser(user?.id),
     onSuccess: () => {
       notifications.show({
         title: "User deleted",
-        message: `User "${user!.full_name}" has been deleted`,
+        message: `User "${user?.full_name}" has been deleted`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -568,19 +568,13 @@ function UsersTab() {
     {
       key: "email",
       label: "Email",
-      render: (row: SetupUser) => (
-        <Text size="sm">{row.email}</Text>
-      ),
+      render: (row: SetupUser) => <Text size="sm">{row.email}</Text>,
     },
     {
       key: "role",
       label: "Role",
       render: (row: SetupUser) => (
-        <Badge
-          size="sm"
-          variant="light"
-          color={ROLE_COLORS[row.role] ?? "slate"}
-        >
+        <Badge size="sm" variant="light" color={ROLE_COLORS[row.role] ?? "slate"}>
           {row.role.replace(/_/g, " ")}
         </Badge>
       ),
@@ -589,7 +583,9 @@ function UsersTab() {
       key: "facilities",
       label: "Facilities",
       render: (_row: SetupUser) => (
-        <Text size="sm" c="dimmed">-</Text>
+        <Text size="sm" c="dimmed">
+          -
+        </Text>
       ),
     },
     {
@@ -605,11 +601,7 @@ function UsersTab() {
       key: "status",
       label: "Status",
       render: (row: SetupUser) => (
-        <Badge
-          size="sm"
-          variant="light"
-          color={row.is_active ? "success" : "danger"}
-        >
+        <Badge size="sm" variant="light" color={row.is_active ? "success" : "danger"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -643,11 +635,7 @@ function UsersTab() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-        >
+        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add User
         </Button>
       </Group>
@@ -662,11 +650,7 @@ function UsersTab() {
         emptyDescription="No users have been created yet"
       />
 
-      <UserModal
-        opened={modalOpen}
-        onClose={() => setModalOpen(false)}
-        editingUser={editingUser}
-      />
+      <UserModal opened={modalOpen} onClose={() => setModalOpen(false)} editingUser={editingUser} />
 
       <DeleteUserModal
         opened={deleteModalOpen}
@@ -731,7 +715,7 @@ function RoleModal({
 
   const updateMutation = useMutation({
     mutationFn: (data: { name?: string; description?: string }) =>
-      api.updateRole(editingRole!.id, data),
+      api.updateRole(editingRole?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Role updated",
@@ -827,11 +811,11 @@ function DeleteRoleModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteRole(role!.id),
+    mutationFn: () => api.deleteRole(role?.id),
     onSuccess: () => {
       notifications.show({
         title: "Role deleted",
-        message: `Role "${role!.name}" has been deleted`,
+        message: `Role "${role?.name}" has been deleted`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -915,9 +899,7 @@ function RolesTab() {
     {
       key: "name",
       label: "Name",
-      render: (row: CustomRole) => (
-        <Text size="sm">{row.name}</Text>
-      ),
+      render: (row: CustomRole) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "description",
@@ -942,11 +924,7 @@ function RolesTab() {
       key: "status",
       label: "Status",
       render: (row: CustomRole) => (
-        <Badge
-          size="sm"
-          variant="light"
-          color={row.is_active ? "success" : "danger"}
-        >
+        <Badge size="sm" variant="light" color={row.is_active ? "success" : "danger"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -981,11 +959,7 @@ function RolesTab() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-        >
+        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Role
         </Button>
       </Group>
@@ -1000,11 +974,7 @@ function RolesTab() {
         emptyDescription="No custom roles have been created yet"
       />
 
-      <RoleModal
-        opened={modalOpen}
-        onClose={() => setModalOpen(false)}
-        editingRole={editingRole}
-      />
+      <RoleModal opened={modalOpen} onClose={() => setModalOpen(false)} editingRole={editingRole} />
 
       <DeleteRoleModal
         opened={deleteModalOpen}

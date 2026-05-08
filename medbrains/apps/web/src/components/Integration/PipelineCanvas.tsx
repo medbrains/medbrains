@@ -1,30 +1,30 @@
 import {
-  ReactFlow,
+  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
-  type OnConnect,
-  type OnNodesChange,
-  type OnEdgesChange,
-  type Node,
-  type Edge,
-  applyNodeChanges,
-  applyEdgeChanges,
-  addEdge,
   type Connection,
-  useReactFlow,
-  ReactFlowProvider,
+  Controls,
+  type Edge,
   MarkerType,
+  MiniMap,
+  type Node,
+  type OnConnect,
+  type OnEdgesChange,
+  type OnNodesChange,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useIntegrationBuilderStore } from "@medbrains/stores";
-import type { ReactFlowNode, ReactFlowEdge, IntegrationNodeTemplate } from "@medbrains/types";
-import { useCallback, useMemo, type DragEvent } from "react";
-import { TriggerNode } from "./TriggerNode";
+import type { IntegrationNodeTemplate, ReactFlowEdge, ReactFlowNode } from "@medbrains/types";
+import { type DragEvent, useCallback, useMemo } from "react";
 import { ActionNode } from "./ActionNode";
 import { ConditionNode } from "./ConditionNode";
 import { TransformNode } from "./TransformNode";
+import { TriggerNode } from "./TriggerNode";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -37,7 +37,12 @@ const nodeTypes = {
 const defaultEdgeOptions = {
   animated: true,
   style: { strokeWidth: 2, stroke: "var(--mantine-color-gray-5)" },
-  markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--mantine-color-gray-5)" },
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    width: 16,
+    height: 16,
+    color: "var(--mantine-color-gray-5)",
+  },
 };
 
 function PipelineCanvasInner() {
@@ -129,7 +134,12 @@ function PipelineCanvasInner() {
       style={{ width: "100%", height: "100%" }}
       proOptions={{ hideAttribution: true }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="var(--mantine-color-gray-3)" />
+      <Background
+        variant={BackgroundVariant.Dots}
+        gap={16}
+        size={1}
+        color="var(--mantine-color-gray-3)"
+      />
       <Controls
         showInteractive={false}
         style={{ borderRadius: 8, border: "1px solid var(--mantine-color-gray-3)" }}

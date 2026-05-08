@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { DepartmentRow } from "@medbrains/types";
+import { IconCheck } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const DEPARTMENT_TYPE_OPTIONS = [
   { value: "clinical", label: "Clinical" },
@@ -21,11 +21,7 @@ interface CreateDepartmentModalProps {
   onCreated?: (department: DepartmentRow) => void;
 }
 
-export function CreateDepartmentModal({
-  opened,
-  onClose,
-  onCreated,
-}: CreateDepartmentModalProps) {
+export function CreateDepartmentModal({ opened, onClose, onCreated }: CreateDepartmentModalProps) {
   const queryClient = useQueryClient();
 
   const [code, setCode] = useState("");
@@ -39,11 +35,8 @@ export function CreateDepartmentModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: {
-      code: string;
-      name: string;
-      department_type: string;
-    }) => api.createDepartment(data),
+    mutationFn: (data: { code: string; name: string; department_type: string }) =>
+      api.createDepartment(data),
     onSuccess: (created: DepartmentRow) => {
       notifications.show({
         title: "Department created",

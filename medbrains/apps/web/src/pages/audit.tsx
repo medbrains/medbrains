@@ -1,17 +1,19 @@
 import { Tabs } from "@mantine/core";
-import {
-  IconFileAnalytics,
-  IconEye,
-  IconChartBar,
-  IconHistory,
-} from "@tabler/icons-react";
-import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
+import {
+  IconChartBar,
+  IconEye,
+  IconFileAnalytics,
+  IconHistory,
+  IconShieldLock,
+} from "@tabler/icons-react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-import { AuditLogTab } from "./audit/AuditLogTab";
 import { AccessLogTab } from "./audit/AccessLogTab";
+import { AuditLogTab } from "./audit/AuditLogTab";
 import { AuditStatsTab } from "./audit/AuditStatsTab";
+import { BreakGlassReviewTab } from "./audit/BreakGlassReviewTab";
 import { EntityTimelineTab } from "./audit/EntityTimelineTab";
 
 export function AuditPage() {
@@ -36,6 +38,9 @@ export function AuditPage() {
               Access Log
             </Tabs.Tab>
           )}
+          <Tabs.Tab value="break-glass" leftSection={<IconShieldLock size={16} />}>
+            Break-glass
+          </Tabs.Tab>
           <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
             Statistics
           </Tabs.Tab>
@@ -52,6 +57,9 @@ export function AuditPage() {
             <AccessLogTab />
           </Tabs.Panel>
         )}
+        <Tabs.Panel value="break-glass" pt="md">
+          <BreakGlassReviewTab />
+        </Tabs.Panel>
         <Tabs.Panel value="stats" pt="md">
           <AuditStatsTab />
         </Tabs.Panel>

@@ -277,9 +277,8 @@ pub async fn ai_generate_code(
 ) -> Result<Json<AiGeneratedCode>, AppError> {
     require_permission(&claims, permissions::integration::CREATE)?;
 
-    let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
-        AppError::BadRequest("ANTHROPIC_API_KEY not configured".into())
-    })?;
+    let api_key = std::env::var("ANTHROPIC_API_KEY")
+        .map_err(|_| AppError::BadRequest("ANTHROPIC_API_KEY not configured".into()))?;
 
     use rig::client::CompletionClient as _;
     use rig::providers::anthropic;
@@ -306,9 +305,10 @@ pub async fn ai_generate_code(
         .preamble(&preamble)
         .build();
 
-    let result = extractor.extract(&req.prompt).await.map_err(|e| {
-        AppError::BadRequest(format!("AI generation failed: {e}"))
-    })?;
+    let result = extractor
+        .extract(&req.prompt)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))?;
 
     Ok(Json(result))
 }

@@ -1,0 +1,154 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE break_glass_events\n        SET\n            reviewed_at = now(),\n            supervisor_id = $2,\n            review_notes = $3,\n            modules_accessed = $4,\n            phi_access_count = $5,\n            last_phi_accessed_at = $6\n        WHERE id = $1 AND tenant_id = $7\n        RETURNING\n            id, tenant_id, user_id, patient_id, reason, justification,\n            modules_accessed AS \"modules_accessed!\",\n            scope_type, scope_id,\n            requested_modules AS \"requested_modules!\",\n            start_time, end_time, expires_at,\n            (is_active AND expires_at > now()) AS \"is_active!\",\n            ip_address, user_agent, supervisor_id, reviewed_at, review_notes,\n            phi_access_count, last_phi_accessed_at, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "justification",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "modules_accessed!",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "scope_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "requested_modules!",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 10,
+        "name": "start_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "end_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "is_active!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "ip_address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "user_agent",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "supervisor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "review_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "phi_access_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "last_phi_accessed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "TextArray",
+        "Int4",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "ddb474fc954256f5e3abe5c026f26b0b1377da1b226ff19b69f14a9ccacb9113"
+}

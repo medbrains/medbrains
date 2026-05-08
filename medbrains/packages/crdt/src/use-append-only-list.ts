@@ -4,7 +4,7 @@
  * common case of an append-only timestamped event stream.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCrdtDoc } from "./use-crdt-doc";
 import type { CrdtConnectionStatus, UseCrdtDocOptions } from "./types";
 
@@ -28,6 +28,17 @@ export function useAppendOnlyCrdtList<T extends Record<string, unknown>>(
   const listKey = opts.listKey ?? "entries";
   const sortByTsDesc = opts.sortByTsDesc ?? true;
   const { doc, ready, status, unsyncedOps } = useCrdtDoc(docId, opts);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    if (!ready) return;
+    const unsubscribe = doc.subscribe(() => {
+      setRevision((current) => current + 1);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [doc, ready]);
 
   const entries = useMemo<T[]>(() => {
     if (!ready) return [];
@@ -45,7 +56,7 @@ export function useAppendOnlyCrdtList<T extends Record<string, unknown>>(
       });
     }
     return out;
-  }, [doc, ready, listKey, sortByTsDesc, unsyncedOps, status]);
+  }, [doc, ready, listKey, sortByTsDesc, revision]);
 
   const append = useCallback(
     (entry: T) => {
@@ -56,6 +67,7 @@ export function useAppendOnlyCrdtList<T extends Record<string, unknown>>(
       // (no Loro containers), which is structurally fine — cast to
       // satisfy the stricter signature.
       list.insert(list.length, entry as never);
+      doc.commit({ origin: "local" });
     },
     [doc, ready, listKey],
   );

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -10,14 +11,13 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createFacilitySchema } from "@medbrains/schemas";
 import type { CreateFacilityInput } from "@medbrains/schemas";
+import { createFacilitySchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingFacility } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconTrash } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -116,14 +116,20 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        A main hospital facility will be created automatically. Add
-        sub-institutions or satellite facilities below.
+        A main hospital facility will be created automatically. Add sub-institutions or satellite
+        facilities below.
       </Text>
 
       <Alert variant="light" color="primary">
-        <Text size="sm" fw={600}>Main Hospital</Text>
-        <Text size="xs" c="dimmed">MAIN &middot; main hospital (auto-created)</Text>
-        <Badge size="xs" mt={4}>Main</Badge>
+        <Text size="sm" fw={600}>
+          Main Hospital
+        </Text>
+        <Text size="xs" c="dimmed">
+          MAIN &middot; main hospital (auto-created)
+        </Text>
+        <Badge size="xs" mt={4}>
+          Main
+        </Badge>
       </Alert>
 
       {facilities.map((f: OnboardingFacility) => (
@@ -131,8 +137,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
           <div className={classes.facilityInfo}>
             <Text fw={600}>{f.name}</Text>
             <Text size="sm" c="dimmed">
-              {f.code} &middot;{" "}
-              {f.facility_type.replace(/_/g, " ")}
+              {f.code} &middot; {f.facility_type.replace(/_/g, " ")}
               {f.parent_local_id && " (sub-institution)"}
             </Text>
           </div>
@@ -151,11 +156,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
         Add Sub-Institution
       </Button>
 
-      <Modal
-        opened={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Sub-Institution"
-      >
+      <Modal opened={showModal} onClose={() => setShowModal(false)} title="Add Sub-Institution">
         <form onSubmit={handleAdd}>
           <Stack gap="sm">
             <TextInput
@@ -243,9 +244,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
                 />
               )}
             />
-            <Button type="submit">
-              Add Facility
-            </Button>
+            <Button type="submit">Add Facility</Button>
           </Stack>
         </form>
       </Modal>

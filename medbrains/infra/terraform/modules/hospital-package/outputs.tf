@@ -6,6 +6,11 @@ output "tier" {
   value       = var.tier
 }
 
+output "cost_guard" {
+  description = "Human-readable cost profile enforced by this package."
+  value       = local.cost_guard
+}
+
 output "public_endpoint" {
   description = "Public IP (Starter / Enterprise-k3s) or ALB DNS (Growth) or EKS ingress hostname (Enterprise)."
   value = try(
@@ -14,6 +19,15 @@ output "public_endpoint" {
     module.enterprise_k3s[0].public_ip,
     module.enterprise[0].public_endpoint,
     "pending",
+  )
+}
+
+output "ssh_endpoint" {
+  description = "user@host string for SSH-capable single-host tiers. Empty for image-based tiers."
+  value = try(
+    module.starter[0].ssh_endpoint,
+    module.enterprise_k3s[0].ssh_endpoint,
+    "",
   )
 }
 
@@ -50,4 +64,9 @@ output "object_store_bucket" {
 output "backup_bucket" {
   description = "S3 bucket holding daily pg dumps with 5y Object Lock (Starter tier only — Growth/Enterprise rely on RDS automated backups)."
   value       = try(module.starter[0].backup_bucket, "")
+}
+
+output "kms_key_arns" {
+  description = "Hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
+  value       = local.kms_key_arns
 }

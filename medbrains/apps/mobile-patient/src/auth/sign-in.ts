@@ -10,9 +10,9 @@
  */
 
 import type { TenantIdentity } from "@medbrains/mobile-shell";
-import { apiConfig } from "../api/config.js";
-import { loginWithPassword, request } from "../api/client.js";
 import type { AuthResponse } from "../api/client.js";
+import { loginWithPassword, request } from "../api/client.js";
+import { apiConfig } from "../api/config.js";
 
 function shapeIdentity(result: AuthResponse): {
   identity: TenantIdentity;

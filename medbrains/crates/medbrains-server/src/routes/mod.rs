@@ -1,9 +1,9 @@
+pub mod abdm;
 pub mod access;
 pub mod admin;
 pub mod admin_db_topology;
 pub mod admin_system_state;
 pub mod ambulance;
-pub mod custom_code;
 pub mod analytics;
 pub mod appointments;
 pub mod audit;
@@ -17,22 +17,28 @@ pub mod care_view;
 pub mod case_mgmt;
 pub mod cds;
 pub mod chronic_care;
+pub mod client_errors;
+pub mod clinical_offline;
 pub mod cms;
 pub mod command_center;
 pub mod communications;
 pub mod consent;
+pub mod coverage;
 pub mod cssd;
+pub mod custom_code;
 pub mod dashboard;
-pub mod devices;
 pub mod device_pairing;
+pub mod devices;
 pub mod diet;
 pub mod dlt;
+pub mod doctor_dashboard;
+pub mod doctor_packages;
+pub mod doctor_profile;
 pub mod documents;
 pub mod emergency;
 pub mod facilities;
 pub mod fhir;
 pub mod front_office;
-pub mod nhcx_callback;
 pub mod geo;
 pub mod health;
 pub mod housekeeping;
@@ -43,31 +49,27 @@ pub mod infection_control;
 pub mod insurance;
 pub mod integration;
 pub mod ipd;
+pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod lab;
 pub mod lms;
 pub mod mrd;
-pub mod abdm;
 pub mod multi_hospital;
+pub mod nabh_evidence;
+pub mod nabh_indicators;
+pub mod nhcx_callback;
 pub mod nurse_clinical;
-pub mod clinical_offline;
 pub mod nurse_handoff;
 pub mod nurse_mar;
 pub mod nurse_vitals;
 pub mod occ_health;
 pub mod onboarding;
-pub mod coverage;
-pub mod doctor_dashboard;
-pub mod doctor_packages;
-pub mod doctor_profile;
-pub mod patient_packages;
 pub mod opd;
 pub mod orchestration;
 pub mod order_basket;
 pub mod order_sets;
 pub mod ot;
-pub mod signatures;
-pub mod signed_documents;
+pub mod patient_packages;
 pub mod patients;
 pub mod payment_gateway;
 pub mod pharmacy;
@@ -102,11 +104,13 @@ pub mod schema_registry;
 pub mod security;
 pub mod setup;
 pub mod sharing;
-pub mod storage;
+pub mod signatures;
+pub mod signed_documents;
 pub mod specialty_interventional;
 pub mod specialty_maternity;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
+pub mod storage;
 pub mod tv;
 pub mod utilization_review;
 pub mod ws;
@@ -204,6 +208,7 @@ pub fn build_router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth
         .route("/api/auth/me", get(auth::me))
+        .route("/api/client-errors/report", post(client_errors::report_client_error))
         .route("/api/access/manifest", get(access::get_manifest))
         .route(
             "/api/access-groups",
@@ -479,6 +484,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/patients/{id}",
             get(patients::get_patient).put(patients::update_patient),
+        )
+        .route(
+            "/api/patients/{id}/context",
+            get(patients::get_patient_context),
         )
         // Patient — identifiers
         .route(
@@ -2281,6 +2290,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── Procurement Phase 2 ─────────────────────────────
         .route("/api/procurement/vendor-performance", get(procurement::vendor_performance))
+        .route(
+            "/api/procurement/vendors/{id}/ledger",
+            get(procurement::vendor_ledger),
+        )
         .route("/api/procurement/vendor-comparison", get(procurement::vendor_comparison))
         .route("/api/procurement/emergency-purchase", post(procurement::create_emergency_po))
         .route(
@@ -2992,6 +3005,42 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/ipd/discharges/expected",
             get(ipd::expected_discharges),
+        )
+        // ── IPD post-discharge workflow (Track 1A.bis.4) ──
+        .route(
+            "/api/ipd/admissions/{id}/discharge-workflow",
+            get(ipd_post_discharge::get_discharge_workflow),
+        )
+        .route(
+            "/api/ipd/admissions/{id}/discharge-workflow/step",
+            post(ipd_post_discharge::update_discharge_step),
+        )
+        .route(
+            "/api/ipd/admissions/{id}/dama",
+            get(ipd_post_discharge::get_dama)
+                .post(ipd_post_discharge::record_dama),
+        )
+        .route(
+            "/api/ipd/post-discharge",
+            get(ipd_post_discharge::list_post_discharge),
+        )
+        .route(
+            "/api/ipd/post-discharge/{id}/survey/send",
+            post(ipd_post_discharge::send_survey),
+        )
+        .route(
+            "/api/ipd/mortality-reviews",
+            get(ipd_post_discharge::list_mortality_reviews)
+                .post(ipd_post_discharge::create_mortality_review),
+        )
+        .route(
+            "/api/ipd/mortality-reviews/{id}/submit",
+            post(ipd_post_discharge::submit_mortality_review),
+        )
+        // ── NABH KPI rollup ───────────────────────────────
+        .route(
+            "/api/nabh/indicators",
+            get(nabh_indicators::get_indicators),
         )
         // ── Operation Theatre ──────────────────────────────
         .route(
@@ -4683,7 +4732,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/admin/doctor-packages/{pid}/inclusions/{iid}",
-            axum::routing::delete(doctor_packages::remove_inclusion),
+            delete(doctor_packages::remove_inclusion),
         )
         // ── Patient Packages ────────────────────────────────
         .route(
@@ -4709,7 +4758,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/admin/coverage/{id}",
-            axum::routing::delete(coverage::delete_coverage),
+            delete(coverage::delete_coverage),
         )
         // ── Order Sets ──────────────────────────────────────
         .route(
@@ -5369,6 +5418,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/print-data/package-estimate/{estimate_id}",
             get(print_data_billing::get_package_estimate_print_data),
+        )
+        .route(
+            "/api/print-data/package-bill/{package_bill_id}",
+            get(print_data_billing::get_package_bill_print_data),
+        )
+        .route(
+            "/api/print-data/insurance-claim/{claim_id}",
+            get(print_data_billing::get_insurance_claim_print_data),
         )
         // ── Print Data (consent forms) ───────────────────────────
         .route(
@@ -6343,7 +6400,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/admin/paired-devices/{id}",
-            axum::routing::delete(device_pairing::revoke_paired_device),
+            delete(device_pairing::revoke_paired_device),
         )
         // Storage lifecycle (hot/cold/archive tiers).
         .route(

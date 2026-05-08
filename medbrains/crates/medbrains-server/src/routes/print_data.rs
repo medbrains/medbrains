@@ -35,7 +35,8 @@ pub async fn get_prescription_print_data(
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Header: patient + encounter + doctor + department + diagnosis
     let header = sqlx::query_as::<_, PrescriptionHeaderRow>(
@@ -113,7 +114,8 @@ pub async fn get_lab_report_print_data(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let header = sqlx::query_as::<_, LabOrderHeaderRow>(
         "SELECT \
@@ -200,7 +202,8 @@ pub async fn get_radiology_report_print_data(
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, RadiologyReportRow>(
         "SELECT \
@@ -279,7 +282,8 @@ pub async fn get_patient_card_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PatientCardRow>(
         "SELECT \
@@ -362,7 +366,8 @@ pub async fn get_culture_sensitivity_print_data(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CultureSensitivityRow>(
         "SELECT \
@@ -493,7 +498,8 @@ pub async fn get_histopath_report_print_data(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, HistopathRow>(
         "SELECT \
@@ -625,7 +631,8 @@ pub async fn get_crossmatch_report_print_data(
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CrossmatchReportRow>(
         "SELECT \
@@ -742,7 +749,8 @@ pub async fn get_component_slip_print_data(
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, ComponentSlipRow>(
         "SELECT \
@@ -839,7 +847,8 @@ pub async fn get_investigation_requisition_print_data(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, InvestigationRequisitionRow>(
         "SELECT \

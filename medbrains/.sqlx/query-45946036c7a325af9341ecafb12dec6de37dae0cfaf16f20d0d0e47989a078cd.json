@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_code_blue_activations (tenant_id, activated_at, activated_by, location, patient_id, admission_id, reason, outcome, notes, source_module, source_record_id) SELECT e.tenant_id, e.started_at, COALESCE(e.recorder_user_id, e.leader_user_id, $3), e.location, e.patient_id, a.id, 'unspecified', NULL, e.notes, $4, e.id FROM code_blue_events e LEFT JOIN LATERAL ( SELECT id FROM admissions a WHERE a.tenant_id = e.tenant_id AND a.encounter_id = e.encounter_id ORDER BY a.created_at DESC LIMIT 1 ) a ON true WHERE e.id = $1 AND e.tenant_id = $2 ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET activated_at = EXCLUDED.activated_at, activated_by = EXCLUDED.activated_by, location = EXCLUDED.location, patient_id = EXCLUDED.patient_id, admission_id = COALESCE(EXCLUDED.admission_id, nabh_code_blue_activations.admission_id), notes = COALESCE(EXCLUDED.notes, nabh_code_blue_activations.notes), updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "45946036c7a325af9341ecafb12dec6de37dae0cfaf16f20d0d0e47989a078cd"
+}

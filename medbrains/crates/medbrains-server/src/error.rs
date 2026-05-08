@@ -72,9 +72,7 @@ impl IntoResponse for AppError {
                             // Unique constraint violation — duplicate.
                             Some("23505") => (StatusCode::CONFLICT, "conflict"),
                             // Check constraint, not-null — bad input.
-                            Some("23514" | "23502") => {
-                                (StatusCode::BAD_REQUEST, "bad request")
-                            }
+                            Some("23514" | "23502") => (StatusCode::BAD_REQUEST, "bad request"),
                             _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
                         }
                     }

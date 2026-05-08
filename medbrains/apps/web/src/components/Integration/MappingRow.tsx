@@ -1,3 +1,6 @@
+import { useDroppable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   ActionIcon,
   Autocomplete,
@@ -10,17 +13,6 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import {
-  IconArrowRight,
-  IconGripVertical,
-  IconLayersLinked,
-  IconMinus,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useSortable } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import type {
   CombineConfig,
   CombineMode,
@@ -29,7 +21,15 @@ import type {
   TargetFieldSuggestion,
   TransformStep,
 } from "@medbrains/types";
-import { useMemo, useCallback } from "react";
+import {
+  IconArrowRight,
+  IconGripVertical,
+  IconLayersLinked,
+  IconMinus,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useCallback, useMemo } from "react";
 import { TransformChain } from "./TransformChain";
 
 const COMBINE_MODE_OPTIONS: { value: CombineMode; label: string }[] = [
@@ -94,7 +94,8 @@ export function MappingRow({
   const combineMode = mapping.combineMode ?? "single";
   const isMultiSource = combineMode !== "single";
   const sources: MappingSource[] = isMultiSource
-    ? mapping.sources ?? (mapping.from ? [{ id: `row_src_${mapping.id}`, path: mapping.from }] : [])
+    ? (mapping.sources ??
+      (mapping.from ? [{ id: `row_src_${mapping.id}`, path: mapping.from }] : []))
     : [];
 
   const handleFromChange = (value: string) => {
@@ -210,13 +211,9 @@ export function MappingRow({
         ...style,
         borderRadius: 6,
         border: `1px solid ${
-          isOver
-            ? "var(--mantine-color-blue-4)"
-            : "var(--mantine-color-gray-3)"
+          isOver ? "var(--mantine-color-blue-4)" : "var(--mantine-color-gray-3)"
         }`,
-        background: isOver
-          ? "var(--mantine-color-blue-0)"
-          : "var(--mantine-color-white)",
+        background: isOver ? "var(--mantine-color-blue-0)" : "var(--mantine-color-white)",
       }}
       p="xs"
       mb={4}
@@ -249,9 +246,7 @@ export function MappingRow({
                       size="xs"
                       placeholder={`Source ${si + 1}`}
                       value={src.path}
-                      onChange={(e) =>
-                        handleSourceChange(si, e.currentTarget.value)
-                      }
+                      onChange={(e) => handleSourceChange(si, e.currentTarget.value)}
                       style={{ flex: 1 }}
                     />
                     <ActionIcon
@@ -275,7 +270,9 @@ export function MappingRow({
                   >
                     <IconPlus size={12} />
                   </ActionIcon>
-                  <Text size="xs" c="dimmed">Add source</Text>
+                  <Text size="xs" c="dimmed">
+                    Add source
+                  </Text>
                 </Group>
 
                 {/* Combine mode + config */}
@@ -338,9 +335,7 @@ export function MappingRow({
                   onChange={(e) => handleFromChange(e.currentTarget.value)}
                   styles={{
                     input: {
-                      borderColor: isOver
-                        ? "var(--mantine-color-blue-4)"
-                        : undefined,
+                      borderColor: isOver ? "var(--mantine-color-blue-4)" : undefined,
                     },
                   }}
                 />
@@ -394,11 +389,7 @@ export function MappingRow({
 
         {/* Row 3: Transform Chain (compact) */}
         <Group gap="xs" wrap="nowrap" pl={52} align="flex-start">
-          <TransformChain
-            chain={resolveChain(mapping)}
-            onChange={handleChainChange}
-            compact
-          />
+          <TransformChain chain={resolveChain(mapping)} onChange={handleChainChange} compact />
         </Group>
       </Stack>
     </Box>

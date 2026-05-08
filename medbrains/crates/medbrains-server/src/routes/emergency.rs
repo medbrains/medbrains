@@ -169,6 +169,72 @@ pub struct UpdateMassCasualtyEventRequest {
     pub notes: Option<String>,
 }
 
+fn infer_mlc_case_type(parts: &[Option<&str>]) -> Option<&'static str> {
+    let haystack = parts
+        .iter()
+        .filter_map(|part| *part)
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+
+    if haystack.is_empty() {
+        return None;
+    }
+
+    let keyword_map = [
+        ("rta", "road_traffic_accident"),
+        ("road traffic", "road_traffic_accident"),
+        ("accident", "accident"),
+        ("assault", "assault"),
+        ("stab", "assault"),
+        ("gunshot", "assault"),
+        ("burn", "burn"),
+        ("poison", "poisoning"),
+        ("suicide", "self_harm"),
+        ("self harm", "self_harm"),
+        ("hanging", "self_harm"),
+        ("fall from height", "accident"),
+    ];
+
+    keyword_map
+        .iter()
+        .find_map(|(keyword, case_type)| haystack.contains(keyword).then_some(*case_type))
+}
+
+async fn auto_create_mlc_case_for_visit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    er_visit_id: Uuid,
+    patient_id: Uuid,
+    registered_by: Uuid,
+    case_type: &str,
+    history_of_incident: Option<&str>,
+) -> Result<(), AppError> {
+    let suffix = er_visit_id.to_string().chars().take(8).collect::<String>();
+    let mlc_number = format!("MLC-{}-{suffix}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+
+    sqlx::query!(
+        "INSERT INTO mlc_cases
+         (tenant_id, er_visit_id, patient_id, mlc_number, case_type,
+          history_of_incident, registered_by)
+         SELECT $1, $2, $3, $4, $5, $6, $7
+         WHERE NOT EXISTS (
+           SELECT 1 FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2
+         )",
+        tenant_id,
+        er_visit_id,
+        patient_id,
+        mlc_number,
+        case_type,
+        history_of_incident,
+        registered_by,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
 // ══════════════════════════════════════════════════════════
 //  ER Visits
 // ══════════════════════════════════════════════════════════
@@ -218,6 +284,12 @@ pub async fn create_visit(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let visit_number = format!("ER-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let inferred_mlc_case_type = infer_mlc_case_type(&[
+        body.chief_complaint.as_deref(),
+        body.notes.as_deref(),
+        body.arrival_mode.as_deref(),
+    ]);
+    let is_mlc = body.is_mlc.unwrap_or(false) || inferred_mlc_case_type.is_some();
 
     let row = sqlx::query_as::<_, ErVisit>(
         "INSERT INTO er_visits (tenant_id, patient_id, visit_number, arrival_mode, chief_complaint, is_mlc, is_brought_dead, bay_number, vitals, notes, mass_casualty_event_id, created_by)
@@ -227,17 +299,30 @@ pub async fn create_visit(
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(&visit_number)
-    .bind(body.arrival_mode)
-    .bind(body.chief_complaint)
-    .bind(body.is_mlc)
+    .bind(&body.arrival_mode)
+    .bind(&body.chief_complaint)
+    .bind(is_mlc)
     .bind(body.is_brought_dead)
     .bind(body.bay_number)
     .bind(body.vitals)
-    .bind(body.notes)
+    .bind(&body.notes)
     .bind(body.mass_casualty_event_id)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    if is_mlc {
+        auto_create_mlc_case_for_visit(
+            &mut tx,
+            &claims.tenant_id,
+            row.id,
+            row.patient_id,
+            claims.sub,
+            inferred_mlc_case_type.unwrap_or("medico_legal"),
+            row.chief_complaint.as_deref().or(row.notes.as_deref()),
+        )
+        .await?;
+    }
 
     // Auto-bill ER consultation charge
     if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
@@ -343,6 +428,11 @@ pub async fn create_triage(
     require_permission(&claims, permissions::emergency::triage::CREATE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let inferred_mlc_case_type = infer_mlc_case_type(&[
+        body.chief_complaint.as_deref(),
+        body.disability_assessment.as_deref(),
+        body.notes.as_deref(),
+    ]);
 
     let row = sqlx::query_as::<_, ErTriageAssessment>(
         "INSERT INTO er_triage_assessments (tenant_id, er_visit_id, triage_level, triage_system, score,
@@ -355,7 +445,7 @@ pub async fn create_triage(
     .bind(claims.tenant_id)
     .bind(visit_id)
     .bind(&body.triage_level)
-    .bind(body.triage_system)
+    .bind(&body.triage_system)
     .bind(body.score)
     .bind(body.respiratory_rate)
     .bind(body.pulse_rate)
@@ -367,12 +457,12 @@ pub async fn create_triage(
     .bind(body.gcs_verbal)
     .bind(body.gcs_motor)
     .bind(body.pain_score)
-    .bind(body.chief_complaint)
-    .bind(body.presenting_symptoms)
-    .bind(body.allergies)
+    .bind(&body.chief_complaint)
+    .bind(&body.presenting_symptoms)
+    .bind(&body.allergies)
     .bind(body.is_pregnant)
-    .bind(body.disability_assessment)
-    .bind(body.notes)
+    .bind(&body.disability_assessment)
+    .bind(&body.notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -384,6 +474,33 @@ pub async fn create_triage(
         .bind(&body.triage_level)
         .execute(&mut *tx)
         .await?;
+
+    if let Some(case_type) = inferred_mlc_case_type {
+        let visit = sqlx::query!(
+            "UPDATE er_visits
+             SET is_mlc = true, updated_at = now()
+             WHERE id = $1 AND tenant_id = $2
+             RETURNING patient_id, chief_complaint, notes",
+            visit_id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        auto_create_mlc_case_for_visit(
+            &mut tx,
+            &claims.tenant_id,
+            visit_id,
+            visit.patient_id,
+            claims.sub,
+            case_type,
+            body.chief_complaint
+                .as_deref()
+                .or(visit.chief_complaint.as_deref())
+                .or(visit.notes.as_deref()),
+        )
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(row))
@@ -497,7 +614,7 @@ pub async fn create_code_activation(
     // perm_version when expiry fires so the JWT is re-issued without
     // the elevated grant.
     let break_glass_expiry = chrono::Utc::now() + chrono::Duration::hours(4);
-    let group_id: Option<uuid::Uuid> = sqlx::query_scalar(
+    let group_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM access_groups \
          WHERE tenant_id = $1 AND code = 'code_blue_team' AND is_active = true",
     )

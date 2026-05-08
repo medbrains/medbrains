@@ -415,14 +415,29 @@ pub(crate) async fn seed_cache(user: &mut GooseUser) -> TransactionResult {
             s.ipd_dept_id = first_id_matching(arr, &["ipd", "medicine", "ward", "inpatient"])
                 .or_else(|| s.opd_dept_id.clone());
         }
-        if let Some(first) = drugs.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+        if let Some(first) = drugs
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+        {
             s.drug_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
-            s.drug_name = first.get("name").and_then(|v| v.as_str()).map(str::to_owned);
+            s.drug_name = first
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
         }
-        if let Some(first) = tests.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+        if let Some(first) = tests
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+        {
             s.lab_test_id = first.get("id").and_then(|v| v.as_str()).map(str::to_owned);
         }
-        if let Some(first) = beds.as_ref().and_then(|v| v.as_array()).and_then(|a| a.first()) {
+        if let Some(first) = beds
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.first())
+        {
             s.bed_id = first
                 .get("location_id")
                 .or_else(|| first.get("id"))
@@ -451,7 +466,10 @@ pub(crate) async fn seed_cache(user: &mut GooseUser) -> TransactionResult {
             if s.user_id.is_none() {
                 s.user_id = obj.get("id").and_then(|v| v.as_str()).map(str::to_owned);
             }
-            s.tenant_id = obj.get("tenant_id").and_then(|v| v.as_str()).map(str::to_owned);
+            s.tenant_id = obj
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
         }
     }
 
@@ -493,7 +511,9 @@ async fn bootstrap_invoice(user: &mut GooseUser) {
         let s = session.lock().await;
         (s.patient_id.clone(), s.encounter_id.clone())
     };
-    let (Some(pid), Some(eid)) = (patient_id, encounter_id) else { return };
+    let (Some(pid), Some(eid)) = (patient_id, encounter_id) else {
+        return;
+    };
     let resp = json_request(
         user,
         GooseMethod::Post,
@@ -590,7 +610,11 @@ async fn bootstrap_admission(user: &mut GooseUser) {
     let (patient_id, ipd_dept_id, bed_id) = {
         let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
         let s = session.lock().await;
-        (s.patient_id.clone(), s.ipd_dept_id.clone(), s.bed_id.clone())
+        (
+            s.patient_id.clone(),
+            s.ipd_dept_id.clone(),
+            s.bed_id.clone(),
+        )
     };
     let Some(pid) = patient_id else { return };
     let Some(did) = ipd_dept_id else { return };
@@ -837,10 +861,7 @@ fn first_id_matching(arr: &[serde_json::Value], needles: &[&str]) -> Option<Stri
                     .and_then(|v| v.as_str())
                     .is_some_and(|c| c.to_lowercase().contains(needle))
         }) {
-            return hit
-                .get("id")
-                .and_then(|v| v.as_str())
-                .map(str::to_owned);
+            return hit.get("id").and_then(|v| v.as_str()).map(str::to_owned);
         }
     }
     arr.first()
@@ -865,7 +886,9 @@ async fn lab_order_flow(user: &mut GooseUser) -> TransactionResult {
         let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
         session.lock().await.lab_test_id.clone()
     };
-    let Some(test_id) = test_id else { return Ok(()) };
+    let Some(test_id) = test_id else {
+        return Ok(());
+    };
 
     let order_resp = json_request(
         user,
@@ -1054,13 +1077,8 @@ async fn ipd_admission_flow(user: &mut GooseUser) -> TransactionResult {
     };
 
     // POST returns { encounter, admission }
-    let adm_resp = json_request(
-        user,
-        GooseMethod::Post,
-        "/api/ipd/admissions",
-        Some(&body),
-    )
-    .await?;
+    let adm_resp =
+        json_request(user, GooseMethod::Post, "/api/ipd/admissions", Some(&body)).await?;
     let Some(admission_id) = adm_resp
         .as_ref()
         .and_then(|v| v.get("admission"))

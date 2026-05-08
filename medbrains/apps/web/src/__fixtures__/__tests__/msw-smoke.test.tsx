@@ -13,10 +13,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "../../test/test-utils";
 import { authMeFixture } from "../auth";
 import { patientFixture } from "../patient";
 import { SEED } from "../seed";
-import { render, screen, waitFor } from "../../test/test-utils";
 
 interface AuthMe {
   user: { id: string; full_name: string };

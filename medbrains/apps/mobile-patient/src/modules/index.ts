@@ -6,12 +6,11 @@
 
 import type { Module } from "@medbrains/mobile-shell";
 import { appointmentsModule } from "./appointments";
-import { labReportsModule } from "./lab-reports";
-import { prescriptionsModule } from "./prescriptions";
 import { billsModule } from "./bills";
 import { consentModule } from "./consent";
 import { familyShareModule } from "./family-share";
-
+import { labReportsModule } from "./lab-reports";
+import { prescriptionsModule } from "./prescriptions";
 
 export const MODULES: ReadonlyArray<Module> = [
   appointmentsModule,
@@ -20,5 +19,4 @@ export const MODULES: ReadonlyArray<Module> = [
   billsModule,
   consentModule,
   familyShareModule,
-
 ];

@@ -1,4 +1,15 @@
 import {
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
   Badge,
   Box,
   Button,
@@ -10,32 +21,8 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import {
-  IconChevronDown,
-  IconChevronRight,
-  IconExternalLink,
-  IconGripVertical,
-  IconPlus,
-  IconTransform,
-} from "@tabler/icons-react";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { useDraggable } from "@dnd-kit/core";
-import { useIntegrationBuilderStore } from "@medbrains/stores";
 import { api } from "@medbrains/api";
-import { useQuery } from "@tanstack/react-query";
+import { useIntegrationBuilderStore } from "@medbrains/stores";
 import type {
   AvailableField,
   EventSchema,
@@ -47,6 +34,15 @@ import type {
   SchemaField,
   TargetFieldSuggestion,
 } from "@medbrains/types";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconExternalLink,
+  IconGripVertical,
+  IconPlus,
+  IconTransform,
+} from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { MappingRow } from "./MappingRow";
 import { VisualFieldMapper } from "./VisualFieldMapper";
@@ -135,9 +131,7 @@ function schemaFieldPaths(fields: SchemaField[] | undefined): string[] {
 
 // ── Resolve output fields from template's output_schema ───
 
-function templateOutputPaths(
-  template: IntegrationNodeTemplate | undefined,
-): string[] {
+function templateOutputPaths(template: IntegrationNodeTemplate | undefined): string[] {
   if (!template) return [];
   const schema = template.output_schema;
   if (schema && Array.isArray(schema.fields) && schema.fields.length > 0) {
@@ -228,23 +222,15 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
     queryKey: ["schema", "modules", "all-entities"],
     queryFn: async () => {
       const modules = await api.listSchemaModules();
-      const results = await Promise.all(
-        modules.map((m) => api.listModuleEntities(m.module_code)),
-      );
+      const results = await Promise.all(modules.map((m) => api.listModuleEntities(m.module_code)));
       return results.flat();
     },
   });
 
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === nodeId),
-    [nodes, nodeId],
-  );
+  const selectedNode = useMemo(() => nodes.find((n) => n.id === nodeId), [nodes, nodeId]);
 
   const config = (selectedNode?.data.config ?? {}) as Record<string, unknown>;
-  const mappings = useMemo(
-    () => normalizeMappings(config.mappings),
-    [config.mappings],
-  );
+  const mappings = useMemo(() => normalizeMappings(config.mappings), [config.mappings]);
 
   const [availableOpen, setAvailableOpen] = useState(true);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -412,9 +398,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
 
   // ── DnD sensors & handlers ──────────────────────────────
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragId(String(event.active.id));
@@ -440,10 +424,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
       }
 
       // Case 2: Drop available field onto a from-field droppable
-      if (
-        activeData?.type === "available-field" &&
-        overData?.type === "from-field"
-      ) {
+      if (activeData?.type === "available-field" && overData?.type === "from-field") {
         const field = activeData.field as AvailableField;
         const mappingId = overData.mappingId as string;
         const idx = mappings.findIndex((m) => m.id === mappingId);
@@ -466,10 +447,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
             persistMappings(next);
           } else {
             // Single mode: replace from
-            const toValue =
-              existing.to ||
-              field.path.split(".").pop() ||
-              "";
+            const toValue = existing.to || field.path.split(".").pop() || "";
             const updated: FieldMapping = {
               ...existing,
               from: field.path,
@@ -537,24 +515,13 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
   const mappingIds = useMemo(() => mappings.map((m) => m.id), [mappings]);
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <Stack gap="sm">
         {/* ── Available Fields ──────────────────────────── */}
         <Box>
-          <UnstyledButton
-            onClick={() => setAvailableOpen((v) => !v)}
-            style={{ width: "100%" }}
-          >
+          <UnstyledButton onClick={() => setAvailableOpen((v) => !v)} style={{ width: "100%" }}>
             <Group gap={4}>
-              {availableOpen ? (
-                <IconChevronDown size={12} />
-              ) : (
-                <IconChevronRight size={12} />
-              )}
+              {availableOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
               <Text size="xs" fw={700} tt="uppercase" c="dimmed">
                 Available Fields
               </Text>
@@ -581,10 +548,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
               ) : (
                 <Group gap={4} wrap="wrap">
                   {availableFields.map((f) => (
-                    <DraggableFieldBadge
-                      key={`${f.nodeId}-${f.path}`}
-                      field={f}
-                    />
+                    <DraggableFieldBadge key={`${f.nodeId}-${f.path}`} field={f} />
                   ))}
                 </Group>
               )}
@@ -638,10 +602,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
               </Text>
             </Box>
           ) : (
-            <SortableContext
-              items={mappingIds}
-              strategy={verticalListSortingStrategy}
-            >
+            <SortableContext items={mappingIds} strategy={verticalListSortingStrategy}>
               {mappings.map((m, i) => (
                 <MappingRow
                   key={m.id}

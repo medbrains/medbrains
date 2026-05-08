@@ -49,9 +49,7 @@ const DENY_ALL: ResourcePermResult = {
   canApprove: false,
 };
 
-export function useResourcePerm(
-  row: ResourceWithPerms | undefined | null,
-): ResourcePermResult {
+export function useResourcePerm(row: ResourceWithPerms | undefined | null): ResourcePermResult {
   if (!row || !row._perms) return DENY_ALL;
   const p = row._perms;
   return {

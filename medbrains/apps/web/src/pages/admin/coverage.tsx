@@ -20,9 +20,9 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
@@ -95,15 +95,16 @@ export function AdminCoveragePage() {
               const now = Date.now();
               const start = new Date(a.start_at).getTime();
               const end = new Date(a.end_at).getTime();
-              const status =
-                now < start ? "scheduled" : now > end ? "ended" : "active";
+              const status = now < start ? "scheduled" : now > end ? "ended" : "active";
               return (
                 <Table.Tr key={a.id}>
                   <Table.Td>
                     <Text size="sm">{doctorName(a.absent_doctor_id)}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" fw={500}>{doctorName(a.covering_doctor_id)}</Text>
+                    <Text size="sm" fw={500}>
+                      {doctorName(a.covering_doctor_id)}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{new Date(a.start_at).toLocaleString()}</Text>
@@ -112,10 +113,14 @@ export function AdminCoveragePage() {
                     <Text size="xs">{new Date(a.end_at).toLocaleString()}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs" c="dimmed" lineClamp={1}>{a.reason ?? "—"}</Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {a.reason ?? "—"}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="xs" color={statusColor(status)}>{status}</Badge>
+                    <Badge size="xs" color={statusColor(status)}>
+                      {status}
+                    </Badge>
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label="Remove">
@@ -185,8 +190,8 @@ function CreateCoverageModal({
       api.adminCreateCoverage({
         absent_doctor_id: absent!,
         covering_doctor_id: covering!,
-        start_at: start!.toISOString(),
-        end_at: end!.toISOString(),
+        start_at: start?.toISOString(),
+        end_at: end?.toISOString(),
         reason: reason || null,
       }),
     onSuccess: () => {
@@ -197,8 +202,7 @@ function CreateCoverageModal({
       notifications.show({ title: "Create failed", message: err.message, color: "danger" }),
   });
 
-  const canSubmit =
-    absent && covering && start && end && absent !== covering && end > start;
+  const canSubmit = absent && covering && start && end && absent !== covering && end > start;
 
   return (
     <Modal opened onClose={onClose} title="Assign locum coverage" size="md">
@@ -242,12 +246,10 @@ function CreateCoverageModal({
           minRows={2}
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>Cancel</Button>
-          <Button
-            loading={create.isPending}
-            disabled={!canSubmit}
-            onClick={() => create.mutate()}
-          >
+          <Button variant="subtle" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={create.isPending} disabled={!canSubmit} onClick={() => create.mutate()}>
             Assign
           </Button>
         </Group>
@@ -258,9 +260,13 @@ function CreateCoverageModal({
 
 function statusColor(s: string): string {
   switch (s) {
-    case "active": return "primary";
-    case "scheduled": return "info";
-    case "ended": return "gray";
-    default: return "gray";
+    case "active":
+      return "primary";
+    case "scheduled":
+      return "info";
+    case "ended":
+      return "gray";
+    default:
+      return "gray";
   }
 }

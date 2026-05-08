@@ -13,8 +13,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAuthStore } from "@medbrains/stores";
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 import {
   IconBed,
   IconBrandGithub,
@@ -31,6 +29,8 @@ import {
   IconStethoscope,
   IconUsers,
 } from "@tabler/icons-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import classes from "./landing.module.scss";
 
 interface FeatureEntry {
@@ -116,13 +116,19 @@ function PlatformBadge({ web, mobile, tv }: { web: string; mobile: string; tv: s
   return (
     <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
       {web === "Y" && (
-        <Badge size="xs" variant="dot" color="primary">W</Badge>
+        <Badge size="xs" variant="dot" color="primary">
+          W
+        </Badge>
       )}
       {mobile === "Y" && (
-        <Badge size="xs" variant="dot" color="teal">M</Badge>
+        <Badge size="xs" variant="dot" color="teal">
+          M
+        </Badge>
       )}
       {tv === "Y" && (
-        <Badge size="xs" variant="dot" color="slate">TV</Badge>
+        <Badge size="xs" variant="dot" color="slate">
+          TV
+        </Badge>
       )}
     </Group>
   );
@@ -189,7 +195,9 @@ export function LandingPage() {
         title={
           <Group gap="sm">
             <IconList size={20} />
-            <Text fw={700} size="lg">All Features</Text>
+            <Text fw={700} size="lg">
+              All Features
+            </Text>
             <Badge size="sm" variant="light" color="primary">
               {filteredCount.toLocaleString()}
             </Badge>
@@ -221,7 +229,9 @@ export function LandingPage() {
                 <Accordion.Item key={category} value={category}>
                   <Accordion.Control>
                     <Group justify="space-between" pr="sm">
-                      <Text fw={600} size="sm">{category}</Text>
+                      <Text fw={600} size="sm">
+                        {category}
+                      </Text>
                       <Badge size="sm" variant="light" color="primary">
                         {catCount}
                       </Badge>
@@ -233,7 +243,9 @@ export function LandingPage() {
                         <Accordion.Item key={mod} value={`${category}-${mod}`}>
                           <Accordion.Control>
                             <Group justify="space-between" pr="sm">
-                              <Text size="sm" fw={500}>{mod}</Text>
+                              <Text size="sm" fw={500}>
+                                {mod}
+                              </Text>
                               <Badge size="xs" variant="light" color="slate">
                                 {feats.length}
                               </Badge>
@@ -244,16 +256,33 @@ export function LandingPage() {
                               {feats.map((feat, i) => (
                                 <div key={i} className={classes.featureListItem}>
                                   <Group justify="space-between" wrap="nowrap" align="flex-start">
-                                    <Group gap="sm" wrap="nowrap" align="flex-start" style={{ flex: 1 }}>
-                                      <IconCheck size={14} color="var(--mantine-color-primary-5)" style={{ marginTop: 3, flexShrink: 0 }} />
+                                    <Group
+                                      gap="sm"
+                                      wrap="nowrap"
+                                      align="flex-start"
+                                      style={{ flex: 1 }}
+                                    >
+                                      <IconCheck
+                                        size={14}
+                                        color="var(--mantine-color-primary-5)"
+                                        style={{ marginTop: 3, flexShrink: 0 }}
+                                      />
                                       <div>
-                                        <Text size="sm" lh={1.4}>{feat.feature}</Text>
+                                        <Text size="sm" lh={1.4}>
+                                          {feat.feature}
+                                        </Text>
                                         {feat.subModule && (
-                                          <Text size="xs" c="dimmed" mt={2}>{feat.subModule}</Text>
+                                          <Text size="xs" c="dimmed" mt={2}>
+                                            {feat.subModule}
+                                          </Text>
                                         )}
                                       </div>
                                     </Group>
-                                    <PlatformBadge web={feat.web} mobile={feat.mobile} tv={feat.tv} />
+                                    <PlatformBadge
+                                      web={feat.web}
+                                      mobile={feat.mobile}
+                                      tv={feat.tv}
+                                    />
                                   </Group>
                                 </div>
                               ))}
@@ -274,14 +303,26 @@ export function LandingPage() {
       <nav className={classes.navbar}>
         <div className={classes.navbarInner}>
           <div className={classes.navLogo}>
-            <img src="/logo/medbrains-mark.svg" alt="" width={32} height={32} style={{ borderRadius: 6 }} />
+            <img
+              src="/logo/medbrains-mark.svg"
+              alt=""
+              width={32}
+              height={32}
+              style={{ borderRadius: 6 }}
+            />
             <span className={classes.navLogoText}>MedBrains</span>
           </div>
 
           <div className={classes.navLinks}>
-            <a href="#features" className={classes.navLink}>Features</a>
-            <a href="#modules" className={classes.navLink}>Modules</a>
-            <a href="#open-source" className={classes.navLink}>Open Source</a>
+            <a href="#features" className={classes.navLink}>
+              Features
+            </a>
+            <a href="#modules" className={classes.navLink}>
+              Modules
+            </a>
+            <a href="#open-source" className={classes.navLink}>
+              Open Source
+            </a>
           </div>
 
           <div className={classes.navActions}>
@@ -291,11 +332,7 @@ export function LandingPage() {
               </Button>
             ) : (
               <>
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  onClick={() => navigate("/login")}
-                >
+                <Button variant="subtle" size="sm" onClick={() => navigate("/login")}>
                   Sign In
                 </Button>
                 <Button size="sm" onClick={() => navigate("/onboarding")}>
@@ -318,14 +355,11 @@ export function LandingPage() {
             The Hospital Management System Built for <em>Everyone</em>
           </h1>
           <p className={classes.heroSubtitle}>
-            2,189 features across 67+ modules. Zero license fees. From OPD to IPD,
-            Lab to Pharmacy — everything a modern hospital needs.
+            2,189 features across 67+ modules. Zero license fees. From OPD to IPD, Lab to Pharmacy —
+            everything a modern hospital needs.
           </p>
           <div className={classes.heroCtas}>
-            <Button
-              size="lg"
-              onClick={() => navigate(user ? "/dashboard" : "/onboarding")}
-            >
+            <Button size="lg" onClick={() => navigate(user ? "/dashboard" : "/onboarding")}>
               Get Started
             </Button>
             <Button
@@ -429,9 +463,7 @@ export function LandingPage() {
                 <IconServer size={22} stroke={1.5} />
               </ThemeIcon>
               <div className={classes.osCardTitle}>Quick Start</div>
-              <div className={classes.codeBlock}>
-                {"docker compose up -d\ncargo run\npnpm dev"}
-              </div>
+              <div className={classes.codeBlock}>{"docker compose up -d\ncargo run\npnpm dev"}</div>
             </Card>
             <Card className={classes.osCard} shadow="none">
               <ThemeIcon variant="light" size={44} radius="sm" color="primary" mx="auto" mb="md">
@@ -439,8 +471,8 @@ export function LandingPage() {
               </ThemeIcon>
               <div className={classes.osCardTitle}>Open Source</div>
               <div className={classes.osCardDesc}>
-                MIT licensed. Star us on GitHub, report issues, suggest features.
-                The code is yours to audit, modify, and deploy.
+                MIT licensed. Star us on GitHub, report issues, suggest features. The code is yours
+                to audit, modify, and deploy.
               </div>
             </Card>
             <Card className={classes.osCard} shadow="none">
@@ -449,8 +481,8 @@ export function LandingPage() {
               </ThemeIcon>
               <div className={classes.osCardTitle}>NABH / JCI Ready</div>
               <div className={classes.osCardDesc}>
-                Built with 700+ compliance criteria from NABH and JCI standards.
-                34 department evaluation checklists included.
+                Built with 700+ compliance criteria from NABH and JCI standards. 34 department
+                evaluation checklists included.
               </div>
             </Card>
           </SimpleGrid>
@@ -463,30 +495,54 @@ export function LandingPage() {
           <div className={classes.footerGrid}>
             <div className={classes.footerBrand}>
               <Group gap={10}>
-                <img src="/logo/medbrains-mark.svg" alt="" width={28} height={28} style={{ borderRadius: 5 }} />
+                <img
+                  src="/logo/medbrains-mark.svg"
+                  alt=""
+                  width={28}
+                  height={28}
+                  style={{ borderRadius: 5 }}
+                />
                 <span className={classes.footerBrandName}>MedBrains</span>
               </Group>
               <span className={classes.footerBrandDesc}>
-                Comprehensive Hospital Management System for modern healthcare.
-                Open source, multi-tenant, and compliance-ready.
+                Comprehensive Hospital Management System for modern healthcare. Open source,
+                multi-tenant, and compliance-ready.
               </span>
             </div>
 
             <div>
               <div className={classes.footerColTitle}>Product</div>
               <ul className={classes.footerLinks}>
-                <li><a href="#features" className={classes.footerLink}>Features</a></li>
-                <li><a href="#modules" className={classes.footerLink}>Modules</a></li>
-                <li><span className={classes.footerLink} onClick={() => navigate("/onboarding")}>Get Started</span></li>
+                <li>
+                  <a href="#features" className={classes.footerLink}>
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a href="#modules" className={classes.footerLink}>
+                    Modules
+                  </a>
+                </li>
+                <li>
+                  <span className={classes.footerLink} onClick={() => navigate("/onboarding")}>
+                    Get Started
+                  </span>
+                </li>
               </ul>
             </div>
 
             <div>
               <div className={classes.footerColTitle}>Resources</div>
               <ul className={classes.footerLinks}>
-                <li><span className={classes.footerLink}>Documentation</span></li>
-                <li><span className={classes.footerLink}>API Reference</span></li>
-                <li><span className={classes.footerLink}>Changelog</span></li>
+                <li>
+                  <span className={classes.footerLink}>Documentation</span>
+                </li>
+                <li>
+                  <span className={classes.footerLink}>API Reference</span>
+                </li>
+                <li>
+                  <span className={classes.footerLink}>Changelog</span>
+                </li>
               </ul>
             </div>
 
@@ -503,8 +559,12 @@ export function LandingPage() {
                     GitHub
                   </a>
                 </li>
-                <li><span className={classes.footerLink}>Discussions</span></li>
-                <li><span className={classes.footerLink}>Contributing</span></li>
+                <li>
+                  <span className={classes.footerLink}>Discussions</span>
+                </li>
+                <li>
+                  <span className={classes.footerLink}>Contributing</span>
+                </li>
               </ul>
             </div>
           </div>
@@ -515,9 +575,7 @@ export function LandingPage() {
             </span>
             <Group gap={8}>
               <IconHeartRateMonitor size={16} color="var(--mb-text-muted)" />
-              <span className={classes.footerCopyright}>
-                Built with Rust, React &amp; Mantine
-              </span>
+              <span className={classes.footerCopyright}>Built with Rust, React &amp; Mantine</span>
             </Group>
           </div>
         </div>

@@ -6,7 +6,7 @@
 //! `spawn_archive_loop` instead.
 
 use medbrains_core::object_store::{ColdLocalObjectStore, LocalFsObjectStore, ObjectStore};
-use medbrains_server::storage_archive::{sweep_all_tenants, StoreSet};
+use medbrains_server::storage_archive::{StoreSet, sweep_all_tenants};
 use sqlx::postgres::PgPoolOptions;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,8 +21,8 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .map_err(|_| anyhow::anyhow!("DATABASE_URL is required"))?;
+    let database_url =
+        std::env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL is required"))?;
     let pool = PgPoolOptions::new()
         .max_connections(4)
         .connect(&database_url)

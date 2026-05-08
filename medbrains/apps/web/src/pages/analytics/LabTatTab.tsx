@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { BarChart } from "@mantine/charts";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { BarChart } from "@mantine/charts";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { LabTatRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -31,10 +31,7 @@ export function LabTatTab() {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
 
-  const params = useMemo(
-    () => ({ from: toIso(from), to: toIso(to) }),
-    [from, to],
-  );
+  const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["analytics", "lab-tat", params],
@@ -81,7 +78,11 @@ export function LabTatTab() {
 
   const columns: Column<LabTatRow>[] = [
     { key: "test", label: "Test Name", render: (r) => <Text size="sm">{r.test_name}</Text> },
-    { key: "orders", label: "Orders", render: (r) => <Text size="sm">{r.order_count.toLocaleString()}</Text> },
+    {
+      key: "orders",
+      label: "Orders",
+      render: (r) => <Text size="sm">{r.order_count.toLocaleString()}</Text>,
+    },
     {
       key: "avg",
       label: "Avg TAT",
@@ -138,7 +139,9 @@ export function LabTatTab() {
       {/* Chart */}
       {chartData.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="sm">Top 10 Tests by Avg TAT</Text>
+          <Text fw={600} mb="sm">
+            Top 10 Tests by Avg TAT
+          </Text>
           <BarChart
             h={300}
             data={chartData}
@@ -159,9 +162,7 @@ export function LabTatTab() {
         loading={isLoading}
         rowKey={(r) => r.test_name}
         rowStyle={(r) =>
-          r.avg_tat_mins > 120
-            ? { backgroundColor: "var(--mantine-color-red-0)" }
-            : undefined
+          r.avg_tat_mins > 120 ? { backgroundColor: "var(--mantine-color-red-0)" } : undefined
         }
       />
     </Stack>
@@ -173,8 +174,12 @@ export function LabTatTab() {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card withBorder p="lg">
-      <Text c="dimmed" size="sm">{label}</Text>
-      <Text fw={700} size="xl">{value}</Text>
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Text fw={700} size="xl">
+        {value}
+      </Text>
     </Card>
   );
 }

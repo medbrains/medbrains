@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import { buildPermissionTree, type PermissionDef } from "@medbrains/types";
+import { describe, expect, it } from "vitest";
 
 describe("buildPermissionTree", () => {
   it("returns an empty array for empty input", () => {
@@ -33,7 +33,9 @@ describe("buildPermissionTree", () => {
   });
 
   it("places leaf perm at the correct level (3-segment code)", () => {
-    const perms: PermissionDef[] = [{ code: "billing.invoices.list", description: "", label: "List", module: "billing" }];
+    const perms: PermissionDef[] = [
+      { code: "billing.invoices.list", description: "", label: "List", module: "billing" },
+    ];
     const tree = buildPermissionTree(perms);
     const billing = tree.find((g) => g.key === "billing");
     expect(billing).toBeDefined();
@@ -56,7 +58,9 @@ describe("buildPermissionTree", () => {
   });
 
   it("capitalizes labels for accordion display", () => {
-    const perms: PermissionDef[] = [{ code: "lab.orders.list", description: "", label: "List", module: "lab" }];
+    const perms: PermissionDef[] = [
+      { code: "lab.orders.list", description: "", label: "List", module: "lab" },
+    ];
     const tree = buildPermissionTree(perms);
     expect(tree[0]?.label).toBe("Lab");
     expect(tree[0]?.children[0]?.label).toBe("Orders");

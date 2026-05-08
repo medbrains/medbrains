@@ -1,7 +1,3 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type { TenantSettingsRow } from "@medbrains/types";
 import {
   Badge,
   Button,
@@ -13,6 +9,9 @@ import {
   Textarea,
   ThemeIcon,
 } from "@mantine/core";
+import { api } from "@medbrains/api";
+import { useLocaleConfig } from "@medbrains/stores";
+import type { CreateVitalRequest, TenantSettingsRow } from "@medbrains/types";
 import {
   IconDeviceHeartMonitor,
   IconDroplet,
@@ -23,9 +22,9 @@ import {
   IconTemperature,
   IconWind,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocaleConfig } from "@medbrains/stores";
-import type { CreateVitalRequest } from "@medbrains/types";
 import {
   getHeightConfig,
   getTemperatureConfig,
@@ -226,8 +225,10 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
   const bmiValues = useMemo(() => {
     const rawWeight = values.weight;
     const rawHeight = values.height;
-    const weightKg = rawWeight !== undefined ? weightToKg(rawWeight, localeConfig.weight_unit) : undefined;
-    const heightCm = rawHeight !== undefined ? heightToCm(rawHeight, localeConfig.height_unit) : undefined;
+    const weightKg =
+      rawWeight !== undefined ? weightToKg(rawWeight, localeConfig.weight_unit) : undefined;
+    const heightCm =
+      rawHeight !== undefined ? heightToCm(rawHeight, localeConfig.height_unit) : undefined;
     return { weightKg, heightCm };
   }, [values.weight, values.height, localeConfig.weight_unit, localeConfig.height_unit]);
 
@@ -275,23 +276,25 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
           const rangeLabel = getRangeLabel(config);
 
           return (
-            <div
-              key={config.key}
-              className={styles.vitalCard}
-              data-level={level}
-            >
+            <div key={config.key} className={styles.vitalCard} data-level={level}>
               <Group gap={6} mb={4} wrap="nowrap">
                 <ThemeIcon
                   variant="light"
                   size={28}
                   radius="md"
-                  color={level === "critical" ? "danger" : level === "borderline" ? "warning" : "primary"}
+                  color={
+                    level === "critical" ? "danger" : level === "borderline" ? "warning" : "primary"
+                  }
                 >
                   {config.icon}
                 </ThemeIcon>
                 <div>
-                  <Text size="xs" fw={600} lh={1.2}>{t(config.labelKey)}</Text>
-                  <Text size="xs" c="dimmed" lh={1}>{config.unit}</Text>
+                  <Text size="xs" fw={600} lh={1.2}>
+                    {t(config.labelKey)}
+                  </Text>
+                  <Text size="xs" c="dimmed" lh={1}>
+                    {config.unit}
+                  </Text>
                 </div>
               </Group>
               <NumberInput
@@ -321,9 +324,13 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
         <Group gap="md">
           {bmi !== null && (
             <div className={styles.calcBadge}>
-              <Text size="xs" c="dimmed">{t("vitals.bmi")}</Text>
+              <Text size="xs" c="dimmed">
+                {t("vitals.bmi")}
+              </Text>
               <Group gap={4}>
-                <Text size="sm" fw={700}>{bmi.toFixed(1)}</Text>
+                <Text size="sm" fw={700}>
+                  {bmi.toFixed(1)}
+                </Text>
                 <Badge size="xs" color={getBmiCategory(bmi).color} variant="light">
                   {t(getBmiCategory(bmi).labelKey)}
                 </Badge>
@@ -332,8 +339,12 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
           )}
           {map !== null && (
             <div className={styles.calcBadge}>
-              <Text size="xs" c="dimmed">{t("vitals.map")}</Text>
-              <Text size="sm" fw={700}>{map} mmHg</Text>
+              <Text size="xs" c="dimmed">
+                {t("vitals.map")}
+              </Text>
+              <Text size="sm" fw={700}>
+                {map} mmHg
+              </Text>
             </div>
           )}
         </Group>

@@ -1,6 +1,6 @@
 import { ActionIcon, Badge, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import type { BasketItem, BasketWarning } from "@medbrains/types";
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 
 interface BasketItemRowProps {
   item: BasketItem;
@@ -38,11 +38,7 @@ export function BasketItemRow({ item, index, warnings, onRemove }: BasketItemRow
               #{index + 1}
             </Text>
             {(hasBlock || hasWarn) && (
-              <Tooltip
-                label={warnings.map((w) => w.message).join("\n")}
-                multiline
-                w={280}
-              >
+              <Tooltip label={warnings.map((w) => w.message).join("\n")} multiline w={280}>
                 <Badge
                   color={hasBlock ? "red" : "yellow"}
                   size="xs"

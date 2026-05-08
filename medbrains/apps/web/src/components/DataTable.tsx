@@ -1,7 +1,9 @@
 import { Box, Card, Divider, Group, Pagination, Skeleton, Table, Text } from "@mantine/core";
 import type { CSSProperties, ReactNode } from "react";
-import { EmptyState } from "./EmptyState";
 import styles from "./data-table.module.scss";
+import { EmptyState } from "./EmptyState";
+
+const SKELETON_ROW_KEYS = ["skeleton-a", "skeleton-b", "skeleton-c", "skeleton-d", "skeleton-e"];
 
 export interface Column<T> {
   key: string;
@@ -72,10 +74,10 @@ export function DataTable<T>({
 
   if (loading) {
     return (
-      <Card padding={0}>
+      <Card padding={0} className={styles.card}>
         {toolbar && (
           <>
-            <Box px="md" py="sm">
+            <Box px="md" py="sm" className={styles.toolbar}>
               {toolbar}
             </Box>
             <Divider />
@@ -84,8 +86,8 @@ export function DataTable<T>({
         <Table>
           {headerRow}
           <Table.Tbody>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Table.Tr key={`skeleton-${i}`}>
+            {SKELETON_ROW_KEYS.map((key) => (
+              <Table.Tr key={key}>
                 {columns.map((col) => (
                   <Table.Td key={col.key}>
                     <Skeleton height={20} radius="sm" />
@@ -101,10 +103,10 @@ export function DataTable<T>({
 
   if (data.length === 0 && emptyIcon) {
     return (
-      <Card padding={0}>
+      <Card padding={0} className={styles.card}>
         {toolbar && (
           <>
-            <Box px="md" py="sm">
+            <Box px="md" py="sm" className={styles.toolbar}>
               {toolbar}
             </Box>
             <Divider />
@@ -123,10 +125,10 @@ export function DataTable<T>({
   }
 
   return (
-    <Card padding={0}>
+    <Card padding={0} className={styles.card}>
       {toolbar && (
         <>
-          <Box px="md" py="sm">
+          <Box px="md" py="sm" className={styles.toolbar}>
             {toolbar}
           </Box>
           <Divider />
@@ -161,16 +163,10 @@ export function DataTable<T>({
             <Text size="xs" c="var(--mb-text-secondary)" className={styles.footerCount}>
               {totalItems > 0
                 ? `Showing ${startItem}\u2013${endItem} of ${totalItems.toLocaleString()} items`
-                : "0 items"
-              }
+                : "0 items"}
             </Text>
             {totalPages && totalPages > 1 && onPageChange && (
-              <Pagination
-                total={totalPages}
-                value={page}
-                onChange={onPageChange}
-                size="sm"
-              />
+              <Pagination total={totalPages} value={page} onChange={onPageChange} size="sm" />
             )}
           </Group>
         </>

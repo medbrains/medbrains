@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { BarChart, LineChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
@@ -16,15 +16,43 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Timeline,
   Title,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AntibioticRequestStatusType,
+  AntibioticStewardshipRequest,
+  AntimicrobialConsumptionRow,
+  BiowasteRecord,
+  CreateBiowasteRecordRequest,
+  CreateExposureRequest,
+  CreateHygieneAuditRequest,
+  CreateIcMeetingRequest,
+  CreateOutbreakRequest,
+  CultureSensitivityRow,
+  CultureSurveillance,
+  DeviceUtilizationRow,
+  HaiType,
+  HandHygieneAudit,
+  IcMeeting,
+  InfectionSurveillanceEvent,
+  NeedleStickIncident,
+  OutbreakContact,
+  OutbreakEvent,
+  OutbreakStatusType,
+  SurgicalProphylaxisRow,
+  UpdateOutbreakRequest,
+  WasteCategoryType,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconBiohazard,
   IconBug,
@@ -39,39 +67,11 @@ import {
   IconVirusSearch,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart, LineChart } from "@mantine/charts";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  InfectionSurveillanceEvent,
-  AntibioticStewardshipRequest,
-  BiowasteRecord,
-  HandHygieneAudit,
-  CultureSurveillance,
-  OutbreakEvent,
-  OutbreakContact,
-  NeedleStickIncident,
-  CreateBiowasteRecordRequest,
-  CreateHygieneAuditRequest,
-  CreateOutbreakRequest,
-  UpdateOutbreakRequest,
-  HaiType,
-  WasteCategoryType,
-  OutbreakStatusType,
-  AntibioticRequestStatusType,
-  DeviceUtilizationRow,
-  AntimicrobialConsumptionRow,
-  SurgicalProphylaxisRow,
-  CultureSensitivityRow,
-  IcMeeting,
-  CreateIcMeetingRequest,
-  CreateExposureRequest,
-} from "@medbrains/types";
-import { DateInput } from "@mantine/dates";
-import { P } from "@medbrains/types";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Color Maps ──────────────────────────────────────────
@@ -185,19 +185,69 @@ function SurveillanceTab() {
   });
 
   const columns = [
-    { key: "hai_type" as const, label: "HAI Type", render: (r: InfectionSurveillanceEvent) => <Badge color={haiColors[r.hai_type] ?? "slate"}>{r.hai_type.toUpperCase()}</Badge> },
-    { key: "infection_status" as const, label: "Status", render: (r: InfectionSurveillanceEvent) => <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>{r.infection_status.replace(/_/g, " ")}</Badge> },
-    { key: "organism" as const, label: "Organism", render: (r: InfectionSurveillanceEvent) => r.organism ?? "---" },
-    { key: "device_type" as const, label: "Device", render: (r: InfectionSurveillanceEvent) => r.device_type ?? "---" },
-    { key: "infection_date" as const, label: "Date", render: (r: InfectionSurveillanceEvent) => new Date(r.infection_date).toLocaleDateString() },
-    { key: "notes" as const, label: "Notes", render: (r: InfectionSurveillanceEvent) => r.notes ?? "---" },
+    {
+      key: "hai_type" as const,
+      label: "HAI Type",
+      render: (r: InfectionSurveillanceEvent) => (
+        <Badge color={haiColors[r.hai_type] ?? "slate"}>{r.hai_type.toUpperCase()}</Badge>
+      ),
+    },
+    {
+      key: "infection_status" as const,
+      label: "Status",
+      render: (r: InfectionSurveillanceEvent) => (
+        <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>
+          {r.infection_status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "organism" as const,
+      label: "Organism",
+      render: (r: InfectionSurveillanceEvent) => r.organism ?? "---",
+    },
+    {
+      key: "device_type" as const,
+      label: "Device",
+      render: (r: InfectionSurveillanceEvent) => r.device_type ?? "---",
+    },
+    {
+      key: "infection_date" as const,
+      label: "Date",
+      render: (r: InfectionSurveillanceEvent) => new Date(r.infection_date).toLocaleDateString(),
+    },
+    {
+      key: "notes" as const,
+      label: "Notes",
+      render: (r: InfectionSurveillanceEvent) => r.notes ?? "---",
+    },
   ];
 
   const ssiColumns = [
-    { key: "infection_status" as const, label: "Status", render: (r: InfectionSurveillanceEvent) => <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>{r.infection_status.replace(/_/g, " ")}</Badge> },
-    { key: "organism" as const, label: "Organism", render: (r: InfectionSurveillanceEvent) => r.organism ?? "---" },
-    { key: "device_type" as const, label: "Procedure Type", render: (r: InfectionSurveillanceEvent) => r.device_type ?? "---" },
-    { key: "infection_date" as const, label: "Infection Date", render: (r: InfectionSurveillanceEvent) => new Date(r.infection_date).toLocaleDateString() },
+    {
+      key: "infection_status" as const,
+      label: "Status",
+      render: (r: InfectionSurveillanceEvent) => (
+        <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>
+          {r.infection_status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "organism" as const,
+      label: "Organism",
+      render: (r: InfectionSurveillanceEvent) => r.organism ?? "---",
+    },
+    {
+      key: "device_type" as const,
+      label: "Procedure Type",
+      render: (r: InfectionSurveillanceEvent) => r.device_type ?? "---",
+    },
+    {
+      key: "infection_date" as const,
+      label: "Infection Date",
+      render: (r: InfectionSurveillanceEvent) => new Date(r.infection_date).toLocaleDateString(),
+    },
     {
       key: "days_post_op" as const,
       label: "Days Post-Op",
@@ -205,11 +255,17 @@ function SurveillanceTab() {
         if (!r.insertion_date) return "---";
         const insertDate = new Date(r.insertion_date);
         const infectDate = new Date(r.infection_date);
-        const days = Math.floor((infectDate.getTime() - insertDate.getTime()) / (1000 * 60 * 60 * 24));
+        const days = Math.floor(
+          (infectDate.getTime() - insertDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
         return String(days);
-      }
+      },
     },
-    { key: "notes" as const, label: "Notes", render: (r: InfectionSurveillanceEvent) => r.notes ?? "---" },
+    {
+      key: "notes" as const,
+      label: "Notes",
+      render: (r: InfectionSurveillanceEvent) => r.notes ?? "---",
+    },
   ];
 
   return (
@@ -225,28 +281,86 @@ function SurveillanceTab() {
             ]}
           />
           {subView === "all" && (
-            <Select placeholder="HAI Type" data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]} value={haiFilter} onChange={setHaiFilter} clearable w={160} />
+            <Select
+              placeholder="HAI Type"
+              data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]}
+              value={haiFilter}
+              onChange={setHaiFilter}
+              clearable
+              w={160}
+            />
           )}
-          <Text c="dimmed" size="sm">{subView === "all" ? events.length : ssiEvents.length} event(s)</Text>
+          <Text c="dimmed" size="sm">
+            {subView === "all" ? events.length : ssiEvents.length} event(s)
+          </Text>
         </Group>
-        {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={open}>Report HAI</Button>}
+        {canCreate && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Report HAI
+          </Button>
+        )}
       </Group>
 
       {subView === "all" ? (
-        <DataTable columns={columns} data={events} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No HAI events" />
+        <DataTable
+          columns={columns}
+          data={events}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No HAI events"
+        />
       ) : (
-        <DataTable columns={ssiColumns} data={ssiEvents} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No SSI events" />
+        <DataTable
+          columns={ssiColumns}
+          data={ssiEvents}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No SSI events"
+        />
       )}
 
       <Drawer opened={opened} onClose={close} title="Report HAI Event" position="right" size="xl">
         <Stack>
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
-          <Select label="HAI Type" required data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]} value={form.hai_type} onChange={(v) => setForm({ ...form, hai_type: (v ?? "other") as HaiType })} />
-          <TextInput label="Infection Date" type="date" required value={form.infection_date} onChange={(e) => setForm({ ...form, infection_date: e.currentTarget.value })} />
-          <TextInput label="Organism" value={form.organism} onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })} />
-          <Select label="Device Type" data={DEVICE_TYPES} value={form.device_type || null} onChange={(v) => setForm({ ...form, device_type: v ?? "" })} clearable searchable />
-          <Textarea label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>Save</Button>
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
+          <Select
+            label="HAI Type"
+            required
+            data={["clabsi", "cauti", "vap", "ssi", "cdiff", "mrsa", "other"]}
+            value={form.hai_type}
+            onChange={(v) => setForm({ ...form, hai_type: (v ?? "other") as HaiType })}
+          />
+          <TextInput
+            label="Infection Date"
+            type="date"
+            required
+            value={form.infection_date}
+            onChange={(e) => setForm({ ...form, infection_date: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Organism"
+            value={form.organism}
+            onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })}
+          />
+          <Select
+            label="Device Type"
+            data={DEVICE_TYPES}
+            value={form.device_type || null}
+            onChange={(v) => setForm({ ...form, device_type: v ?? "" })}
+            clearable
+            searchable
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -275,7 +389,10 @@ function StewardshipTab() {
 
   // Build antibiogram matrix
   const antibiogramData = useMemo(() => {
-    const matrix: Record<string, Record<string, { total: number; resistant: number; intermediate: number; sensitive: number }>> = {};
+    const matrix: Record<
+      string,
+      Record<string, { total: number; resistant: number; intermediate: number; sensitive: number }>
+    > = {};
     cultures.forEach((c) => {
       if (!c.organism || !c.result) return;
       const org = c.organism;
@@ -286,7 +403,8 @@ function StewardshipTab() {
         const drug = parts[0];
         const susceptibility = parts[1];
         if (drug && susceptibility) {
-          if (!matrix[org][drug]) matrix[org][drug] = { total: 0, resistant: 0, intermediate: 0, sensitive: 0 };
+          if (!matrix[org][drug])
+            matrix[org][drug] = { total: 0, resistant: 0, intermediate: 0, sensitive: 0 };
           matrix[org][drug].total++;
           if (susceptibility.toLowerCase().includes("resist")) matrix[org][drug].resistant++;
           else if (susceptibility.toLowerCase().includes("inter")) matrix[org][drug].intermediate++;
@@ -327,7 +445,10 @@ function StewardshipTab() {
 
   const reviewMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.reviewStewardshipRequest(id, { request_status: status as AntibioticRequestStatusType, review_notes: undefined }),
+      api.reviewStewardshipRequest(id, {
+        request_status: status as AntibioticRequestStatusType,
+        review_notes: undefined,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
       notifications.show({ title: "Request reviewed", message: "", color: "success" });
@@ -335,20 +456,69 @@ function StewardshipTab() {
   });
 
   const columns = [
-    { key: "antibiotic_name" as const, label: "Antibiotic", render: (r: AntibioticStewardshipRequest) => <Text fw={500}>{r.antibiotic_name}</Text> },
-    { key: "indication" as const, label: "Indication", render: (r: AntibioticStewardshipRequest) => r.indication },
-    { key: "dose" as const, label: "Dose", render: (r: AntibioticStewardshipRequest) => r.dose ?? "---" },
-    { key: "request_status" as const, label: "Status", render: (r: AntibioticStewardshipRequest) => <Badge color={requestStatusColors[r.request_status] ?? "slate"}>{r.request_status}</Badge> },
-    { key: "culture_sent" as const, label: "Culture", render: (r: AntibioticStewardshipRequest) => r.culture_sent ? <Badge color="success" size="sm">Sent</Badge> : <Badge color="slate" size="sm">No</Badge> },
-    { key: "requested_at" as const, label: "Requested", render: (r: AntibioticStewardshipRequest) => new Date(r.requested_at).toLocaleDateString() },
+    {
+      key: "antibiotic_name" as const,
+      label: "Antibiotic",
+      render: (r: AntibioticStewardshipRequest) => <Text fw={500}>{r.antibiotic_name}</Text>,
+    },
+    {
+      key: "indication" as const,
+      label: "Indication",
+      render: (r: AntibioticStewardshipRequest) => r.indication,
+    },
+    {
+      key: "dose" as const,
+      label: "Dose",
+      render: (r: AntibioticStewardshipRequest) => r.dose ?? "---",
+    },
+    {
+      key: "request_status" as const,
+      label: "Status",
+      render: (r: AntibioticStewardshipRequest) => (
+        <Badge color={requestStatusColors[r.request_status] ?? "slate"}>{r.request_status}</Badge>
+      ),
+    },
+    {
+      key: "culture_sent" as const,
+      label: "Culture",
+      render: (r: AntibioticStewardshipRequest) =>
+        r.culture_sent ? (
+          <Badge color="success" size="sm">
+            Sent
+          </Badge>
+        ) : (
+          <Badge color="slate" size="sm">
+            No
+          </Badge>
+        ),
+    },
+    {
+      key: "requested_at" as const,
+      label: "Requested",
+      render: (r: AntibioticStewardshipRequest) => new Date(r.requested_at).toLocaleDateString(),
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (r: AntibioticStewardshipRequest) =>
         r.request_status === "pending" && canCreate ? (
           <Group gap="xs">
-            <Button size="compact-xs" variant="light" color="success" onClick={() => reviewMut.mutate({ id: r.id, status: "approved" })}>Approve</Button>
-            <Button size="compact-xs" variant="light" color="danger" onClick={() => reviewMut.mutate({ id: r.id, status: "denied" })}>Deny</Button>
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="success"
+              onClick={() => reviewMut.mutate({ id: r.id, status: "approved" })}
+            >
+              Approve
+            </Button>
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="danger"
+              onClick={() => reviewMut.mutate({ id: r.id, status: "denied" })}
+            >
+              Deny
+            </Button>
           </Group>
         ) : null,
     },
@@ -367,18 +537,41 @@ function StewardshipTab() {
             ]}
           />
           {subView === "requests" && (
-            <Select placeholder="Status" data={["pending", "approved", "denied", "expired"]} value={statusFilter} onChange={setStatusFilter} clearable w={160} />
+            <Select
+              placeholder="Status"
+              data={["pending", "approved", "denied", "expired"]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              clearable
+              w={160}
+            />
           )}
-          {subView === "requests" && <Text c="dimmed" size="sm">{requests.length} request(s)</Text>}
+          {subView === "requests" && (
+            <Text c="dimmed" size="sm">
+              {requests.length} request(s)
+            </Text>
+          )}
         </Group>
-        {canCreate && subView === "requests" && <Button leftSection={<IconPlus size={16} />} onClick={open}>New Request</Button>}
+        {canCreate && subView === "requests" && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            New Request
+          </Button>
+        )}
       </Group>
 
       {subView === "requests" ? (
-        <DataTable columns={columns} data={requests} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No stewardship requests" />
+        <DataTable
+          columns={columns}
+          data={requests}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No stewardship requests"
+        />
       ) : (
         <Paper p="md" withBorder>
-          <Title order={5} mb="md">Antibiogram Matrix</Title>
+          <Title order={5} mb="md">
+            Antibiogram Matrix
+          </Title>
           {Object.keys(antibiogramData).length === 0 ? (
             <Text c="dimmed">No culture surveillance data available</Text>
           ) : (
@@ -387,7 +580,9 @@ function StewardshipTab() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Organism</Table.Th>
-                    {Array.from(new Set(Object.values(antibiogramData).flatMap((org) => Object.keys(org)))).map((drug) => (
+                    {Array.from(
+                      new Set(Object.values(antibiogramData).flatMap((org) => Object.keys(org))),
+                    ).map((drug) => (
                       <Table.Th key={drug}>{drug}</Table.Th>
                     ))}
                   </Table.Tr>
@@ -396,7 +591,9 @@ function StewardshipTab() {
                   {Object.entries(antibiogramData).map(([organism, drugs]) => (
                     <Table.Tr key={organism}>
                       <Table.Td fw={500}>{organism}</Table.Td>
-                      {Array.from(new Set(Object.values(antibiogramData).flatMap((org) => Object.keys(org)))).map((drug) => {
+                      {Array.from(
+                        new Set(Object.values(antibiogramData).flatMap((org) => Object.keys(org))),
+                      ).map((drug) => {
                         const data = drugs[drug];
                         if (!data || data.total === 0) return <Table.Td key={drug}>---</Table.Td>;
                         const sensPercent = Math.round((data.sensitive / data.total) * 100);
@@ -408,7 +605,12 @@ function StewardshipTab() {
                         else color = "danger";
                         return (
                           <Table.Td key={drug}>
-                            <Badge color={color} size="sm" style={{ cursor: "help" }} title={`S:${sensPercent}% I:${interPercent}% R:${resPercent}% (n=${data.total})`}>
+                            <Badge
+                              color={color}
+                              size="sm"
+                              style={{ cursor: "help" }}
+                              title={`S:${sensPercent}% I:${interPercent}% R:${resPercent}% (n=${data.total})`}
+                            >
                               {sensPercent}%
                             </Badge>
                           </Table.Td>
@@ -423,16 +625,54 @@ function StewardshipTab() {
         </Paper>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Antibiotic Stewardship Request" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Antibiotic Stewardship Request"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
-          <TextInput label="Antibiotic Name" required value={form.antibiotic_name} onChange={(e) => setForm({ ...form, antibiotic_name: e.currentTarget.value })} />
-          <TextInput label="Dose" value={form.dose} onChange={(e) => setForm({ ...form, dose: e.currentTarget.value })} />
-          <TextInput label="Route" value={form.route} onChange={(e) => setForm({ ...form, route: e.currentTarget.value })} />
-          <TextInput label="Indication" required value={form.indication} onChange={(e) => setForm({ ...form, indication: e.currentTarget.value })} />
-          <NumberInput label="Duration (days)" value={form.duration_days ?? ""} onChange={(v) => setForm({ ...form, duration_days: v === "" ? undefined : Number(v) })} />
-          <Switch label="Culture Sent" checked={form.culture_sent} onChange={(e) => setForm({ ...form, culture_sent: e.currentTarget.checked })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>Submit</Button>
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
+          <TextInput
+            label="Antibiotic Name"
+            required
+            value={form.antibiotic_name}
+            onChange={(e) => setForm({ ...form, antibiotic_name: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Dose"
+            value={form.dose}
+            onChange={(e) => setForm({ ...form, dose: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Route"
+            value={form.route}
+            onChange={(e) => setForm({ ...form, route: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Indication"
+            required
+            value={form.indication}
+            onChange={(e) => setForm({ ...form, indication: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Duration (days)"
+            value={form.duration_days ?? ""}
+            onChange={(v) => setForm({ ...form, duration_days: v === "" ? undefined : Number(v) })}
+          />
+          <Switch
+            label="Culture Sent"
+            checked={form.culture_sent}
+            onChange={(e) => setForm({ ...form, culture_sent: e.currentTarget.checked })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>
+            Submit
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -477,7 +717,13 @@ function BiowasteTab() {
       const ym = r.record_date.substring(0, 7);
       months.add(ym);
     });
-    return Array.from(months).sort().reverse().map((m) => ({ value: m, label: new Date(m + "-01").toLocaleDateString("en-US", { month: "short", year: "numeric" }) }));
+    return Array.from(months)
+      .sort()
+      .reverse()
+      .map((m) => ({
+        value: m,
+        label: new Date(`${m}-01`).toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      }));
   }, [records]);
 
   const [form, setForm] = useState<CreateBiowasteRecordRequest>({
@@ -498,12 +744,40 @@ function BiowasteTab() {
   });
 
   const columns = [
-    { key: "waste_category" as const, label: "Category", render: (r: BiowasteRecord) => <Badge color={wasteColors[r.waste_category] ?? "slate"}>{r.waste_category.replace(/_/g, " ")}</Badge> },
-    { key: "weight_kg" as const, label: "Weight (kg)", render: (r: BiowasteRecord) => String(r.weight_kg) },
-    { key: "container_count" as const, label: "Containers", render: (r: BiowasteRecord) => String(r.container_count) },
-    { key: "record_date" as const, label: "Date", render: (r: BiowasteRecord) => new Date(r.record_date).toLocaleDateString() },
-    { key: "disposal_vendor" as const, label: "Vendor", render: (r: BiowasteRecord) => r.disposal_vendor ?? "---" },
-    { key: "manifest_number" as const, label: "Manifest #", render: (r: BiowasteRecord) => r.manifest_number ?? "---" },
+    {
+      key: "waste_category" as const,
+      label: "Category",
+      render: (r: BiowasteRecord) => (
+        <Badge color={wasteColors[r.waste_category] ?? "slate"}>
+          {r.waste_category.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "weight_kg" as const,
+      label: "Weight (kg)",
+      render: (r: BiowasteRecord) => String(r.weight_kg),
+    },
+    {
+      key: "container_count" as const,
+      label: "Containers",
+      render: (r: BiowasteRecord) => String(r.container_count),
+    },
+    {
+      key: "record_date" as const,
+      label: "Date",
+      render: (r: BiowasteRecord) => new Date(r.record_date).toLocaleDateString(),
+    },
+    {
+      key: "disposal_vendor" as const,
+      label: "Vendor",
+      render: (r: BiowasteRecord) => r.disposal_vendor ?? "---",
+    },
+    {
+      key: "manifest_number" as const,
+      label: "Manifest #",
+      render: (r: BiowasteRecord) => r.manifest_number ?? "---",
+    },
   ];
 
   return (
@@ -519,21 +793,61 @@ function BiowasteTab() {
             ]}
           />
           {subView === "records" && (
-            <Select placeholder="Category" data={["yellow", "red", "white_translucent", "blue", "cytotoxic", "chemical", "radioactive"]} value={catFilter} onChange={setCatFilter} clearable w={180} />
+            <Select
+              placeholder="Category"
+              data={[
+                "yellow",
+                "red",
+                "white_translucent",
+                "blue",
+                "cytotoxic",
+                "chemical",
+                "radioactive",
+              ]}
+              value={catFilter}
+              onChange={setCatFilter}
+              clearable
+              w={180}
+            />
           )}
           {subView === "monthly" && monthOptions.length > 0 && (
-            <Select value={selectedMonth} onChange={(v) => setSelectedMonth(v ?? selectedMonth)} data={monthOptions} w={200} />
+            <Select
+              value={selectedMonth}
+              onChange={(v) => setSelectedMonth(v ?? selectedMonth)}
+              data={monthOptions}
+              w={200}
+            />
           )}
-          {subView === "records" && <Text c="dimmed" size="sm">{records.length} record(s)</Text>}
+          {subView === "records" && (
+            <Text c="dimmed" size="sm">
+              {records.length} record(s)
+            </Text>
+          )}
         </Group>
-        {canCreate && subView === "records" && <Button leftSection={<IconPlus size={16} />} onClick={open}>Add Record</Button>}
+        {canCreate && subView === "records" && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Add Record
+          </Button>
+        )}
       </Group>
 
       {subView === "records" ? (
-        <DataTable columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No bio-waste records" />
+        <DataTable
+          columns={columns}
+          data={records}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No bio-waste records"
+        />
       ) : (
         <Paper p="md" withBorder>
-          <Title order={5} mb="md">Monthly BMW Summary: {new Date(selectedMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}</Title>
+          <Title order={5} mb="md">
+            Monthly BMW Summary:{" "}
+            {new Date(`${selectedMonth}-01`).toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            })}
+          </Title>
           {Object.keys(monthlyReport).length === 0 ? (
             <Text c="dimmed">No records for this month</Text>
           ) : (
@@ -559,9 +873,17 @@ function BiowasteTab() {
                 ))}
                 <Table.Tr style={{ fontWeight: 600 }}>
                   <Table.Td>Total</Table.Td>
-                  <Table.Td>{Object.values(monthlyReport).reduce((sum, d) => sum + d.weight, 0).toFixed(2)}</Table.Td>
-                  <Table.Td>{Object.values(monthlyReport).reduce((sum, d) => sum + d.containers, 0)}</Table.Td>
-                  <Table.Td>{Object.values(monthlyReport).reduce((sum, d) => sum + d.count, 0)}</Table.Td>
+                  <Table.Td>
+                    {Object.values(monthlyReport)
+                      .reduce((sum, d) => sum + d.weight, 0)
+                      .toFixed(2)}
+                  </Table.Td>
+                  <Table.Td>
+                    {Object.values(monthlyReport).reduce((sum, d) => sum + d.containers, 0)}
+                  </Table.Td>
+                  <Table.Td>
+                    {Object.values(monthlyReport).reduce((sum, d) => sum + d.count, 0)}
+                  </Table.Td>
                 </Table.Tr>
               </Table.Tbody>
             </Table>
@@ -571,14 +893,64 @@ function BiowasteTab() {
 
       <Drawer opened={opened} onClose={close} title="Bio-waste Record" position="right" size="xl">
         <Stack>
-          <DepartmentSelect value={form.department_id} onChange={(id) => setForm({ ...form, department_id: id })} required />
-          <Select label="Waste Category" required data={["yellow", "red", "white_translucent", "blue", "cytotoxic", "chemical", "radioactive"]} value={form.waste_category} onChange={(v) => setForm({ ...form, waste_category: (v ?? "yellow") as WasteCategoryType })} />
-          <NumberInput label="Weight (kg)" required decimalScale={3} value={form.weight_kg} onChange={(v) => setForm({ ...form, weight_kg: Number(v) })} />
-          <TextInput label="Record Date" type="date" required value={form.record_date} onChange={(e) => setForm({ ...form, record_date: e.currentTarget.value })} />
-          <NumberInput label="Container Count" value={form.container_count} onChange={(v) => setForm({ ...form, container_count: Number(v) })} />
-          <TextInput label="Disposal Vendor" value={form.disposal_vendor ?? ""} onChange={(e) => setForm({ ...form, disposal_vendor: e.currentTarget.value || undefined })} />
-          <TextInput label="Manifest Number" value={form.manifest_number ?? ""} onChange={(e) => setForm({ ...form, manifest_number: e.currentTarget.value || undefined })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
+          <DepartmentSelect
+            value={form.department_id}
+            onChange={(id) => setForm({ ...form, department_id: id })}
+            required
+          />
+          <Select
+            label="Waste Category"
+            required
+            data={[
+              "yellow",
+              "red",
+              "white_translucent",
+              "blue",
+              "cytotoxic",
+              "chemical",
+              "radioactive",
+            ]}
+            value={form.waste_category}
+            onChange={(v) =>
+              setForm({ ...form, waste_category: (v ?? "yellow") as WasteCategoryType })
+            }
+          />
+          <NumberInput
+            label="Weight (kg)"
+            required
+            decimalScale={3}
+            value={form.weight_kg}
+            onChange={(v) => setForm({ ...form, weight_kg: Number(v) })}
+          />
+          <TextInput
+            label="Record Date"
+            type="date"
+            required
+            value={form.record_date}
+            onChange={(e) => setForm({ ...form, record_date: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Container Count"
+            value={form.container_count}
+            onChange={(v) => setForm({ ...form, container_count: Number(v) })}
+          />
+          <TextInput
+            label="Disposal Vendor"
+            value={form.disposal_vendor ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, disposal_vendor: e.currentTarget.value || undefined })
+            }
+          />
+          <TextInput
+            label="Manifest Number"
+            value={form.manifest_number ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, manifest_number: e.currentTarget.value || undefined })
+            }
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -638,7 +1010,12 @@ function HygieneTab() {
     const totalPass = Object.values(byLocation).reduce((sum, d) => sum + d.pass, 0);
     const totalFail = Object.values(byLocation).reduce((sum, d) => sum + d.fail, 0);
     const total = totalPass + totalFail;
-    return { passRate: total > 0 ? ((totalPass / total) * 100).toFixed(1) : "0.0", total, totalPass, totalFail };
+    return {
+      passRate: total > 0 ? ((totalPass / total) * 100).toFixed(1) : "0.0",
+      total,
+      totalPass,
+      totalFail,
+    };
   }, [cultures]);
 
   const [form, setForm] = useState<CreateHygieneAuditRequest>({
@@ -659,22 +1036,82 @@ function HygieneTab() {
   });
 
   const auditColumns = [
-    { key: "audit_date" as const, label: "Date", render: (r: HandHygieneAudit) => new Date(r.audit_date).toLocaleDateString() },
-    { key: "observations" as const, label: "Observations", render: (r: HandHygieneAudit) => String(r.observations) },
-    { key: "compliant" as const, label: "Compliant", render: (r: HandHygieneAudit) => <Badge color="success">{r.compliant}</Badge> },
-    { key: "non_compliant" as const, label: "Non-Compliant", render: (r: HandHygieneAudit) => <Badge color="danger">{r.non_compliant}</Badge> },
-    { key: "compliance_rate" as const, label: "Rate", render: (r: HandHygieneAudit) => r.compliance_rate != null ? `${Number(r.compliance_rate).toFixed(1)}%` : "---" },
-    { key: "staff_category" as const, label: "Staff Category", render: (r: HandHygieneAudit) => r.staff_category ?? "---" },
-    { key: "findings" as const, label: "Findings", render: (r: HandHygieneAudit) => r.findings ?? "---" },
+    {
+      key: "audit_date" as const,
+      label: "Date",
+      render: (r: HandHygieneAudit) => new Date(r.audit_date).toLocaleDateString(),
+    },
+    {
+      key: "observations" as const,
+      label: "Observations",
+      render: (r: HandHygieneAudit) => String(r.observations),
+    },
+    {
+      key: "compliant" as const,
+      label: "Compliant",
+      render: (r: HandHygieneAudit) => <Badge color="success">{r.compliant}</Badge>,
+    },
+    {
+      key: "non_compliant" as const,
+      label: "Non-Compliant",
+      render: (r: HandHygieneAudit) => <Badge color="danger">{r.non_compliant}</Badge>,
+    },
+    {
+      key: "compliance_rate" as const,
+      label: "Rate",
+      render: (r: HandHygieneAudit) =>
+        r.compliance_rate != null ? `${Number(r.compliance_rate).toFixed(1)}%` : "---",
+    },
+    {
+      key: "staff_category" as const,
+      label: "Staff Category",
+      render: (r: HandHygieneAudit) => r.staff_category ?? "---",
+    },
+    {
+      key: "findings" as const,
+      label: "Findings",
+      render: (r: HandHygieneAudit) => r.findings ?? "---",
+    },
   ];
 
   const cultureColumns = [
-    { key: "culture_type" as const, label: "Type", render: (r: CultureSurveillance) => r.culture_type },
-    { key: "sample_site" as const, label: "Site", render: (r: CultureSurveillance) => r.sample_site },
-    { key: "collection_date" as const, label: "Date", render: (r: CultureSurveillance) => new Date(r.collection_date).toLocaleDateString() },
-    { key: "organism" as const, label: "Organism", render: (r: CultureSurveillance) => r.organism ?? "---" },
-    { key: "acceptable" as const, label: "Status", render: (r: CultureSurveillance) => r.acceptable == null ? <Badge color="slate">Pending</Badge> : r.acceptable ? <Badge color="success">Pass</Badge> : <Badge color="danger">Fail</Badge> },
-    { key: "action_taken" as const, label: "Action", render: (r: CultureSurveillance) => r.action_taken ?? "---" },
+    {
+      key: "culture_type" as const,
+      label: "Type",
+      render: (r: CultureSurveillance) => r.culture_type,
+    },
+    {
+      key: "sample_site" as const,
+      label: "Site",
+      render: (r: CultureSurveillance) => r.sample_site,
+    },
+    {
+      key: "collection_date" as const,
+      label: "Date",
+      render: (r: CultureSurveillance) => new Date(r.collection_date).toLocaleDateString(),
+    },
+    {
+      key: "organism" as const,
+      label: "Organism",
+      render: (r: CultureSurveillance) => r.organism ?? "---",
+    },
+    {
+      key: "acceptable" as const,
+      label: "Status",
+      render: (r: CultureSurveillance) =>
+        r.acceptable == null ? (
+          <Badge color="slate">Pending</Badge>
+        ) : r.acceptable ? (
+          <Badge color="success">Pass</Badge>
+        ) : (
+          <Badge color="danger">Fail</Badge>
+        ),
+    },
+    {
+      key: "action_taken" as const,
+      label: "Action",
+      render: (r: CultureSurveillance) => r.action_taken ?? "---",
+    },
   ];
 
   return (
@@ -689,15 +1126,27 @@ function HygieneTab() {
             { value: "cultures", label: "Environmental" },
           ]}
         />
-        {canCreate && subView === "audits" && <Button leftSection={<IconPlus size={16} />} onClick={open}>New Audit</Button>}
+        {canCreate && subView === "audits" && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            New Audit
+          </Button>
+        )}
       </Group>
 
       {subView === "audits" && (
         <>
-          <DataTable columns={auditColumns} data={audits} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No hygiene audits" />
+          <DataTable
+            columns={auditColumns}
+            data={audits}
+            loading={isLoading}
+            rowKey={(r) => r.id}
+            emptyTitle="No hygiene audits"
+          />
           {hygieneChartData.length > 0 && (
             <Paper p="md" withBorder mt="md">
-              <Title order={5} mb="md">Compliance Rate by Department</Title>
+              <Title order={5} mb="md">
+                Compliance Rate by Department
+              </Title>
               <BarChart
                 h={300}
                 data={hygieneChartData}
@@ -713,32 +1162,53 @@ function HygieneTab() {
       {subView === "bundles" && (
         <Stack>
           <Card withBorder p="md">
-            <Text size="sm" c="dimmed" mb="xs">Bundle Compliance Summary</Text>
-            <Text size="sm">Based on device-day records. Individual bundle compliance tracking requires structured bundle_compliance field in device day records.</Text>
+            <Text size="sm" c="dimmed" mb="xs">
+              Bundle Compliance Summary
+            </Text>
+            <Text size="sm">
+              Based on device-day records. Individual bundle compliance tracking requires structured
+              bundle_compliance field in device day records.
+            </Text>
           </Card>
           <Grid>
             <Grid.Col span={4}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Total Device Days</Text>
-                <Text size="xl" fw={600}>{deviceDays.length}</Text>
+                <Text size="sm" c="dimmed">
+                  Total Device Days
+                </Text>
+                <Text size="xl" fw={600}>
+                  {deviceDays.length}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={4}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Central Line Days</Text>
-                <Text size="xl" fw={600}>{deviceDays.reduce((sum, d) => sum + d.central_line_days, 0)}</Text>
+                <Text size="sm" c="dimmed">
+                  Central Line Days
+                </Text>
+                <Text size="xl" fw={600}>
+                  {deviceDays.reduce((sum, d) => sum + d.central_line_days, 0)}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={4}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Ventilator Days</Text>
-                <Text size="xl" fw={600}>{deviceDays.reduce((sum, d) => sum + d.ventilator_days, 0)}</Text>
+                <Text size="sm" c="dimmed">
+                  Ventilator Days
+                </Text>
+                <Text size="xl" fw={600}>
+                  {deviceDays.reduce((sum, d) => sum + d.ventilator_days, 0)}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={4}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Catheter Days</Text>
-                <Text size="xl" fw={600}>{deviceDays.reduce((sum, d) => sum + d.urinary_catheter_days, 0)}</Text>
+                <Text size="sm" c="dimmed">
+                  Catheter Days
+                </Text>
+                <Text size="xl" fw={600}>
+                  {deviceDays.reduce((sum, d) => sum + d.urinary_catheter_days, 0)}
+                </Text>
               </Card>
             </Grid.Col>
           </Grid>
@@ -750,43 +1220,103 @@ function HygieneTab() {
           <Grid>
             <Grid.Col span={3}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Pass Rate</Text>
-                <Text size="xl" fw={600} c="teal">{envMonitoringSummary.passRate}%</Text>
+                <Text size="sm" c="dimmed">
+                  Pass Rate
+                </Text>
+                <Text size="xl" fw={600} c="teal">
+                  {envMonitoringSummary.passRate}%
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={3}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Total Samples</Text>
-                <Text size="xl" fw={600}>{envMonitoringSummary.total}</Text>
+                <Text size="sm" c="dimmed">
+                  Total Samples
+                </Text>
+                <Text size="xl" fw={600}>
+                  {envMonitoringSummary.total}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={3}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Passed</Text>
-                <Text size="xl" fw={600} c="success">{envMonitoringSummary.totalPass}</Text>
+                <Text size="sm" c="dimmed">
+                  Passed
+                </Text>
+                <Text size="xl" fw={600} c="success">
+                  {envMonitoringSummary.totalPass}
+                </Text>
               </Card>
             </Grid.Col>
             <Grid.Col span={3}>
               <Card withBorder p="md">
-                <Text size="sm" c="dimmed">Failed</Text>
-                <Text size="xl" fw={600} c="danger">{envMonitoringSummary.totalFail}</Text>
+                <Text size="sm" c="dimmed">
+                  Failed
+                </Text>
+                <Text size="xl" fw={600} c="danger">
+                  {envMonitoringSummary.totalFail}
+                </Text>
               </Card>
             </Grid.Col>
           </Grid>
-          <DataTable columns={cultureColumns} data={cultures} loading={culturesLoading} rowKey={(r) => r.id} emptyTitle="No culture records" />
+          <DataTable
+            columns={cultureColumns}
+            data={cultures}
+            loading={culturesLoading}
+            rowKey={(r) => r.id}
+            emptyTitle="No culture records"
+          />
         </>
       )}
 
       <Drawer opened={opened} onClose={close} title="Hand Hygiene Audit" position="right" size="xl">
         <Stack>
-          <TextInput label="Audit Date" type="datetime-local" required value={form.audit_date} onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })} />
-          <DepartmentSelect value={form.department_id} onChange={(id) => setForm({ ...form, department_id: id })} required />
-          <NumberInput label="Total Observations" required value={form.observations} onChange={(v) => setForm({ ...form, observations: Number(v) })} />
-          <NumberInput label="Compliant" required value={form.compliant} onChange={(v) => setForm({ ...form, compliant: Number(v) })} />
-          <NumberInput label="Non-Compliant" required value={form.non_compliant} onChange={(v) => setForm({ ...form, non_compliant: Number(v) })} />
-          <Select label="Staff Category" data={STAFF_CATEGORIES} value={form.staff_category ?? null} onChange={(v) => setForm({ ...form, staff_category: v || undefined })} clearable searchable />
-          <Textarea label="Findings" value={form.findings ?? ""} onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Save</Button>
+          <TextInput
+            label="Audit Date"
+            type="datetime-local"
+            required
+            value={form.audit_date}
+            onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })}
+          />
+          <DepartmentSelect
+            value={form.department_id}
+            onChange={(id) => setForm({ ...form, department_id: id })}
+            required
+          />
+          <NumberInput
+            label="Total Observations"
+            required
+            value={form.observations}
+            onChange={(v) => setForm({ ...form, observations: Number(v) })}
+          />
+          <NumberInput
+            label="Compliant"
+            required
+            value={form.compliant}
+            onChange={(v) => setForm({ ...form, compliant: Number(v) })}
+          />
+          <NumberInput
+            label="Non-Compliant"
+            required
+            value={form.non_compliant}
+            onChange={(v) => setForm({ ...form, non_compliant: Number(v) })}
+          />
+          <Select
+            label="Staff Category"
+            data={STAFF_CATEGORIES}
+            value={form.staff_category ?? null}
+            onChange={(v) => setForm({ ...form, staff_category: v || undefined })}
+            clearable
+            searchable
+          />
+          <Textarea
+            label="Findings"
+            value={form.findings ?? ""}
+            onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Save
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -819,9 +1349,15 @@ function OutbreakTab() {
   const timelineChartData = useMemo(() => {
     if (!selected) return [];
     const data: { date: string; cases: number }[] = [];
-    data.push({ date: new Date(selected.detected_date).toLocaleDateString(), cases: selected.initial_cases });
+    data.push({
+      date: new Date(selected.detected_date).toLocaleDateString(),
+      cases: selected.initial_cases,
+    });
     if (selected.total_cases > selected.initial_cases) {
-      data.push({ date: new Date(selected.created_at).toLocaleDateString(), cases: selected.total_cases });
+      data.push({
+        date: new Date(selected.created_at).toLocaleDateString(),
+        cases: selected.total_cases,
+      });
     }
     return data;
   }, [selected]);
@@ -842,7 +1378,8 @@ function OutbreakTab() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateOutbreakRequest }) => api.updateOutbreak(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateOutbreakRequest }) =>
+      api.updateOutbreak(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
       notifications.show({ title: "Outbreak updated", message: "", color: "success" });
@@ -856,27 +1393,79 @@ function OutbreakTab() {
   };
 
   const columns = [
-    { key: "outbreak_number" as const, label: "Number", render: (r: OutbreakEvent) => <Text fw={500}>{r.outbreak_number}</Text> },
+    {
+      key: "outbreak_number" as const,
+      label: "Number",
+      render: (r: OutbreakEvent) => <Text fw={500}>{r.outbreak_number}</Text>,
+    },
     { key: "organism" as const, label: "Organism", render: (r: OutbreakEvent) => r.organism },
-    { key: "outbreak_status" as const, label: "Status", render: (r: OutbreakEvent) => <Badge color={outbreakStatusColors[r.outbreak_status] ?? "slate"}>{r.outbreak_status}</Badge> },
-    { key: "total_cases" as const, label: "Cases", render: (r: OutbreakEvent) => String(r.total_cases) },
-    { key: "detected_date" as const, label: "Detected", render: (r: OutbreakEvent) => new Date(r.detected_date).toLocaleDateString() },
-    { key: "hicc_notified" as const, label: "HICC", render: (r: OutbreakEvent) => r.hicc_notified ? <Badge color="success" size="sm">Notified</Badge> : <Badge color="slate" size="sm">No</Badge> },
+    {
+      key: "outbreak_status" as const,
+      label: "Status",
+      render: (r: OutbreakEvent) => (
+        <Badge color={outbreakStatusColors[r.outbreak_status] ?? "slate"}>
+          {r.outbreak_status}
+        </Badge>
+      ),
+    },
+    {
+      key: "total_cases" as const,
+      label: "Cases",
+      render: (r: OutbreakEvent) => String(r.total_cases),
+    },
+    {
+      key: "detected_date" as const,
+      label: "Detected",
+      render: (r: OutbreakEvent) => new Date(r.detected_date).toLocaleDateString(),
+    },
+    {
+      key: "hicc_notified" as const,
+      label: "HICC",
+      render: (r: OutbreakEvent) =>
+        r.hicc_notified ? (
+          <Badge color="success" size="sm">
+            Notified
+          </Badge>
+        ) : (
+          <Badge color="slate" size="sm">
+            No
+          </Badge>
+        ),
+    },
     {
       key: "actions" as const,
       label: "Actions",
       render: (r: OutbreakEvent) => (
         <Group gap="xs">
           <Tooltip label="View details">
-            <ActionIcon variant="subtle" onClick={() => { setSelected(r); openDetail(); }} aria-label="View details">
+            <ActionIcon
+              variant="subtle"
+              onClick={() => {
+                setSelected(r);
+                openDetail();
+              }}
+              aria-label="View details"
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
-          {canUpdate && (statusTransitions[r.outbreak_status] ?? []).map((next) => (
-            <Button key={next} size="compact-xs" variant="light" color={outbreakStatusColors[next] ?? "slate"} onClick={() => updateMut.mutate({ id: r.id, data: { outbreak_status: next as OutbreakStatusType } })}>
-              {next}
-            </Button>
-          ))}
+          {canUpdate &&
+            (statusTransitions[r.outbreak_status] ?? []).map((next) => (
+              <Button
+                key={next}
+                size="compact-xs"
+                variant="light"
+                color={outbreakStatusColors[next] ?? "slate"}
+                onClick={() =>
+                  updateMut.mutate({
+                    id: r.id,
+                    data: { outbreak_status: next as OutbreakStatusType },
+                  })
+                }
+              >
+                {next}
+              </Button>
+            ))}
         </Group>
       ),
     },
@@ -886,30 +1475,78 @@ function OutbreakTab() {
     <Stack>
       <Group justify="space-between">
         <Group>
-          <Select placeholder="Status" data={["suspected", "confirmed", "contained", "closed"]} value={statusFilter} onChange={setStatusFilter} clearable w={160} />
-          <Text c="dimmed" size="sm">{outbreaks.length} outbreak(s)</Text>
+          <Select
+            placeholder="Status"
+            data={["suspected", "confirmed", "contained", "closed"]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            clearable
+            w={160}
+          />
+          <Text c="dimmed" size="sm">
+            {outbreaks.length} outbreak(s)
+          </Text>
         </Group>
-        {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={open}>Report Outbreak</Button>}
+        {canCreate && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Report Outbreak
+          </Button>
+        )}
       </Group>
 
-      <DataTable columns={columns} data={outbreaks} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No outbreaks" />
+      <DataTable
+        columns={columns}
+        data={outbreaks}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+        emptyTitle="No outbreaks"
+      />
 
       <Drawer opened={opened} onClose={close} title="Report Outbreak" position="right" size="xl">
         <Stack>
-          <TextInput label="Organism" required value={form.organism} onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })} />
-          <TextInput label="Detected Date" type="datetime-local" required value={form.detected_date} onChange={(e) => setForm({ ...form, detected_date: e.currentTarget.value })} />
-          <NumberInput label="Initial Cases" value={form.initial_cases ?? 1} onChange={(v) => setForm({ ...form, initial_cases: Number(v) })} />
-          <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>Report</Button>
+          <TextInput
+            label="Organism"
+            required
+            value={form.organism}
+            onChange={(e) => setForm({ ...form, organism: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Detected Date"
+            type="datetime-local"
+            required
+            value={form.detected_date}
+            onChange={(e) => setForm({ ...form, detected_date: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Initial Cases"
+            value={form.initial_cases ?? 1}
+            onChange={(v) => setForm({ ...form, initial_cases: Number(v) })}
+          />
+          <Textarea
+            label="Description"
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+          />
+          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+            Report
+          </Button>
         </Stack>
       </Drawer>
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title={`Outbreak: ${selected?.outbreak_number ?? ""}`} position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title={`Outbreak: ${selected?.outbreak_number ?? ""}`}
+        position="right"
+        size="lg"
+      >
         {selected && (
           <Stack>
             <Text fw={600}>{selected.organism}</Text>
             <Group>
-              <Badge color={outbreakStatusColors[selected.outbreak_status] ?? "slate"}>{selected.outbreak_status}</Badge>
+              <Badge color={outbreakStatusColors[selected.outbreak_status] ?? "slate"}>
+                {selected.outbreak_status}
+              </Badge>
               <Text size="sm">Cases: {selected.total_cases}</Text>
             </Group>
             {selected.description && <Text size="sm">{selected.description}</Text>}
@@ -917,10 +1554,14 @@ function OutbreakTab() {
 
             {timelineChartData.length > 0 && (
               <Paper p="md" withBorder mt="md">
-                <Title order={6} mb="md">Outbreak Progression</Title>
+                <Title order={6} mb="md">
+                  Outbreak Progression
+                </Title>
                 <Timeline active={timelineChartData.length - 1} bulletSize={24} lineWidth={2}>
                   <Timeline.Item title="Detection">
-                    <Text size="sm" c="dimmed">Detected: {new Date(selected.detected_date).toLocaleDateString()}</Text>
+                    <Text size="sm" c="dimmed">
+                      Detected: {new Date(selected.detected_date).toLocaleDateString()}
+                    </Text>
                     <Text size="sm">Initial cases: {selected.initial_cases}</Text>
                   </Timeline.Item>
                   {selected.total_cases > selected.initial_cases && (
@@ -930,23 +1571,37 @@ function OutbreakTab() {
                   )}
                   {selected.containment_date && (
                     <Timeline.Item title="Containment">
-                      <Text size="sm" c="dimmed">{new Date(selected.containment_date).toLocaleDateString()}</Text>
+                      <Text size="sm" c="dimmed">
+                        {new Date(selected.containment_date).toLocaleDateString()}
+                      </Text>
                     </Timeline.Item>
                   )}
                   {selected.closure_date && (
                     <Timeline.Item title="Closure">
-                      <Text size="sm" c="dimmed">{new Date(selected.closure_date).toLocaleDateString()}</Text>
+                      <Text size="sm" c="dimmed">
+                        {new Date(selected.closure_date).toLocaleDateString()}
+                      </Text>
                     </Timeline.Item>
                   )}
                 </Timeline>
               </Paper>
             )}
 
-            <Text fw={600} mt="md">Contacts ({contacts.length})</Text>
+            <Text fw={600} mt="md">
+              Contacts ({contacts.length})
+            </Text>
             {contacts.map((c: OutbreakContact) => (
-              <Group key={c.id} p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+              <Group
+                key={c.id}
+                p="xs"
+                style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+              >
                 <Text size="sm">{c.contact_type}</Text>
-                {c.quarantine_required && <Badge color="danger" size="sm">Quarantine</Badge>}
+                {c.quarantine_required && (
+                  <Badge color="danger" size="sm">
+                    Quarantine
+                  </Badge>
+                )}
                 {c.screening_result && <Text size="sm">Screen: {c.screening_result}</Text>}
               </Group>
             ))}
@@ -967,12 +1622,32 @@ function SharpsSafetyTab() {
   });
 
   const columns = [
-    { key: "incident_number" as const, label: "Incident #", render: (r: NeedleStickIncident) => <Text fw={500}>{r.incident_number}</Text> },
-    { key: "incident_date" as const, label: "Date", render: (r: NeedleStickIncident) => new Date(r.incident_date).toLocaleDateString() },
-    { key: "device_type" as const, label: "Device Type", render: (r: NeedleStickIncident) => r.device_type },
-    { key: "body_part" as const, label: "Body Location", render: (r: NeedleStickIncident) => r.body_part ?? "---" },
+    {
+      key: "incident_number" as const,
+      label: "Incident #",
+      render: (r: NeedleStickIncident) => <Text fw={500}>{r.incident_number}</Text>,
+    },
+    {
+      key: "incident_date" as const,
+      label: "Date",
+      render: (r: NeedleStickIncident) => new Date(r.incident_date).toLocaleDateString(),
+    },
+    {
+      key: "device_type" as const,
+      label: "Device Type",
+      render: (r: NeedleStickIncident) => r.device_type,
+    },
+    {
+      key: "body_part" as const,
+      label: "Body Location",
+      render: (r: NeedleStickIncident) => r.body_part ?? "---",
+    },
     { key: "depth" as const, label: "Depth", render: (r: NeedleStickIncident) => r.depth ?? "---" },
-    { key: "procedure_during" as const, label: "Procedure", render: (r: NeedleStickIncident) => r.procedure_during ?? "---" },
+    {
+      key: "procedure_during" as const,
+      label: "Procedure",
+      render: (r: NeedleStickIncident) => r.procedure_during ?? "---",
+    },
     {
       key: "pep_initiated" as const,
       label: "PEP Status",
@@ -980,7 +1655,7 @@ function SharpsSafetyTab() {
         <Badge color={r.pep_initiated ? "success" : "danger"}>
           {r.pep_initiated ? "Initiated" : "Not Initiated"}
         </Badge>
-      )
+      ),
     },
     {
       key: "source_status" as const,
@@ -991,15 +1666,21 @@ function SharpsSafetyTab() {
         if (r.hbv_status) statuses.push(`HBV:${r.hbv_status}`);
         if (r.hcv_status) statuses.push(`HCV:${r.hcv_status}`);
         return statuses.length > 0 ? statuses.join(", ") : "---";
-      }
+      },
     },
-    { key: "outcome" as const, label: "Outcome", render: (r: NeedleStickIncident) => r.outcome ?? "---" },
+    {
+      key: "outcome" as const,
+      label: "Outcome",
+      render: (r: NeedleStickIncident) => r.outcome ?? "---",
+    },
   ];
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Text c="dimmed" size="sm">{incidents.length} incident(s)</Text>
+        <Text c="dimmed" size="sm">
+          {incidents.length} incident(s)
+        </Text>
         {canCreate && (
           <Button leftSection={<IconPlus size={16} />} disabled>
             Report Incident
@@ -1007,7 +1688,13 @@ function SharpsSafetyTab() {
         )}
       </Group>
 
-      <DataTable columns={columns} data={incidents} loading={isLoading} rowKey={(r) => r.id} emptyTitle="No needle-stick incidents" />
+      <DataTable
+        columns={columns}
+        data={incidents}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+        emptyTitle="No needle-stick incidents"
+      />
     </Stack>
   );
 }
@@ -1099,29 +1786,83 @@ function AnalyticsTab() {
 
   const deviceUtilColumns = [
     { key: "unit_name" as const, label: "Unit", render: (r: DeviceUtilizationRow) => r.unit_name },
-    { key: "device_type" as const, label: "Device", render: (r: DeviceUtilizationRow) => r.device_type },
-    { key: "device_days" as const, label: "Device Days", render: (r: DeviceUtilizationRow) => String(r.device_days) },
-    { key: "patient_days" as const, label: "Patient Days", render: (r: DeviceUtilizationRow) => String(r.patient_days) },
-    { key: "utilization_ratio" as const, label: "Utilization Ratio", render: (r: DeviceUtilizationRow) => r.utilization_ratio.toFixed(3) },
+    {
+      key: "device_type" as const,
+      label: "Device",
+      render: (r: DeviceUtilizationRow) => r.device_type,
+    },
+    {
+      key: "device_days" as const,
+      label: "Device Days",
+      render: (r: DeviceUtilizationRow) => String(r.device_days),
+    },
+    {
+      key: "patient_days" as const,
+      label: "Patient Days",
+      render: (r: DeviceUtilizationRow) => String(r.patient_days),
+    },
+    {
+      key: "utilization_ratio" as const,
+      label: "Utilization Ratio",
+      render: (r: DeviceUtilizationRow) => r.utilization_ratio.toFixed(3),
+    },
   ];
 
   const amColumns = [
-    { key: "drug_name" as const, label: "Drug", render: (r: AntimicrobialConsumptionRow) => <Text fw={500}>{r.drug_name}</Text> },
-    { key: "atc_code" as const, label: "ATC Code", render: (r: AntimicrobialConsumptionRow) => r.atc_code ?? "---" },
-    { key: "total_ddd" as const, label: "Total DDD", render: (r: AntimicrobialConsumptionRow) => r.total_ddd.toFixed(2) },
-    { key: "patient_days" as const, label: "Patient Days", render: (r: AntimicrobialConsumptionRow) => String(r.patient_days) },
-    { key: "ddd_per_1000" as const, label: "DDD/1000", render: (r: AntimicrobialConsumptionRow) => r.ddd_per_1000.toFixed(2) },
+    {
+      key: "drug_name" as const,
+      label: "Drug",
+      render: (r: AntimicrobialConsumptionRow) => <Text fw={500}>{r.drug_name}</Text>,
+    },
+    {
+      key: "atc_code" as const,
+      label: "ATC Code",
+      render: (r: AntimicrobialConsumptionRow) => r.atc_code ?? "---",
+    },
+    {
+      key: "total_ddd" as const,
+      label: "Total DDD",
+      render: (r: AntimicrobialConsumptionRow) => r.total_ddd.toFixed(2),
+    },
+    {
+      key: "patient_days" as const,
+      label: "Patient Days",
+      render: (r: AntimicrobialConsumptionRow) => String(r.patient_days),
+    },
+    {
+      key: "ddd_per_1000" as const,
+      label: "DDD/1000",
+      render: (r: AntimicrobialConsumptionRow) => r.ddd_per_1000.toFixed(2),
+    },
   ];
 
   const prophColumns = [
-    { key: "procedure_type" as const, label: "Procedure", render: (r: SurgicalProphylaxisRow) => r.procedure_type },
-    { key: "total_cases" as const, label: "Total Cases", render: (r: SurgicalProphylaxisRow) => String(r.total_cases) },
-    { key: "timely_count" as const, label: "Timely", render: (r: SurgicalProphylaxisRow) => String(r.timely_count) },
-    { key: "compliance_pct" as const, label: "Compliance %", render: (r: SurgicalProphylaxisRow) => (
-      <Badge color={r.compliance_pct >= 90 ? "success" : r.compliance_pct >= 70 ? "warning" : "danger"}>
-        {r.compliance_pct.toFixed(1)}%
-      </Badge>
-    )},
+    {
+      key: "procedure_type" as const,
+      label: "Procedure",
+      render: (r: SurgicalProphylaxisRow) => r.procedure_type,
+    },
+    {
+      key: "total_cases" as const,
+      label: "Total Cases",
+      render: (r: SurgicalProphylaxisRow) => String(r.total_cases),
+    },
+    {
+      key: "timely_count" as const,
+      label: "Timely",
+      render: (r: SurgicalProphylaxisRow) => String(r.timely_count),
+    },
+    {
+      key: "compliance_pct" as const,
+      label: "Compliance %",
+      render: (r: SurgicalProphylaxisRow) => (
+        <Badge
+          color={r.compliance_pct >= 90 ? "success" : r.compliance_pct >= 70 ? "warning" : "danger"}
+        >
+          {r.compliance_pct.toFixed(1)}%
+        </Badge>
+      ),
+    },
   ];
 
   return (
@@ -1140,18 +1881,33 @@ function AnalyticsTab() {
           ]}
         />
         <Group>
-          <DateInput value={from} onChange={(d) => setFrom(d)} placeholder="From" clearable w={140} />
+          <DateInput
+            value={from}
+            onChange={(d) => setFrom(d)}
+            placeholder="From"
+            clearable
+            w={140}
+          />
           <DateInput value={to} onChange={(d) => setTo(d)} placeholder="To" clearable w={140} />
         </Group>
       </Group>
 
       {subView === "hai-rates" && (
         <Paper p="md" withBorder>
-          <Title order={5} mb="md">HAI Rates per 1000 Patient Days</Title>
-          {haiLoading ? <Text c="dimmed">Loading...</Text> : haiRates.length === 0 ? <Text c="dimmed">No data</Text> : (
+          <Title order={5} mb="md">
+            HAI Rates per 1000 Patient Days
+          </Title>
+          {haiLoading ? (
+            <Text c="dimmed">Loading...</Text>
+          ) : haiRates.length === 0 ? (
+            <Text c="dimmed">No data</Text>
+          ) : (
             <BarChart
               h={350}
-              data={haiRates.map((r) => ({ infection_type: r.infection_type, rate: r.rate_per_1000 }))}
+              data={haiRates.map((r) => ({
+                infection_type: r.infection_type,
+                rate: r.rate_per_1000,
+              }))}
               dataKey="infection_type"
               series={[{ name: "rate", label: "Rate / 1000", color: "danger" }]}
               tickLine="y"
@@ -1161,21 +1917,43 @@ function AnalyticsTab() {
       )}
 
       {subView === "device-util" && (
-        <DataTable columns={deviceUtilColumns} data={deviceUtil} loading={deviceLoading} rowKey={(r) => `${r.unit_name}-${r.device_type}`} emptyTitle="No device utilization data" />
+        <DataTable
+          columns={deviceUtilColumns}
+          data={deviceUtil}
+          loading={deviceLoading}
+          rowKey={(r) => `${r.unit_name}-${r.device_type}`}
+          emptyTitle="No device utilization data"
+        />
       )}
 
       {subView === "am-consumption" && (
-        <DataTable columns={amColumns} data={amConsumption} loading={amLoading} rowKey={(r) => r.drug_name} emptyTitle="No antimicrobial consumption data" />
+        <DataTable
+          columns={amColumns}
+          data={amConsumption}
+          loading={amLoading}
+          rowKey={(r) => r.drug_name}
+          emptyTitle="No antimicrobial consumption data"
+        />
       )}
 
       {subView === "prophylaxis" && (
-        <DataTable columns={prophColumns} data={prophylaxis} loading={prophLoading} rowKey={(r) => r.procedure_type} emptyTitle="No surgical prophylaxis data" />
+        <DataTable
+          columns={prophColumns}
+          data={prophylaxis}
+          loading={prophLoading}
+          rowKey={(r) => r.procedure_type}
+          emptyTitle="No surgical prophylaxis data"
+        />
       )}
 
       {subView === "culture-sens" && (
         <Paper p="md" withBorder>
-          <Title order={5} mb="md">Culture Sensitivity Matrix</Title>
-          {csLoading ? <Text c="dimmed">Loading...</Text> : csMatrix.antibiotics.length === 0 ? (
+          <Title order={5} mb="md">
+            Culture Sensitivity Matrix
+          </Title>
+          {csLoading ? (
+            <Text c="dimmed">Loading...</Text>
+          ) : csMatrix.antibiotics.length === 0 ? (
             <Text c="dimmed">No culture sensitivity data</Text>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -1183,7 +1961,9 @@ function AnalyticsTab() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Organism</Table.Th>
-                    {csMatrix.antibiotics.map((ab) => <Table.Th key={ab}>{ab}</Table.Th>)}
+                    {csMatrix.antibiotics.map((ab) => (
+                      <Table.Th key={ab}>{ab}</Table.Th>
+                    ))}
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -1197,8 +1977,12 @@ function AnalyticsTab() {
                         const color = pct >= 70 ? "success" : pct >= 40 ? "warning" : "danger";
                         return (
                           <Table.Td key={ab}>
-                            <Tooltip label={`S:${row.sensitive_count} I:${row.intermediate_count} R:${row.resistant_count} (n=${row.total_tests})`}>
-                              <Badge color={color} size="sm">{pct.toFixed(0)}%</Badge>
+                            <Tooltip
+                              label={`S:${row.sensitive_count} I:${row.intermediate_count} R:${row.resistant_count} (n=${row.total_tests})`}
+                            >
+                              <Badge color={color} size="sm">
+                                {pct.toFixed(0)}%
+                              </Badge>
                             </Tooltip>
                           </Table.Td>
                         );
@@ -1214,8 +1998,12 @@ function AnalyticsTab() {
 
       {subView === "mdro" && (
         <Paper p="md" withBorder>
-          <Title order={5} mb="md">MDRO Tracking (Rate per 1000 Patient Days)</Title>
-          {mdroLoading ? <Text c="dimmed">Loading...</Text> : mdroChartData.length === 0 ? (
+          <Title order={5} mb="md">
+            MDRO Tracking (Rate per 1000 Patient Days)
+          </Title>
+          {mdroLoading ? (
+            <Text c="dimmed">Loading...</Text>
+          ) : mdroChartData.length === 0 ? (
             <Text c="dimmed">No MDRO data</Text>
           ) : (
             <LineChart
@@ -1288,17 +2076,55 @@ function MeetingsTab() {
     onSuccess: () => {
       notifications.show({ title: "Exposure recorded", message: "", color: "success" });
       closeExposure();
-      setExposureForm({ event_type: "", exposure_date: "", exposure_type: "", pep_initiated: false });
+      setExposureForm({
+        event_type: "",
+        exposure_date: "",
+        exposure_type: "",
+        pep_initiated: false,
+      });
     },
   });
 
   const meetingColumns = [
-    { key: "meeting_date" as const, label: "Date", render: (r: IcMeeting) => new Date(r.meeting_date).toLocaleDateString() },
-    { key: "meeting_type" as const, label: "Type", render: (r: IcMeeting) => <Badge variant="light">{r.meeting_type}</Badge> },
+    {
+      key: "meeting_date" as const,
+      label: "Date",
+      render: (r: IcMeeting) => new Date(r.meeting_date).toLocaleDateString(),
+    },
+    {
+      key: "meeting_type" as const,
+      label: "Type",
+      render: (r: IcMeeting) => <Badge variant="light">{r.meeting_type}</Badge>,
+    },
     { key: "agenda" as const, label: "Agenda", render: (r: IcMeeting) => r.agenda ?? "---" },
-    { key: "attendees" as const, label: "Attendees", render: (r: IcMeeting) => <Badge size="sm">{Array.isArray(r.attendees) ? r.attendees.length : 0}</Badge> },
-    { key: "minutes" as const, label: "Minutes", render: (r: IcMeeting) => r.minutes ? <Text size="sm" lineClamp={1}>{r.minutes}</Text> : "---" },
-    { key: "action_items" as const, label: "Actions", render: (r: IcMeeting) => <Badge size="sm" color="orange">{Array.isArray(r.action_items) ? r.action_items.length : 0}</Badge> },
+    {
+      key: "attendees" as const,
+      label: "Attendees",
+      render: (r: IcMeeting) => (
+        <Badge size="sm">{Array.isArray(r.attendees) ? r.attendees.length : 0}</Badge>
+      ),
+    },
+    {
+      key: "minutes" as const,
+      label: "Minutes",
+      render: (r: IcMeeting) =>
+        r.minutes ? (
+          <Text size="sm" lineClamp={1}>
+            {r.minutes}
+          </Text>
+        ) : (
+          "---"
+        ),
+    },
+    {
+      key: "action_items" as const,
+      label: "Actions",
+      render: (r: IcMeeting) => (
+        <Badge size="sm" color="orange">
+          {Array.isArray(r.action_items) ? r.action_items.length : 0}
+        </Badge>
+      ),
+    },
   ];
 
   return (
@@ -1315,22 +2141,37 @@ function MeetingsTab() {
         />
         <Group>
           {canCreate && subView === "meetings" && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openMeeting}>New Meeting</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openMeeting}>
+              New Meeting
+            </Button>
           )}
           {canCreate && subView === "exposures" && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openExposure}>Record Exposure</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={openExposure}>
+              Record Exposure
+            </Button>
           )}
         </Group>
       </Group>
 
       {subView === "meetings" && (
-        <DataTable columns={meetingColumns} data={meetings} loading={meetingsLoading} rowKey={(r) => r.id} emptyTitle="No IC meetings" />
+        <DataTable
+          columns={meetingColumns}
+          data={meetings}
+          loading={meetingsLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No IC meetings"
+        />
       )}
 
       {subView === "exposures" && (
         <Paper p="md" withBorder>
-          <Text fw={600} mb="md">Exposure Recording</Text>
-          <Text c="dimmed" size="sm">Use the "Record Exposure" button to log an occupational exposure event (needlestick, blood/body fluid contact, etc.).</Text>
+          <Text fw={600} mb="md">
+            Exposure Recording
+          </Text>
+          <Text c="dimmed" size="sm">
+            Use the "Record Exposure" button to log an occupational exposure event (needlestick,
+            blood/body fluid contact, etc.).
+          </Text>
         </Paper>
       )}
 
@@ -1355,31 +2196,52 @@ function MeetingsTab() {
               w={120}
             />
           </Group>
-          {reportLoading ? <Text c="dimmed">Loading monthly report...</Text> : monthlyReport ? (
+          {reportLoading ? (
+            <Text c="dimmed">Loading monthly report...</Text>
+          ) : monthlyReport ? (
             <Grid>
               <Grid.Col span={{ base: 6, md: 3 }}>
                 <Card withBorder p="md">
-                  <Text size="sm" c="dimmed">HAI Count</Text>
-                  <Text size="xl" fw={600} c="danger">{monthlyReport.hai_count}</Text>
-                  <Text size="xs" c="dimmed">Rate: {monthlyReport.hai_rate.toFixed(2)}/1000</Text>
+                  <Text size="sm" c="dimmed">
+                    HAI Count
+                  </Text>
+                  <Text size="xl" fw={600} c="danger">
+                    {monthlyReport.hai_count}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Rate: {monthlyReport.hai_rate.toFixed(2)}/1000
+                  </Text>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, md: 3 }}>
                 <Card withBorder p="md">
-                  <Text size="sm" c="dimmed">Hand Hygiene</Text>
-                  <Text size="xl" fw={600} c="teal">{monthlyReport.hand_hygiene_compliance.toFixed(1)}%</Text>
+                  <Text size="sm" c="dimmed">
+                    Hand Hygiene
+                  </Text>
+                  <Text size="xl" fw={600} c="teal">
+                    {monthlyReport.hand_hygiene_compliance.toFixed(1)}%
+                  </Text>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, md: 3 }}>
                 <Card withBorder p="md">
-                  <Text size="sm" c="dimmed">BMW Total (kg)</Text>
-                  <Text size="xl" fw={600}>{monthlyReport.bmw_total_kg.toFixed(1)}</Text>
+                  <Text size="sm" c="dimmed">
+                    BMW Total (kg)
+                  </Text>
+                  <Text size="xl" fw={600}>
+                    {monthlyReport.bmw_total_kg.toFixed(1)}
+                  </Text>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, md: 3 }}>
                 <Card withBorder p="md">
-                  <Text size="sm" c="dimmed">Cultures / MDRO / Outbreaks</Text>
-                  <Text size="xl" fw={600}>{monthlyReport.culture_count} / {monthlyReport.mdro_count} / {monthlyReport.outbreak_count}</Text>
+                  <Text size="sm" c="dimmed">
+                    Cultures / MDRO / Outbreaks
+                  </Text>
+                  <Text size="xl" fw={600}>
+                    {monthlyReport.culture_count} / {monthlyReport.mdro_count} /{" "}
+                    {monthlyReport.outbreak_count}
+                  </Text>
                 </Card>
               </Grid.Col>
             </Grid>
@@ -1390,27 +2252,118 @@ function MeetingsTab() {
       )}
 
       {/* Create Meeting Drawer */}
-      <Drawer opened={meetingOpened} onClose={closeMeeting} title="New IC Meeting" position="right" size="xl">
+      <Drawer
+        opened={meetingOpened}
+        onClose={closeMeeting}
+        title="New IC Meeting"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Meeting Date" type="datetime-local" required value={meetingForm.meeting_date} onChange={(e) => setMeetingForm({ ...meetingForm, meeting_date: e.currentTarget.value })} />
-          <Select label="Meeting Type" data={["regular", "emergency", "ad_hoc", "orientation"]} value={meetingForm.meeting_type ?? "regular"} onChange={(v) => setMeetingForm({ ...meetingForm, meeting_type: v ?? "regular" })} />
-          <Textarea label="Agenda" value={meetingForm.agenda ?? ""} onChange={(e) => setMeetingForm({ ...meetingForm, agenda: e.currentTarget.value || undefined })} />
-          <Textarea label="Minutes" value={meetingForm.minutes ?? ""} onChange={(e) => setMeetingForm({ ...meetingForm, minutes: e.currentTarget.value || undefined })} />
-          <Button loading={createMeetingMut.isPending} onClick={() => createMeetingMut.mutate(meetingForm)}>Create</Button>
+          <TextInput
+            label="Meeting Date"
+            type="datetime-local"
+            required
+            value={meetingForm.meeting_date}
+            onChange={(e) =>
+              setMeetingForm({ ...meetingForm, meeting_date: e.currentTarget.value })
+            }
+          />
+          <Select
+            label="Meeting Type"
+            data={["regular", "emergency", "ad_hoc", "orientation"]}
+            value={meetingForm.meeting_type ?? "regular"}
+            onChange={(v) => setMeetingForm({ ...meetingForm, meeting_type: v ?? "regular" })}
+          />
+          <Textarea
+            label="Agenda"
+            value={meetingForm.agenda ?? ""}
+            onChange={(e) =>
+              setMeetingForm({ ...meetingForm, agenda: e.currentTarget.value || undefined })
+            }
+          />
+          <Textarea
+            label="Minutes"
+            value={meetingForm.minutes ?? ""}
+            onChange={(e) =>
+              setMeetingForm({ ...meetingForm, minutes: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            loading={createMeetingMut.isPending}
+            onClick={() => createMeetingMut.mutate(meetingForm)}
+          >
+            Create
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Exposure Drawer */}
-      <Drawer opened={exposureOpened} onClose={closeExposure} title="Record Exposure" position="right" size="xl">
+      <Drawer
+        opened={exposureOpened}
+        onClose={closeExposure}
+        title="Record Exposure"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <Select label="Event Type" required data={["needlestick", "splash", "cut", "bite", "other"]} value={exposureForm.event_type || null} onChange={(v) => setExposureForm({ ...exposureForm, event_type: v ?? "" })} />
-          <TextInput label="Exposure Date" type="datetime-local" required value={exposureForm.exposure_date} onChange={(e) => setExposureForm({ ...exposureForm, exposure_date: e.currentTarget.value })} />
-          <Select label="Exposure Type" required data={["percutaneous", "mucocutaneous", "intact_skin", "other"]} value={exposureForm.exposure_type || null} onChange={(v) => setExposureForm({ ...exposureForm, exposure_type: v ?? "" })} />
-          <PatientSearchSelect label="Source Patient" value={exposureForm.source_patient_id ?? ""} onChange={(id) => setExposureForm({ ...exposureForm, source_patient_id: id || undefined })} />
-          <EmployeeSearchSelect label="Exposed Staff" value={exposureForm.exposed_staff_id ?? ""} onChange={(id) => setExposureForm({ ...exposureForm, exposed_staff_id: id || undefined })} />
-          <Switch label="PEP Initiated" checked={exposureForm.pep_initiated} onChange={(e) => setExposureForm({ ...exposureForm, pep_initiated: e.currentTarget.checked })} />
-          <Textarea label="Notes" value={exposureForm.notes ?? ""} onChange={(e) => setExposureForm({ ...exposureForm, notes: e.currentTarget.value || undefined })} />
-          <Button loading={createExposureMut.isPending} onClick={() => createExposureMut.mutate(exposureForm)}>Save</Button>
+          <Select
+            label="Event Type"
+            required
+            data={["needlestick", "splash", "cut", "bite", "other"]}
+            value={exposureForm.event_type || null}
+            onChange={(v) => setExposureForm({ ...exposureForm, event_type: v ?? "" })}
+          />
+          <TextInput
+            label="Exposure Date"
+            type="datetime-local"
+            required
+            value={exposureForm.exposure_date}
+            onChange={(e) =>
+              setExposureForm({ ...exposureForm, exposure_date: e.currentTarget.value })
+            }
+          />
+          <Select
+            label="Exposure Type"
+            required
+            data={["percutaneous", "mucocutaneous", "intact_skin", "other"]}
+            value={exposureForm.exposure_type || null}
+            onChange={(v) => setExposureForm({ ...exposureForm, exposure_type: v ?? "" })}
+          />
+          <PatientSearchSelect
+            label="Source Patient"
+            value={exposureForm.source_patient_id ?? ""}
+            onChange={(id) =>
+              setExposureForm({ ...exposureForm, source_patient_id: id || undefined })
+            }
+          />
+          <EmployeeSearchSelect
+            label="Exposed Staff"
+            value={exposureForm.exposed_staff_id ?? ""}
+            onChange={(id) =>
+              setExposureForm({ ...exposureForm, exposed_staff_id: id || undefined })
+            }
+          />
+          <Switch
+            label="PEP Initiated"
+            checked={exposureForm.pep_initiated}
+            onChange={(e) =>
+              setExposureForm({ ...exposureForm, pep_initiated: e.currentTarget.checked })
+            }
+          />
+          <Textarea
+            label="Notes"
+            value={exposureForm.notes ?? ""}
+            onChange={(e) =>
+              setExposureForm({ ...exposureForm, notes: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            loading={createExposureMut.isPending}
+            onClick={() => createExposureMut.mutate(exposureForm)}
+          >
+            Save
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -1435,24 +2388,56 @@ export function InfectionControlPage() {
 
       <Tabs defaultValue="surveillance" mt="md">
         <Tabs.List>
-          <Tabs.Tab value="surveillance" leftSection={<IconBug size={16} />}>HAI Surveillance</Tabs.Tab>
-          <Tabs.Tab value="stewardship" leftSection={<IconPill size={16} />}>Stewardship & Antibiogram</Tabs.Tab>
-          <Tabs.Tab value="biowaste" leftSection={<IconBiohazard size={16} />}>Bio-Waste</Tabs.Tab>
-          <Tabs.Tab value="hygiene" leftSection={<IconHandStop size={16} />}>Hygiene & Bundles</Tabs.Tab>
-          <Tabs.Tab value="outbreaks" leftSection={<IconVirusSearch size={16} />}>Outbreaks</Tabs.Tab>
-          <Tabs.Tab value="sharps" leftSection={<IconNeedleThread size={16} />}>Sharps Safety</Tabs.Tab>
-          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>Analytics</Tabs.Tab>
-          <Tabs.Tab value="meetings" leftSection={<IconUsers size={16} />}>Meetings</Tabs.Tab>
+          <Tabs.Tab value="surveillance" leftSection={<IconBug size={16} />}>
+            HAI Surveillance
+          </Tabs.Tab>
+          <Tabs.Tab value="stewardship" leftSection={<IconPill size={16} />}>
+            Stewardship & Antibiogram
+          </Tabs.Tab>
+          <Tabs.Tab value="biowaste" leftSection={<IconBiohazard size={16} />}>
+            Bio-Waste
+          </Tabs.Tab>
+          <Tabs.Tab value="hygiene" leftSection={<IconHandStop size={16} />}>
+            Hygiene & Bundles
+          </Tabs.Tab>
+          <Tabs.Tab value="outbreaks" leftSection={<IconVirusSearch size={16} />}>
+            Outbreaks
+          </Tabs.Tab>
+          <Tabs.Tab value="sharps" leftSection={<IconNeedleThread size={16} />}>
+            Sharps Safety
+          </Tabs.Tab>
+          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+            Analytics
+          </Tabs.Tab>
+          <Tabs.Tab value="meetings" leftSection={<IconUsers size={16} />}>
+            Meetings
+          </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="surveillance" pt="md"><SurveillanceTab /></Tabs.Panel>
-        <Tabs.Panel value="stewardship" pt="md"><StewardshipTab /></Tabs.Panel>
-        <Tabs.Panel value="biowaste" pt="md"><BiowasteTab /></Tabs.Panel>
-        <Tabs.Panel value="hygiene" pt="md"><HygieneTab /></Tabs.Panel>
-        <Tabs.Panel value="outbreaks" pt="md"><OutbreakTab /></Tabs.Panel>
-        <Tabs.Panel value="sharps" pt="md"><SharpsSafetyTab /></Tabs.Panel>
-        <Tabs.Panel value="analytics" pt="md"><AnalyticsTab /></Tabs.Panel>
-        <Tabs.Panel value="meetings" pt="md"><MeetingsTab /></Tabs.Panel>
+        <Tabs.Panel value="surveillance" pt="md">
+          <SurveillanceTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="stewardship" pt="md">
+          <StewardshipTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="biowaste" pt="md">
+          <BiowasteTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="hygiene" pt="md">
+          <HygieneTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="outbreaks" pt="md">
+          <OutbreakTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="sharps" pt="md">
+          <SharpsSafetyTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="analytics" pt="md">
+          <AnalyticsTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="meetings" pt="md">
+          <MeetingsTab />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );

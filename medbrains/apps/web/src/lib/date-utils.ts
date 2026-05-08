@@ -22,7 +22,13 @@ export function formatDateTime(date: string | Date | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /** Format time only (e.g., "14:30") */
@@ -41,11 +47,13 @@ export function calculateAge(dob: string | null | undefined): string {
   const now = new Date();
   const years = now.getFullYear() - birth.getFullYear();
   if (years < 1) {
-    const months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
+    const months =
+      (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
     return `${months}mo`;
   }
   if (years < 3) {
-    const months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
+    const months =
+      (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
     return `${Math.floor(months / 12)}y ${months % 12}mo`;
   }
   return `${years}y`;
@@ -55,7 +63,11 @@ export function calculateAge(dob: string | null | undefined): string {
 export function isToday(date: string | Date): boolean {
   const d = typeof date === "string" ? new Date(date) : date;
   const today = new Date();
-  return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  return (
+    d.getDate() === today.getDate() &&
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear()
+  );
 }
 
 /** Check if a date is in the past */

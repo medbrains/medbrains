@@ -70,12 +70,13 @@ impl ObjectStore for ColdLocalObjectStore {
                 .map_err(|e| ObjectStoreError::Io(e.to_string()))?;
         }
         let compressed = tokio::task::spawn_blocking(move || {
-            use flate2::write::GzEncoder;
             use flate2::Compression;
+            use flate2::write::GzEncoder;
             let mut enc = GzEncoder::new(Vec::with_capacity(bytes.len()), Compression::default());
             enc.write_all(&bytes)
                 .map_err(|e| ObjectStoreError::Io(e.to_string()))?;
-            enc.finish().map_err(|e| ObjectStoreError::Io(e.to_string()))
+            enc.finish()
+                .map_err(|e| ObjectStoreError::Io(e.to_string()))
         })
         .await
         .map_err(|e| ObjectStoreError::Backend(e.to_string()))??;

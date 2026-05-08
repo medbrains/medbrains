@@ -16,7 +16,6 @@
  * tells the operator a hard reload triggers the change immediately.
  */
 
-import { useState } from "react";
 import {
   Alert,
   Button,
@@ -30,15 +29,11 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconCloudOff,
-  IconDeviceFloppy,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { IconAlertCircle, IconCheck, IconCloudOff, IconDeviceFloppy } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface OfflineModeForm {
   offlineMode: boolean;
@@ -50,9 +45,7 @@ function parseSettings(rows: TenantSettingsRow[]): OfflineModeForm {
   const url = rows.find((r) => r.key === "edge_url");
   return {
     offlineMode:
-      typeof off?.value === "boolean"
-        ? off.value
-        : off?.value === "true" || off?.value === "1",
+      typeof off?.value === "boolean" ? off.value : off?.value === "true" || off?.value === "1",
     edgeUrl: typeof url?.value === "string" ? url.value : "",
   };
 }
@@ -66,7 +59,12 @@ export function OfflineModeSettings() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<OfflineModeForm | null>(null);
 
-  const { data: rows, isLoading, isError, error } = useQuery({
+  const {
+    data: rows,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["tenant-settings", "clinical"],
     queryFn: () => api.getTenantSettings("clinical"),
     select: (data: TenantSettingsRow[]) => {
@@ -99,8 +97,7 @@ export function OfflineModeSettings() {
       });
       notifications.show({
         title: "Offline mode saved",
-        message:
-          "Hard-reload (Cmd-R) any open tabs to pick up the new mode immediately.",
+        message: "Hard-reload (Cmd-R) any open tabs to pick up the new mode immediately.",
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -126,19 +123,15 @@ export function OfflineModeSettings() {
   if (isError) {
     return (
       <Stack align="center" py="xl">
-        <Text c="danger">
-          Failed to load: {error instanceof Error ? error.message : "unknown"}
-        </Text>
+        <Text c="danger">Failed to load: {error instanceof Error ? error.message : "unknown"}</Text>
       </Stack>
     );
   }
 
   if (!form) return null;
 
-  const setField = <K extends keyof OfflineModeForm>(
-    k: K,
-    v: OfflineModeForm[K],
-  ) => setForm((p) => (p ? { ...p, [k]: v } : p));
+  const setField = <K extends keyof OfflineModeForm>(k: K, v: OfflineModeForm[K]) =>
+    setForm((p) => (p ? { ...p, [k]: v } : p));
 
   const offlineWithoutUrl = form.offlineMode && form.edgeUrl.trim() === "";
   const malformedUrl = form.edgeUrl !== "" && !isPlausibleWsUrl(form.edgeUrl);
@@ -153,10 +146,9 @@ export function OfflineModeSettings() {
       </Group>
 
       <Text c="dimmed" size="sm">
-        When enabled, supported clinical pages (vitals, handoff, triage, notes,
-        nursing notes) sync via the on-prem <Code>medbrains-edge</Code>{" "}
-        appliance over the hospital LAN. Devices keep capturing data while the
-        WAN is down; entries merge automatically when connectivity returns.
+        When enabled, supported clinical pages (vitals, handoff, triage, notes, nursing notes) sync
+        via the on-prem <Code>medbrains-edge</Code> appliance over the hospital LAN. Devices keep
+        capturing data while the WAN is down; entries merge automatically when connectivity returns.
       </Text>
 
       <Card withBorder>
@@ -180,28 +172,19 @@ export function OfflineModeSettings() {
             onChange={(e) => setField("edgeUrl", e.currentTarget.value.trim())}
           />
           {malformedUrl && (
-            <Alert
-              color="orange"
-              icon={<IconAlertCircle size={16} />}
-              title="Unusual URL"
-            >
-              Edge URLs typically start with <Code>ws://</Code> or{" "}
-              <Code>wss://</Code>. Saving anyway — browsers will fail to connect
-              if the scheme is wrong.
+            <Alert color="orange" icon={<IconAlertCircle size={16} />} title="Unusual URL">
+              Edge URLs typically start with <Code>ws://</Code> or <Code>wss://</Code>. Saving
+              anyway — browsers will fail to connect if the scheme is wrong.
             </Alert>
           )}
         </Stack>
       </Card>
 
       {offlineWithoutUrl && (
-        <Alert
-          color="orange"
-          icon={<IconAlertCircle size={16} />}
-          title="Edge URL missing"
-        >
-          Offline mode is on but no edge URL is configured. The app will fall
-          back to cloud REST and log a warning in the browser console. Set the
-          URL above before relying on offline behavior.
+        <Alert color="orange" icon={<IconAlertCircle size={16} />} title="Edge URL missing">
+          Offline mode is on but no edge URL is configured. The app will fall back to cloud REST and
+          log a warning in the browser console. Set the URL above before relying on offline
+          behavior.
         </Alert>
       )}
 

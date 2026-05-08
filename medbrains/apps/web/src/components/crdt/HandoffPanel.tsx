@@ -7,9 +7,9 @@
  * live unsynced-ops indicator.
  */
 
-import { useState } from "react";
 import { Badge, Button, Card, Group, Select, Stack, Text, Textarea, Timeline } from "@mantine/core";
-import { useHandoffSource, type HandoffEntryInput } from "../../hooks/useHandoffSource";
+import { useState } from "react";
+import { type HandoffEntryInput, useHandoffSource } from "../../hooks/useHandoffSource";
 
 interface HandoffPanelProps {
   shiftId: string;
@@ -39,9 +39,13 @@ export function HandoffPanel({ shiftId, canAppend = true }: HandoffPanelProps) {
       <Group justify="space-between">
         <Text fw={600}>Shift Handoff</Text>
         <Group gap="xs">
-          <Badge variant="light" size="sm" color={statusColor(status)}>{status}</Badge>
+          <Badge variant="light" size="sm" color={statusColor(status)}>
+            {status}
+          </Badge>
           {unsyncedOps > 0 && (
-            <Badge variant="filled" size="sm" color="orange">{unsyncedOps} unsynced</Badge>
+            <Badge variant="filled" size="sm" color="orange">
+              {unsyncedOps} unsynced
+            </Badge>
           )}
         </Group>
       </Group>
@@ -79,17 +83,27 @@ export function HandoffPanel({ shiftId, canAppend = true }: HandoffPanelProps) {
       )}
 
       {entries.length === 0 ? (
-        <Text size="sm" c="dimmed">No handoff entries yet.</Text>
+        <Text size="sm" c="dimmed">
+          No handoff entries yet.
+        </Text>
       ) : (
         <Timeline bulletSize={20} lineWidth={2}>
           {entries.map((e, i) => (
             <Timeline.Item
               key={`${e.ts}-${i}`}
-              bullet={<Badge size="xs" color={categoryColor[e.category]}>{e.category[0]}</Badge>}
+              bullet={
+                <Badge size="xs" color={categoryColor[e.category]}>
+                  {e.category[0]}
+                </Badge>
+              }
               title={
                 <Group gap="xs">
-                  <Text size="sm" fw={600}>{new Date(e.ts).toLocaleString()}</Text>
-                  <Text size="xs" c="dimmed">— {e.author}</Text>
+                  <Text size="sm" fw={600}>
+                    {new Date(e.ts).toLocaleString()}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    — {e.author}
+                  </Text>
                 </Group>
               }
             >

@@ -12,14 +12,14 @@ import {
   Group,
   Stack,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { IconUserCog } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
@@ -77,7 +77,11 @@ export function DoctorProfilePage() {
   });
 
   if (isLoading)
-    return <Text size="sm" c="dimmed">Loading…</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading…
+      </Text>
+    );
   if (!profile)
     return (
       <Text size="sm" c="dimmed">
@@ -99,20 +103,27 @@ export function DoctorProfilePage() {
             <Stack gap="sm" align="center">
               <Avatar src={profile.photo_url} size={120} radius="xl" />
               <Text fw={700} size="lg">
-                {profile.prefix ? `${profile.prefix} ` : ""}{profile.display_name}
+                {profile.prefix ? `${profile.prefix} ` : ""}
+                {profile.display_name}
               </Text>
               <Text size="sm" c="dimmed">
                 {profile.qualification_string}
               </Text>
               <Group gap="xs">
                 {profile.is_visiting && (
-                  <Badge size="sm" color="warning">Visiting</Badge>
+                  <Badge size="sm" color="warning">
+                    Visiting
+                  </Badge>
                 )}
                 {profile.is_full_time && (
-                  <Badge size="sm" color="primary">Full-time</Badge>
+                  <Badge size="sm" color="primary">
+                    Full-time
+                  </Badge>
                 )}
                 {!profile.is_active && (
-                  <Badge size="sm" color="red">Inactive</Badge>
+                  <Badge size="sm" color="red">
+                    Inactive
+                  </Badge>
                 )}
               </Group>
             </Stack>
@@ -121,7 +132,9 @@ export function DoctorProfilePage() {
 
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card padding="md" withBorder>
-            <Text fw={600} size="sm" mb="sm">Editable</Text>
+            <Text fw={600} size="sm" mb="sm">
+              Editable
+            </Text>
             <Stack gap="sm">
               <TextInput
                 label="Photo URL"
@@ -151,10 +164,7 @@ export function DoctorProfilePage() {
                 maxRows={10}
               />
               <Group justify="flex-end">
-                <Button
-                  loading={update.isPending}
-                  onClick={() => update.mutate()}
-                >
+                <Button loading={update.isPending} onClick={() => update.mutate()}>
                   Save changes
                 </Button>
               </Group>
@@ -175,9 +185,7 @@ export function DoctorProfilePage() {
                   ? "—"
                   : `${profile.specialty_ids.length} assigned`}
               </ReadOnly>
-              <ReadOnly label="Years experience">
-                {profile.years_experience ?? "—"}
-              </ReadOnly>
+              <ReadOnly label="Years experience">{profile.years_experience ?? "—"}</ReadOnly>
               <ReadOnly label="Schedule X prescribing">
                 <Badge size="xs" color={profile.can_prescribe_schedule_x ? "primary" : "gray"}>
                   {profile.can_prescribe_schedule_x ? "Yes" : "No"}
@@ -209,8 +217,12 @@ export function DoctorProfilePage() {
 function ReadOnly({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Group justify="space-between">
-      <Text size="sm" c="dimmed">{label}</Text>
-      <Text size="sm" fw={500}>{children}</Text>
+      <Text size="sm" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" fw={500}>
+        {children}
+      </Text>
     </Group>
   );
 }

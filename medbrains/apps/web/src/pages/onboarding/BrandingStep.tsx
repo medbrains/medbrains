@@ -1,8 +1,8 @@
-import { Button, ColorInput, Stack, Text, TextInput } from "@mantine/core";
-import { brandingSchema } from "@medbrains/schemas";
-import type { BrandingInput } from "@medbrains/schemas";
-import { useOnboardingStore } from "@medbrains/stores";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Button, ColorInput, Stack, Text, TextInput } from "@mantine/core";
+import type { BrandingInput } from "@medbrains/schemas";
+import { brandingSchema } from "@medbrains/schemas";
+import { useOnboardingStore } from "@medbrains/stores";
 import { Controller, useForm } from "react-hook-form";
 import classes from "./onboarding.module.scss";
 
@@ -40,8 +40,8 @@ export function BrandingStep({ onNext, onBack }: Props) {
     <form onSubmit={handleSubmit}>
       <Stack gap="md">
         <Text size="sm" c="dimmed">
-          Customize your hospital&apos;s branding. These colors will be used
-          throughout the interface. You can change these later.
+          Customize your hospital&apos;s branding. These colors will be used throughout the
+          interface. You can change these later.
         </Text>
 
         <div className={classes.formGrid}>
@@ -80,14 +80,8 @@ export function BrandingStep({ onNext, onBack }: Props) {
         />
 
         <div className={classes.brandingPreview}>
-          <div
-            className={classes.colorSwatch}
-            style={{ background: primaryColor }}
-          />
-          <div
-            className={classes.colorSwatch}
-            style={{ background: secondaryColor }}
-          />
+          <div className={classes.colorSwatch} style={{ background: primaryColor }} />
+          <div className={classes.colorSwatch} style={{ background: secondaryColor }} />
           <Text size="sm" c="dimmed">
             Preview of your brand colors
           </Text>
@@ -97,9 +91,7 @@ export function BrandingStep({ onNext, onBack }: Props) {
           <Button variant="default" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">
-            Save & Continue
-          </Button>
+          <Button type="submit">Save & Continue</Button>
         </div>
       </Stack>
     </form>

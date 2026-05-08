@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -80,17 +80,15 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
 
   const handleToggleSample = (sampleId: string) => {
     setSamples(
-      samples.map((s) =>
-        s.sampleId === sampleId ? { ...s, collected: !s.collected } : s
-      )
+      samples.map((s) => (s.sampleId === sampleId ? { ...s, collected: !s.collected } : s)),
     );
   };
 
   const handleSetBarcode = (sampleId: string, barcode: string) => {
     setSamples(
       samples.map((s) =>
-        s.sampleId === sampleId ? { ...s, barcode, collected: Boolean(barcode) } : s
-      )
+        s.sampleId === sampleId ? { ...s, barcode, collected: Boolean(barcode) } : s,
+      ),
     );
   };
 
@@ -133,7 +131,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     );
   }
 
-  const addressParts = [collection.address_line, collection.city, collection.pincode].filter(Boolean);
+  const addressParts = [collection.address_line, collection.city, collection.pincode].filter(
+    Boolean,
+  );
   const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
 
   return (
@@ -150,7 +150,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
               {collection.scheduled_date}
             </Text>
           </View>
-          <Chip icon="clock">{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Chip>
+          <Chip icon="clock">
+            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </Chip>
         </Surface>
 
         {/* Address */}
@@ -273,10 +275,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
               title="All samples labeled correctly"
               left={() => <Checkbox status={allCollected ? "checked" : "unchecked"} />}
             />
-            <List.Item
-              title="Samples stored properly"
-              left={() => <Checkbox status="checked" />}
-            />
+            <List.Item title="Samples stored properly" left={() => <Checkbox status="checked" />} />
           </Card.Content>
         </Card>
 
@@ -316,7 +315,8 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
           <Dialog.Title>Confirm Collection</Dialog.Title>
           <Dialog.Content>
             <Text>
-              You are about to submit {samples.length} sample(s) for collection #{collection.id.slice(0, 8)}.
+              You are about to submit {samples.length} sample(s) for collection #
+              {collection.id.slice(0, 8)}.
             </Text>
             <Text style={styles.dialogWarning}>
               Please ensure all samples are correctly labeled and stored.

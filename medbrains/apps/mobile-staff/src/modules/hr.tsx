@@ -4,15 +4,15 @@
  * request from anywhere.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
-import { ModuleHome } from "../components/module-home.js";
-import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import type { ReactNode } from "react";
+import { listAttendance } from "../api/hr.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
-import { listAttendance } from "../api/hr.js";
+import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   present: "success",
@@ -97,10 +97,7 @@ function AttendanceScreen(): ReactNode {
 
 function HrScreen(): ReactNode {
   return (
-    <ModuleRouter
-      initial="home"
-      screens={{ home: <HrHome />, attendance: <AttendanceScreen /> }}
-    />
+    <ModuleRouter initial="home" screens={{ home: <HrHome />, attendance: <AttendanceScreen /> }} />
   );
 }
 

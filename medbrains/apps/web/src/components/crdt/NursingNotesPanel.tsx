@@ -4,8 +4,8 @@
  * Same UX as NotesPanel but keyed by shiftId.
  */
 
-import { useEffect, useRef, useState } from "react";
 import { Badge, Group, Stack, Text, Textarea } from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
 import { useNursingNotesSource } from "../../hooks/useNursingNotesSource";
 
 interface NursingNotesPanelProps {
@@ -16,7 +16,8 @@ interface NursingNotesPanelProps {
 const SAVE_DEBOUNCE_MS = 600;
 
 export function NursingNotesPanel({ shiftId, canEdit = true }: NursingNotesPanelProps) {
-  const { text, setText, lastAuthor, lastEditedAt, status, ready, unsyncedOps } = useNursingNotesSource(shiftId);
+  const { text, setText, lastAuthor, lastEditedAt, status, ready, unsyncedOps } =
+    useNursingNotesSource(shiftId);
   const [draft, setDraft] = useState(text);
   const lastRemote = useRef(text);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,9 +54,13 @@ export function NursingNotesPanel({ shiftId, canEdit = true }: NursingNotesPanel
       <Group justify="space-between">
         <Text fw={600}>Nursing Shift Notes</Text>
         <Group gap="xs">
-          <Badge variant="light" size="sm" color={statusColor(status)}>{status}</Badge>
+          <Badge variant="light" size="sm" color={statusColor(status)}>
+            {status}
+          </Badge>
           {unsyncedOps > 0 && (
-            <Badge variant="filled" size="sm" color="orange">saving…</Badge>
+            <Badge variant="filled" size="sm" color="orange">
+              saving…
+            </Badge>
           )}
           {lastAuthor && lastEditedAt && (
             <Text size="xs" c="dimmed">

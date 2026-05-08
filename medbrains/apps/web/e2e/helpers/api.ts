@@ -48,7 +48,12 @@ export async function getAuthContextFromCookies(
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
   if (!csrf) return loginAsAdmin(request);
-  return { csrfToken: csrf, request, userId: "", tenantId: "" };
+  const ctx = { csrfToken: csrf, request, userId: "", tenantId: "" };
+  const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
+    headers: { "x-csrf-token": csrf },
+  });
+  if (me.ok()) return ctx;
+  return loginAsAdmin(request);
 }
 
 function statusOk(status: number, expected?: number | number[]): boolean {

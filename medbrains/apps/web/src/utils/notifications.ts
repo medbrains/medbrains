@@ -1,10 +1,5 @@
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconX,
-  IconAlertTriangle,
-  IconInfoCircle,
-} from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconInfoCircle, IconX } from "@tabler/icons-react";
 import { createElement } from "react";
 
 export function showSuccess(title: string, message?: string) {

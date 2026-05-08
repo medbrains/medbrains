@@ -1,8 +1,8 @@
 import type {
   FieldMapping,
-  MappingSource,
-  MappingOperationType,
   MappingOperationConfig,
+  MappingOperationType,
+  MappingSource,
   TransformStep,
 } from "@medbrains/types";
 
@@ -26,7 +26,7 @@ export interface MappingEvalResult {
 
 // ── Helpers ───────────────────────────────────────────────
 
-function toString(v: unknown): string {
+function toStringValue(v: unknown): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "string") return v;
   return JSON.stringify(v);
@@ -48,10 +48,7 @@ function replaceAll(source: string, search: string, replacement: string): string
   return source.split(search).join(replacement);
 }
 
-function getNestedValue(
-  obj: Record<string, unknown>,
-  path: string,
-): unknown {
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split(".");
   let current: unknown = obj;
   for (const part of parts) {
@@ -67,10 +64,7 @@ function getNestedValue(
 
 // ── Resolve a single source (recursive for groups) ───────
 
-function resolveSourceValue(
-  source: MappingSource,
-  sampleData: Record<string, unknown>,
-): unknown {
+function resolveSourceValue(source: MappingSource, sampleData: Record<string, unknown>): unknown {
   // If this source has children, it's a group — resolve recursively
   if (source.children && source.children.length > 0) {
     const childValues = source.children.map((c) => resolveSourceValue(c, sampleData));
@@ -91,7 +85,7 @@ function combineValues(
   switch (mode) {
     case "concat": {
       const sep = config.separator ?? " ";
-      return values.map((v) => toString(v)).join(sep);
+      return values.map((v) => toStringValue(v)).join(sep);
     }
     case "fallback":
       return values.find((v) => v !== null && v !== undefined && v !== "") ?? null;
@@ -101,8 +95,8 @@ function combineValues(
       sources.forEach((s, i) => {
         const placeholder = `{{${s.path}}}`;
         const indexed = `{{source${i + 1}}}`;
-        result = replaceAll(result, placeholder, toString(values[i]));
-        result = replaceAll(result, indexed, toString(values[i]));
+        result = replaceAll(result, placeholder, toStringValue(values[i]));
+        result = replaceAll(result, indexed, toStringValue(values[i]));
       });
       return result;
     }
@@ -131,10 +125,7 @@ function combineValues(
 
 // ── Combine sources ───────────────────────────────────────
 
-function combineSourceValues(
-  mapping: FieldMapping,
-  sampleData: Record<string, unknown>,
-): unknown {
+function combineSourceValues(mapping: FieldMapping, sampleData: Record<string, unknown>): unknown {
   const mode = mapping.combineMode ?? "single";
   if (mode === "single" || !mapping.sources || mapping.sources.length === 0) {
     return getNestedValue(sampleData, mapping.from);
@@ -178,7 +169,7 @@ function applyOperation(
   cfg: MappingOperationConfig,
   context?: EvalContext,
 ): unknown {
-  const str = () => toString(input);
+  const str = () => toStringValue(input);
   const num = () => toNumber(input);
   const arr = () => toArray(input);
 
@@ -199,7 +190,9 @@ function applyOperation(
         .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w))
         .join(" ");
     case "camel_case": {
-      const words = str().split(/[\s_-]+/).filter(Boolean);
+      const words = str()
+        .split(/[\s_-]+/)
+        .filter(Boolean);
       return words
         .map((w, i) =>
           i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
@@ -258,14 +251,12 @@ function applyOperation(
     // ── Array ───────────────────────────────────────
     case "join":
       return arr()
-        .map((v) => toString(v))
+        .map((v) => toStringValue(v))
         .join(cfg.separator ?? ",");
     case "flatten":
       return arr().flat();
     case "unique":
-      return [...new Set(arr().map((v) => JSON.stringify(v)))].map((v) =>
-        JSON.parse(v) as unknown,
-      );
+      return [...new Set(arr().map((v) => JSON.stringify(v)))].map((v) => JSON.parse(v) as unknown);
     case "sort_array":
       return [...arr()].sort((a, b) => String(a).localeCompare(String(b)));
     case "reverse":
@@ -284,7 +275,7 @@ function applyOperation(
       const cond = cfg.condition ?? "";
       if (!cond) return arr();
       return arr().filter((item) => {
-        const s = toString(item);
+        const s = toStringValue(item);
         return s.includes(cond);
       });
     }
@@ -365,10 +356,7 @@ function applyOperation(
       return num() / divisor;
     }
     case "clamp":
-      return Math.min(
-        Math.max(num(), cfg.minValue ?? -Infinity),
-        cfg.maxValue ?? Infinity,
-      );
+      return Math.min(Math.max(num(), cfg.minValue ?? -Infinity), cfg.maxValue ?? Infinity);
     case "format_number": {
       const dp = cfg.decimalPlaces ?? 2;
       const locale = cfg.locale ?? "en-US";
@@ -430,7 +418,7 @@ function applyOperation(
 
     // ── Conversion ──────────────────────────────────
     case "to_string":
-      return toString(input);
+      return toStringValue(input);
     case "to_boolean": {
       if (typeof input === "boolean") return input;
       const s = str().toLowerCase().trim();
@@ -455,7 +443,12 @@ function applyOperation(
     case "is_null":
       return input === null || input === undefined;
     case "is_empty":
-      return input === null || input === undefined || input === "" || (Array.isArray(input) && input.length === 0);
+      return (
+        input === null ||
+        input === undefined ||
+        input === "" ||
+        (Array.isArray(input) && input.length === 0)
+      );
     case "typeof":
       if (input === null) return "null";
       if (Array.isArray(input)) return "array";
@@ -464,25 +457,22 @@ function applyOperation(
     // ── Merge ────────────────────────────────────────
     case "merge_field": {
       const fieldPath = cfg.mergeFieldPath ?? "";
-      const mergeValue = fieldPath && context?.sampleData
-        ? getNestedValue(context.sampleData, fieldPath)
-        : null;
+      const mergeValue =
+        fieldPath && context?.sampleData ? getNestedValue(context.sampleData, fieldPath) : null;
       const mode = cfg.mergeCombineMode ?? "concat";
 
       switch (mode) {
         case "concat": {
           const sep = cfg.separator ?? " ";
-          return toString(input) + sep + toString(mergeValue);
+          return toStringValue(input) + sep + toStringValue(mergeValue);
         }
         case "fallback":
-          return (input !== null && input !== undefined && input !== "")
-            ? input
-            : mergeValue;
+          return input !== null && input !== undefined && input !== "" ? input : mergeValue;
         case "template": {
           const tpl = cfg.templateString ?? "{{current}} {{merged}}";
           let result = tpl;
-          result = replaceAll(result, "{{current}}", toString(input));
-          result = replaceAll(result, "{{merged}}", toString(mergeValue));
+          result = replaceAll(result, "{{current}}", toStringValue(input));
+          result = replaceAll(result, "{{merged}}", toStringValue(mergeValue));
           return result;
         }
         case "arithmetic": {
@@ -500,7 +490,7 @@ function applyOperation(
           }
         }
         default:
-          return toString(input) + " " + toString(mergeValue);
+          return `${toStringValue(input)} ${toStringValue(mergeValue)}`;
       }
     }
 

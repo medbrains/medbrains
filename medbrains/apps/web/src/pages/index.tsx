@@ -10,8 +10,8 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
+import { useQuery } from "@tanstack/react-query";
 
 function StatusBadge({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";

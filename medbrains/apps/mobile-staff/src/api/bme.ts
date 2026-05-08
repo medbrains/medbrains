@@ -2,8 +2,8 @@
  * BME / CMMS API methods — equipment register + breakdowns.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface EquipmentRow {
   id: string;

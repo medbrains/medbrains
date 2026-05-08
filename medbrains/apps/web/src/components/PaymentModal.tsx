@@ -1,4 +1,3 @@
-import { useCallback, useState } from "react";
 import {
   Alert,
   Badge,
@@ -11,6 +10,9 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type { CreatePaymentOrderResponse, UpiQrResponse } from "@medbrains/types";
 import {
   IconAlertCircle,
   IconCash,
@@ -18,13 +20,8 @@ import {
   IconCreditCard,
   IconQrcode,
 } from "@tabler/icons-react";
-import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type {
-  CreatePaymentOrderResponse,
-  UpiQrResponse,
-} from "@medbrains/types";
+import { useCallback, useState } from "react";
 
 declare global {
   interface Window {
@@ -110,9 +107,7 @@ export function PaymentModal({
         amount,
         invoice_id: invoiceId,
         pos_sale_id: posSaleId,
-        description: patientName
-          ? `Payment for ${patientName}`
-          : "Hospital Payment",
+        description: patientName ? `Payment for ${patientName}` : "Hospital Payment",
       }),
     onSuccess: (data: UpiQrResponse) => {
       setQrData(data);
@@ -131,8 +126,7 @@ export function PaymentModal({
       if (!window.Razorpay) {
         notifications.show({
           title: "Payment Error",
-          message:
-            "Razorpay SDK not loaded. Please refresh the page and try again.",
+          message: "Razorpay SDK not loaded. Please refresh the page and try again.",
           color: "red",
         });
         return;
@@ -143,9 +137,7 @@ export function PaymentModal({
         amount: orderData.amount * 100,
         currency: orderData.currency,
         name: "MedBrains HMS",
-        description: patientName
-          ? `Payment for ${patientName}`
-          : "Hospital Payment",
+        description: patientName ? `Payment for ${patientName}` : "Hospital Payment",
         order_id: orderData.order_id,
         handler: (response: {
           razorpay_order_id: string;
@@ -209,8 +201,7 @@ export function PaymentModal({
     onClose();
   }, [utrReference, onSuccess, onClose]);
 
-  const isProcessing =
-    createOrderMutation.isPending || verifyMutation.isPending;
+  const isProcessing = createOrderMutation.isPending || verifyMutation.isPending;
 
   return (
     <Modal
@@ -279,13 +270,8 @@ export function PaymentModal({
 
         {mode === "online" && (
           <Stack gap="sm">
-            <Alert
-              variant="light"
-              color="primary"
-              icon={<IconCreditCard size={16} />}
-            >
-              Pay securely via UPI, Credit/Debit Card, Net Banking, or Wallet
-              through Razorpay.
+            <Alert variant="light" color="primary" icon={<IconCreditCard size={16} />}>
+              Pay securely via UPI, Credit/Debit Card, Net Banking, or Wallet through Razorpay.
             </Alert>
             <Button
               fullWidth
@@ -323,13 +309,8 @@ export function PaymentModal({
                 <Text size="xs" c="dimmed">
                   Ref: {qrData.transaction_ref}
                 </Text>
-                <Alert
-                  variant="light"
-                  color="yellow"
-                  icon={<IconAlertCircle size={16} />}
-                >
-                  After patient pays, enter the UTR/reference number below to
-                  confirm.
+                <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
+                  After patient pays, enter the UTR/reference number below to confirm.
                 </Alert>
                 <TextInput
                   label="UTR / Reference Number"
@@ -339,11 +320,7 @@ export function PaymentModal({
                   required
                   w="100%"
                 />
-                <Button
-                  fullWidth
-                  onClick={handleUpiConfirm}
-                  leftSection={<IconCheck size={18} />}
-                >
+                <Button fullWidth onClick={handleUpiConfirm} leftSection={<IconCheck size={18} />}>
                   Confirm Payment Received
                 </Button>
               </Stack>
@@ -403,7 +380,18 @@ function QrCodeDisplay({ value }: { value: string }) {
         width: "100%",
       }}
     >
-      <div style={{ width: 200, height: 200, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "white", borderRadius: 8, border: "1px solid var(--mantine-color-gray-3)" }}>
+      <div
+        style={{
+          width: 200,
+          height: 200,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "white",
+          borderRadius: 8,
+          border: "1px solid var(--mantine-color-gray-3)",
+        }}
+      >
         <img
           src={`https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=${encodeURIComponent(value)}`}
           alt="UPI QR Code"

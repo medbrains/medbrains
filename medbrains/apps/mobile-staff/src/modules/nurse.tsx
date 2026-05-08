@@ -4,14 +4,14 @@
  * usage — the AuthzCache + Loro append paths flow through here.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
+import type { ReactNode } from "react";
+import type { AdmissionRow } from "../api/ipd.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
-import type { AdmissionRow } from "../api/ipd.js";
 
 function NurseHome(): ReactNode {
   const router = useModuleRouter();

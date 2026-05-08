@@ -12,10 +12,11 @@
 #   AWS_REGION                  (default ap-south-1)
 #   GODADDY_API_KEY
 #   GODADDY_API_SECRET
-#   TF_VAR_tier                 (starter | growth | enterprise | enterprise-k3s)
+#   TF_VAR_tier                 (test | demo | starter | growth | enterprise | enterprise-k3s)
 #   TF_VAR_aws_ssh_key_name     (existing EC2 keypair name, Starter / k3s only)
 #   TF_VAR_ssh_private_key_path (default ~/.ssh/id_ed25519, Starter / k3s only)
 #   TF_VAR_admin_email
+#   TF_VAR_edge_proxy           (pingora)
 #   TF_VAR_binaries_dir / spa_dist_dir / deploy_kit_dir   (Starter only)
 
 terraform {
@@ -49,6 +50,7 @@ module "hospital" {
   domain      = var.domain
   zone_name   = var.zone_name
   admin_email = var.admin_email
+  edge_proxy  = var.edge_proxy
 
   aws_ssh_key_name     = var.aws_ssh_key_name
   ssh_private_key_path = var.ssh_private_key_path
@@ -82,8 +84,18 @@ output "tier" {
   value = module.hospital.tier
 }
 
+output "cost_guard" {
+  value       = module.hospital.cost_guard
+  description = "Cost profile enforced by the selected package."
+}
+
 output "public_endpoint" {
   value = module.hospital.public_endpoint
+}
+
+output "ssh_endpoint" {
+  value       = module.hospital.ssh_endpoint
+  description = "SSH target used by deploy runbooks and pre-apply backup."
 }
 
 output "domain" {

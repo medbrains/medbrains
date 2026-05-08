@@ -62,11 +62,7 @@ impl Handler for HfrRegisterHandler {
         "abdm.hfr.register"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         // Required payload — the registration row id + the original
         // HfrRegisterRequest body the route persisted in payload JSONB.
         let registration_id = payload["registration_id"]
@@ -87,13 +83,14 @@ impl Handler for HfrRegisterHandler {
             .json(body)
             .send()
             .await
-            .map_err(classify_reqwest_err)?;
+            .map_err(|e| classify_reqwest_err(&e))?;
 
         let status = resp.status();
         if status.is_success() {
-            let resp_body: Value = resp.json().await.map_err(|e| {
-                HandlerError::Transient(format!("hfr parse: {e}"))
-            })?;
+            let resp_body: Value = resp
+                .json()
+                .await
+                .map_err(|e| HandlerError::Transient(format!("hfr parse: {e}")))?;
             let nha_facility_id = resp_body["facility_id"]
                 .as_str()
                 .or_else(|| resp_body["fcn"].as_str())
@@ -161,7 +158,7 @@ async fn resolve_secret(ctx: &HandlerCtx, name: &str) -> Result<String, HandlerE
         .map_err(|e| HandlerError::Transient(format!("secret {name}: {e}")))
 }
 
-fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
+fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
     if e.is_timeout() || e.is_connect() {
         HandlerError::Transient(format!("network: {e}"))
     } else if e.is_builder() {
@@ -173,9 +170,7 @@ fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
 
 fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
     match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => {
-            HandlerError::Permanent(format!("hfr {status}: {body}"))
-        }
+        400 | 401 | 403 | 404 | 422 => HandlerError::Permanent(format!("hfr {status}: {body}")),
         429 | 500..=599 => HandlerError::Transient(format!("hfr {status}: {body}")),
         _ => HandlerError::Transient(format!("hfr unexpected {status}: {body}")),
     }

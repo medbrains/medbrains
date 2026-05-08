@@ -251,10 +251,18 @@ export class CrdtStore {
     return () => this.statusListeners.delete(cb);
   }
 
+  getStatus(): CrdtConnectionStatus {
+    return this.status;
+  }
+
   onUnsynced(cb: (n: number) => void): () => void {
     this.unsyncedListeners.add(cb);
     cb(this.unsyncedOps);
     return () => this.unsyncedListeners.delete(cb);
+  }
+
+  getUnsyncedOps(): number {
+    return this.unsyncedOps;
   }
 
   private setStatus(s: CrdtConnectionStatus) {

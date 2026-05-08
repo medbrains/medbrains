@@ -1,18 +1,11 @@
-import {
-  Accordion,
-  Button,
-  NumberInput,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { sequencesSchema } from "@medbrains/schemas";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Accordion, Button, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import type { SequencesInput } from "@medbrains/schemas";
+import { sequencesSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { AdditionalSequence } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
 import { IconHash } from "@tabler/icons-react";
+import { Controller, useForm } from "react-hook-form";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -51,9 +44,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
   const setAdditionalSequences = useOnboardingStore((s) => s.setAdditionalSequences);
 
   // Initialize additional sequences from defaults if empty
-  const seqs = additionalSequences.length > 0
-    ? additionalSequences
-    : additionalSequenceDefaults;
+  const seqs = additionalSequences.length > 0 ? additionalSequences : additionalSequenceDefaults;
 
   const form = useForm<SequencesInput>({
     resolver: zodResolver(sequencesSchema),
@@ -97,8 +88,8 @@ export function SequencesStep({ onNext, onBack }: Props) {
     <form onSubmit={handleSubmit}>
       <Stack gap="lg">
         <Text size="sm" c="dimmed">
-          Configure the format for auto-generated identifiers. These affect
-          patient UHIDs, invoice numbers, and other sequences.
+          Configure the format for auto-generated identifiers. These affect patient UHIDs, invoice
+          numbers, and other sequences.
         </Text>
 
         <div>
@@ -199,9 +190,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
           <Button variant="default" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">
-            Save & Continue
-          </Button>
+          <Button type="submit">Save & Continue</Button>
         </div>
       </Stack>
     </form>

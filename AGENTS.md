@@ -64,8 +64,9 @@ All RFCs live in `RFCs/` at the project root.
 
 ### SQL
 
-- **SQLx** with **runtime queries** (`sqlx::query_as::<_, T>()`) — avoids compile-time DB dependency
-- All types derive `FromRow` for strong typing
+- **SQLx** with compile-time checked macros (`sqlx::query!`, `sqlx::query_as!`, `sqlx::query_scalar!`)
+- `.sqlx/` offline metadata is committed; normal build/check/test/deploy runs with `SQLX_OFFLINE=true`
+- `cargo sqlx prepare` runs only against local/CI/staging schema databases, never production
 - Transaction-scoped RLS: `set_tenant_context(&mut tx, tenant_id)` per request
 - Migrations via `sqlx::migrate!()` embedded at compile time.
 

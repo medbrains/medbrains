@@ -1,6 +1,6 @@
 import { Alert, Badge, Group, Stack, Text, TextInput } from "@mantine/core";
-import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 import type { BasketWarning, BasketWarningAck } from "@medbrains/types";
+import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 
 interface WarningsPanelProps {
   warnings: BasketWarning[];
@@ -45,9 +45,7 @@ export function WarningsPanel({ warnings, acknowledged, onAcknowledge }: Warning
                   label="Override reason (required to sign)"
                   placeholder="e.g., monitoring INR daily, benefit > risk"
                   value={ack?.override_reason ?? ""}
-                  onChange={(e) =>
-                    onAcknowledge(w.code, e.currentTarget.value)
-                  }
+                  onChange={(e) => onAcknowledge(w.code, e.currentTarget.value)}
                   required
                 />
               )}

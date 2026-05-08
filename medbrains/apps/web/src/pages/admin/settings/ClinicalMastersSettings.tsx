@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -15,21 +14,22 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type { InsuranceProvider, MasterItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
+  IconBriefcase,
   IconCheck,
   IconHeart,
-  IconBriefcase,
-  IconUsers,
-  IconShieldCheck,
   IconPencil,
   IconPlus,
+  IconShieldCheck,
   IconTrash,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import type { MasterItem, InsuranceProvider } from "@medbrains/types";
+import { useState } from "react";
 
 // ── Generic Master Item Modal ──────────────────────────────
 
@@ -59,7 +59,10 @@ function MasterItemModal({
   editingItem: MasterItem | null;
   masterType: string;
   createFn: (data: { code: string; name: string; sort_order?: number }) => Promise<MasterItem>;
-  updateFn: (id: string, data: { code?: string; name?: string; sort_order?: number; is_active?: boolean }) => Promise<MasterItem>;
+  updateFn: (
+    id: string,
+    data: { code?: string; name?: string; sort_order?: number; is_active?: boolean },
+  ) => Promise<MasterItem>;
   queryKey: string;
 }) {
   const queryClient = useQueryClient();
@@ -78,16 +81,12 @@ function MasterItemModal({
     }
   };
 
-  const updateField = <K extends keyof MasterFormState>(
-    key: K,
-    value: MasterFormState[K],
-  ) => {
+  const updateField = <K extends keyof MasterFormState>(key: K, value: MasterFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; sort_order?: number }) =>
-      createFn(data),
+    mutationFn: (data: { code: string; name: string; sort_order?: number }) => createFn(data),
     onSuccess: () => {
       notifications.show({
         title: `${masterType} created`,
@@ -109,7 +108,7 @@ function MasterItemModal({
 
   const updateMutation = useMutation({
     mutationFn: (data: { code?: string; name?: string; sort_order?: number }) =>
-      updateFn(editingItem!.id, data),
+      updateFn(editingItem?.id, data),
     onSuccess: () => {
       notifications.show({
         title: `${masterType} updated`,
@@ -178,9 +177,7 @@ function MasterItemModal({
         <NumberInput
           label="Sort Order"
           value={form.sort_order}
-          onChange={(value) =>
-            updateField("sort_order", typeof value === "number" ? value : 0)
-          }
+          onChange={(value) => updateField("sort_order", typeof value === "number" ? value : 0)}
           min={0}
         />
         <Group justify="flex-end" mt="md">
@@ -212,7 +209,10 @@ function MasterTable({
   queryKey: string;
   listFn: () => Promise<MasterItem[]>;
   createFn: (data: { code: string; name: string; sort_order?: number }) => Promise<MasterItem>;
-  updateFn: (id: string, data: { code?: string; name?: string; sort_order?: number; is_active?: boolean }) => Promise<MasterItem>;
+  updateFn: (
+    id: string,
+    data: { code?: string; name?: string; sort_order?: number; is_active?: boolean },
+  ) => Promise<MasterItem>;
   deleteFn: (id: string) => Promise<{ status: string }>;
   masterType: string;
 }) {
@@ -225,7 +225,12 @@ function MasterTable({
   const [editingItem, setEditingItem] = useState<MasterItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MasterItem | null>(null);
 
-  const { data: items, isLoading, isError, error } = useQuery({
+  const {
+    data: items,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: [queryKey],
     queryFn: listFn,
   });
@@ -274,8 +279,7 @@ function MasterTable({
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );
@@ -286,11 +290,7 @@ function MasterTable({
       <Group justify="space-between" mb="md">
         <Text fw={600}>{masterType}s</Text>
         {canCreate && (
-          <Button
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCreate}
-          >
+          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
             Add {masterType}
           </Button>
         )}
@@ -323,20 +323,12 @@ function MasterTable({
                   <Text size="sm">{item.sort_order}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={item.is_active ? "success" : "danger"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={item.is_active ? "success" : "danger"} variant="light" size="sm">
                     {item.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={item.tenant_id ? "primary" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={item.tenant_id ? "primary" : "slate"} variant="light" size="sm">
                     {item.tenant_id ? "Custom" : "Global"}
                   </Badge>
                 </Table.Td>
@@ -526,7 +518,7 @@ function InsuranceProviderModal({
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      api.adminUpdateInsuranceProvider(editingItem!.id, {
+      api.adminUpdateInsuranceProvider(editingItem?.id, {
         code: form.code.trim(),
         name: form.name.trim(),
         provider_type: form.provider_type,
@@ -645,7 +637,12 @@ function InsuranceProvidersTable() {
   const [editingItem, setEditingItem] = useState<InsuranceProvider | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InsuranceProvider | null>(null);
 
-  const { data: providers, isLoading, isError, error } = useQuery({
+  const {
+    data: providers,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["admin-insurance-providers"],
     queryFn: () => api.adminListInsuranceProviders(),
   });
@@ -684,8 +681,7 @@ function InsuranceProvidersTable() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );

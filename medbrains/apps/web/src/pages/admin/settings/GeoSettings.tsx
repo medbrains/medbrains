@@ -1,19 +1,17 @@
-import { useState } from "react";
-import {
-  Button,
-  Divider,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Button, Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconDeviceFloppy, IconInfoCircle, IconMapPin, IconSearch } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useLocaleStore } from "@medbrains/stores";
-import type { GeoCountry, GeoState, GeoDistrict } from "@medbrains/types";
+import type { GeoCountry, GeoDistrict, GeoState } from "@medbrains/types";
+import {
+  IconCheck,
+  IconDeviceFloppy,
+  IconInfoCircle,
+  IconMapPin,
+  IconSearch,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PinCodeInput } from "../../../components/PinCodeInput";
 
 // ── GeoSettings ──────────────────────────────────────────
@@ -21,13 +19,9 @@ import { PinCodeInput } from "../../../components/PinCodeInput";
 export function GeoSettings() {
   const queryClient = useQueryClient();
 
-  const [selectedCountryId, setSelectedCountryId] = useState<string | null>(
-    null,
-  );
+  const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
   const [selectedStateId, setSelectedStateId] = useState<string | null>(null);
-  const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(
-    null,
-  );
+  const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
 
   // ── Load current tenant data (for context; geo IDs not on TenantSummary) ──
 
@@ -39,10 +33,7 @@ export function GeoSettings() {
 
   // ── Geo: Countries ──────────────────────────────────────
 
-  const {
-    data: countries,
-    isLoading: countriesLoading,
-  } = useQuery({
+  const { data: countries, isLoading: countriesLoading } = useQuery({
     queryKey: ["geo-countries"],
     queryFn: () => api.geoCountries(),
     staleTime: 5 * 60_000,
@@ -55,10 +46,7 @@ export function GeoSettings() {
 
   // ── Geo: States (dependent on country) ─────────────────
 
-  const {
-    data: states,
-    isLoading: statesLoading,
-  } = useQuery({
+  const { data: states, isLoading: statesLoading } = useQuery({
     queryKey: ["geo-states", selectedCountryId],
     queryFn: () => api.geoStates(selectedCountryId!),
     enabled: !!selectedCountryId,
@@ -72,10 +60,7 @@ export function GeoSettings() {
 
   // ── Geo: Districts (dependent on state) ────────────────
 
-  const {
-    data: districts,
-    isLoading: districtsLoading,
-  } = useQuery({
+  const { data: districts, isLoading: districtsLoading } = useQuery({
     queryKey: ["geo-districts", selectedStateId],
     queryFn: () => api.geoDistricts(selectedStateId!),
     enabled: !!selectedStateId,
@@ -107,24 +92,24 @@ export function GeoSettings() {
 
       if (result.defaults_applied) {
         // Refresh locale settings in store
-        Promise.all([
-          api.getTenantSettings("units"),
-          api.getTenantSettings("locale"),
-        ]).then(([units, locale]) => {
-          useLocaleStore.getState().setFromTenantSettings(
-            [...units, ...locale].map((r) => ({
-              category: r.category,
-              key: r.key,
-              value: r.value,
-            })),
-          );
-        });
+        Promise.all([api.getTenantSettings("units"), api.getTenantSettings("locale")]).then(
+          ([units, locale]) => {
+            useLocaleStore.getState().setFromTenantSettings(
+              [...units, ...locale].map((r) => ({
+                category: r.category,
+                key: r.key,
+                value: r.value,
+              })),
+            );
+          },
+        );
 
         void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 
         notifications.show({
           title: "Defaults auto-configured",
-          message: "Measurement units, date format, timezone, and currency have been set based on the selected country. You can override them in the Units & Locale tab.",
+          message:
+            "Measurement units, date format, timezone, and currency have been set based on the selected country. You can override them in the Units & Locale tab.",
           color: "primary",
           icon: <IconInfoCircle size={16} />,
           autoClose: 6000,
@@ -173,8 +158,8 @@ export function GeoSettings() {
           </Text>
         </Group>
         <Text size="sm" c="dimmed" mb="md">
-          Set the country, state, and district for your hospital tenant. This
-          determines applicable regulatory bodies and locale defaults.
+          Set the country, state, and district for your hospital tenant. This determines applicable
+          regulatory bodies and locale defaults.
         </Text>
       </div>
 
@@ -193,9 +178,7 @@ export function GeoSettings() {
 
         <Select
           label="State"
-          placeholder={
-            selectedCountryId ? "Select state" : "Select a country first"
-          }
+          placeholder={selectedCountryId ? "Select state" : "Select a country first"}
           data={stateOptions}
           value={selectedStateId}
           onChange={handleStateChange}
@@ -208,9 +191,7 @@ export function GeoSettings() {
 
         <Select
           label="District"
-          placeholder={
-            selectedStateId ? "Select district" : "Select a state first"
-          }
+          placeholder={selectedStateId ? "Select district" : "Select a state first"}
           data={districtOptions}
           value={selectedDistrictId}
           onChange={handleDistrictChange}
@@ -243,9 +224,8 @@ export function GeoSettings() {
           </Text>
         </Group>
         <Text size="sm" c="dimmed" mb="md">
-          Enter a PIN code to find the corresponding town, sub-district,
-          district, state, and country. Click a result to auto-fill the
-          geography selectors above.
+          Enter a PIN code to find the corresponding town, sub-district, district, state, and
+          country. Click a result to auto-fill the geography selectors above.
         </Text>
       </div>
 

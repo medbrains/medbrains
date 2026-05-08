@@ -34,11 +34,7 @@ impl Handler for VerifyAbhaHandler {
         "abdm.verify_abha"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         let abha_id = payload
             .get("abha_id")
             .and_then(Value::as_str)
@@ -116,11 +112,7 @@ impl Handler for HieBundlePushHandler {
         "abdm.hie_bundle_push"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         let bundle = payload
             .get("bundle")
             .ok_or_else(|| HandlerError::Permanent("payload.bundle missing".to_owned()))?;
@@ -131,9 +123,7 @@ impl Handler for HieBundlePushHandler {
         let hiu_public_key = payload
             .get("hiu_public_key")
             .and_then(Value::as_str)
-            .ok_or_else(|| {
-                HandlerError::Permanent("payload.hiu_public_key missing".to_owned())
-            })?;
+            .ok_or_else(|| HandlerError::Permanent("payload.hiu_public_key missing".to_owned()))?;
         let care_context_reference = payload
             .get("care_context_reference")
             .and_then(Value::as_str)

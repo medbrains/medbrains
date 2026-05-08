@@ -1,6 +1,6 @@
 import { Badge, Box, Card, Group, Text, ThemeIcon } from "@mantine/core";
 import { IconCircleFilled, IconGitBranch } from "@tabler/icons-react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, type NodeProps, Position } from "@xyflow/react";
 
 interface ConditionNodeData {
   label?: string;
@@ -51,7 +51,9 @@ export function ConditionNode({ data, selected }: NodeProps) {
         radius="md"
         withBorder
         style={{
-          borderColor: selected ? `var(--mantine-color-${color}-5)` : `var(--mantine-color-${color}-2)`,
+          borderColor: selected
+            ? `var(--mantine-color-${color}-5)`
+            : `var(--mantine-color-${color}-2)`,
           borderWidth: selected ? 2 : 1,
           minWidth: 220,
           background: `var(--mantine-color-${color}-0)`,
@@ -81,8 +83,12 @@ export function ConditionNode({ data, selected }: NodeProps) {
       </Card>
 
       {/* True branch — left */}
-      <Box style={{ position: "absolute", bottom: -22, left: "25%", transform: "translateX(-50%)" }}>
-        <Text size="xs" fw={600} c="green.6" style={{ fontSize: 10 }}>Yes</Text>
+      <Box
+        style={{ position: "absolute", bottom: -22, left: "25%", transform: "translateX(-50%)" }}
+      >
+        <Text size="xs" fw={600} c="green.6" style={{ fontSize: 10 }}>
+          Yes
+        </Text>
       </Box>
       <Handle
         type="source"
@@ -98,8 +104,12 @@ export function ConditionNode({ data, selected }: NodeProps) {
       />
 
       {/* False branch — right */}
-      <Box style={{ position: "absolute", bottom: -22, right: "25%", transform: "translateX(50%)" }}>
-        <Text size="xs" fw={600} c="red.6" style={{ fontSize: 10 }}>No</Text>
+      <Box
+        style={{ position: "absolute", bottom: -22, right: "25%", transform: "translateX(50%)" }}
+      >
+        <Text size="xs" fw={600} c="red.6" style={{ fontSize: 10 }}>
+          No
+        </Text>
       </Box>
       <Handle
         type="source"

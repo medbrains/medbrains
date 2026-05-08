@@ -1,12 +1,13 @@
-import { useState } from "react";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
   Checkbox,
   Drawer,
   Group,
+  Menu,
   Modal,
   NumberInput,
   Progress,
@@ -16,45 +17,29 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertTriangle,
-  IconArrowsTransferDown,
-  IconBed,
-  IconBuildingHospital,
-  IconCalendarTime,
-  IconChartBar,
-  IconCheck,
-  IconDoor,
-  IconEye,
-  IconFileDescription,
-  IconLayoutGrid,
-  IconLink,
-  IconPencil,
-  IconPlus,
-  IconPrinter,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionAttender,
   AdmissionChecklist,
   AdmissionDetailResponse,
+  AdmissionPrintData,
   AdmissionRow,
   AdmissionSource,
   AnesthesiaComplicationEntry,
   BedDashboardRow,
   BedDashboardSummary,
+  BedTransferRequest,
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
+  ClinicalAssessmentType,
   CreateAdmissionRequest,
   CreateAttenderRequest,
   CreateBirthRecordRequest,
@@ -65,29 +50,31 @@ import type {
   CreateRestraintCheckRequest,
   CreateTransferRequest,
   CreateWardRequest,
-  ClinicalAssessmentType,
   DeathCertFormType,
   DietOrder,
+  DischargeSummary as DischargeSummaryGenerated,
   DischargeType,
   EstimatedCostResponse,
+  ExpectedDischargeRow,
   InvestigationsResponse,
-  IpTypeConfiguration,
   IpdBirthRecord,
   IpdCarePlan,
   IpdClinicalAssessment,
   IpdClinicalDocType,
   IpdClinicalDocumentation,
   IpdDeathSummary,
-  IpdDischargeSummary,
   IpdDischargeChecklist,
+  IpdDischargeSummary,
   IpdDischargeTatLog,
   IpdHandoverReport,
   IpdIntakeOutput,
   IpdMedicationAdministration,
   IpdProgressNote,
   IpdTransferLog,
+  IpTypeConfiguration,
   MlcCase,
   NursingTask,
+  PrescriptionWithItems,
   PriorAuthRequestRow,
   ProcedureConsent,
   ProgressNoteType,
@@ -100,21 +87,54 @@ import type {
   UpdateWardRequest,
   WardBedRow,
   WardListRow,
-  AdmissionPrintData,
-  DischargeSummary as DischargeSummaryGenerated,
-  BedTransferRequest,
-  ExpectedDischargeRow,
-  PrescriptionWithItems,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, PrescriptionViews, StatusDot } from "../components";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  IconAlertTriangle,
+  IconArrowsTransferDown,
+  IconBed,
+  IconBuildingHospital,
+  IconCalendarTime,
+  IconChartBar,
+  IconCheck,
+  IconCross,
+  IconDoor,
+  IconDots,
+  IconEye,
+  IconFileDescription,
+  IconHeartRateMonitor,
+  IconLayoutGrid,
+  IconLink,
+  IconPencil,
+  IconPlus,
+  IconPrinter,
+  IconTrash,
+  IconUserOff,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  PageHeader,
+  PrescriptionViews,
+  StatusDot,
+  useClinicalEmit,
+} from "../components";
+import { BedSelect } from "../components/BedSelect";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
-import { BedSelect } from "../components/BedSelect";
+import { DamaModal } from "../components/Ipd/DamaModal";
+import { DischargeWorkflowWizard } from "../components/Ipd/DischargeWorkflowWizard";
+import { MarkDeathModal } from "../components/Ipd/MarkDeathModal";
+import { TransferOutModal } from "../components/Ipd/TransferOutModal";
+import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { WardSelect } from "../components/WardSelect";
+import { ALL_TEMPLATES, type ChecklistTemplate } from "../data/checklist-templates";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -186,17 +206,27 @@ function IpdPageInner() {
 
       <Tabs defaultValue="admissions">
         <Tabs.List mb="md">
-          <Tabs.Tab value="admissions" leftSection={<IconBed size={16} />}>{t("admissions")}</Tabs.Tab>
+          <Tabs.Tab value="admissions" leftSection={<IconBed size={16} />}>
+            {t("admissions")}
+          </Tabs.Tab>
           {(canManageWards || canViewBedDashboard) && (
-            <Tabs.Tab value="wards" leftSection={<IconBuildingHospital size={16} />}>{t("wards")}</Tabs.Tab>
+            <Tabs.Tab value="wards" leftSection={<IconBuildingHospital size={16} />}>
+              {t("wards")}
+            </Tabs.Tab>
           )}
           {canViewBedDashboard && (
-            <Tabs.Tab value="bed-dashboard" leftSection={<IconLayoutGrid size={16} />}>{t("bedDashboard")}</Tabs.Tab>
+            <Tabs.Tab value="bed-dashboard" leftSection={<IconLayoutGrid size={16} />}>
+              {t("bedDashboard")}
+            </Tabs.Tab>
           )}
           {canViewReports && (
-            <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>{t("reports")}</Tabs.Tab>
+            <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>
+              {t("reports")}
+            </Tabs.Tab>
           )}
-          <Tabs.Tab value="expected-discharges" leftSection={<IconCalendarTime size={16} />}>{t("expectedDischarges")}</Tabs.Tab>
+          <Tabs.Tab value="expected-discharges" leftSection={<IconCalendarTime size={16} />}>
+            {t("expectedDischarges")}
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="admissions">
@@ -248,8 +278,12 @@ function AdmissionsTab() {
       label: "Patient",
       render: (row: AdmissionRow) => (
         <Stack gap={0}>
-          <Text size="sm" fw={500}>{row.patient_name}</Text>
-          <Text size="xs" c="dimmed">{row.uhid}</Text>
+          <Text size="sm" fw={500}>
+            {row.patient_name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {row.uhid}
+          </Text>
         </Stack>
       ),
     },
@@ -268,14 +302,22 @@ function AdmissionsTab() {
     {
       key: "admitted_at",
       label: "Admitted",
-      render: (row: AdmissionRow) => <Text size="sm">{new Date(row.admitted_at).toLocaleDateString()}</Text>,
+      render: (row: AdmissionRow) => (
+        <Text size="sm">{new Date(row.admitted_at).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "actions",
       label: "Actions",
       render: (row: AdmissionRow) => (
         <Tooltip label="View details">
-          <ActionIcon variant="subtle" onClick={() => { setSelectedAdmissionId(row.id); openDetail(); }}>
+          <ActionIcon
+            variant="subtle"
+            onClick={() => {
+              setSelectedAdmissionId(row.id);
+              openDetail();
+            }}
+          >
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -319,7 +361,13 @@ function AdmissionsTab() {
 
       <CreateAdmissionDrawer opened={createOpened} onClose={closeCreate} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Admission Detail" position="right" size="xl">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Admission Detail"
+        position="right"
+        size="xl"
+      >
         {selectedAdmissionId && (
           <AdmissionDetail
             admissionId={selectedAdmissionId}
@@ -354,8 +402,15 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
     mutationFn: (data: CreateAdmissionRequest) => api.createAdmission(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      notifications.show({ title: "Admitted", message: "Patient admitted successfully", color: "success" });
-      emit("admission.created", { patient_id: variables.patient_id, department_id: variables.department_id });
+      notifications.show({
+        title: "Admitted",
+        message: "Patient admitted successfully",
+        color: "success",
+      });
+      emit("admission.created", {
+        patient_id: variables.patient_id,
+        department_id: variables.department_id,
+      });
       onClose();
       setPatientId("");
       setDepartmentId("");
@@ -372,7 +427,11 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
       setWardId("");
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create admission", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to create admission",
+        color: "danger",
+      });
     },
   });
 
@@ -380,7 +439,12 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
     <Drawer opened={opened} onClose={onClose} title="New Admission" position="right" size="xl">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={(id) => setPatientId(id)} required />
-        <DepartmentSelect departmentType="clinical" value={departmentId} onChange={(id) => setDepartmentId(id)} required />
+        <DepartmentSelect
+          departmentType="clinical"
+          value={departmentId}
+          onChange={(id) => setDepartmentId(id)}
+          required
+        />
         <DoctorSearchSelect value={doctorId} onChange={(id) => setDoctorId(id)} />
         <BedSelect value={bedId} onChange={(id) => setBedId(id)} wardId={wardId || undefined} />
         <WardSelect value={wardId} onChange={(id) => setWardId(id)} />
@@ -399,14 +463,40 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
         />
         {admissionSource === "referral" && (
           <>
-            <TextInput label="Referral From" value={referralFrom} onChange={(e) => setReferralFrom(e.currentTarget.value)} />
-            <TextInput label="Referral Doctor" value={referralDoctor} onChange={(e) => setReferralDoctor(e.currentTarget.value)} />
-            <Textarea label="Referral Notes" value={referralNotes} onChange={(e) => setReferralNotes(e.currentTarget.value)} />
+            <TextInput
+              label="Referral From"
+              value={referralFrom}
+              onChange={(e) => setReferralFrom(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Referral Doctor"
+              value={referralDoctor}
+              onChange={(e) => setReferralDoctor(e.currentTarget.value)}
+            />
+            <Textarea
+              label="Referral Notes"
+              value={referralNotes}
+              onChange={(e) => setReferralNotes(e.currentTarget.value)}
+            />
           </>
         )}
         <Group grow>
-          <NumberInput label="Weight (kg)" value={weightKg} onChange={setWeightKg} min={0} max={500} decimalScale={2} />
-          <NumberInput label="Height (cm)" value={heightCm} onChange={setHeightCm} min={0} max={300} decimalScale={2} />
+          <NumberInput
+            label="Weight (kg)"
+            value={weightKg}
+            onChange={setWeightKg}
+            min={0}
+            max={500}
+            decimalScale={2}
+          />
+          <NumberInput
+            label="Height (cm)"
+            value={heightCm}
+            onChange={setHeightCm}
+            min={0}
+            max={300}
+            decimalScale={2}
+          />
         </Group>
         <TextInput
           label="Expected Discharge Date"
@@ -458,8 +548,15 @@ function AdmissionDetail({
   canDischarge: boolean;
 }) {
   const canCreateDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_CREATE);
-  const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] = useDisclosure(false);
-  const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] = useDisclosure(false);
+  const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] =
+    useDisclosure(false);
+  const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] =
+    useDisclosure(false);
+  const [damaOpened, { open: openDama, close: closeDama }] = useDisclosure(false);
+  const [deathOpened, { open: openDeath, close: closeDeath }] = useDisclosure(false);
+  const [wristbandOpened, { open: openWristband, close: closeWristband }] = useDisclosure(false);
+  const [transferOutOpened, { open: openTransferOut, close: closeTransferOut }] =
+    useDisclosure(false);
 
   const { data } = useQuery({
     queryKey: ["admission-detail", admissionId],
@@ -473,11 +570,20 @@ function AdmissionDetail({
 
   return (
     <Stack>
+      <PatientContextBanner patientId={adm.patient_id} />
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
-          {adm.is_critical && <Badge color="danger" variant="filled" size="sm">CRITICAL</Badge>}
-          {adm.mlc_case_id && <Badge color="orange" variant="filled" size="sm">MLC</Badge>}
+          {adm.is_critical && (
+            <Badge color="danger" variant="filled" size="sm">
+              CRITICAL
+            </Badge>
+          )}
+          {adm.mlc_case_id && (
+            <Badge color="orange" variant="filled" size="sm">
+              MLC
+            </Badge>
+          )}
         </Group>
         <Group gap="xs">
           <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
@@ -486,25 +592,116 @@ function AdmissionDetail({
           <PrintAdmissionButton admissionId={admissionId} />
           {canCreateDischargeSummary && adm.status === "admitted" && (
             <Tooltip label="Generate Discharge Summary">
-              <Button size="xs" variant="light" color="teal" leftSection={<IconFileDescription size={14} />} onClick={openDischargeSummary}>
+              <Button
+                size="xs"
+                variant="light"
+                color="teal"
+                leftSection={<IconFileDescription size={14} />}
+                onClick={openDischargeSummary}
+              >
                 Discharge Summary
               </Button>
             </Tooltip>
           )}
           {canManageBeds && adm.status === "admitted" && (
             <Tooltip label="Transfer Bed">
-              <Button size="xs" variant="light" color="primary" leftSection={<IconArrowsTransferDown size={14} />} onClick={openBedTransfer}>
+              <Button
+                size="xs"
+                variant="light"
+                color="primary"
+                leftSection={<IconArrowsTransferDown size={14} />}
+                onClick={openBedTransfer}
+              >
                 Bed Transfer
               </Button>
             </Tooltip>
           )}
+          {/* Actions menu — Track 0.bis. Hosts the long-tail of admission
+              actions so the header doesn't get crowded. Items are filtered
+              by admission status at render time. */}
+          <Menu shadow="md" position="bottom-end" withArrow>
+            <Menu.Target>
+              <Button size="xs" variant="default" rightSection={<IconDots size={14} />}>
+                Actions
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Discharge</Menu.Label>
+              <Menu.Item
+                leftSection={<IconUserOff size={14} />}
+                color="warning"
+                disabled={adm.status !== "admitted"}
+                onClick={openDama}
+              >
+                Record DAMA / LAMA
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconCross size={14} />}
+                color="danger"
+                disabled={adm.status !== "admitted"}
+                onClick={openDeath}
+              >
+                Mark patient death
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Label>Orders</Menu.Label>
+              <Menu.Item
+                leftSection={<IconHeartRateMonitor size={14} />}
+                disabled={adm.status !== "admitted"}
+                onClick={() => {
+                  notifications.show({
+                    title: "Quick orders",
+                    message:
+                      "Use the Prescriptions / Investigations tabs — header shortcut coming in Phase B",
+                    color: "primary",
+                  });
+                }}
+              >
+                Quick Rx / Lab / Imaging
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Label>Documents</Menu.Label>
+              <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openWristband}>
+                Print wristband (NABH IPSG 1)
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconArrowsTransferDown size={14} />}
+                disabled={adm.status !== "admitted"}
+                onClick={openTransferOut}
+              >
+                Refer out / inter-hospital transfer
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </Group>
 
-      <GenerateDischargeSummaryModal admissionId={admissionId} opened={dischargeSummaryOpened} onClose={closeDischargeSummary} />
-      <BedTransferModal admissionId={admissionId} opened={bedTransferOpened} onClose={closeBedTransfer} />
+      <GenerateDischargeSummaryModal
+        admissionId={admissionId}
+        opened={dischargeSummaryOpened}
+        onClose={closeDischargeSummary}
+      />
+      <BedTransferModal
+        admissionId={admissionId}
+        opened={bedTransferOpened}
+        onClose={closeBedTransfer}
+      />
+      <DamaModal admissionId={admissionId} opened={damaOpened} onClose={closeDama} />
+      <MarkDeathModal admissionId={admissionId} opened={deathOpened} onClose={closeDeath} />
+      <WristbandPrintModal
+        admissionId={admissionId}
+        opened={wristbandOpened}
+        onClose={closeWristband}
+      />
+      <TransferOutModal
+        admissionId={admissionId}
+        opened={transferOutOpened}
+        onClose={closeTransferOut}
+      />
       <Text size="sm">Admitted: {new Date(adm.admitted_at).toLocaleString()}</Text>
-      {adm.discharged_at && <Text size="sm">Discharged: {new Date(adm.discharged_at).toLocaleString()}</Text>}
+      {adm.discharged_at && (
+        <Text size="sm">Discharged: {new Date(adm.discharged_at).toLocaleString()}</Text>
+      )}
       {adm.provisional_diagnosis && <Text size="sm">Diagnosis: {adm.provisional_diagnosis}</Text>}
       {adm.admission_source && <Text size="sm">Source: {adm.admission_source}</Text>}
 
@@ -547,10 +744,7 @@ function AdmissionDetail({
           <MarTab admissionId={admissionId} />
         </Tabs.Panel>
         <Tabs.Panel value="prescriptions" pt="md">
-          <AdmissionPrescriptionsTab
-            encounterId={detail.encounter.id}
-            patientId={adm.patient_id}
-          />
+          <AdmissionPrescriptionsTab encounterId={detail.encounter.id} patientId={adm.patient_id} />
         </Tabs.Panel>
         <Tabs.Panel value="io" pt="md">
           <IoChartTab admissionId={admissionId} />
@@ -590,7 +784,11 @@ function AdmissionDetail({
           <ConsentsTab admissionId={admissionId} />
         </Tabs.Panel>
         <Tabs.Panel value="death-summary" pt="md">
-          <DeathSummaryTab admissionId={admissionId} patientId={adm.patient_id} status={adm.status} />
+          <DeathSummaryTab
+            admissionId={admissionId}
+            patientId={adm.patient_id}
+            status={adm.status}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="birth-records" pt="md">
           <BirthRecordsTab admissionId={admissionId} motherPatientId={adm.patient_id} />
@@ -600,6 +798,7 @@ function AdmissionDetail({
         </Tabs.Panel>
         <Tabs.Panel value="discharge" pt="md">
           <DischargeTab admissionId={admissionId} canDischarge={canDischarge} status={adm.status} />
+          <DischargeWorkflowWizard admissionId={admissionId} />
         </Tabs.Panel>
         <Tabs.Panel value="discharge-tat" pt="md">
           <DischargeTatTab admissionId={admissionId} />
@@ -611,7 +810,15 @@ function AdmissionDetail({
 
 // ── Overview (tasks) ───────────────────────────────────
 
-function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; tasks: NursingTask[]; canCreate: boolean }) {
+function OverviewTab({
+  admissionId,
+  tasks,
+  canCreate,
+}: {
+  admissionId: string;
+  tasks: NursingTask[];
+  canCreate: boolean;
+}) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<CreateNursingTaskRequest>>({});
@@ -628,25 +835,50 @@ function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; t
   const toggleMutation = useMutation({
     mutationFn: ({ taskId, completed }: { taskId: string; completed: boolean }) =>
       api.updateNursingTask(admissionId, taskId, { is_completed: completed }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
   });
 
   return (
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Task
           </Button>
         </Group>
       )}
       {showForm && (
         <Stack gap="xs">
-          <Select label="Task Type" required data={NURSING_TASK_TYPES} onChange={(v) => setForm({ ...form, task_type: v ?? "" })} searchable />
-          <TextInput label="Description" required onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
-          <TextInput label="Assigned To (User ID)" onChange={(e) => setForm({ ...form, assigned_to: e.currentTarget.value || undefined })} />
-          <TextInput label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateNursingTaskRequest)} loading={createMutation.isPending}>
+          <Select
+            label="Task Type"
+            required
+            data={NURSING_TASK_TYPES}
+            onChange={(v) => setForm({ ...form, task_type: v ?? "" })}
+            searchable
+          />
+          <TextInput
+            label="Description"
+            required
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Assigned To (User ID)"
+            onChange={(e) => setForm({ ...form, assigned_to: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Notes"
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateNursingTaskRequest)}
+            loading={createMutation.isPending}
+          >
             Save Task
           </Button>
         </Stack>
@@ -667,7 +899,9 @@ function OverviewTab({ admissionId, tasks, canCreate }: { admissionId: string; t
               <Table.Td>
                 <Checkbox
                   checked={t.is_completed}
-                  onChange={() => toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })}
+                  onChange={() =>
+                    toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })
+                  }
                   disabled={!canCreate}
                 />
               </Table.Td>
@@ -725,7 +959,11 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
   return (
     <Stack>
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+        <Button
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => setShowForm(!showForm)}
+        >
           Add Note
         </Button>
       )}
@@ -744,26 +982,115 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
             value={noteType}
             onChange={(v) => setNoteType(v ?? "doctor_round")}
           />
-          <Textarea label="Subjective" value={subjective} onChange={(e) => setSubjective(e.currentTarget.value)} />
-          <Textarea label="Objective" value={objective} onChange={(e) => setObjective(e.currentTarget.value)} />
-          <Textarea label="Assessment" value={assessment} onChange={(e) => setAssessment(e.currentTarget.value)} />
+          <Textarea
+            label="Subjective"
+            value={subjective}
+            onChange={(e) => setSubjective(e.currentTarget.value)}
+          />
+          <Textarea
+            label="Objective"
+            value={objective}
+            onChange={(e) => setObjective(e.currentTarget.value)}
+          />
+          <Textarea
+            label="Assessment"
+            value={assessment}
+            onChange={(e) => setAssessment(e.currentTarget.value)}
+          />
           <Textarea label="Plan" value={plan} onChange={(e) => setPlan(e.currentTarget.value)} />
-          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>Save</Button>
+          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>
+            Save
+          </Button>
         </Stack>
       )}
-      {notes.map((n) => (
-        <Stack key={n.id} gap="xs" p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Group justify="space-between">
-            <Badge size="sm">{n.note_type}</Badge>
-            <Text size="xs" c="dimmed">{new Date(n.created_at).toLocaleString()}</Text>
-          </Group>
-          {n.subjective && <Text size="sm"><b>S:</b> {n.subjective}</Text>}
-          {n.objective && <Text size="sm"><b>O:</b> {n.objective}</Text>}
-          {n.assessment && <Text size="sm"><b>A:</b> {n.assessment}</Text>}
-          {n.plan && <Text size="sm"><b>P:</b> {n.plan}</Text>}
-        </Stack>
-      ))}
-      {notes.length === 0 && <Text c="dimmed" size="sm">No progress notes yet.</Text>}
+      {(() => {
+        const groups = new Map<string, IpdProgressNote[]>();
+        for (const n of notes) {
+          const key = n.note_date ?? n.created_at.slice(0, 10);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)?.push(n);
+        }
+        const sortedDates = [...groups.keys()].sort((a, b) => b.localeCompare(a));
+        return sortedDates.map((date) => {
+          const dayNotes = groups
+            .get(date)
+            ?.sort((a, b) => b.created_at.localeCompare(a.created_at));
+          const dateLabel = new Date(date).toLocaleDateString(undefined, {
+            weekday: "short",
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+          return (
+            <Stack key={date} gap="xs">
+              <Group gap="xs" align="baseline">
+                <Text fw={700} size="sm" c="dark.7">
+                  {dateLabel}
+                </Text>
+                <Text size="xs" c="dimmed" ff="monospace">
+                  {dayNotes.length} {dayNotes.length === 1 ? "entry" : "entries"}
+                </Text>
+              </Group>
+              {dayNotes.map((n) => (
+                <Stack
+                  key={n.id}
+                  gap={4}
+                  p="xs"
+                  style={{
+                    borderLeft: "3px solid var(--fc-brand, #1F4332)",
+                    background: "var(--fc-panel, #f7f8f6)",
+                    borderRadius: 4,
+                  }}
+                >
+                  <Group justify="space-between" gap="xs">
+                    <Group gap="xs">
+                      <Badge size="xs" variant="light">
+                        {n.note_type}
+                      </Badge>
+                      <Text size="xs" c="dimmed" ff="monospace">
+                        {new Date(n.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    </Group>
+                    {n.is_addendum && (
+                      <Badge size="xs" color="orange" variant="light">
+                        addendum
+                      </Badge>
+                    )}
+                  </Group>
+                  {n.subjective && (
+                    <Text size="sm">
+                      <b>S:</b> {n.subjective}
+                    </Text>
+                  )}
+                  {n.objective && (
+                    <Text size="sm">
+                      <b>O:</b> {n.objective}
+                    </Text>
+                  )}
+                  {n.assessment && (
+                    <Text size="sm">
+                      <b>A:</b> {n.assessment}
+                    </Text>
+                  )}
+                  {n.plan && (
+                    <Text size="sm">
+                      <b>P:</b> {n.plan}
+                    </Text>
+                  )}
+                </Stack>
+              ))}
+            </Stack>
+          );
+        });
+      })()}
+      {notes.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No progress notes yet.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -777,35 +1104,110 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
   const [assessmentType, setAssessmentType] = useState("morse_fall_scale");
   const [scoreValue, setScoreValue] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
+  const [bradenScores, setBradenScores] = useState({
+    sensory_perception: 4,
+    moisture: 4,
+    activity: 4,
+    mobility: 4,
+    nutrition: 4,
+    friction_shear: 3,
+  });
+  const [injuryPresent, setInjuryPresent] = useState(false);
+  const [injuryStage, setInjuryStage] = useState("");
+  const [injuryLocation, setInjuryLocation] = useState("");
+  const [injuryAcquired, setInjuryAcquired] = useState("");
+  const [repositioningPlan, setRepositioningPlan] = useState("");
+  const [nutritionalPlan, setNutritionalPlan] = useState("");
+  const [skinCarePlan, setSkinCarePlan] = useState("");
+  const [bradenNotes, setBradenNotes] = useState("");
 
   const { data } = useQuery({
     queryKey: ["ipd-assessments", admissionId],
     queryFn: () => api.listAssessments(admissionId),
   });
 
+  const bradenTotal =
+    bradenScores.sensory_perception +
+    bradenScores.moisture +
+    bradenScores.activity +
+    bradenScores.mobility +
+    bradenScores.nutrition +
+    bradenScores.friction_shear;
+  const bradenRisk =
+    bradenTotal <= 9
+      ? "severe"
+      : bradenTotal <= 12
+        ? "high"
+        : bradenTotal <= 14
+          ? "moderate"
+          : bradenTotal <= 18
+            ? "mild"
+            : "no risk";
+
+  const updateBradenScore = (key: keyof typeof bradenScores, value: number | string) => {
+    const max = key === "friction_shear" ? 3 : 4;
+    const numeric = Math.max(1, Math.min(max, Number(value) || 1));
+    setBradenScores((current) => ({ ...current, [key]: numeric }));
+  };
+
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createAssessment(admissionId, {
+    mutationFn: () => {
+      const isBraden = assessmentType === "braden_scale";
+      return api.createAssessment(admissionId, {
         assessment_type: assessmentType as ClinicalAssessmentType,
-        score_value: scoreValue ? Number(scoreValue) : undefined,
-        risk_level: riskLevel || undefined,
-      }),
+        score_value: isBraden ? bradenTotal : scoreValue ? Number(scoreValue) : undefined,
+        risk_level: isBraden ? bradenRisk : riskLevel || undefined,
+        score_details: isBraden
+          ? {
+              ...bradenScores,
+              injury_present: injuryPresent,
+              injury_stage: injuryStage || undefined,
+              injury_location: injuryLocation || undefined,
+              injury_acquired: injuryAcquired || undefined,
+              repositioning_plan: repositioningPlan || undefined,
+              nutritional_plan: nutritionalPlan || undefined,
+              skin_care_plan: skinCarePlan || undefined,
+              notes: bradenNotes || undefined,
+            }
+          : undefined,
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-assessments", admissionId] });
       setShowForm(false);
       setScoreValue("");
       setRiskLevel("");
+      setInjuryPresent(false);
+      setInjuryStage("");
+      setInjuryLocation("");
+      setInjuryAcquired("");
+      setRepositioningPlan("");
+      setNutritionalPlan("");
+      setSkinCarePlan("");
+      setBradenNotes("");
     },
   });
 
   const assessments = (data ?? []) as IpdClinicalAssessment[];
 
-  const riskColors: Record<string, string> = { low: "success", moderate: "warning", high: "orange", critical: "danger" };
+  const riskColors: Record<string, string> = {
+    "no risk": "success",
+    low: "success",
+    mild: "teal",
+    moderate: "warning",
+    high: "orange",
+    severe: "danger",
+    critical: "danger",
+  };
 
   return (
     <Stack>
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+        <Button
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => setShowForm(!showForm)}
+        >
           Add Assessment
         </Button>
       )}
@@ -825,15 +1227,159 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
             value={assessmentType}
             onChange={(v) => setAssessmentType(v ?? "morse_fall_scale")}
           />
-          <TextInput label="Score" value={scoreValue} onChange={(e) => setScoreValue(e.currentTarget.value)} />
-          <Select
-            label="Risk Level"
-            data={["low", "moderate", "high", "critical"]}
-            value={riskLevel}
-            onChange={(v) => setRiskLevel(v ?? "")}
-            clearable
-          />
-          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>Save</Button>
+          {assessmentType === "braden_scale" ? (
+            <>
+              <Alert
+                color="orange"
+                variant="light"
+                icon={<IconAlertTriangle size={16} />}
+                title="Pressure injury prevention evidence"
+              >
+                Braden entries are mirrored automatically into the NABH pressure-ulcer evidence
+                register. Record all six subscores and any observed injury here.
+              </Alert>
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                <NumberInput
+                  label="Sensory perception"
+                  min={1}
+                  max={4}
+                  value={bradenScores.sensory_perception}
+                  onChange={(v) => updateBradenScore("sensory_perception", v)}
+                />
+                <NumberInput
+                  label="Moisture"
+                  min={1}
+                  max={4}
+                  value={bradenScores.moisture}
+                  onChange={(v) => updateBradenScore("moisture", v)}
+                />
+                <NumberInput
+                  label="Activity"
+                  min={1}
+                  max={4}
+                  value={bradenScores.activity}
+                  onChange={(v) => updateBradenScore("activity", v)}
+                />
+                <NumberInput
+                  label="Mobility"
+                  min={1}
+                  max={4}
+                  value={bradenScores.mobility}
+                  onChange={(v) => updateBradenScore("mobility", v)}
+                />
+                <NumberInput
+                  label="Nutrition"
+                  min={1}
+                  max={4}
+                  value={bradenScores.nutrition}
+                  onChange={(v) => updateBradenScore("nutrition", v)}
+                />
+                <NumberInput
+                  label="Friction / shear"
+                  min={1}
+                  max={3}
+                  value={bradenScores.friction_shear}
+                  onChange={(v) => updateBradenScore("friction_shear", v)}
+                />
+              </SimpleGrid>
+              <Group>
+                <Badge color={riskColors[bradenRisk] ?? "slate"} size="lg">
+                  Braden {bradenTotal} · {bradenRisk}
+                </Badge>
+                <Text size="xs" c="dimmed">
+                  Lower score means higher pressure-injury risk.
+                </Text>
+              </Group>
+              <Checkbox
+                label="Pressure injury observed during this assessment"
+                checked={injuryPresent}
+                onChange={(event) => setInjuryPresent(event.currentTarget.checked)}
+              />
+              {injuryPresent && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  <Select
+                    label="Injury stage"
+                    data={[
+                      "stage_1",
+                      "stage_2",
+                      "stage_3",
+                      "stage_4",
+                      "unstageable",
+                      "deep_tissue",
+                    ]}
+                    value={injuryStage}
+                    onChange={(v) => setInjuryStage(v ?? "")}
+                    clearable
+                  />
+                  <TextInput
+                    label="Injury location"
+                    value={injuryLocation}
+                    onChange={(e) => setInjuryLocation(e.currentTarget.value)}
+                  />
+                  <Select
+                    label="Acquired"
+                    data={[
+                      { value: "present_on_admission", label: "Present on admission" },
+                      { value: "hospital_acquired", label: "Hospital acquired" },
+                    ]}
+                    value={injuryAcquired}
+                    onChange={(v) => setInjuryAcquired(v ?? "")}
+                    clearable
+                  />
+                  <TextInput
+                    label="Repositioning plan"
+                    value={repositioningPlan}
+                    onChange={(e) => setRepositioningPlan(e.currentTarget.value)}
+                  />
+                  <TextInput
+                    label="Nutritional plan"
+                    value={nutritionalPlan}
+                    onChange={(e) => setNutritionalPlan(e.currentTarget.value)}
+                  />
+                  <TextInput
+                    label="Skin care plan"
+                    value={skinCarePlan}
+                    onChange={(e) => setSkinCarePlan(e.currentTarget.value)}
+                  />
+                </SimpleGrid>
+              )}
+              <Textarea
+                label="Assessment notes"
+                value={bradenNotes}
+                onChange={(e) => setBradenNotes(e.currentTarget.value)}
+                minRows={2}
+              />
+            </>
+          ) : (
+            <>
+              {assessmentType === "morse_fall_scale" && (
+                <Alert
+                  color="yellow"
+                  variant="light"
+                  icon={<IconAlertTriangle size={16} />}
+                  title="Fall prevention source data"
+                >
+                  Morse scores are used when a fall incident is reported to show whether risk
+                  assessment was completed before the fall.
+                </Alert>
+              )}
+              <TextInput
+                label="Score"
+                value={scoreValue}
+                onChange={(e) => setScoreValue(e.currentTarget.value)}
+              />
+              <Select
+                label="Risk Level"
+                data={["low", "moderate", "high", "critical"]}
+                value={riskLevel}
+                onChange={(v) => setRiskLevel(v ?? "")}
+                clearable
+              />
+            </>
+          )}
+          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>
+            Save
+          </Button>
         </Stack>
       )}
       <Table striped>
@@ -848,14 +1394,22 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
         <Table.Tbody>
           {assessments.map((a) => (
             <Table.Tr key={a.id}>
-              <Table.Td><Badge size="sm">{a.assessment_type}</Badge></Table.Td>
+              <Table.Td>
+                <Badge size="sm">{a.assessment_type}</Badge>
+              </Table.Td>
               <Table.Td>{a.score_value ?? "—"}</Table.Td>
               <Table.Td>
                 {a.risk_level ? (
-                  <Badge color={riskColors[a.risk_level] ?? "slate"} size="sm">{a.risk_level}</Badge>
-                ) : "—"}
+                  <Badge color={riskColors[a.risk_level] ?? "slate"} size="sm">
+                    {a.risk_level}
+                  </Badge>
+                ) : (
+                  "—"
+                )}
               </Table.Td>
-              <Table.Td><Text size="xs">{new Date(a.assessed_at).toLocaleString()}</Text></Table.Td>
+              <Table.Td>
+                <Text size="xs">{new Date(a.assessed_at).toLocaleString()}</Text>
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -901,35 +1455,57 @@ function MarTab({ admissionId }: { admissionId: string }) {
             <Table.Tr key={m.id} bg={m.is_high_alert ? "red.0" : undefined}>
               <Table.Td>
                 <Group gap={4}>
-                  <Text size="sm" fw={500}>{m.drug_name}</Text>
+                  <Text size="sm" fw={500}>
+                    {m.drug_name}
+                  </Text>
                   {m.is_high_alert && (
                     <Tooltip label="High-Alert Medication — requires double-check">
-                      <Badge color="danger" size="xs" leftSection={<IconAlertTriangle size={10} />}>HIGH ALERT</Badge>
+                      <Badge color="danger" size="xs" leftSection={<IconAlertTriangle size={10} />}>
+                        HIGH ALERT
+                      </Badge>
                     </Tooltip>
                   )}
                 </Group>
               </Table.Td>
-              <Table.Td><Text size="sm">{m.dose}</Text></Table.Td>
-              <Table.Td><Text size="sm">{m.route}</Text></Table.Td>
-              <Table.Td><Text size="xs">{new Date(m.scheduled_at).toLocaleString()}</Text></Table.Td>
               <Table.Td>
-                <Badge color={marStatusColors[m.status] ?? "slate"} size="sm">{m.status}</Badge>
+                <Text size="sm">{m.dose}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{m.route}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs">{new Date(m.scheduled_at).toLocaleString()}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge color={marStatusColors[m.status] ?? "slate"} size="sm">
+                  {m.status}
+                </Badge>
                 {m.is_high_alert && m.status === "given" && !m.double_checked_by && (
-                  <Badge color="orange" size="xs" ml={4}>Needs witness</Badge>
+                  <Badge color="orange" size="xs" ml={4}>
+                    Needs witness
+                  </Badge>
                 )}
               </Table.Td>
               <Table.Td>
                 {m.double_checked_by ? (
-                  <Badge color="success" size="xs" variant="light">Verified</Badge>
+                  <Badge color="success" size="xs" variant="light">
+                    Verified
+                  </Badge>
                 ) : m.is_high_alert ? (
-                  <Badge color="slate" size="xs" variant="light">Pending</Badge>
+                  <Badge color="slate" size="xs" variant="light">
+                    Pending
+                  </Badge>
                 ) : null}
               </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
-      {rows.length === 0 && <Text c="dimmed" size="sm">No medication records yet.</Text>}
+      {rows.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No medication records yet.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -954,7 +1530,11 @@ function AdmissionPrescriptionsTab({
   });
 
   if (prescriptions.length === 0) {
-    return <Text c="dimmed" size="sm">No prescriptions for this admission.</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No prescriptions for this admission.
+      </Text>
+    );
   }
 
   const fullName = patient
@@ -990,8 +1570,12 @@ function IoChartTab({ admissionId }: { admissionId: string }) {
     <Stack>
       {balance && (
         <Group gap="lg">
-          <Badge color="primary" size="lg">Intake: {balance.total_intake_ml} ml</Badge>
-          <Badge color="orange" size="lg">Output: {balance.total_output_ml} ml</Badge>
+          <Badge color="primary" size="lg">
+            Intake: {balance.total_intake_ml} ml
+          </Badge>
+          <Badge color="orange" size="lg">
+            Output: {balance.total_output_ml} ml
+          </Badge>
           <Badge color={Number(balance.balance_ml) >= 0 ? "success" : "danger"} size="lg">
             Balance: {balance.balance_ml} ml
           </Badge>
@@ -1015,15 +1599,27 @@ function IoChartTab({ admissionId }: { admissionId: string }) {
                   {r.is_intake ? "Intake" : "Output"}
                 </Badge>
               </Table.Td>
-              <Table.Td><Text size="sm">{r.category}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.volume_ml}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.shift}</Text></Table.Td>
-              <Table.Td><Text size="xs">{new Date(r.recorded_at).toLocaleString()}</Text></Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.category}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.volume_ml}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.shift}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs">{new Date(r.recorded_at).toLocaleString()}</Text>
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
-      {rows.length === 0 && <Text c="dimmed" size="sm">No intake/output records yet.</Text>}
+      {rows.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No intake/output records yet.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -1059,12 +1655,26 @@ function NursingTab({ admissionId }: { admissionId: string }) {
         </Button>
       </Group>
 
-      <Text fw={600} size="sm">Care Plans</Text>
+      <Text fw={600} size="sm">
+        Care Plans
+      </Text>
       {plans.map((cp) => (
-        <Stack key={cp.id} gap={4} p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+        <Stack
+          key={cp.id}
+          gap={4}
+          p="xs"
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+        >
           <Group justify="space-between">
-            <Text size="sm" fw={500}>{cp.nursing_diagnosis}</Text>
-            <Badge size="xs" color={cp.status === "active" ? "success" : cp.status === "resolved" ? "slate" : "danger"}>
+            <Text size="sm" fw={500}>
+              {cp.nursing_diagnosis}
+            </Text>
+            <Badge
+              size="xs"
+              color={
+                cp.status === "active" ? "success" : cp.status === "resolved" ? "slate" : "danger"
+              }
+            >
               {cp.status}
             </Badge>
           </Group>
@@ -1072,23 +1682,60 @@ function NursingTab({ admissionId }: { admissionId: string }) {
           {cp.evaluation && <Text size="xs">Eval: {cp.evaluation}</Text>}
         </Stack>
       ))}
-      {plans.length === 0 && <Text c="dimmed" size="sm">No care plans yet.</Text>}
+      {plans.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No care plans yet.
+        </Text>
+      )}
 
-      <Text fw={600} size="sm" mt="md">Handover Reports (ISBAR)</Text>
+      <Text fw={600} size="sm" mt="md">
+        Handover Reports (ISBAR)
+      </Text>
       {reports.map((h) => (
-        <Stack key={h.id} gap={4} p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+        <Stack
+          key={h.id}
+          gap={4}
+          p="xs"
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+        >
           <Group justify="space-between">
             <Badge size="xs">{h.shift} shift</Badge>
-            <Text size="xs" c="dimmed">{h.handover_date}</Text>
-            {h.acknowledged_at && <Badge size="xs" color="success">Acknowledged</Badge>}
+            <Text size="xs" c="dimmed">
+              {h.handover_date}
+            </Text>
+            {h.acknowledged_at && (
+              <Badge size="xs" color="success">
+                Acknowledged
+              </Badge>
+            )}
           </Group>
-          {h.situation && <Text size="xs"><b>S:</b> {h.situation}</Text>}
-          {h.background && <Text size="xs"><b>B:</b> {h.background}</Text>}
-          {h.assessment && <Text size="xs"><b>A:</b> {h.assessment}</Text>}
-          {h.recommendation && <Text size="xs"><b>R:</b> {h.recommendation}</Text>}
+          {h.situation && (
+            <Text size="xs">
+              <b>S:</b> {h.situation}
+            </Text>
+          )}
+          {h.background && (
+            <Text size="xs">
+              <b>B:</b> {h.background}
+            </Text>
+          )}
+          {h.assessment && (
+            <Text size="xs">
+              <b>A:</b> {h.assessment}
+            </Text>
+          )}
+          {h.recommendation && (
+            <Text size="xs">
+              <b>R:</b> {h.recommendation}
+            </Text>
+          )}
         </Stack>
       ))}
-      {reports.length === 0 && <Text c="dimmed" size="sm">No handover reports yet.</Text>}
+      {reports.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No handover reports yet.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -1130,7 +1777,8 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
 
   const deleteMutation = useMutation({
     mutationFn: (attenderId: string) => api.deleteAttender(admissionId, attenderId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
   });
 
   const attenders = (data ?? []) as AdmissionAttender[];
@@ -1138,24 +1786,65 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
   return (
     <Stack>
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+        <Button
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => setShowForm(!showForm)}
+        >
           Add Attender
         </Button>
       )}
       {showForm && (
         <Stack gap="xs">
-          <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <TextInput label="Relationship" required value={relationship} onChange={(e) => setRelationship(e.currentTarget.value)} />
+          <TextInput
+            label="Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Relationship"
+            required
+            value={relationship}
+            onChange={(e) => setRelationship(e.currentTarget.value)}
+          />
           <Group grow>
-            <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
-            <TextInput label="Alt Phone" value={altPhone} onChange={(e) => setAltPhone(e.currentTarget.value)} />
+            <TextInput
+              label="Phone"
+              value={phone}
+              onChange={(e) => setPhone(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Alt Phone"
+              value={altPhone}
+              onChange={(e) => setAltPhone(e.currentTarget.value)}
+            />
           </Group>
-          <Textarea label="Address" value={address} onChange={(e) => setAddress(e.currentTarget.value)} />
+          <Textarea
+            label="Address"
+            value={address}
+            onChange={(e) => setAddress(e.currentTarget.value)}
+          />
           <Group grow>
-            <Select label="ID Proof Type" data={ID_PROOF_TYPES} value={idProofType || null} onChange={(v) => setIdProofType(v ?? "")} clearable searchable />
-            <TextInput label="ID Proof Number" value={idProofNumber} onChange={(e) => setIdProofNumber(e.currentTarget.value)} />
+            <Select
+              label="ID Proof Type"
+              data={ID_PROOF_TYPES}
+              value={idProofType || null}
+              onChange={(v) => setIdProofType(v ?? "")}
+              clearable
+              searchable
+            />
+            <TextInput
+              label="ID Proof Number"
+              value={idProofNumber}
+              onChange={(e) => setIdProofNumber(e.currentTarget.value)}
+            />
           </Group>
-          <Checkbox label="Primary attender" checked={isPrimary} onChange={(e) => setIsPrimary(e.currentTarget.checked)} />
+          <Checkbox
+            label="Primary attender"
+            checked={isPrimary}
+            onChange={(e) => setIsPrimary(e.currentTarget.checked)}
+          />
           <Button
             size="xs"
             onClick={() =>
@@ -1189,13 +1878,29 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
         <Table.Tbody>
           {attenders.map((a) => (
             <Table.Tr key={a.id}>
-              <Table.Td><Text size="sm">{a.name}</Text></Table.Td>
-              <Table.Td><Text size="sm">{a.relationship}</Text></Table.Td>
-              <Table.Td><Text size="sm">{a.phone ?? "—"}</Text></Table.Td>
-              <Table.Td>{a.is_primary && <Badge size="xs" color="primary">Primary</Badge>}</Table.Td>
+              <Table.Td>
+                <Text size="sm">{a.name}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{a.relationship}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{a.phone ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                {a.is_primary && (
+                  <Badge size="xs" color="primary">
+                    Primary
+                  </Badge>
+                )}
+              </Table.Td>
               <Table.Td>
                 {canCreate && (
-                  <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(a.id)}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    onClick={() => deleteMutation.mutate(a.id)}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 )}
@@ -1204,14 +1909,24 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
           ))}
         </Table.Tbody>
       </Table>
-      {attenders.length === 0 && <Text c="dimmed" size="sm">No attenders recorded yet.</Text>}
+      {attenders.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No attenders recorded yet.
+        </Text>
+      )}
     </Stack>
   );
 }
 
 // ── Discharge Summary ─────────────────────────────────
 
-function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; canCreate: boolean }) {
+function DischargeSummaryTab({
+  admissionId,
+  canCreate,
+}: {
+  admissionId: string;
+  canCreate: boolean;
+}) {
   const canFinalize = useHasPermission(P.IPD.DISCHARGE_SUMMARY_FINALIZE);
   const queryClient = useQueryClient();
 
@@ -1254,7 +1969,11 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
     mutationFn: () => api.finalizeDischargeSummary(admissionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
-      notifications.show({ title: "Finalized", message: "Discharge summary finalized", color: "success" });
+      notifications.show({
+        title: "Finalized",
+        message: "Discharge summary finalized",
+        color: "success",
+      });
     },
   });
 
@@ -1267,46 +1986,104 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
           </Badge>
           <Group>
             {summary.status === "draft" && canCreate && (
-              <Button size="xs" variant="light" leftSection={<IconPencil size={14} />} onClick={() => {
-                setFinalDiagnosis(summary.final_diagnosis ?? "");
-                setConditionAtDischarge(summary.condition_at_discharge ?? "");
-                setCourseInHospital(summary.course_in_hospital ?? "");
-                setTreatmentGiven(summary.treatment_given ?? "");
-                setInvestigationSummary(summary.investigation_summary ?? "");
-                setFollowUpInstructions(summary.follow_up_instructions ?? "");
-                setFollowUpDate(summary.follow_up_date ?? "");
-                setDietaryAdvice(summary.dietary_advice ?? "");
-                setActivityRestrictions(summary.activity_restrictions ?? "");
-                setWarningSigns(summary.warning_signs ?? "");
-                setEditing(true);
-              }}>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconPencil size={14} />}
+                onClick={() => {
+                  setFinalDiagnosis(summary.final_diagnosis ?? "");
+                  setConditionAtDischarge(summary.condition_at_discharge ?? "");
+                  setCourseInHospital(summary.course_in_hospital ?? "");
+                  setTreatmentGiven(summary.treatment_given ?? "");
+                  setInvestigationSummary(summary.investigation_summary ?? "");
+                  setFollowUpInstructions(summary.follow_up_instructions ?? "");
+                  setFollowUpDate(summary.follow_up_date ?? "");
+                  setDietaryAdvice(summary.dietary_advice ?? "");
+                  setActivityRestrictions(summary.activity_restrictions ?? "");
+                  setWarningSigns(summary.warning_signs ?? "");
+                  setEditing(true);
+                }}
+              >
                 Edit
               </Button>
             )}
             {summary.status === "draft" && canFinalize && (
-              <Button size="xs" color="success" onClick={() => finalizeMutation.mutate()} loading={finalizeMutation.isPending}>
+              <Button
+                size="xs"
+                color="success"
+                onClick={() => finalizeMutation.mutate()}
+                loading={finalizeMutation.isPending}
+              >
                 Finalize
               </Button>
             )}
           </Group>
         </Group>
-        {summary.final_diagnosis && <Text size="sm"><b>Diagnosis:</b> {summary.final_diagnosis}</Text>}
-        {summary.condition_at_discharge && <Text size="sm"><b>Condition:</b> {summary.condition_at_discharge}</Text>}
-        {summary.course_in_hospital && <Text size="sm"><b>Course:</b> {summary.course_in_hospital}</Text>}
-        {summary.treatment_given && <Text size="sm"><b>Treatment:</b> {summary.treatment_given}</Text>}
-        {summary.investigation_summary && <Text size="sm"><b>Investigations:</b> {summary.investigation_summary}</Text>}
-        {summary.follow_up_instructions && <Text size="sm"><b>Follow-up:</b> {summary.follow_up_instructions}</Text>}
-        {summary.follow_up_date && <Text size="sm"><b>Follow-up Date:</b> {summary.follow_up_date}</Text>}
-        {summary.dietary_advice && <Text size="sm"><b>Diet:</b> {summary.dietary_advice}</Text>}
-        {summary.activity_restrictions && <Text size="sm"><b>Activity:</b> {summary.activity_restrictions}</Text>}
-        {summary.warning_signs && <Text size="sm"><b>Warning Signs:</b> {summary.warning_signs}</Text>}
-        {summary.finalized_at && <Text size="xs" c="dimmed">Finalized: {new Date(summary.finalized_at).toLocaleString()}</Text>}
+        {summary.final_diagnosis && (
+          <Text size="sm">
+            <b>Diagnosis:</b> {summary.final_diagnosis}
+          </Text>
+        )}
+        {summary.condition_at_discharge && (
+          <Text size="sm">
+            <b>Condition:</b> {summary.condition_at_discharge}
+          </Text>
+        )}
+        {summary.course_in_hospital && (
+          <Text size="sm">
+            <b>Course:</b> {summary.course_in_hospital}
+          </Text>
+        )}
+        {summary.treatment_given && (
+          <Text size="sm">
+            <b>Treatment:</b> {summary.treatment_given}
+          </Text>
+        )}
+        {summary.investigation_summary && (
+          <Text size="sm">
+            <b>Investigations:</b> {summary.investigation_summary}
+          </Text>
+        )}
+        {summary.follow_up_instructions && (
+          <Text size="sm">
+            <b>Follow-up:</b> {summary.follow_up_instructions}
+          </Text>
+        )}
+        {summary.follow_up_date && (
+          <Text size="sm">
+            <b>Follow-up Date:</b> {summary.follow_up_date}
+          </Text>
+        )}
+        {summary.dietary_advice && (
+          <Text size="sm">
+            <b>Diet:</b> {summary.dietary_advice}
+          </Text>
+        )}
+        {summary.activity_restrictions && (
+          <Text size="sm">
+            <b>Activity:</b> {summary.activity_restrictions}
+          </Text>
+        )}
+        {summary.warning_signs && (
+          <Text size="sm">
+            <b>Warning Signs:</b> {summary.warning_signs}
+          </Text>
+        )}
+        {summary.finalized_at && (
+          <Text size="xs" c="dimmed">
+            Finalized: {new Date(summary.finalized_at).toLocaleString()}
+          </Text>
+        )}
       </Stack>
     );
   }
 
   if (!canCreate) {
-    return <Text c="dimmed" size="sm">No discharge summary. You do not have permission to create one.</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No discharge summary. You do not have permission to create one.
+      </Text>
+    );
   }
 
   const handleSave = () => {
@@ -1331,22 +2108,75 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
 
   return (
     <Stack>
-      <Text fw={600} size="sm">{summary ? "Edit Discharge Summary" : "Create Discharge Summary"}</Text>
-      <Textarea label="Final Diagnosis" value={finalDiagnosis} onChange={(e) => setFinalDiagnosis(e.currentTarget.value)} autosize minRows={2} />
-      <Textarea label="Condition at Discharge" value={conditionAtDischarge} onChange={(e) => setConditionAtDischarge(e.currentTarget.value)} />
-      <Textarea label="Course in Hospital" value={courseInHospital} onChange={(e) => setCourseInHospital(e.currentTarget.value)} autosize minRows={3} />
-      <Textarea label="Treatment Given" value={treatmentGiven} onChange={(e) => setTreatmentGiven(e.currentTarget.value)} autosize minRows={2} />
-      <Textarea label="Investigation Summary" value={investigationSummary} onChange={(e) => setInvestigationSummary(e.currentTarget.value)} />
-      <Textarea label="Follow-up Instructions" value={followUpInstructions} onChange={(e) => setFollowUpInstructions(e.currentTarget.value)} />
-      <TextInput label="Follow-up Date" type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.currentTarget.value)} />
-      <Textarea label="Dietary Advice" value={dietaryAdvice} onChange={(e) => setDietaryAdvice(e.currentTarget.value)} />
-      <Textarea label="Activity Restrictions" value={activityRestrictions} onChange={(e) => setActivityRestrictions(e.currentTarget.value)} />
-      <Textarea label="Warning Signs" value={warningSigns} onChange={(e) => setWarningSigns(e.currentTarget.value)} />
+      <Text fw={600} size="sm">
+        {summary ? "Edit Discharge Summary" : "Create Discharge Summary"}
+      </Text>
+      <Textarea
+        label="Final Diagnosis"
+        value={finalDiagnosis}
+        onChange={(e) => setFinalDiagnosis(e.currentTarget.value)}
+        autosize
+        minRows={2}
+      />
+      <Textarea
+        label="Condition at Discharge"
+        value={conditionAtDischarge}
+        onChange={(e) => setConditionAtDischarge(e.currentTarget.value)}
+      />
+      <Textarea
+        label="Course in Hospital"
+        value={courseInHospital}
+        onChange={(e) => setCourseInHospital(e.currentTarget.value)}
+        autosize
+        minRows={3}
+      />
+      <Textarea
+        label="Treatment Given"
+        value={treatmentGiven}
+        onChange={(e) => setTreatmentGiven(e.currentTarget.value)}
+        autosize
+        minRows={2}
+      />
+      <Textarea
+        label="Investigation Summary"
+        value={investigationSummary}
+        onChange={(e) => setInvestigationSummary(e.currentTarget.value)}
+      />
+      <Textarea
+        label="Follow-up Instructions"
+        value={followUpInstructions}
+        onChange={(e) => setFollowUpInstructions(e.currentTarget.value)}
+      />
+      <TextInput
+        label="Follow-up Date"
+        type="date"
+        value={followUpDate}
+        onChange={(e) => setFollowUpDate(e.currentTarget.value)}
+      />
+      <Textarea
+        label="Dietary Advice"
+        value={dietaryAdvice}
+        onChange={(e) => setDietaryAdvice(e.currentTarget.value)}
+      />
+      <Textarea
+        label="Activity Restrictions"
+        value={activityRestrictions}
+        onChange={(e) => setActivityRestrictions(e.currentTarget.value)}
+      />
+      <Textarea
+        label="Warning Signs"
+        value={warningSigns}
+        onChange={(e) => setWarningSigns(e.currentTarget.value)}
+      />
       <Group>
         <Button onClick={handleSave} loading={createMutation.isPending || updateMutation.isPending}>
           Save
         </Button>
-        {editing && <Button variant="subtle" onClick={() => setEditing(false)}>Cancel</Button>}
+        {editing && (
+          <Button variant="subtle" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        )}
       </Group>
     </Stack>
   );
@@ -1354,7 +2184,15 @@ function DischargeSummaryTab({ admissionId, canCreate }: { admissionId: string; 
 
 // ── Transfer ───────────────────────────────────────────
 
-function TransferTab({ admissionId, canManage, status }: { admissionId: string; canManage: boolean; status: string }) {
+function TransferTab({
+  admissionId,
+  canManage,
+  status,
+}: {
+  admissionId: string;
+  canManage: boolean;
+  status: string;
+}) {
   const queryClient = useQueryClient();
   const [bedId, setBedId] = useState("");
   const [notes, setNotes] = useState("");
@@ -1365,7 +2203,11 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      notifications.show({ title: "Transferred", message: "Bed transfer recorded", color: "success" });
+      notifications.show({
+        title: "Transferred",
+        message: "Bed transfer recorded",
+        color: "success",
+      });
       emit("transfer.completed", { admission_id: admissionId, new_bed_id: bedId });
       setBedId("");
       setNotes("");
@@ -1373,7 +2215,11 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
   });
 
   if (status !== "admitted") {
-    return <Text c="dimmed" size="sm">Transfer is only available for admitted patients.</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        Transfer is only available for admitted patients.
+      </Text>
+    );
   }
 
   return (
@@ -1381,13 +2227,23 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
       {canManage ? (
         <>
           <BedSelect label="New Bed" value={bedId} onChange={(id) => setBedId(id)} required />
-          <Textarea label="Transfer Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-          <Button leftSection={<IconBed size={16} />} onClick={() => transferMutation.mutate()} loading={transferMutation.isPending}>
+          <Textarea
+            label="Transfer Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+          />
+          <Button
+            leftSection={<IconBed size={16} />}
+            onClick={() => transferMutation.mutate()}
+            loading={transferMutation.isPending}
+          >
             Transfer Bed
           </Button>
         </>
       ) : (
-        <Text c="dimmed" size="sm">You do not have permission to transfer beds.</Text>
+        <Text c="dimmed" size="sm">
+          You do not have permission to transfer beds.
+        </Text>
       )}
     </Stack>
   );
@@ -1395,7 +2251,15 @@ function TransferTab({ admissionId, canManage, status }: { admissionId: string; 
 
 // ── Discharge ──────────────────────────────────────────
 
-function DischargeTab({ admissionId, canDischarge, status }: { admissionId: string; canDischarge: boolean; status: string }) {
+function DischargeTab({
+  admissionId,
+  canDischarge,
+  status,
+}: {
+  admissionId: string;
+  canDischarge: boolean;
+  status: string;
+}) {
   const queryClient = useQueryClient();
   const [dischargeType, setDischargeType] = useState<string>("normal");
   const [summary, setSummary] = useState("");
@@ -1421,7 +2285,11 @@ function DischargeTab({ admissionId, canDischarge, status }: { admissionId: stri
   });
 
   if (status === "discharged" || status === "absconded" || status === "deceased") {
-    return <Text c="dimmed" size="sm">This patient has already been discharged.</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        This patient has already been discharged.
+      </Text>
+    );
   }
 
   const items = (checklist ?? []) as IpdDischargeChecklist[];
@@ -1430,12 +2298,23 @@ function DischargeTab({ admissionId, canDischarge, status }: { admissionId: stri
     <Stack>
       {items.length > 0 && (
         <>
-          <Text fw={600} size="sm">Discharge Checklist</Text>
+          <Text fw={600} size="sm">
+            Discharge Checklist
+          </Text>
           {items.map((it) => (
             <Group key={it.id} gap="xs">
               <Checkbox checked={it.status === "completed"} readOnly size="xs" />
               <Text size="sm">{it.item_label}</Text>
-              <Badge size="xs" color={it.status === "completed" ? "success" : it.status === "not_applicable" ? "slate" : "warning"}>
+              <Badge
+                size="xs"
+                color={
+                  it.status === "completed"
+                    ? "success"
+                    : it.status === "not_applicable"
+                      ? "slate"
+                      : "warning"
+                }
+              >
                 {it.status}
               </Badge>
             </Group>
@@ -1458,13 +2337,26 @@ function DischargeTab({ admissionId, canDischarge, status }: { admissionId: stri
             value={dischargeType}
             onChange={(v) => setDischargeType(v ?? "normal")}
           />
-          <Textarea label="Discharge Summary" value={summary} onChange={(e) => setSummary(e.currentTarget.value)} autosize minRows={3} />
-          <Button color="danger" leftSection={<IconDoor size={16} />} onClick={() => dischargeMutation.mutate()} loading={dischargeMutation.isPending}>
+          <Textarea
+            label="Discharge Summary"
+            value={summary}
+            onChange={(e) => setSummary(e.currentTarget.value)}
+            autosize
+            minRows={3}
+          />
+          <Button
+            color="danger"
+            leftSection={<IconDoor size={16} />}
+            onClick={() => dischargeMutation.mutate()}
+            loading={dischargeMutation.isPending}
+          >
             Discharge Patient
           </Button>
         </>
       ) : (
-        <Text c="dimmed" size="sm">You do not have permission to discharge patients.</Text>
+        <Text c="dimmed" size="sm">
+          You do not have permission to discharge patients.
+        </Text>
       )}
     </Stack>
   );
@@ -1488,18 +2380,48 @@ function WardsTab() {
   const wards = (data ?? []) as WardListRow[];
 
   const columns = [
-    { key: "code", label: "Code", render: (row: WardListRow) => <Text size="sm" fw={500}>{row.code}</Text> },
+    {
+      key: "code",
+      label: "Code",
+      render: (row: WardListRow) => (
+        <Text size="sm" fw={500}>
+          {row.code}
+        </Text>
+      ),
+    },
     { key: "name", label: "Name", render: (row: WardListRow) => <Text size="sm">{row.name}</Text> },
-    { key: "department_name", label: "Department", render: (row: WardListRow) => <Text size="sm">{row.department_name ?? "—"}</Text> },
-    { key: "ward_type", label: "Type", render: (row: WardListRow) => <Badge size="sm" variant="light">{row.ward_type}</Badge> },
+    {
+      key: "department_name",
+      label: "Department",
+      render: (row: WardListRow) => <Text size="sm">{row.department_name ?? "—"}</Text>,
+    },
+    {
+      key: "ward_type",
+      label: "Type",
+      render: (row: WardListRow) => (
+        <Badge size="sm" variant="light">
+          {row.ward_type}
+        </Badge>
+      ),
+    },
     {
       key: "beds",
       label: "Beds",
       render: (row: WardListRow) => (
-        <Text size="sm">{row.vacant_beds}/{row.total_beds} available</Text>
+        <Text size="sm">
+          {row.vacant_beds}/{row.total_beds} available
+        </Text>
       ),
     },
-    { key: "is_active", label: "Active", render: (row: WardListRow) => <Badge size="xs" color={row.is_active ? "success" : "slate"}>{row.is_active ? "Yes" : "No"}</Badge> },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: WardListRow) => (
+        <Badge size="xs" color={row.is_active ? "success" : "slate"}>
+          {row.is_active ? "Yes" : "No"}
+        </Badge>
+      ),
+    },
     {
       key: "actions",
       label: "Actions",
@@ -1532,17 +2454,18 @@ function WardsTab() {
         </Group>
       )}
 
-      <DataTable
-        columns={columns}
-        data={wards}
-        loading={isLoading}
-        rowKey={(row) => row.id}
-      />
+      <DataTable columns={columns} data={wards} loading={isLoading} rowKey={(row) => row.id} />
 
       <CreateWardDrawer opened={createOpened} onClose={closeCreate} />
       <EditWardDrawer ward={editWard} onClose={() => setEditWard(null)} />
 
-      <Drawer opened={!!selectedWardId} onClose={() => setSelectedWardId(null)} title="Ward Beds" position="right" size="lg">
+      <Drawer
+        opened={!!selectedWardId}
+        onClose={() => setSelectedWardId(null)}
+        title="Ward Beds"
+        position="right"
+        size="lg"
+      >
         {selectedWardId && <WardBedsPanel wardId={selectedWardId} canManage={canManage} />}
       </Drawer>
 
@@ -1575,8 +2498,18 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   return (
     <Drawer opened={opened} onClose={onClose} title="New Ward" position="right" size="xl">
       <Stack>
-        <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} />
-        <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
+        <TextInput
+          label="Code"
+          required
+          value={code}
+          onChange={(e) => setCode(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+        />
         <DepartmentSelect value={departmentId} onChange={(id) => setDepartmentId(id)} />
         <Select
           label="Ward Type"
@@ -1631,7 +2564,13 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
   if (!ward) return null;
 
   return (
-    <Drawer opened={!!ward} onClose={onClose} title={`Edit Ward: ${ward.code}`} position="right" size="xl">
+    <Drawer
+      opened={!!ward}
+      onClose={onClose}
+      title={`Edit Ward: ${ward.code}`}
+      position="right"
+      size="xl"
+    >
       <Stack>
         <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <Select
@@ -1650,7 +2589,11 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
           value={genderRestriction}
           onChange={(v) => setGenderRestriction(v ?? "any")}
         />
-        <Checkbox label="Active" checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />
+        <Checkbox
+          label="Active"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.currentTarget.checked)}
+        />
         <Button
           onClick={() =>
             mutation.mutate({
@@ -1680,7 +2623,11 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
   });
 
   const assignMutation = useMutation({
-    mutationFn: () => api.assignBedToWard(wardId, { bed_location_id: bedLocationId, bed_type_id: bedTypeId || undefined }),
+    mutationFn: () =>
+      api.assignBedToWard(wardId, {
+        bed_location_id: bedLocationId,
+        bed_type_id: bedTypeId || undefined,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
@@ -1703,9 +2650,21 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
     <Stack>
       {canManage && (
         <Group>
-          <TextInput placeholder="Bed Location ID" value={bedLocationId} onChange={(e) => setBedLocationId(e.currentTarget.value)} />
-          <TextInput placeholder="Bed Type ID" value={bedTypeId} onChange={(e) => setBedTypeId(e.currentTarget.value)} />
-          <Button size="sm" onClick={() => assignMutation.mutate()} loading={assignMutation.isPending}>
+          <TextInput
+            placeholder="Bed Location ID"
+            value={bedLocationId}
+            onChange={(e) => setBedLocationId(e.currentTarget.value)}
+          />
+          <TextInput
+            placeholder="Bed Type ID"
+            value={bedTypeId}
+            onChange={(e) => setBedTypeId(e.currentTarget.value)}
+          />
+          <Button
+            size="sm"
+            onClick={() => assignMutation.mutate()}
+            loading={assignMutation.isPending}
+          >
             Assign Bed
           </Button>
         </Group>
@@ -1723,21 +2682,38 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
         <Table.Tbody>
           {beds.map((b) => (
             <Table.Tr key={b.mapping_id}>
-              <Table.Td><Text size="sm">{b.bed_name}</Text></Table.Td>
-              <Table.Td><Text size="sm">{b.bed_type_name ?? "—"}</Text></Table.Td>
-              <Table.Td><Badge size="xs" color={bedStatusColors[b.status] ?? "slate"}>{b.status}</Badge></Table.Td>
+              <Table.Td>
+                <Text size="sm">{b.bed_name}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{b.bed_type_name ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge size="xs" color={bedStatusColors[b.status] ?? "slate"}>
+                  {b.status}
+                </Badge>
+              </Table.Td>
               <Table.Td>
                 {b.patient_name ? (
                   <Stack gap={0}>
                     <Text size="xs">{b.patient_name}</Text>
-                    <Text size="xs" c="dimmed">{b.patient_uhid}</Text>
+                    <Text size="xs" c="dimmed">
+                      {b.patient_uhid}
+                    </Text>
                   </Stack>
-                ) : "—"}
+                ) : (
+                  "—"
+                )}
               </Table.Td>
               {canManage && (
                 <Table.Td>
                   <Tooltip label="Remove from ward">
-                    <ActionIcon variant="subtle" color="danger" onClick={() => removeMutation.mutate(b.mapping_id)} disabled={b.status === "occupied"}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      onClick={() => removeMutation.mutate(b.mapping_id)}
+                      disabled={b.status === "occupied"}
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Tooltip>
@@ -1747,7 +2723,11 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
           ))}
         </Table.Tbody>
       </Table>
-      {beds.length === 0 && <Text c="dimmed" size="sm">No beds assigned to this ward.</Text>}
+      {beds.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No beds assigned to this ward.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -1770,11 +2750,21 @@ function IpTypeConfigSection() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...rest }: { id: string; billing_alert_threshold?: number; auto_billing_enabled?: boolean }) =>
-      api.updateIpType(id, rest),
+    mutationFn: ({
+      id,
+      ...rest
+    }: {
+      id: string;
+      billing_alert_threshold?: number;
+      auto_billing_enabled?: boolean;
+    }) => api.updateIpType(id, rest),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-ip-types"] });
-      notifications.show({ title: "Updated", message: "IP type configuration updated", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "IP type configuration updated",
+        color: "success",
+      });
       setEditingId(null);
     },
   });
@@ -1783,7 +2773,12 @@ function IpTypeConfigSection() {
 
   return (
     <Card withBorder mt="md">
-      <Group justify="space-between" p="sm" style={{ cursor: "pointer" }} onClick={() => setExpanded((v) => !v)}>
+      <Group
+        justify="space-between"
+        p="sm"
+        style={{ cursor: "pointer" }}
+        onClick={() => setExpanded((v) => !v)}
+      >
         <Text fw={600}>IP Type Configurations</Text>
         <Badge variant="light">{expanded ? "Hide" : "Show"}</Badge>
       </Group>
@@ -1792,7 +2787,9 @@ function IpTypeConfigSection() {
           {isLoading ? (
             <Text c="dimmed">Loading...</Text>
           ) : configs.length === 0 ? (
-            <Text c="dimmed" size="sm">No IP type configurations found.</Text>
+            <Text c="dimmed" size="sm">
+              No IP type configurations found.
+            </Text>
           ) : (
             <Table striped>
               <Table.Thead>
@@ -1810,41 +2807,79 @@ function IpTypeConfigSection() {
               <Table.Tbody>
                 {configs.map((c) => (
                   <Table.Tr key={c.id}>
-                    <Table.Td><Badge size="sm" variant="light">{c.ip_type}</Badge></Table.Td>
-                    <Table.Td><Text size="sm">{c.label}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{c.daily_rate}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{c.nursing_charge}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{c.deposit_required}</Text></Table.Td>
+                    <Table.Td>
+                      <Badge size="sm" variant="light">
+                        {c.ip_type}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{c.label}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{c.daily_rate}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{c.nursing_charge}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{c.deposit_required}</Text>
+                    </Table.Td>
                     <Table.Td>
                       {editingId === c.id ? (
-                        <NumberInput size="xs" value={editThreshold} onChange={setEditThreshold} w={120} />
+                        <NumberInput
+                          size="xs"
+                          value={editThreshold}
+                          onChange={setEditThreshold}
+                          w={120}
+                        />
                       ) : (
                         <Text size="sm">{c.billing_alert_threshold ?? "—"}</Text>
                       )}
                     </Table.Td>
                     <Table.Td>
                       {editingId === c.id ? (
-                        <Checkbox size="xs" checked={editAutoBilling} onChange={(e) => setEditAutoBilling(e.currentTarget.checked)} />
+                        <Checkbox
+                          size="xs"
+                          checked={editAutoBilling}
+                          onChange={(e) => setEditAutoBilling(e.currentTarget.checked)}
+                        />
                       ) : (
-                        <Badge size="xs" color={c.auto_billing_enabled ? "success" : "slate"}>{c.auto_billing_enabled ? "On" : "Off"}</Badge>
+                        <Badge size="xs" color={c.auto_billing_enabled ? "success" : "slate"}>
+                          {c.auto_billing_enabled ? "On" : "Off"}
+                        </Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       {editingId === c.id ? (
                         <Group gap={4}>
-                          <Button size="xs" onClick={() => updateMutation.mutate({
-                            id: c.id,
-                            billing_alert_threshold: editThreshold ? Number(editThreshold) : undefined,
-                            auto_billing_enabled: editAutoBilling,
-                          })} loading={updateMutation.isPending}>Save</Button>
-                          <Button size="xs" variant="subtle" onClick={() => setEditingId(null)}>Cancel</Button>
+                          <Button
+                            size="xs"
+                            onClick={() =>
+                              updateMutation.mutate({
+                                id: c.id,
+                                billing_alert_threshold: editThreshold
+                                  ? Number(editThreshold)
+                                  : undefined,
+                                auto_billing_enabled: editAutoBilling,
+                              })
+                            }
+                            loading={updateMutation.isPending}
+                          >
+                            Save
+                          </Button>
+                          <Button size="xs" variant="subtle" onClick={() => setEditingId(null)}>
+                            Cancel
+                          </Button>
                         </Group>
                       ) : (
-                        <ActionIcon variant="subtle" onClick={() => {
-                          setEditingId(c.id);
-                          setEditThreshold(c.billing_alert_threshold ?? "");
-                          setEditAutoBilling(c.auto_billing_enabled);
-                        }}>
+                        <ActionIcon
+                          variant="subtle"
+                          onClick={() => {
+                            setEditingId(c.id);
+                            setEditThreshold(c.billing_alert_threshold ?? "");
+                            setEditAutoBilling(c.auto_billing_enabled);
+                          }}
+                        >
                           <IconPencil size={14} />
                         </ActionIcon>
                       )}
@@ -1909,7 +2944,15 @@ function BedDashboardTab() {
       maintenance: acc.maintenance + r.maintenance,
       blocked: acc.blocked + r.blocked,
     }),
-    { total: 0, vacant_clean: 0, vacant_dirty: 0, occupied: 0, reserved: 0, maintenance: 0, blocked: 0 },
+    {
+      total: 0,
+      vacant_clean: 0,
+      vacant_dirty: 0,
+      occupied: 0,
+      reserved: 0,
+      maintenance: 0,
+      blocked: 0,
+    },
   );
 
   const wardOptions = summaryRows
@@ -1919,13 +2962,60 @@ function BedDashboardTab() {
   return (
     <Stack>
       <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }}>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Total</Text><Text fw={700}>{totals.total}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Vacant (Clean)</Text><Text fw={700} c="success">{totals.vacant_clean}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Vacant (Dirty)</Text><Text fw={700} c="warning">{totals.vacant_dirty}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Occupied</Text><Text fw={700} c="primary">{totals.occupied}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Reserved</Text><Text fw={700} c="orange">{totals.reserved}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Maintenance</Text><Text fw={700} c="slate">{totals.maintenance}</Text></Card>
-        <Card withBorder p="xs"><Text size="xs" c="dimmed">Blocked</Text><Text fw={700} c="danger">{totals.blocked}</Text></Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Total
+          </Text>
+          <Text fw={700}>{totals.total}</Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Vacant (Clean)
+          </Text>
+          <Text fw={700} c="success">
+            {totals.vacant_clean}
+          </Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Vacant (Dirty)
+          </Text>
+          <Text fw={700} c="warning">
+            {totals.vacant_dirty}
+          </Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Occupied
+          </Text>
+          <Text fw={700} c="primary">
+            {totals.occupied}
+          </Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Reserved
+          </Text>
+          <Text fw={700} c="orange">
+            {totals.reserved}
+          </Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Maintenance
+          </Text>
+          <Text fw={700} c="slate">
+            {totals.maintenance}
+          </Text>
+        </Card>
+        <Card withBorder p="xs">
+          <Text size="xs" c="dimmed">
+            Blocked
+          </Text>
+          <Text fw={700} c="danger">
+            {totals.blocked}
+          </Text>
+        </Card>
       </SimpleGrid>
 
       <Group>
@@ -1980,17 +3070,25 @@ function BedDashboardTab() {
               key={bed.bed_id}
               withBorder
               p="xs"
-              style={{ borderLeft: `4px solid var(--mantine-color-${bedStatusColors[bed.status] ?? "slate"}-5)` }}
+              style={{
+                borderLeft: `4px solid var(--mantine-color-${bedStatusColors[bed.status] ?? "slate"}-5)`,
+              }}
             >
-              <Text size="sm" fw={600}>{bed.bed_name}</Text>
-              <Text size="xs" c="dimmed">{bed.ward_name ?? "Unassigned"}</Text>
+              <Text size="sm" fw={600}>
+                {bed.bed_name}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {bed.ward_name ?? "Unassigned"}
+              </Text>
               <Badge size="xs" color={bedStatusColors[bed.status] ?? "slate"} mt={4}>
                 {bed.status.replace("_", " ")}
               </Badge>
               {bed.patient_name && (
                 <Stack gap={0} mt={4}>
                   <Text size="xs">{bed.patient_name}</Text>
-                  <Text size="xs" c="dimmed">{bed.patient_uhid}</Text>
+                  <Text size="xs" c="dimmed">
+                    {bed.patient_uhid}
+                  </Text>
                 </Stack>
               )}
               {canManageBeds && bed.status !== "occupied" && (
@@ -1998,7 +3096,9 @@ function BedDashboardTab() {
                   size="xs"
                   mt={4}
                   placeholder="Change status"
-                  data={["vacant_clean", "vacant_dirty", "maintenance", "blocked"].filter((s) => s !== bed.status)}
+                  data={["vacant_clean", "vacant_dirty", "maintenance", "blocked"].filter(
+                    (s) => s !== bed.status,
+                  )}
                   onChange={(v) => {
                     if (v) updateStatusMutation.mutate({ bedId: bed.bed_id, status: v });
                   }}
@@ -2009,7 +3109,11 @@ function BedDashboardTab() {
           ))}
         </SimpleGrid>
       )}
-      {beds.length === 0 && !isLoading && <Text c="dimmed" size="sm">No beds found.</Text>}
+      {beds.length === 0 && !isLoading && (
+        <Text c="dimmed" size="sm">
+          No beds found.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -2042,8 +3146,18 @@ function ReportsTab() {
         />
         {reportType !== "census" && (
           <>
-            <TextInput label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.currentTarget.value)} />
-            <TextInput label="To" type="date" value={toDate} onChange={(e) => setToDate(e.currentTarget.value)} />
+            <TextInput
+              label="From"
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.currentTarget.value)}
+            />
+            <TextInput
+              label="To"
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.currentTarget.value)}
+            />
           </>
         )}
       </Group>
@@ -2053,7 +3167,9 @@ function ReportsTab() {
       {reportType === "alos" && <AlosReport from={fromDate} to={toDate} />}
       {reportType === "discharge-stats" && <DischargeStatsReport from={fromDate} to={toDate} />}
       {reportType === "surgeon-caseload" && <SurgeonCaseloadReport from={fromDate} to={toDate} />}
-      {reportType === "anesthesia-complications" && <AnesthesiaComplicationsReport from={fromDate} to={toDate} />}
+      {reportType === "anesthesia-complications" && (
+        <AnesthesiaComplicationsReport from={fromDate} to={toDate} />
+      )}
     </Stack>
   );
 }
@@ -2078,15 +3194,29 @@ function CensusReport() {
       </Table.Thead>
       <Table.Tbody>
         {isLoading ? (
-          <Table.Tr><Table.Td colSpan={4}><Text c="dimmed">Loading...</Text></Table.Td></Table.Tr>
-        ) : rows.map((r, i) => (
-          <Table.Tr key={r.ward_id ?? `unassigned-${i}`}>
-            <Table.Td><Text size="sm">{r.ward_name ?? "Unassigned"}</Text></Table.Td>
-            <Table.Td><Text size="sm">{r.total_beds}</Text></Table.Td>
-            <Table.Td><Text size="sm">{r.occupied}</Text></Table.Td>
-            <Table.Td><Text size="sm">{r.vacant}</Text></Table.Td>
+          <Table.Tr>
+            <Table.Td colSpan={4}>
+              <Text c="dimmed">Loading...</Text>
+            </Table.Td>
           </Table.Tr>
-        ))}
+        ) : (
+          rows.map((r, i) => (
+            <Table.Tr key={r.ward_id ?? `unassigned-${i}`}>
+              <Table.Td>
+                <Text size="sm">{r.ward_name ?? "Unassigned"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.total_beds}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.occupied}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.vacant}</Text>
+              </Table.Td>
+            </Table.Tr>
+          ))
+        )}
       </Table.Tbody>
     </Table>
   );
@@ -2099,24 +3229,48 @@ function OccupancyReport({ from, to }: { from: string; to: string }) {
     enabled: !!from && !!to,
   });
 
-  if (!from || !to) return <Text c="dimmed" size="sm">Select a date range to view occupancy.</Text>;
+  if (!from || !to)
+    return (
+      <Text c="dimmed" size="sm">
+        Select a date range to view occupancy.
+      </Text>
+    );
 
-  const rows = (data ?? []) as Array<{ ward_id: string | null; ward_name: string | null; total_beds: number; occupied_bed_days: number; total_bed_days: number; occupancy_pct: number }>;
+  const rows = (data ?? []) as Array<{
+    ward_id: string | null;
+    ward_name: string | null;
+    total_beds: number;
+    occupied_bed_days: number;
+    total_bed_days: number;
+    occupancy_pct: number;
+  }>;
 
   return (
     <Stack>
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
-      ) : rows.map((r, i) => (
-        <Card key={r.ward_id ?? `unassigned-${i}`} withBorder p="sm">
-          <Group justify="space-between" mb={4}>
-            <Text size="sm" fw={500}>{r.ward_name ?? "Unassigned"}</Text>
-            <Text size="sm" fw={700}>{r.occupancy_pct.toFixed(1)}%</Text>
-          </Group>
-          <Progress value={r.occupancy_pct} size="lg" color={r.occupancy_pct > 90 ? "danger" : r.occupancy_pct > 70 ? "warning" : "success"} />
-          <Text size="xs" c="dimmed" mt={4}>{r.occupied_bed_days} bed-days / {r.total_bed_days} total</Text>
-        </Card>
-      ))}
+      ) : (
+        rows.map((r, i) => (
+          <Card key={r.ward_id ?? `unassigned-${i}`} withBorder p="sm">
+            <Group justify="space-between" mb={4}>
+              <Text size="sm" fw={500}>
+                {r.ward_name ?? "Unassigned"}
+              </Text>
+              <Text size="sm" fw={700}>
+                {r.occupancy_pct.toFixed(1)}%
+              </Text>
+            </Group>
+            <Progress
+              value={r.occupancy_pct}
+              size="lg"
+              color={r.occupancy_pct > 90 ? "danger" : r.occupancy_pct > 70 ? "warning" : "success"}
+            />
+            <Text size="xs" c="dimmed" mt={4}>
+              {r.occupied_bed_days} bed-days / {r.total_bed_days} total
+            </Text>
+          </Card>
+        ))
+      )}
     </Stack>
   );
 }
@@ -2128,9 +3282,19 @@ function AlosReport({ from, to }: { from: string; to: string }) {
     enabled: !!from && !!to,
   });
 
-  if (!from || !to) return <Text c="dimmed" size="sm">Select a date range to view ALOS.</Text>;
+  if (!from || !to)
+    return (
+      <Text c="dimmed" size="sm">
+        Select a date range to view ALOS.
+      </Text>
+    );
 
-  const rows = (data ?? []) as Array<{ department_name: string | null; discharge_type: string; avg_los_days: number; count: number }>;
+  const rows = (data ?? []) as Array<{
+    department_name: string | null;
+    discharge_type: string;
+    avg_los_days: number;
+    count: number;
+  }>;
 
   return (
     <Table striped>
@@ -2144,15 +3308,31 @@ function AlosReport({ from, to }: { from: string; to: string }) {
       </Table.Thead>
       <Table.Tbody>
         {isLoading ? (
-          <Table.Tr><Table.Td colSpan={4}><Text c="dimmed">Loading...</Text></Table.Td></Table.Tr>
-        ) : rows.map((r, i) => (
-          <Table.Tr key={`${r.department_name}-${r.discharge_type}-${i}`}>
-            <Table.Td><Text size="sm">{r.department_name ?? "—"}</Text></Table.Td>
-            <Table.Td><Badge size="sm">{r.discharge_type}</Badge></Table.Td>
-            <Table.Td><Text size="sm" fw={500}>{r.avg_los_days.toFixed(1)}</Text></Table.Td>
-            <Table.Td><Text size="sm">{r.count}</Text></Table.Td>
+          <Table.Tr>
+            <Table.Td colSpan={4}>
+              <Text c="dimmed">Loading...</Text>
+            </Table.Td>
           </Table.Tr>
-        ))}
+        ) : (
+          rows.map((r, i) => (
+            <Table.Tr key={`${r.department_name}-${r.discharge_type}-${i}`}>
+              <Table.Td>
+                <Text size="sm">{r.department_name ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge size="sm">{r.discharge_type}</Badge>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm" fw={500}>
+                  {r.avg_los_days.toFixed(1)}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.count}</Text>
+              </Table.Td>
+            </Table.Tr>
+          ))
+        )}
       </Table.Tbody>
     </Table>
   );
@@ -2165,7 +3345,12 @@ function DischargeStatsReport({ from, to }: { from: string; to: string }) {
     enabled: !!from && !!to,
   });
 
-  if (!from || !to) return <Text c="dimmed" size="sm">Select a date range to view discharge statistics.</Text>;
+  if (!from || !to)
+    return (
+      <Text c="dimmed" size="sm">
+        Select a date range to view discharge statistics.
+      </Text>
+    );
 
   const rows = (data ?? []) as Array<{ discharge_type: string; count: number }>;
   const total = rows.reduce((sum, r) => sum + r.count, 0);
@@ -2174,16 +3359,29 @@ function DischargeStatsReport({ from, to }: { from: string; to: string }) {
     <Stack>
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
-      ) : rows.map((r) => (
-        <Group key={r.discharge_type} justify="space-between" p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-          <Group>
-            <Badge size="lg">{r.discharge_type}</Badge>
-            <Text size="sm">{r.count} discharges</Text>
+      ) : (
+        rows.map((r) => (
+          <Group
+            key={r.discharge_type}
+            justify="space-between"
+            p="xs"
+            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          >
+            <Group>
+              <Badge size="lg">{r.discharge_type}</Badge>
+              <Text size="sm">{r.count} discharges</Text>
+            </Group>
+            <Text size="sm" c="dimmed">
+              {total > 0 ? ((r.count / total) * 100).toFixed(1) : 0}%
+            </Text>
           </Group>
-          <Text size="sm" c="dimmed">{total > 0 ? ((r.count / total) * 100).toFixed(1) : 0}%</Text>
-        </Group>
-      ))}
-      {rows.length === 0 && <Text c="dimmed" size="sm">No discharges in this period.</Text>}
+        ))
+      )}
+      {rows.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No discharges in this period.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -2230,14 +3428,19 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
 
   const { data: docs, isLoading } = useQuery({
     queryKey: ["ipd-clinical-docs", admissionId, filterType],
-    queryFn: () => api.listClinicalDocs(admissionId, filterType ? { doc_type: filterType } : undefined),
+    queryFn: () =>
+      api.listClinicalDocs(admissionId, filterType ? { doc_type: filterType } : undefined),
   });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateClinicalDocRequest) => api.createClinicalDoc(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({ title: "Created", message: "Clinical documentation saved", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Clinical documentation saved",
+        color: "success",
+      });
       setShowForm(false);
       setDocType(null);
       setTitle("");
@@ -2249,7 +3452,11 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
     mutationFn: (docId: string) => api.resolveClinicalDoc(admissionId, docId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({ title: "Resolved", message: "Documentation marked as resolved", color: "success" });
+      notifications.show({
+        title: "Resolved",
+        message: "Documentation marked as resolved",
+        color: "success",
+      });
     },
   });
 
@@ -2257,7 +3464,11 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateRestraintCheckRequest) => api.createRestraintCheck(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({ title: "Recorded", message: "Restraint check logged", color: "success" });
+      notifications.show({
+        title: "Recorded",
+        message: "Restraint check logged",
+        color: "success",
+      });
       setShowRestraintForm(null);
       setRestraintStatus(null);
       setRestraintNotes("");
@@ -2287,74 +3498,154 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
       {showForm && (
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Select label="Type" data={DOC_TYPE_OPTIONS} value={docType} onChange={setDocType} required />
-            <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
+            <Select
+              label="Type"
+              data={DOC_TYPE_OPTIONS}
+              value={docType}
+              onChange={setDocType}
+              required
+            />
+            <TextInput
+              label="Title"
+              value={title}
+              onChange={(e) => setTitle(e.currentTarget.value)}
+              required
+            />
             {docType === "central_line" && (
-              <Text size="xs" c="dimmed">Structured: insertion site (subclavian/jugular/femoral), line type, daily assessment — stored in body JSONB</Text>
+              <Text size="xs" c="dimmed">
+                Structured: insertion site (subclavian/jugular/femoral), line type, daily assessment
+                — stored in body JSONB
+              </Text>
             )}
             {docType === "catheter" && (
-              <Text size="xs" c="dimmed">Structured: catheter type (Foley/suprapubic/condom), size, daily assessment — stored in body JSONB</Text>
+              <Text size="xs" c="dimmed">
+                Structured: catheter type (Foley/suprapubic/condom), size, daily assessment — stored
+                in body JSONB
+              </Text>
             )}
             {docType === "transfusion" && (
-              <Text size="xs" c="dimmed">Structured: blood product type, unit number, donation ID, pre-transfusion vitals, reaction monitoring — stored in body JSONB</Text>
+              <Text size="xs" c="dimmed">
+                Structured: blood product type, unit number, donation ID, pre-transfusion vitals,
+                reaction monitoring — stored in body JSONB
+              </Text>
             )}
             {docType === "restraint" && (
-              <Text size="xs" c="dimmed">Structured: restraint type, reason, physician order. 30-min monitoring checks logged separately.</Text>
+              <Text size="xs" c="dimmed">
+                Structured: restraint type, reason, physician order. 30-min monitoring checks logged
+                separately.
+              </Text>
             )}
             {docType === "blood_transfusion_checklist" && (
               <Card withBorder p="xs" bg="blue.0">
-                <Text size="xs" fw={500} mb={4}>Blood Transfusion Checklist (WHO Protocol)</Text>
-                <Text size="xs" c="dimmed">Pre-transfusion: patient ID (2 identifiers), consent verified, blood group crossmatch, vitals (temp/BP/HR/RR/SpO2).</Text>
-                <Text size="xs" c="dimmed">Interval checks: 15-min, 30-min, 60-min, 120-min — vitals + reaction monitoring at each.</Text>
-                <Text size="xs" c="dimmed">Reaction types: febrile, allergic, hemolytic, TRALI, TACO, other. Severity + action taken logged.</Text>
+                <Text size="xs" fw={500} mb={4}>
+                  Blood Transfusion Checklist (WHO Protocol)
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Pre-transfusion: patient ID (2 identifiers), consent verified, blood group
+                  crossmatch, vitals (temp/BP/HR/RR/SpO2).
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Interval checks: 15-min, 30-min, 60-min, 120-min — vitals + reaction monitoring at
+                  each.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Reaction types: febrile, allergic, hemolytic, TRALI, TACO, other. Severity +
+                  action taken logged.
+                </Text>
               </Card>
             )}
             {docType === "elopement_risk" && (
               <Card withBorder p="xs" bg="orange.0">
-                <Text size="xs" fw={500} mb={4}>Elopement Risk Assessment</Text>
-                <Text size="xs" c="dimmed">Risk factors: psychiatric diagnosis, MLC patient, confused state, dementia, substance withdrawal, previous elopement, suicidal ideation.</Text>
-                <Text size="xs" c="dimmed">Auto-scores risk (low/medium/high/critical). Precautions: 1:1 watch, door alarms, colored wristband, family notification.</Text>
+                <Text size="xs" fw={500} mb={4}>
+                  Elopement Risk Assessment
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Risk factors: psychiatric diagnosis, MLC patient, confused state, dementia,
+                  substance withdrawal, previous elopement, suicidal ideation.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Auto-scores risk (low/medium/high/critical). Precautions: 1:1 watch, door alarms,
+                  colored wristband, family notification.
+                </Text>
               </Card>
             )}
             {docType === "dialysis" && (
               <Card withBorder p="xs" bg="teal.0">
-                <Text size="xs" fw={500} mb={4}>Dialysis Nursing (Pre/Intra/Post)</Text>
-                <Text size="xs" c="dimmed">Pre: dry weight, access type/site, machine params (blood flow, dialysate flow, UF goal).</Text>
-                <Text size="xs" c="dimmed">Intra: hourly vitals, UF removed, machine alarms, interventions.</Text>
-                <Text size="xs" c="dimmed">Post: post-weight, fluid removed, access site check, complications.</Text>
+                <Text size="xs" fw={500} mb={4}>
+                  Dialysis Nursing (Pre/Intra/Post)
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Pre: dry weight, access type/site, machine params (blood flow, dialysate flow, UF
+                  goal).
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Intra: hourly vitals, UF removed, machine alarms, interventions.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Post: post-weight, fluid removed, access site check, complications.
+                </Text>
               </Card>
             )}
             {docType === "endoscopy" && (
               <Card withBorder p="xs" bg="grape.0">
-                <Text size="xs" fw={500} mb={4}>Endoscopy Nursing (Aldrete Score)</Text>
-                <Text size="xs" c="dimmed">Sedation: drugs (name, dose, time), sedation level. Monitoring: vitals at 5-min intervals.</Text>
-                <Text size="xs" c="dimmed">Modified Aldrete: activity (0-2), respiration (0-2), circulation (0-2), consciousness (0-2), SpO2 (0-2).</Text>
-                <Text size="xs" c="dimmed">Score 9+ = discharge ready. Complications: perforation, bleeding, aspiration, cardiopulmonary.</Text>
+                <Text size="xs" fw={500} mb={4}>
+                  Endoscopy Nursing (Aldrete Score)
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Sedation: drugs (name, dose, time), sedation level. Monitoring: vitals at 5-min
+                  intervals.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Modified Aldrete: activity (0-2), respiration (0-2), circulation (0-2),
+                  consciousness (0-2), SpO2 (0-2).
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Score 9+ = discharge ready. Complications: perforation, bleeding, aspiration,
+                  cardiopulmonary.
+                </Text>
               </Card>
             )}
             {docType === "chemotherapy" && (
               <Card withBorder p="xs" bg="red.0">
-                <Text size="xs" fw={500} mb={4}>Chemotherapy Administration (CTCAE Grading)</Text>
-                <Text size="xs" c="dimmed">Protocol, cycle number, drug list, doses, infusion rates. Pre-medications administered.</Text>
-                <Text size="xs" c="dimmed">Vitals: baseline + q15min x4 + q30min. Adverse reactions (CTCAE grade 1-5), extravasation check.</Text>
-                <Badge size="xs" color="danger" variant="light" mt={4}>Requires chemo certification verification</Badge>
+                <Text size="xs" fw={500} mb={4}>
+                  Chemotherapy Administration (CTCAE Grading)
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Protocol, cycle number, drug list, doses, infusion rates. Pre-medications
+                  administered.
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Vitals: baseline + q15min x4 + q30min. Adverse reactions (CTCAE grade 1-5),
+                  extravasation check.
+                </Text>
+                <Badge size="xs" color="danger" variant="light" mt={4}>
+                  Requires chemo certification verification
+                </Badge>
               </Card>
             )}
-            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+            <Textarea
+              label="Notes"
+              value={notes}
+              onChange={(e) => setNotes(e.currentTarget.value)}
+            />
             <Group>
               <Button
                 size="sm"
-                onClick={() => createMutation.mutate({
-                  doc_type: docType as IpdClinicalDocType,
-                  title,
-                  notes: notes || undefined,
-                })}
+                onClick={() =>
+                  createMutation.mutate({
+                    doc_type: docType as IpdClinicalDocType,
+                    title,
+                    notes: notes || undefined,
+                  })
+                }
                 loading={createMutation.isPending}
                 disabled={!docType || !title}
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -2363,7 +3654,9 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No clinical documentation recorded yet.</Text>
+        <Text c="dimmed" size="sm">
+          No clinical documentation recorded yet.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -2378,26 +3671,47 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
           <Table.Tbody>
             {rows.map((doc: IpdClinicalDocumentation) => (
               <Table.Tr key={doc.id}>
-                <Table.Td><Badge size="sm" variant="light">{doc.doc_type.replace(/_/g, " ")}</Badge></Table.Td>
-                <Table.Td><Text size="sm">{doc.title}</Text></Table.Td>
-                <Table.Td><Text size="sm">{new Date(doc.recorded_at).toLocaleString()}</Text></Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {doc.doc_type.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{doc.title}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{new Date(doc.recorded_at).toLocaleString()}</Text>
+                </Table.Td>
                 <Table.Td>
                   {doc.is_resolved ? (
-                    <Badge color="success" size="sm">Resolved</Badge>
+                    <Badge color="success" size="sm">
+                      Resolved
+                    </Badge>
                   ) : (
-                    <Badge color="warning" size="sm">Active</Badge>
+                    <Badge color="warning" size="sm">
+                      Active
+                    </Badge>
                   )}
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs">
                     {!doc.is_resolved && canCreate && (
-                      <ActionIcon size="sm" variant="light" color="success" onClick={() => resolveMutation.mutate(doc.id)}>
+                      <ActionIcon
+                        size="sm"
+                        variant="light"
+                        color="success"
+                        onClick={() => resolveMutation.mutate(doc.id)}
+                      >
                         <IconCheck size={14} />
                       </ActionIcon>
                     )}
                     {doc.doc_type === "restraint" && !doc.is_resolved && (
                       <>
-                        <Button size="xs" variant="light" onClick={() => setShowRestraintForm(doc.id)}>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setShowRestraintForm(doc.id)}
+                        >
                           Log Check
                         </Button>
                         <RestraintChecksSummary admissionId={admissionId} docId={doc.id} />
@@ -2413,24 +3727,40 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
 
       {showRestraintForm && (
         <Card withBorder p="sm">
-          <Text fw={500} size="sm" mb="xs">30-Minute Restraint Check</Text>
+          <Text fw={500} size="sm" mb="xs">
+            30-Minute Restraint Check
+          </Text>
           <Stack gap="xs">
-            <Select label="Status" data={RESTRAINT_STATUS_OPTIONS} value={restraintStatus} onChange={setRestraintStatus} required />
-            <Textarea label="Notes" value={restraintNotes} onChange={(e) => setRestraintNotes(e.currentTarget.value)} />
+            <Select
+              label="Status"
+              data={RESTRAINT_STATUS_OPTIONS}
+              value={restraintStatus}
+              onChange={setRestraintStatus}
+              required
+            />
+            <Textarea
+              label="Notes"
+              value={restraintNotes}
+              onChange={(e) => setRestraintNotes(e.currentTarget.value)}
+            />
             <Group>
               <Button
                 size="sm"
-                onClick={() => restraintMutation.mutate({
-                  clinical_doc_id: showRestraintForm,
-                  status: restraintStatus as RestraintCheckStatus,
-                  notes: restraintNotes || undefined,
-                })}
+                onClick={() =>
+                  restraintMutation.mutate({
+                    clinical_doc_id: showRestraintForm,
+                    status: restraintStatus as RestraintCheckStatus,
+                    notes: restraintNotes || undefined,
+                  })
+                }
                 loading={restraintMutation.isPending}
                 disabled={!restraintStatus}
               >
                 Record Check
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowRestraintForm(null)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowRestraintForm(null)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -2455,14 +3785,28 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.createAdmissionChecklist(admissionId, {
-      items: [{ item_label: newLabel, category: newCategory || undefined }],
-    }),
+    mutationFn: () =>
+      api.createAdmissionChecklist(admissionId, {
+        items: [{ item_label: newLabel, category: newCategory || undefined }],
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
       notifications.show({ title: "Added", message: "Checklist item added", color: "success" });
       setNewLabel("");
       setNewCategory("");
+    },
+  });
+
+  const seedTemplateMutation = useMutation({
+    mutationFn: (template: ChecklistTemplate) =>
+      api.createAdmissionChecklist(admissionId, { items: template.items }),
+    onSuccess: (_data, template) => {
+      void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
+      notifications.show({
+        title: "Template loaded",
+        message: `${template.title} — ${template.items.length} items added`,
+        color: "success",
+      });
     },
   });
 
@@ -2484,45 +3828,100 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
           Checklist ({completed}/{rows.length} completed)
         </Text>
         {rows.length > 0 && (
-          <Progress value={rows.length > 0 ? (completed / rows.length) * 100 : 0} size="lg" w={200} />
+          <Progress
+            value={rows.length > 0 ? (completed / rows.length) * 100 : 0}
+            size="lg"
+            w={200}
+          />
         )}
       </Group>
 
       {canCreate && (
-        <Group>
-          <TextInput
-            placeholder="Item label"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.currentTarget.value)}
-            style={{ flex: 1 }}
-          />
-          <TextInput
-            placeholder="Category"
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.currentTarget.value)}
-            w={150}
-          />
-          <Button size="sm" onClick={() => createMutation.mutate()} disabled={!newLabel} loading={createMutation.isPending}>
-            Add
-          </Button>
-        </Group>
+        <Stack gap="xs">
+          <Group>
+            <TextInput
+              placeholder="Item label"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            <TextInput
+              placeholder="Category"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.currentTarget.value)}
+              w={150}
+            />
+            <Button
+              size="sm"
+              onClick={() => createMutation.mutate()}
+              disabled={!newLabel}
+              loading={createMutation.isPending}
+            >
+              Add
+            </Button>
+            <Menu shadow="md" position="bottom-end">
+              <Menu.Target>
+                <Button
+                  size="sm"
+                  variant="light"
+                  loading={seedTemplateMutation.isPending}
+                  leftSection={<IconPlus size={14} />}
+                >
+                  Load template
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Seed standard checklist</Menu.Label>
+                {ALL_TEMPLATES.map((template) => (
+                  <Menu.Item
+                    key={template.key}
+                    onClick={() => seedTemplateMutation.mutate(template)}
+                  >
+                    <Stack gap={2}>
+                      <Text size="sm" fw={600}>
+                        {template.title}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {template.description}
+                      </Text>
+                    </Stack>
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Stack>
       )}
 
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No checklist items yet. Add items to track admission readiness.</Text>
+        <Text c="dimmed" size="sm">
+          No checklist items yet. Add items to track admission readiness.
+        </Text>
       ) : (
         <Stack gap="xs">
           {rows.map((item: AdmissionChecklist) => (
-            <Group key={item.id} p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+            <Group
+              key={item.id}
+              p="xs"
+              style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+            >
               <Checkbox
                 checked={item.is_completed}
-                onChange={(e) => toggleMutation.mutate({ itemId: item.id, completed: e.currentTarget.checked })}
+                onChange={(e) =>
+                  toggleMutation.mutate({ itemId: item.id, completed: e.currentTarget.checked })
+                }
               />
               <div style={{ flex: 1 }}>
-                <Text size="sm" td={item.is_completed ? "line-through" : undefined}>{item.item_label}</Text>
-                {item.category && <Text size="xs" c="dimmed">{item.category}</Text>}
+                <Text size="sm" td={item.is_completed ? "line-through" : undefined}>
+                  {item.item_label}
+                </Text>
+                {item.category && (
+                  <Text size="xs" c="dimmed">
+                    {item.category}
+                  </Text>
+                )}
               </div>
               {item.completed_at && (
                 <Text size="xs" c="dimmed">
@@ -2588,23 +3987,41 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
       {showForm && (
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Select label="Transfer Type" data={TRANSFER_TYPE_OPTIONS} value={transferType} onChange={setTransferType} required />
-            <Textarea label="Reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
-            <Textarea label="Clinical Summary" value={clinicalSummary} onChange={(e) => setClinicalSummary(e.currentTarget.value)} />
+            <Select
+              label="Transfer Type"
+              data={TRANSFER_TYPE_OPTIONS}
+              value={transferType}
+              onChange={setTransferType}
+              required
+            />
+            <Textarea
+              label="Reason"
+              value={reason}
+              onChange={(e) => setReason(e.currentTarget.value)}
+            />
+            <Textarea
+              label="Clinical Summary"
+              value={clinicalSummary}
+              onChange={(e) => setClinicalSummary(e.currentTarget.value)}
+            />
             <Group>
               <Button
                 size="sm"
-                onClick={() => createMutation.mutate({
-                  transfer_type: transferType as TransferType,
-                  reason: reason || undefined,
-                  clinical_summary: clinicalSummary || undefined,
-                })}
+                onClick={() =>
+                  createMutation.mutate({
+                    transfer_type: transferType as TransferType,
+                    reason: reason || undefined,
+                    clinical_summary: clinicalSummary || undefined,
+                  })
+                }
                 loading={createMutation.isPending}
                 disabled={!transferType}
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -2613,7 +4030,9 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No transfers recorded.</Text>
+        <Text c="dimmed" size="sm">
+          No transfers recorded.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -2627,10 +4046,20 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
           <Table.Tbody>
             {rows.map((t: IpdTransferLog) => (
               <Table.Tr key={t.id}>
-                <Table.Td><Badge size="sm">{t.transfer_type.replace(/_/g, " ")}</Badge></Table.Td>
-                <Table.Td><Text size="sm">{new Date(t.transferred_at).toLocaleString()}</Text></Table.Td>
-                <Table.Td><Text size="sm">{t.reason ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm" lineClamp={2}>{t.clinical_summary ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Badge size="sm">{t.transfer_type.replace(/_/g, " ")}</Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{new Date(t.transferred_at).toLocaleString()}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{t.reason ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" lineClamp={2}>
+                    {t.clinical_summary ?? "—"}
+                  </Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -2658,7 +4087,11 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
     mutationFn: () => api.initiateDischargeTat(admissionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
-      notifications.show({ title: "Initiated", message: "Discharge TAT tracking started", color: "success" });
+      notifications.show({
+        title: "Initiated",
+        message: "Discharge TAT tracking started",
+        color: "success",
+      });
     },
   });
 
@@ -2666,11 +4099,20 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: Record<string, string>) => api.updateDischargeTat(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
-      notifications.show({ title: "Updated", message: "Discharge milestone recorded", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "Discharge milestone recorded",
+        color: "success",
+      });
     },
   });
 
-  if (!canView) return <Text c="dimmed" size="sm">No permission to view discharge TAT.</Text>;
+  if (!canView)
+    return (
+      <Text c="dimmed" size="sm">
+        No permission to view discharge TAT.
+      </Text>
+    );
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
 
   const log = tat as IpdDischargeTatLog | null;
@@ -2678,7 +4120,9 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
   if (!log) {
     return (
       <Stack>
-        <Text c="dimmed" size="sm">Discharge TAT tracking has not been initiated for this admission.</Text>
+        <Text c="dimmed" size="sm">
+          Discharge TAT tracking has not been initiated for this admission.
+        </Text>
         <Button size="sm" onClick={() => initMutation.mutate()} loading={initMutation.isPending}>
           Start Discharge TAT Tracking
         </Button>
@@ -2687,33 +4131,54 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
   }
 
   const milestones = [
-    { key: "discharge_initiated_at", label: "Discharge Initiated", value: log.discharge_initiated_at },
+    {
+      key: "discharge_initiated_at",
+      label: "Discharge Initiated",
+      value: log.discharge_initiated_at,
+    },
     { key: "billing_cleared_at", label: "Billing Cleared", value: log.billing_cleared_at },
     { key: "pharmacy_cleared_at", label: "Pharmacy Cleared", value: log.pharmacy_cleared_at },
     { key: "nursing_cleared_at", label: "Nursing Cleared", value: log.nursing_cleared_at },
     { key: "doctor_cleared_at", label: "Doctor Cleared", value: log.doctor_cleared_at },
-    { key: "discharge_completed_at", label: "Discharge Completed", value: log.discharge_completed_at },
+    {
+      key: "discharge_completed_at",
+      label: "Discharge Completed",
+      value: log.discharge_completed_at,
+    },
   ];
 
   return (
     <Stack>
       <Text fw={500}>Discharge TAT Timeline</Text>
       {log.total_tat_minutes != null && (
-        <Badge size="lg" color="primary" variant="light">Total TAT: {log.total_tat_minutes} minutes</Badge>
+        <Badge size="lg" color="primary" variant="light">
+          Total TAT: {log.total_tat_minutes} minutes
+        </Badge>
       )}
       <Stack gap="xs">
         {milestones.map((m) => (
-          <Group key={m.key} p="xs" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }} justify="space-between">
+          <Group
+            key={m.key}
+            p="xs"
+            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+            justify="space-between"
+          >
             <Group>
               {m.value ? (
-                <Badge color="success" size="sm" variant="dot">Done</Badge>
+                <Badge color="success" size="sm" variant="dot">
+                  Done
+                </Badge>
               ) : (
-                <Badge color="slate" size="sm" variant="dot">Pending</Badge>
+                <Badge color="slate" size="sm" variant="dot">
+                  Pending
+                </Badge>
               )}
               <Text size="sm">{m.label}</Text>
             </Group>
             {m.value ? (
-              <Text size="xs" c="dimmed">{new Date(m.value).toLocaleString()}</Text>
+              <Text size="xs" c="dimmed">
+                {new Date(m.value).toLocaleString()}
+              </Text>
             ) : (
               <Button
                 size="xs"
@@ -2764,24 +4229,48 @@ function InvestigationsTab({ admissionId }: { admissionId: string }) {
               const results = inv.lab_results.filter((r) => r.order_id === lo.id);
               return (
                 <Table.Tr key={lo.id}>
-                  <Table.Td><Text size="sm" fw={500}>{lo.test_name}</Text></Table.Td>
-                  <Table.Td><Text size="xs">{new Date(lo.ordered_at).toLocaleDateString()}</Text></Table.Td>
-                  <Table.Td><Badge size="sm" variant="light">{lo.status}</Badge></Table.Td>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {lo.test_name}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{new Date(lo.ordered_at).toLocaleDateString()}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="sm" variant="light">
+                      {lo.status}
+                    </Badge>
+                  </Table.Td>
                   <Table.Td>
                     {results.length > 0 ? (
                       <Stack gap={2}>
                         {results.map((r) => (
                           <Group key={r.id} gap={4}>
-                            <Text size="xs" c={r.is_abnormal ? "danger" : undefined} fw={r.is_abnormal ? 600 : undefined}>
+                            <Text
+                              size="xs"
+                              c={r.is_abnormal ? "danger" : undefined}
+                              fw={r.is_abnormal ? 600 : undefined}
+                            >
                               {r.parameter_name}: {r.value ?? "—"} {r.unit ?? ""}
                             </Text>
-                            {r.reference_range && <Text size="xs" c="dimmed">({r.reference_range})</Text>}
-                            {r.is_abnormal && <Badge color="danger" size="xs">Abnormal</Badge>}
+                            {r.reference_range && (
+                              <Text size="xs" c="dimmed">
+                                ({r.reference_range})
+                              </Text>
+                            )}
+                            {r.is_abnormal && (
+                              <Badge color="danger" size="xs">
+                                Abnormal
+                              </Badge>
+                            )}
                           </Group>
                         ))}
                       </Stack>
                     ) : (
-                      <Text size="xs" c="dimmed">Pending</Text>
+                      <Text size="xs" c="dimmed">
+                        Pending
+                      </Text>
                     )}
                   </Table.Td>
                 </Table.Tr>
@@ -2790,10 +4279,14 @@ function InvestigationsTab({ admissionId }: { admissionId: string }) {
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No lab orders during admission.</Text>
+        <Text size="sm" c="dimmed">
+          No lab orders during admission.
+        </Text>
       )}
 
-      <Text fw={600} mt="md">Radiology Orders ({inv.radiology_orders.length})</Text>
+      <Text fw={600} mt="md">
+        Radiology Orders ({inv.radiology_orders.length})
+      </Text>
       {inv.radiology_orders.length > 0 ? (
         <Table striped>
           <Table.Thead>
@@ -2808,17 +4301,31 @@ function InvestigationsTab({ admissionId }: { admissionId: string }) {
           <Table.Tbody>
             {inv.radiology_orders.map((ro) => (
               <Table.Tr key={ro.id}>
-                <Table.Td><Text size="sm">{ro.modality}</Text></Table.Td>
-                <Table.Td><Text size="sm">{ro.body_part ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs">{new Date(ro.ordered_at).toLocaleDateString()}</Text></Table.Td>
-                <Table.Td><Badge size="sm" variant="light">{ro.status}</Badge></Table.Td>
-                <Table.Td><Text size="xs">{ro.findings ?? "Pending"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm">{ro.modality}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{ro.body_part ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{new Date(ro.ordered_at).toLocaleDateString()}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {ro.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{ro.findings ?? "Pending"}</Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No radiology orders during admission.</Text>
+        <Text size="sm" c="dimmed">
+          No radiology orders during admission.
+        </Text>
       )}
     </Stack>
   );
@@ -2845,10 +4352,13 @@ function BillingTab({ admissionId }: { admissionId: string }) {
   const cost = costData as EstimatedCostResponse | undefined;
   const billing = summaryData as BillingSummaryResponse | undefined;
   const ipTypeConfigs = (ipTypes ?? []) as IpTypeConfiguration[];
-  const configWithThreshold = ipTypeConfigs.find((c) => c.billing_alert_threshold != null && c.billing_alert_threshold > 0);
-  const thresholdExceeded = billing && configWithThreshold
-    ? billing.total_charges > configWithThreshold.billing_alert_threshold!
-    : false;
+  const configWithThreshold = ipTypeConfigs.find(
+    (c) => c.billing_alert_threshold != null && c.billing_alert_threshold > 0,
+  );
+  const thresholdExceeded =
+    billing && configWithThreshold
+      ? billing.total_charges > configWithThreshold.billing_alert_threshold!
+      : false;
 
   return (
     <Stack>
@@ -2857,7 +4367,8 @@ function BillingTab({ admissionId }: { admissionId: string }) {
           <Group gap="xs">
             <IconAlertTriangle size={20} color="var(--mantine-color-red-6)" />
             <Text size="sm" fw={600} c="red.8">
-              Billing Alert: Total charges ({billing?.total_charges}) exceed threshold ({configWithThreshold.billing_alert_threshold})
+              Billing Alert: Total charges ({billing?.total_charges}) exceed threshold (
+              {configWithThreshold.billing_alert_threshold})
             </Text>
           </Group>
         </Card>
@@ -2865,24 +4376,54 @@ function BillingTab({ admissionId }: { admissionId: string }) {
 
       {cost && (
         <Card withBorder p="sm">
-          <Text fw={600} mb="xs">Estimated Cost</Text>
+          <Text fw={600} mb="xs">
+            Estimated Cost
+          </Text>
           <SimpleGrid cols={{ base: 2, sm: 4 }}>
-            <div><Text size="xs" c="dimmed">Daily Rate</Text><Text fw={500}>{cost.daily_rate}</Text></div>
-            <div><Text size="xs" c="dimmed">Nursing/day</Text><Text fw={500}>{cost.nursing_charge}</Text></div>
-            <div><Text size="xs" c="dimmed">Est. Days</Text><Text fw={500}>{cost.estimated_days}</Text></div>
-            <div><Text size="xs" c="dimmed">Deposit Required</Text><Text fw={500}>{cost.deposit_required}</Text></div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Daily Rate
+              </Text>
+              <Text fw={500}>{cost.daily_rate}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Nursing/day
+              </Text>
+              <Text fw={500}>{cost.nursing_charge}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Est. Days
+              </Text>
+              <Text fw={500}>{cost.estimated_days}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Deposit Required
+              </Text>
+              <Text fw={500}>{cost.deposit_required}</Text>
+            </div>
           </SimpleGrid>
           <Group mt="xs">
-            <Badge size="lg" color="primary" variant="light">Room: {cost.room_total}</Badge>
-            <Badge size="lg" color="teal" variant="light">Nursing: {cost.nursing_total}</Badge>
-            <Badge size="lg" color="primary" variant="filled">Total Est.: {cost.total_estimated}</Badge>
+            <Badge size="lg" color="primary" variant="light">
+              Room: {cost.room_total}
+            </Badge>
+            <Badge size="lg" color="teal" variant="light">
+              Nursing: {cost.nursing_total}
+            </Badge>
+            <Badge size="lg" color="primary" variant="filled">
+              Total Est.: {cost.total_estimated}
+            </Badge>
           </Group>
         </Card>
       )}
 
       {billing && (
         <Card withBorder p="sm">
-          <Text fw={600} mb="xs">Charges Summary</Text>
+          <Text fw={600} mb="xs">
+            Charges Summary
+          </Text>
           {billing.charges_by_dept.length > 0 ? (
             <Table striped>
               <Table.Thead>
@@ -2894,19 +4435,33 @@ function BillingTab({ admissionId }: { admissionId: string }) {
               <Table.Tbody>
                 {billing.charges_by_dept.map((d) => (
                   <Table.Tr key={d.department_name}>
-                    <Table.Td><Text size="sm">{d.department_name}</Text></Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}><Text size="sm">{d.total}</Text></Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{d.department_name}</Text>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <Text size="sm">{d.total}</Text>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           ) : (
-            <Text size="sm" c="dimmed">No charges recorded yet.</Text>
+            <Text size="sm" c="dimmed">
+              No charges recorded yet.
+            </Text>
           )}
           <Group mt="sm">
-            <Badge size="lg" variant="light">Charges: {billing.total_charges}</Badge>
-            <Badge size="lg" color="success" variant="light">Payments: {billing.total_payments}</Badge>
-            <Badge size="lg" color={billing.outstanding_balance > 0 ? "danger" : "success"} variant="filled">
+            <Badge size="lg" variant="light">
+              Charges: {billing.total_charges}
+            </Badge>
+            <Badge size="lg" color="success" variant="light">
+              Payments: {billing.total_payments}
+            </Badge>
+            <Badge
+              size="lg"
+              color={billing.outstanding_balance > 0 ? "danger" : "success"}
+              variant="filled"
+            >
               Outstanding: {billing.outstanding_balance}
             </Badge>
           </Group>
@@ -2914,7 +4469,9 @@ function BillingTab({ admissionId }: { admissionId: string }) {
       )}
 
       <Card withBorder p="sm">
-        <Text fw={600} mb="xs">Advance Payments</Text>
+        <Text fw={600} mb="xs">
+          Advance Payments
+        </Text>
         {(advances ?? []).length > 0 ? (
           <Table striped>
             <Table.Thead>
@@ -2927,15 +4484,23 @@ function BillingTab({ admissionId }: { admissionId: string }) {
             <Table.Tbody>
               {(advances ?? []).map((r: Receipt) => (
                 <Table.Tr key={r.id}>
-                  <Table.Td><Text size="sm">{r.receipt_number}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{String(r.amount)}</Text></Table.Td>
-                  <Table.Td><Text size="xs">{new Date(r.receipt_date).toLocaleDateString()}</Text></Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{r.receipt_number}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{String(r.amount)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{new Date(r.receipt_date).toLocaleDateString()}</Text>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         ) : (
-          <Text size="sm" c="dimmed">No advance payments recorded.</Text>
+          <Text size="sm" c="dimmed">
+            No advance payments recorded.
+          </Text>
         )}
       </Card>
     </Stack>
@@ -2949,8 +4514,12 @@ function InsurancePaTab({ admissionId }: { admissionId: string }) {
   });
 
   const paStatusColors: Record<string, string> = {
-    draft: "slate", submitted: "primary", approved: "success",
-    partially_approved: "warning", denied: "danger", cancelled: "dark",
+    draft: "slate",
+    submitted: "primary",
+    approved: "success",
+    partially_approved: "warning",
+    denied: "danger",
+    cancelled: "dark",
     expired: "orange",
   };
 
@@ -2975,23 +4544,37 @@ function InsurancePaTab({ admissionId }: { admissionId: string }) {
           <Table.Tbody>
             {rows.map((pa: PriorAuthRequestRow) => (
               <Table.Tr key={pa.id}>
-                <Table.Td><Text size="sm" fw={500}>{pa.pa_number}</Text></Table.Td>
-                <Table.Td><Text size="sm">{pa.service_type}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {pa.pa_number}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{pa.service_type}</Text>
+                </Table.Td>
                 <Table.Td>
                   <Badge color={paStatusColors[pa.status] ?? "slate"} size="sm">
                     {pa.status}
                   </Badge>
                 </Table.Td>
-                <Table.Td><Badge size="sm" variant="light">{pa.urgency}</Badge></Table.Td>
                 <Table.Td>
-                  <Text size="xs">{pa.submitted_at ? new Date(pa.submitted_at).toLocaleDateString() : "—"}</Text>
+                  <Badge size="sm" variant="light">
+                    {pa.urgency}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {pa.submitted_at ? new Date(pa.submitted_at).toLocaleDateString() : "—"}
+                  </Text>
                 </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No prior authorization requests for this admission.</Text>
+        <Text size="sm" c="dimmed">
+          No prior authorization requests for this admission.
+        </Text>
       )}
     </Stack>
   );
@@ -3011,7 +4594,11 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-mlc", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      notifications.show({ title: "Linked", message: "MLC case linked to admission", color: "success" });
+      notifications.show({
+        title: "Linked",
+        message: "MLC case linked to admission",
+        color: "success",
+      });
       setMlcIdInput("");
     },
   });
@@ -3026,23 +4613,57 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
       ) : mlc ? (
         <Card withBorder p="sm">
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <div><Text size="xs" c="dimmed">MLC Number</Text><Text fw={500}>{mlc.mlc_number}</Text></div>
-            <div><Text size="xs" c="dimmed">Status</Text><Badge size="sm">{mlc.status}</Badge></div>
-            <div><Text size="xs" c="dimmed">Case Type</Text><Text size="sm">{mlc.case_type ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">FIR Number</Text><Text size="sm">{mlc.fir_number ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Police Station</Text><Text size="sm">{mlc.police_station ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Brought By</Text><Text size="sm">{mlc.brought_by ?? "—"}</Text></div>
+            <div>
+              <Text size="xs" c="dimmed">
+                MLC Number
+              </Text>
+              <Text fw={500}>{mlc.mlc_number}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Status
+              </Text>
+              <Badge size="sm">{mlc.status}</Badge>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Case Type
+              </Text>
+              <Text size="sm">{mlc.case_type ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                FIR Number
+              </Text>
+              <Text size="sm">{mlc.fir_number ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Police Station
+              </Text>
+              <Text size="sm">{mlc.police_station ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Brought By
+              </Text>
+              <Text size="sm">{mlc.brought_by ?? "—"}</Text>
+            </div>
           </SimpleGrid>
           {mlc.history_of_incident && (
             <div>
-              <Text size="xs" c="dimmed" mt="xs">History of Incident</Text>
+              <Text size="xs" c="dimmed" mt="xs">
+                History of Incident
+              </Text>
               <Text size="sm">{mlc.history_of_incident}</Text>
             </div>
           )}
         </Card>
       ) : (
         <>
-          <Text size="sm" c="dimmed">No MLC case linked to this admission.</Text>
+          <Text size="sm" c="dimmed">
+            No MLC case linked to this admission.
+          </Text>
           {canCreate && (
             <Group>
               <TextInput
@@ -3076,8 +4697,14 @@ function DietTab({ admissionId }: { admissionId: string }) {
 
   const rows = (data ?? []) as DietOrder[];
   const dietTypeColors: Record<string, string> = {
-    regular: "primary", soft: "teal", liquid: "info", npo: "danger",
-    diabetic: "orange", renal: "violet", cardiac: "danger", custom: "slate",
+    regular: "primary",
+    soft: "teal",
+    liquid: "info",
+    npo: "danger",
+    diabetic: "orange",
+    renal: "violet",
+    cardiac: "danger",
+    custom: "slate",
   };
 
   return (
@@ -3100,18 +4727,38 @@ function DietTab({ admissionId }: { admissionId: string }) {
             {rows.map((d) => (
               <Table.Tr key={d.id}>
                 <Table.Td>
-                  <Badge color={dietTypeColors[d.diet_type] ?? "slate"} size="sm">{d.diet_type}</Badge>
+                  <Badge color={dietTypeColors[d.diet_type] ?? "slate"} size="sm">
+                    {d.diet_type}
+                  </Badge>
                 </Table.Td>
-                <Table.Td><Badge variant="light" size="sm">{d.status}</Badge></Table.Td>
-                <Table.Td>{d.is_npo ? <Badge color="danger" size="xs">NPO</Badge> : "—"}</Table.Td>
-                <Table.Td><Text size="xs">{d.special_instructions ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs">{d.start_date}</Text></Table.Td>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {d.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {d.is_npo ? (
+                    <Badge color="danger" size="xs">
+                      NPO
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{d.special_instructions ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{d.start_date}</Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No diet orders for this admission.</Text>
+        <Text size="sm" c="dimmed">
+          No diet orders for this admission.
+        </Text>
       )}
     </Stack>
   );
@@ -3125,7 +4772,11 @@ function ConsentsTab({ admissionId }: { admissionId: string }) {
 
   const rows = (data ?? []) as ProcedureConsent[];
   const consentStatusColors: Record<string, string> = {
-    pending: "warning", signed: "success", refused: "danger", withdrawn: "orange", expired: "slate",
+    pending: "warning",
+    signed: "success",
+    refused: "danger",
+    withdrawn: "orange",
+    expired: "slate",
   };
 
   return (
@@ -3147,19 +4798,37 @@ function ConsentsTab({ admissionId }: { admissionId: string }) {
           <Table.Tbody>
             {rows.map((c) => (
               <Table.Tr key={c.id}>
-                <Table.Td><Text size="sm" fw={500}>{c.procedure_name}</Text></Table.Td>
-                <Table.Td><Badge size="sm" variant="light">{c.consent_type}</Badge></Table.Td>
                 <Table.Td>
-                  <Badge color={consentStatusColors[c.status] ?? "slate"} size="sm">{c.status}</Badge>
+                  <Text size="sm" fw={500}>
+                    {c.procedure_name}
+                  </Text>
                 </Table.Td>
-                <Table.Td><Text size="xs">{c.signed_at ? new Date(c.signed_at).toLocaleDateString() : "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs">{c.consented_by_name ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {c.consent_type}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={consentStatusColors[c.status] ?? "slate"} size="sm">
+                    {c.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {c.signed_at ? new Date(c.signed_at).toLocaleDateString() : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{c.consented_by_name ?? "—"}</Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No procedure consents for this encounter.</Text>
+        <Text size="sm" c="dimmed">
+          No procedure consents for this encounter.
+        </Text>
       )}
     </Stack>
   );
@@ -3179,37 +4848,103 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 
   if (!printing) {
     return (
-      <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => setPrinting(true)}>
+      <Button
+        size="xs"
+        variant="light"
+        leftSection={<IconPrinter size={14} />}
+        onClick={() => setPrinting(true)}
+      >
         Print Slip
       </Button>
     );
   }
 
-  if (!printData) return <Text size="xs" c="dimmed">Loading print data...</Text>;
+  if (!printData)
+    return (
+      <Text size="xs" c="dimmed">
+        Loading print data...
+      </Text>
+    );
 
   return (
     <Drawer opened onClose={() => setPrinting(false)} title="Admission Slip" size="md">
       <Stack p="md" id="admission-slip-print">
-        <Text ta="center" fw={700} size="lg">Admission Slip</Text>
+        <Text ta="center" fw={700} size="lg">
+          Admission Slip
+        </Text>
         <SimpleGrid cols={2}>
-          <div><Text size="xs" c="dimmed">Patient Name</Text><Text fw={500}>{printData.patient_name}</Text></div>
-          <div><Text size="xs" c="dimmed">UHID</Text><Text fw={500}>{printData.uhid}</Text></div>
-          <div><Text size="xs" c="dimmed">Age</Text><Text>{printData.age ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">Gender</Text><Text>{printData.gender ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">Admission Date</Text><Text>{new Date(printData.admission_date).toLocaleString()}</Text></div>
-          <div><Text size="xs" c="dimmed">Ward</Text><Text>{printData.ward_name ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">Bed</Text><Text>{printData.bed_number ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">Department</Text><Text>{printData.department_name ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">Attending Doctor</Text><Text>{printData.doctor_name ?? "—"}</Text></div>
-          <div><Text size="xs" c="dimmed">IP Type</Text><Text>{printData.ip_type ?? "—"}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Patient Name
+            </Text>
+            <Text fw={500}>{printData.patient_name}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              UHID
+            </Text>
+            <Text fw={500}>{printData.uhid}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Age
+            </Text>
+            <Text>{printData.age ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Gender
+            </Text>
+            <Text>{printData.gender ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Admission Date
+            </Text>
+            <Text>{new Date(printData.admission_date).toLocaleString()}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Ward
+            </Text>
+            <Text>{printData.ward_name ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Bed
+            </Text>
+            <Text>{printData.bed_number ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Department
+            </Text>
+            <Text>{printData.department_name ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              Attending Doctor
+            </Text>
+            <Text>{printData.doctor_name ?? "—"}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">
+              IP Type
+            </Text>
+            <Text>{printData.ip_type ?? "—"}</Text>
+          </div>
         </SimpleGrid>
         {printData.provisional_diagnosis && (
           <div>
-            <Text size="xs" c="dimmed">Provisional Diagnosis</Text>
+            <Text size="xs" c="dimmed">
+              Provisional Diagnosis
+            </Text>
             <Text>{printData.provisional_diagnosis}</Text>
           </div>
         )}
-        <Button mt="md" onClick={() => window.print()}>Print</Button>
+        <Button mt="md" onClick={() => window.print()}>
+          Print
+        </Button>
       </Stack>
     </Drawer>
   );
@@ -3224,15 +4959,25 @@ function BedTurnaroundView() {
   });
 
   const rows = (data ?? []) as BedTurnaroundLog[];
-  const avgTat = rows.length > 0
-    ? Math.round(rows.filter((r) => r.turnaround_minutes != null).reduce((sum, r) => sum + (r.turnaround_minutes ?? 0), 0) / Math.max(rows.filter((r) => r.turnaround_minutes != null).length, 1))
-    : 0;
+  const avgTat =
+    rows.length > 0
+      ? Math.round(
+          rows
+            .filter((r) => r.turnaround_minutes != null)
+            .reduce((sum, r) => sum + (r.turnaround_minutes ?? 0), 0) /
+            Math.max(rows.filter((r) => r.turnaround_minutes != null).length, 1),
+        )
+      : 0;
 
   return (
     <Card withBorder p="sm">
       <Group justify="space-between" mb="xs">
         <Text fw={600}>Bed Turnaround Log</Text>
-        {avgTat > 0 && <Badge size="lg" color="primary" variant="light">Avg TAT: {avgTat} min</Badge>}
+        {avgTat > 0 && (
+          <Badge size="lg" color="primary" variant="light">
+            Avg TAT: {avgTat} min
+          </Badge>
+        )}
       </Group>
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
@@ -3250,15 +4995,35 @@ function BedTurnaroundView() {
           <Table.Tbody>
             {rows.slice(0, 20).map((r) => (
               <Table.Tr key={r.id}>
-                <Table.Td><Text size="sm">{r.bed_id.slice(0, 8)}</Text></Table.Td>
-                <Table.Td><Text size="xs">{r.vacated_at ? new Date(r.vacated_at).toLocaleString() : "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs">{r.cleaning_started_at ? new Date(r.cleaning_started_at).toLocaleString() : "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs">{r.cleaning_completed_at ? new Date(r.cleaning_completed_at).toLocaleString() : "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.bed_id.slice(0, 8)}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {r.vacated_at ? new Date(r.vacated_at).toLocaleString() : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {r.cleaning_started_at ? new Date(r.cleaning_started_at).toLocaleString() : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {r.cleaning_completed_at
+                      ? new Date(r.cleaning_completed_at).toLocaleString()
+                      : "—"}
+                  </Text>
+                </Table.Td>
                 <Table.Td>
                   {r.turnaround_minutes != null ? (
-                    <Badge color={r.turnaround_minutes <= 60 ? "success" : "orange"} size="sm">{r.turnaround_minutes}</Badge>
+                    <Badge color={r.turnaround_minutes <= 60 ? "success" : "orange"} size="sm">
+                      {r.turnaround_minutes}
+                    </Badge>
                   ) : (
-                    <Badge color="warning" size="sm">In progress</Badge>
+                    <Badge color="warning" size="sm">
+                      In progress
+                    </Badge>
                   )}
                 </Table.Td>
               </Table.Tr>
@@ -3266,7 +5031,9 @@ function BedTurnaroundView() {
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No turnaround records.</Text>
+        <Text size="sm" c="dimmed">
+          No turnaround records.
+        </Text>
       )}
     </Card>
   );
@@ -3286,20 +5053,28 @@ function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; d
   const checks = (data ?? []) as RestraintMonitoringLog[];
   const lastCheck = checks.length > 0 ? checks[checks.length - 1] : null;
   const isOverdue = lastCheck
-    ? (Date.now() - new Date(lastCheck.check_time).getTime()) > 30 * 60 * 1000
+    ? Date.now() - new Date(lastCheck.check_time).getTime() > 30 * 60 * 1000
     : true;
 
   return (
     <Group gap={4}>
-      <Badge size="xs" variant="light">{checks.length} checks</Badge>
+      <Badge size="xs" variant="light">
+        {checks.length} checks
+      </Badge>
       {lastCheck && (
-        <Tooltip label={`Last: ${new Date(lastCheck.check_time).toLocaleString()} — ${lastCheck.status.replace(/_/g, " ")}`}>
+        <Tooltip
+          label={`Last: ${new Date(lastCheck.check_time).toLocaleString()} — ${lastCheck.status.replace(/_/g, " ")}`}
+        >
           <Badge size="xs" color={isOverdue ? "danger" : "success"} variant="filled">
             {isOverdue ? "OVERDUE" : "OK"}
           </Badge>
         </Tooltip>
       )}
-      {!lastCheck && <Badge size="xs" color="danger" variant="filled">No checks</Badge>}
+      {!lastCheck && (
+        <Badge size="xs" color="danger" variant="filled">
+          No checks
+        </Badge>
+      )}
     </Group>
   );
 }
@@ -3308,7 +5083,15 @@ function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; d
 //  Phase 3b — Death Summary Tab
 // ══════════════════════════════════════════════════════════
 
-function DeathSummaryTab({ admissionId, patientId, status }: { admissionId: string; patientId: string; status: string }) {
+function DeathSummaryTab({
+  admissionId,
+  patientId,
+  status,
+}: {
+  admissionId: string;
+  patientId: string;
+  status: string;
+}) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -3348,22 +5131,78 @@ function DeathSummaryTab({ admissionId, patientId, status }: { admissionId: stri
         <Text fw={600}>Death Summary</Text>
         <Card withBorder p="sm">
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <div><Text size="xs" c="dimmed">Date of Death</Text><Text fw={500}>{summary.date_of_death}</Text></div>
-            <div><Text size="xs" c="dimmed">Time of Death</Text><Text fw={500}>{summary.time_of_death}</Text></div>
-            <div><Text size="xs" c="dimmed">Primary Cause</Text><Text size="sm">{summary.cause_of_death_primary ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Secondary Cause</Text><Text size="sm">{summary.cause_of_death_secondary ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Underlying Cause</Text><Text size="sm">{summary.cause_of_death_underlying ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Manner of Death</Text><Text size="sm">{summary.manner_of_death ?? "—"}</Text></div>
-            <div><Text size="xs" c="dimmed">Form Type</Text><Badge size="sm">{summary.form_type === "form_4" ? "Form 4 (Institutional)" : "Form 4a (Non-Institutional)"}</Badge></div>
             <div>
-              <Text size="xs" c="dimmed">Flags</Text>
+              <Text size="xs" c="dimmed">
+                Date of Death
+              </Text>
+              <Text fw={500}>{summary.date_of_death}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Time of Death
+              </Text>
+              <Text fw={500}>{summary.time_of_death}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Primary Cause
+              </Text>
+              <Text size="sm">{summary.cause_of_death_primary ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Secondary Cause
+              </Text>
+              <Text size="sm">{summary.cause_of_death_secondary ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Underlying Cause
+              </Text>
+              <Text size="sm">{summary.cause_of_death_underlying ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Manner of Death
+              </Text>
+              <Text size="sm">{summary.manner_of_death ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Form Type
+              </Text>
+              <Badge size="sm">
+                {summary.form_type === "form_4"
+                  ? "Form 4 (Institutional)"
+                  : "Form 4a (Non-Institutional)"}
+              </Badge>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">
+                Flags
+              </Text>
               <Group gap={4}>
-                {summary.autopsy_requested && <Badge size="xs" color="orange">Autopsy Requested</Badge>}
-                {summary.is_medico_legal && <Badge size="xs" color="danger">Medico-Legal</Badge>}
+                {summary.autopsy_requested && (
+                  <Badge size="xs" color="orange">
+                    Autopsy Requested
+                  </Badge>
+                )}
+                {summary.is_medico_legal && (
+                  <Badge size="xs" color="danger">
+                    Medico-Legal
+                  </Badge>
+                )}
               </Group>
             </div>
           </SimpleGrid>
-          {summary.notes && <div><Text size="xs" c="dimmed" mt="xs">Notes</Text><Text size="sm">{summary.notes}</Text></div>}
+          {summary.notes && (
+            <div>
+              <Text size="xs" c="dimmed" mt="xs">
+                Notes
+              </Text>
+              <Text size="sm">{summary.notes}</Text>
+            </div>
+          )}
         </Card>
       </Stack>
     );
@@ -3380,49 +5219,111 @@ function DeathSummaryTab({ admissionId, patientId, status }: { admissionId: stri
         )}
       </Group>
 
-      {status !== "deceased" && <Text size="sm" c="dimmed">Death summary is only applicable for deceased patients.</Text>}
+      {status !== "deceased" && (
+        <Text size="sm" c="dimmed">
+          Death summary is only applicable for deceased patients.
+        </Text>
+      )}
 
       {showForm && (
         <Card withBorder p="sm">
           <Stack gap="xs">
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <TextInput label="Date of Death" type="date" value={dateOfDeath} onChange={(e) => setDateOfDeath(e.currentTarget.value)} required />
-              <TextInput label="Time of Death" type="time" value={timeOfDeath} onChange={(e) => setTimeOfDeath(e.currentTarget.value)} required />
+              <TextInput
+                label="Date of Death"
+                type="date"
+                value={dateOfDeath}
+                onChange={(e) => setDateOfDeath(e.currentTarget.value)}
+                required
+              />
+              <TextInput
+                label="Time of Death"
+                type="time"
+                value={timeOfDeath}
+                onChange={(e) => setTimeOfDeath(e.currentTarget.value)}
+                required
+              />
             </SimpleGrid>
-            <TextInput label="Primary Cause of Death (ICD)" value={causePrimary} onChange={(e) => setCausePrimary(e.currentTarget.value)} required />
-            <TextInput label="Secondary Cause" value={causeSecondary} onChange={(e) => setCauseSecondary(e.currentTarget.value)} />
-            <TextInput label="Underlying Cause" value={causeUnderlying} onChange={(e) => setCauseUnderlying(e.currentTarget.value)} />
-            <TextInput label="Manner of Death" value={mannerOfDeath} onChange={(e) => setMannerOfDeath(e.currentTarget.value)} placeholder="Natural / Accident / Suicide / Homicide / Undetermined" />
-            <Select label="Certificate Form" data={[{ value: "form_4", label: "Form 4 (Institutional)" }, { value: "form_4a", label: "Form 4a (Non-Institutional)" }]} value={formType} onChange={setFormType} />
+            <TextInput
+              label="Primary Cause of Death (ICD)"
+              value={causePrimary}
+              onChange={(e) => setCausePrimary(e.currentTarget.value)}
+              required
+            />
+            <TextInput
+              label="Secondary Cause"
+              value={causeSecondary}
+              onChange={(e) => setCauseSecondary(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Underlying Cause"
+              value={causeUnderlying}
+              onChange={(e) => setCauseUnderlying(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Manner of Death"
+              value={mannerOfDeath}
+              onChange={(e) => setMannerOfDeath(e.currentTarget.value)}
+              placeholder="Natural / Accident / Suicide / Homicide / Undetermined"
+            />
+            <Select
+              label="Certificate Form"
+              data={[
+                { value: "form_4", label: "Form 4 (Institutional)" },
+                { value: "form_4a", label: "Form 4a (Non-Institutional)" },
+              ]}
+              value={formType}
+              onChange={setFormType}
+            />
             <Group>
-              <Checkbox label="Autopsy Requested" checked={autopsyRequested} onChange={(e) => setAutopsyRequested(e.currentTarget.checked)} />
-              <Checkbox label="Medico-Legal Case" checked={isMedicoLegal} onChange={(e) => setIsMedicoLegal(e.currentTarget.checked)} />
+              <Checkbox
+                label="Autopsy Requested"
+                checked={autopsyRequested}
+                onChange={(e) => setAutopsyRequested(e.currentTarget.checked)}
+              />
+              <Checkbox
+                label="Medico-Legal Case"
+                checked={isMedicoLegal}
+                onChange={(e) => setIsMedicoLegal(e.currentTarget.checked)}
+              />
             </Group>
-            <TextInput label="Witness Name" value={witnessName} onChange={(e) => setWitnessName(e.currentTarget.value)} />
-            <Textarea label="Notes" value={dsNotes} onChange={(e) => setDsNotes(e.currentTarget.value)} />
+            <TextInput
+              label="Witness Name"
+              value={witnessName}
+              onChange={(e) => setWitnessName(e.currentTarget.value)}
+            />
+            <Textarea
+              label="Notes"
+              value={dsNotes}
+              onChange={(e) => setDsNotes(e.currentTarget.value)}
+            />
             <Group>
               <Button
                 size="sm"
-                onClick={() => createMutation.mutate({
-                  patient_id: patientId,
-                  date_of_death: dateOfDeath,
-                  time_of_death: timeOfDeath,
-                  cause_of_death_primary: causePrimary || undefined,
-                  cause_of_death_secondary: causeSecondary || undefined,
-                  cause_of_death_underlying: causeUnderlying || undefined,
-                  manner_of_death: mannerOfDeath || undefined,
-                  form_type: (formType as DeathCertFormType) || undefined,
-                  autopsy_requested: autopsyRequested,
-                  is_medico_legal: isMedicoLegal,
-                  witness_name: witnessName || undefined,
-                  notes: dsNotes || undefined,
-                })}
+                onClick={() =>
+                  createMutation.mutate({
+                    patient_id: patientId,
+                    date_of_death: dateOfDeath,
+                    time_of_death: timeOfDeath,
+                    cause_of_death_primary: causePrimary || undefined,
+                    cause_of_death_secondary: causeSecondary || undefined,
+                    cause_of_death_underlying: causeUnderlying || undefined,
+                    manner_of_death: mannerOfDeath || undefined,
+                    form_type: (formType as DeathCertFormType) || undefined,
+                    autopsy_requested: autopsyRequested,
+                    is_medico_legal: isMedicoLegal,
+                    witness_name: witnessName || undefined,
+                    notes: dsNotes || undefined,
+                  })
+                }
                 loading={createMutation.isPending}
                 disabled={!dateOfDeath || !timeOfDeath}
               >
                 Save Death Summary
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -3435,7 +5336,13 @@ function DeathSummaryTab({ admissionId, patientId, status }: { admissionId: stri
 //  Phase 3b — Birth Records Tab
 // ══════════════════════════════════════════════════════════
 
-function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string; motherPatientId: string }) {
+function BirthRecordsTab({
+  admissionId,
+  motherPatientId,
+}: {
+  admissionId: string;
+  motherPatientId: string;
+}) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -3464,9 +5371,18 @@ function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string
       void queryClient.invalidateQueries({ queryKey: ["ipd-birth-records", admissionId] });
       notifications.show({ title: "Created", message: "Birth record saved", color: "success" });
       setShowForm(false);
-      setDob(""); setTob(""); setGender(null); setWeightGrams(""); setLengthCm("");
-      setHeadCirc(""); setApgar1(""); setApgar5(""); setDeliveryType(null);
-      setCertNumber(""); setComplications(""); setBrNotes("");
+      setDob("");
+      setTob("");
+      setGender(null);
+      setWeightGrams("");
+      setLengthCm("");
+      setHeadCirc("");
+      setApgar1("");
+      setApgar5("");
+      setDeliveryType(null);
+      setCertNumber("");
+      setComplications("");
+      setBrNotes("");
     },
   });
 
@@ -3487,47 +5403,122 @@ function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string
         <Card withBorder p="sm">
           <Stack gap="xs">
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <TextInput label="Date of Birth" type="date" value={dob} onChange={(e) => setDob(e.currentTarget.value)} required />
-              <TextInput label="Time of Birth" type="time" value={tob} onChange={(e) => setTob(e.currentTarget.value)} required />
-              <Select label="Gender" data={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "indeterminate", label: "Indeterminate" }]} value={gender} onChange={setGender} />
-              <Select label="Delivery Type" data={[{ value: "vaginal", label: "Normal Vaginal" }, { value: "lscs", label: "LSCS (C-Section)" }, { value: "assisted", label: "Assisted (Forceps/Vacuum)" }, { value: "breech", label: "Breech" }]} value={deliveryType} onChange={setDeliveryType} />
-              <NumberInput label="Weight (grams)" value={weightGrams} onChange={setWeightGrams} min={0} />
+              <TextInput
+                label="Date of Birth"
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.currentTarget.value)}
+                required
+              />
+              <TextInput
+                label="Time of Birth"
+                type="time"
+                value={tob}
+                onChange={(e) => setTob(e.currentTarget.value)}
+                required
+              />
+              <Select
+                label="Gender"
+                data={[
+                  { value: "male", label: "Male" },
+                  { value: "female", label: "Female" },
+                  { value: "indeterminate", label: "Indeterminate" },
+                ]}
+                value={gender}
+                onChange={setGender}
+              />
+              <Select
+                label="Delivery Type"
+                data={[
+                  { value: "vaginal", label: "Normal Vaginal" },
+                  { value: "lscs", label: "LSCS (C-Section)" },
+                  { value: "assisted", label: "Assisted (Forceps/Vacuum)" },
+                  { value: "breech", label: "Breech" },
+                ]}
+                value={deliveryType}
+                onChange={setDeliveryType}
+              />
+              <NumberInput
+                label="Weight (grams)"
+                value={weightGrams}
+                onChange={setWeightGrams}
+                min={0}
+              />
               <NumberInput label="Length (cm)" value={lengthCm} onChange={setLengthCm} min={0} />
-              <NumberInput label="Head Circumference (cm)" value={headCirc} onChange={setHeadCirc} min={0} />
+              <NumberInput
+                label="Head Circumference (cm)"
+                value={headCirc}
+                onChange={setHeadCirc}
+                min={0}
+              />
               <Group>
-                <NumberInput label="Apgar 1 min" value={apgar1} onChange={setApgar1} min={0} max={10} w={100} />
-                <NumberInput label="Apgar 5 min" value={apgar5} onChange={setApgar5} min={0} max={10} w={100} />
+                <NumberInput
+                  label="Apgar 1 min"
+                  value={apgar1}
+                  onChange={setApgar1}
+                  min={0}
+                  max={10}
+                  w={100}
+                />
+                <NumberInput
+                  label="Apgar 5 min"
+                  value={apgar5}
+                  onChange={setApgar5}
+                  min={0}
+                  max={10}
+                  w={100}
+                />
               </Group>
             </SimpleGrid>
-            <Checkbox label="Live Birth" checked={isLiveBirth} onChange={(e) => setIsLiveBirth(e.currentTarget.checked)} />
-            <TextInput label="Birth Certificate Number" value={certNumber} onChange={(e) => setCertNumber(e.currentTarget.value)} />
-            <Textarea label="Complications" value={complications} onChange={(e) => setComplications(e.currentTarget.value)} />
-            <Textarea label="Notes" value={brNotes} onChange={(e) => setBrNotes(e.currentTarget.value)} />
+            <Checkbox
+              label="Live Birth"
+              checked={isLiveBirth}
+              onChange={(e) => setIsLiveBirth(e.currentTarget.checked)}
+            />
+            <TextInput
+              label="Birth Certificate Number"
+              value={certNumber}
+              onChange={(e) => setCertNumber(e.currentTarget.value)}
+            />
+            <Textarea
+              label="Complications"
+              value={complications}
+              onChange={(e) => setComplications(e.currentTarget.value)}
+            />
+            <Textarea
+              label="Notes"
+              value={brNotes}
+              onChange={(e) => setBrNotes(e.currentTarget.value)}
+            />
             <Group>
               <Button
                 size="sm"
-                onClick={() => createMutation.mutate({
-                  mother_patient_id: motherPatientId,
-                  date_of_birth: dob,
-                  time_of_birth: tob,
-                  gender: gender ?? undefined,
-                  weight_grams: weightGrams ? Number(weightGrams) : undefined,
-                  length_cm: lengthCm ? Number(lengthCm) : undefined,
-                  head_circumference_cm: headCirc ? Number(headCirc) : undefined,
-                  apgar_1min: apgar1 ? Number(apgar1) : undefined,
-                  apgar_5min: apgar5 ? Number(apgar5) : undefined,
-                  delivery_type: deliveryType ?? undefined,
-                  is_live_birth: isLiveBirth,
-                  birth_certificate_number: certNumber || undefined,
-                  complications: complications || undefined,
-                  notes: brNotes || undefined,
-                })}
+                onClick={() =>
+                  createMutation.mutate({
+                    mother_patient_id: motherPatientId,
+                    date_of_birth: dob,
+                    time_of_birth: tob,
+                    gender: gender ?? undefined,
+                    weight_grams: weightGrams ? Number(weightGrams) : undefined,
+                    length_cm: lengthCm ? Number(lengthCm) : undefined,
+                    head_circumference_cm: headCirc ? Number(headCirc) : undefined,
+                    apgar_1min: apgar1 ? Number(apgar1) : undefined,
+                    apgar_5min: apgar5 ? Number(apgar5) : undefined,
+                    delivery_type: deliveryType ?? undefined,
+                    is_live_birth: isLiveBirth,
+                    birth_certificate_number: certNumber || undefined,
+                    complications: complications || undefined,
+                    notes: brNotes || undefined,
+                  })
+                }
                 loading={createMutation.isPending}
                 disabled={!dob || !tob}
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
             </Group>
           </Stack>
         </Card>
@@ -3536,7 +5527,9 @@ function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : records.length === 0 ? (
-        <Text c="dimmed" size="sm">No birth records for this admission.</Text>
+        <Text c="dimmed" size="sm">
+          No birth records for this admission.
+        </Text>
       ) : (
         <Table striped>
           <Table.Thead>
@@ -3553,13 +5546,46 @@ function BirthRecordsTab({ admissionId, motherPatientId }: { admissionId: string
           <Table.Tbody>
             {records.map((r: IpdBirthRecord) => (
               <Table.Tr key={r.id}>
-                <Table.Td><Text size="sm">{r.date_of_birth} {r.time_of_birth}</Text></Table.Td>
-                <Table.Td><Badge size="sm" color={r.gender === "male" ? "primary" : r.gender === "female" ? "danger" : "slate"}>{r.gender ?? "—"}</Badge></Table.Td>
-                <Table.Td><Text size="sm">{r.weight_grams ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.delivery_type ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.apgar_1min != null ? `${r.apgar_1min}/${r.apgar_5min}` : "—"}</Text></Table.Td>
-                <Table.Td>{r.is_live_birth ? <Badge color="success" size="xs">Yes</Badge> : <Badge color="danger" size="xs">No</Badge>}</Table.Td>
-                <Table.Td><Text size="sm">{r.birth_certificate_number ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {r.date_of_birth} {r.time_of_birth}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge
+                    size="sm"
+                    color={
+                      r.gender === "male" ? "primary" : r.gender === "female" ? "danger" : "slate"
+                    }
+                  >
+                    {r.gender ?? "—"}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.weight_grams ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.delivery_type ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {r.apgar_1min != null ? `${r.apgar_1min}/${r.apgar_5min}` : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  {r.is_live_birth ? (
+                    <Badge color="success" size="xs">
+                      Yes
+                    </Badge>
+                  ) : (
+                    <Badge color="danger" size="xs">
+                      No
+                    </Badge>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.birth_certificate_number ?? "—"}</Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -3587,7 +5613,9 @@ function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No OT case records in this period.</Text>
+        <Text c="dimmed" size="sm">
+          No OT case records in this period.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -3602,19 +5630,35 @@ function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
           <Table.Tbody>
             {rows.map((r) => (
               <Table.Tr key={r.surgeon_id}>
-                <Table.Td><Text size="sm" fw={500}>{r.surgeon_name}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.total_cases}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.avg_duration_minutes != null ? Math.round(r.avg_duration_minutes) : "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {r.surgeon_name}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.total_cases}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {r.avg_duration_minutes != null ? Math.round(r.avg_duration_minutes) : "—"}
+                  </Text>
+                </Table.Td>
                 <Table.Td>
                   {r.complication_count > 0 ? (
-                    <Badge color="danger" size="sm">{r.complication_count}</Badge>
+                    <Badge color="danger" size="sm">
+                      {r.complication_count}
+                    </Badge>
                   ) : (
-                    <Badge color="success" size="sm">0</Badge>
+                    <Badge color="success" size="sm">
+                      0
+                    </Badge>
                   )}
                 </Table.Td>
                 <Table.Td>
                   {r.cancellation_count > 0 ? (
-                    <Badge color="orange" size="sm">{r.cancellation_count}</Badge>
+                    <Badge color="orange" size="sm">
+                      {r.cancellation_count}
+                    </Badge>
                   ) : (
                     <Text size="sm">0</Text>
                   )}
@@ -3632,7 +5676,15 @@ function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
 // ── Generate Discharge Summary Modal ──────────────────────
 // ═══════════════════════════════════════════════════════════
 
-function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admissionId: string; opened: boolean; onClose: () => void }) {
+function GenerateDischargeSummaryModal({
+  admissionId,
+  opened,
+  onClose,
+}: {
+  admissionId: string;
+  opened: boolean;
+  onClose: () => void;
+}) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["generated-discharge-summary", admissionId],
     queryFn: () => api.generateDischargeSummary(admissionId),
@@ -3643,10 +5695,18 @@ function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admis
     mutationFn: () => api.generateDischargeSummary(admissionId),
     onSuccess: () => {
       refetch();
-      notifications.show({ title: "Generated", message: "Discharge summary generated", color: "success" });
+      notifications.show({
+        title: "Generated",
+        message: "Discharge summary generated",
+        color: "success",
+      });
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to generate discharge summary", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to generate discharge summary",
+        color: "danger",
+      });
     },
   });
 
@@ -3681,7 +5741,9 @@ function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admis
               <Stack gap={2}>
                 <Text fw={600}>Diagnoses:</Text>
                 {summary.diagnoses.map((d, i) => (
-                  <Badge key={i} variant="light" size="sm">{d}</Badge>
+                  <Badge key={i} variant="light" size="sm">
+                    {d}
+                  </Badge>
                 ))}
               </Stack>
             )}
@@ -3689,7 +5751,9 @@ function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admis
               <Stack gap={2}>
                 <Text fw={600}>Procedures:</Text>
                 {summary.procedures.map((p, i) => (
-                  <Badge key={i} variant="light" color="primary" size="sm">{p}</Badge>
+                  <Badge key={i} variant="light" color="primary" size="sm">
+                    {p}
+                  </Badge>
                 ))}
               </Stack>
             )}
@@ -3697,7 +5761,9 @@ function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admis
               <Stack gap={2}>
                 <Text fw={600}>Medications at Discharge:</Text>
                 {summary.medications.map((m, i) => (
-                  <Badge key={i} variant="light" color="success" size="sm">{m}</Badge>
+                  <Badge key={i} variant="light" color="success" size="sm">
+                    {m}
+                  </Badge>
                 ))}
               </Stack>
             )}
@@ -3724,7 +5790,15 @@ function GenerateDischargeSummaryModal({ admissionId, opened, onClose }: { admis
 // ── Bed Transfer Modal ────────────────────────────────────
 // ═══════════════════════════════════════════════════════════
 
-function BedTransferModal({ admissionId, opened, onClose }: { admissionId: string; opened: boolean; onClose: () => void }) {
+function BedTransferModal({
+  admissionId,
+  opened,
+  onClose,
+}: {
+  admissionId: string;
+  opened: boolean;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [toBedId, setToBedId] = useState("");
   const [reason, setReason] = useState("");
@@ -3736,7 +5810,11 @@ function BedTransferModal({ admissionId, opened, onClose }: { admissionId: strin
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
-      notifications.show({ title: "Transferred", message: "Bed transfer completed", color: "success" });
+      notifications.show({
+        title: "Transferred",
+        message: "Bed transfer completed",
+        color: "success",
+      });
       onClose();
       setToBedId("");
       setReason("");
@@ -3750,12 +5828,7 @@ function BedTransferModal({ admissionId, opened, onClose }: { admissionId: strin
   return (
     <Modal opened={opened} onClose={onClose} title="Bed Transfer" size="md">
       <Stack>
-        <BedSelect
-          label="Target Bed"
-          value={toBedId}
-          onChange={(id) => setToBedId(id)}
-          required
-        />
+        <BedSelect label="Target Bed" value={toBedId} onChange={(id) => setToBedId(id)} required />
         <TextInput
           label="Reason"
           placeholder="Reason for transfer"
@@ -3770,7 +5843,9 @@ function BedTransferModal({ admissionId, opened, onClose }: { admissionId: strin
           onChange={(e) => setNotes(e.currentTarget.value)}
         />
         <Button
-          onClick={() => transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined })}
+          onClick={() =>
+            transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined })
+          }
           loading={transferMutation.isPending}
           disabled={!toBedId.trim() || !reason.trim()}
         >
@@ -3798,10 +5873,9 @@ function ExpectedDischargesTab() {
       key: "patient_name",
       label: "Patient",
       render: (row: ExpectedDischargeRow) => (
-        <Stack gap={0}>
-          <Text size="sm" fw={500}>{row.patient_name}</Text>
-          <Text size="xs" c="dimmed">{row.patient_id.slice(0, 8)}...</Text>
-        </Stack>
+        <Text size="sm" fw={500}>
+          {row.patient_name}
+        </Text>
       ),
     },
     {
@@ -3817,7 +5891,9 @@ function ExpectedDischargesTab() {
     {
       key: "expected_discharge_date",
       label: "Expected Discharge",
-      render: (row: ExpectedDischargeRow) => <Text size="sm">{new Date(row.expected_discharge_date).toLocaleString()}</Text>,
+      render: (row: ExpectedDischargeRow) => (
+        <Text size="sm">{new Date(row.expected_discharge_date).toLocaleString()}</Text>
+      ),
     },
     {
       key: "attending_doctor",
@@ -3828,7 +5904,11 @@ function ExpectedDischargesTab() {
       key: "days_admitted",
       label: "Days Admitted",
       render: (row: ExpectedDischargeRow) => (
-        <Badge color={row.days_admitted > 14 ? "danger" : row.days_admitted > 7 ? "orange" : "primary"} variant="light" size="sm">
+        <Badge
+          color={row.days_admitted > 14 ? "danger" : row.days_admitted > 7 ? "orange" : "primary"}
+          variant="light"
+          size="sm"
+        >
           {row.days_admitted} days
         </Badge>
       ),
@@ -3854,7 +5934,9 @@ function ExpectedDischargesTab() {
         rowKey={(row) => row.admission_id}
       />
       {!isLoading && rows.length === 0 && (
-        <Text size="sm" c="dimmed" ta="center">No expected discharges within the next {typeof hours === "number" ? hours : 48} hours.</Text>
+        <Text size="sm" c="dimmed" ta="center">
+          No expected discharges within the next {typeof hours === "number" ? hours : 48} hours.
+        </Text>
       )}
     </Stack>
   );
@@ -3863,7 +5945,8 @@ function ExpectedDischargesTab() {
 function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ot-anesthesia-complications", from, to],
-    queryFn: () => api.listAnesthesiaComplications({ from: from || undefined, to: to || undefined }),
+    queryFn: () =>
+      api.listAnesthesiaComplications({ from: from || undefined, to: to || undefined }),
   });
 
   const rows = (data ?? []) as AnesthesiaComplicationEntry[];
@@ -3874,7 +5957,9 @@ function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string 
       {isLoading ? (
         <Text c="dimmed">Loading...</Text>
       ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">No anesthesia complications recorded in this period.</Text>
+        <Text c="dimmed" size="sm">
+          No anesthesia complications recorded in this period.
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -3889,14 +5974,30 @@ function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string 
           <Table.Tbody>
             {rows.map((r) => (
               <Table.Tr key={r.case_id}>
-                <Table.Td><Text size="sm">{r.case_date}</Text></Table.Td>
-                <Table.Td><Text size="sm" fw={500}>{r.patient_name}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.procedure_name}</Text></Table.Td>
-                <Table.Td><Badge size="sm" variant="light">{r.anesthesia_type}</Badge></Table.Td>
                 <Table.Td>
-                  <Text size="sm" c="danger" lineClamp={2}>{r.complications ?? "—"}</Text>
+                  <Text size="sm">{r.case_date}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {r.patient_name}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.procedure_name}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {r.anesthesia_type}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" c="danger" lineClamp={2}>
+                    {r.complications ?? "—"}
+                  </Text>
                   {r.adverse_events != null && typeof r.adverse_events === "object" ? (
-                    <Badge size="xs" color="danger" variant="light" mt={2}>Has adverse events</Badge>
+                    <Badge size="xs" color="danger" variant="light" mt={2}>
+                      Has adverse events
+                    </Badge>
                   ) : null}
                 </Table.Td>
               </Table.Tr>

@@ -5,8 +5,8 @@
  */
 
 import type { TenantIdentity } from "@medbrains/mobile-shell";
-import { apiConfig } from "../api/config.js";
 import { login } from "../api/client.js";
+import { apiConfig } from "../api/config.js";
 
 export async function staffSignIn(
   username: string,

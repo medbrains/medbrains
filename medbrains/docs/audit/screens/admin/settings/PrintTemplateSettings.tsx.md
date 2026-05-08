@@ -1,0 +1,53 @@
+# `admin/settings/PrintTemplateSettings.tsx` walkthrough
+
+_Source: [`apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx`](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx) (387 lines). Guard: `—`. API methods: 2. useForm: 0. Tables: 0. Modals: 0._
+
+Tick each box that **works as expected** when you walk the page in a browser. Anything you can't tick → file in `../issues.md` with the line number, then fix and come back to tick it. Severity rubric: **P0** blocks core flow, **P1** broken UX with workaround, **P2** cosmetic.
+
+## Page-level
+
+- [ ] Page renders without `console.error`
+- [ ] Network tab shows no 4xx/5xx on initial load
+- [ ] Desktop viewport has no overlapping text, clipped buttons, or broken table layout
+- [ ] Mobile/tablet viewport has no overlapping text, clipped buttons, or unusable controls
+- [ ] Permission guard `(none)` redirects unauthorised user to /dashboard
+- [ ] Loading skeleton / spinner shown while data loads
+- [ ] Empty state visible when there are zero rows
+- [ ] Page title in browser tab is correct
+- [ ] Breadcrumb / nav highlights this page
+
+### ⚠ Static analysis flags
+- `no useRequirePermission guard`
+
+## Form inputs (16)
+
+- [ ] **Template Type** (`Select`, [line 178](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L178)) — accepts input, default value sensible, persists after refresh
+- [ ] **Header Text** (`Textarea`, [line 194](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L194)) — accepts input, default value sensible, persists after refresh
+- [ ] **Footer Text** (`Textarea`, [line 202](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L202)) — accepts input, default value sensible, persists after refresh
+- [ ] **Font Family** (`Select`, [line 215](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L215)) — accepts input, default value sensible, persists after refresh
+- [ ] **Font Size (pt)** (`NumberInput`, [line 221](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L221)) — accepts input, default value sensible, persists after refresh
+- [ ] **Logo Position** (`Select`, [line 233](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L233)) — accepts input, default value sensible, persists after refresh
+- [ ] **Show logo** (`Checkbox`, [line 241](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L241)) — accepts input, default value sensible, persists after refresh
+- [ ] **Show hospital name** (`Checkbox`, [line 246](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L246)) — accepts input, default value sensible, persists after refresh
+- [ ] **Show address** (`Checkbox`, [line 251](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L251)) — accepts input, default value sensible, persists after refresh
+- [ ] **Show phone** (`Checkbox`, [line 256](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L256)) — accepts input, default value sensible, persists after refresh
+- [ ] **Show registration no.** (`Checkbox`, [line 261](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L261)) — accepts input, default value sensible, persists after refresh
+- [ ] **Top** (`NumberInput`, [line 273](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L273)) — accepts input, default value sensible, persists after refresh
+- [ ] **Bottom** (`NumberInput`, [line 276](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L276)) — accepts input, default value sensible, persists after refresh
+- [ ] **Left** (`NumberInput`, [line 279](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L279)) — accepts input, default value sensible, persists after refresh
+- [ ] **Right** (`NumberInput`, [line 282](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L282)) — accepts input, default value sensible, persists after refresh
+- [ ] **Custom CSS** (`Textarea`, [line 286](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L286)) — accepts input, default value sensible, persists after refresh
+
+## Buttons / actions (`<Button>`: 1, `<ActionIcon>`: 0, `<Menu.Item>`: 0)
+
+- [ ] **<button @ line 376>** ([line 376](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L376)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 376>** ([line 376](../../../apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx#L376)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+
+## API methods used (2)
+
+- [ ] `api.getPrintTemplates` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.upsertPrintTemplate` — request goes out, 2xx response, no schema mismatch in browser console
+
+---
+
+_Generated by `scripts/gen_screen_checklist.py`. Re-run after any change to the page to refresh — checkboxes are NOT preserved across regenerations, so commit your ticks before regenerating._

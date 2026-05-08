@@ -5,6 +5,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::infection_control::{
     AntibioticConsumptionRecord, AntibioticRequestStatus, AntibioticStewardshipRequest,
     BiowasteRecord, CultureSurveillance, HaiType, HandHygieneAudit, InfectionDeviceDay,
@@ -21,6 +22,31 @@ use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+
+async fn queue_biowaste_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    row: &BiowasteRecord,
+) -> Result<(), AppError> {
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::HousekeepingBmwDisposalRecorded,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "disposal_id": row.id,
+            "department_id": row.department_id,
+            "waste_category": &row.waste_category,
+            "quantity_kg": row.weight_kg,
+            "container_count": row.container_count,
+            "manifest_number": &row.manifest_number,
+        }),
+    )
+    .with_department(row.department_id);
+    crate::events::queue_clinical_event_in_tx(tx, &event)
+        .await
+        .map(|_| ())
+}
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -696,6 +722,9 @@ pub async fn create_biowaste(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    crate::routes::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    queue_biowaste_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
     Ok(Json(row))

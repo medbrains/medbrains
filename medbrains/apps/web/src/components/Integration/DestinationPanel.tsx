@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import {
   Badge,
   Box,
@@ -8,11 +9,10 @@ import {
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
-import { IconSearch } from "@tabler/icons-react";
-import { useDraggable } from "@dnd-kit/core";
 import type { MappingFieldType, TargetFieldSuggestion } from "@medbrains/types";
+import { IconSearch } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
-import { TYPE_LABELS, TYPE_COLORS } from "./typeInference";
+import { TYPE_COLORS, TYPE_LABELS } from "./typeInference";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -65,12 +65,8 @@ function DraggableDestField({
         borderRadius: 4,
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
-        background: isMapped
-          ? "var(--mantine-color-green-0)"
-          : "transparent",
-        borderLeft: isMapped
-          ? "3px solid var(--mantine-color-green-5)"
-          : "3px solid transparent",
+        background: isMapped ? "var(--mantine-color-green-0)" : "transparent",
+        borderLeft: isMapped ? "3px solid var(--mantine-color-green-5)" : "3px solid transparent",
         width: "100%",
         transition: "all 150ms ease",
       }}
@@ -79,7 +75,12 @@ function DraggableDestField({
         {suggestion.path}
       </Text>
       {suggestion.type && suggestion.type !== "unknown" && (
-        <Badge size="xs" variant="light" color={TYPE_COLORS[suggestion.type as MappingFieldType] ?? "slate"} style={{ flexShrink: 0 }}>
+        <Badge
+          size="xs"
+          variant="light"
+          color={TYPE_COLORS[suggestion.type as MappingFieldType] ?? "slate"}
+          style={{ flexShrink: 0 }}
+        >
           {TYPE_LABELS[suggestion.type as MappingFieldType] ?? suggestion.type}
         </Badge>
       )}
@@ -125,9 +126,7 @@ export function DestinationPanel({
     const result: Record<string, TargetFieldSuggestion[]> = {};
     for (const [key, suggestions] of Object.entries(groupedSuggestions)) {
       const matched = suggestions.filter(
-        (s) =>
-          s.path.toLowerCase().includes(q) ||
-          s.label.toLowerCase().includes(q),
+        (s) => s.path.toLowerCase().includes(q) || s.label.toLowerCase().includes(q),
       );
       if (matched.length > 0) result[key] = matched;
     }

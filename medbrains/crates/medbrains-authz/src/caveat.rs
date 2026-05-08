@@ -55,7 +55,10 @@ impl Caveat {
                 // layer wraps this. Engine-level returns Allow.
                 CaveatVerdict::Allow
             }
-            Self::InTimeWindow { from_utc, until_utc } => {
+            Self::InTimeWindow {
+                from_utc,
+                until_utc,
+            } => {
                 let now = chrono::Utc::now();
                 let h = now.format("%H").to_string().parse::<u8>().unwrap_or(0);
                 let in_window = if from_utc < until_utc {
@@ -99,13 +102,17 @@ mod tests {
 
     #[test]
     fn role_in_allow() {
-        let c = Caveat::RoleIn { roles: vec!["doctor".to_string()] };
+        let c = Caveat::RoleIn {
+            roles: vec!["doctor".to_string()],
+        };
         assert!(matches!(c.evaluate(&ctx("doctor")), CaveatVerdict::Allow));
     }
 
     #[test]
     fn role_in_deny() {
-        let c = Caveat::RoleIn { roles: vec!["doctor".to_string()] };
+        let c = Caveat::RoleIn {
+            roles: vec!["doctor".to_string()],
+        };
         assert!(matches!(c.evaluate(&ctx("nurse")), CaveatVerdict::Deny(_)));
     }
 }

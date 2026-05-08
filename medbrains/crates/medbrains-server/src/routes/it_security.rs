@@ -91,12 +91,136 @@ use medbrains_core::permissions;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{auth::Claims, authorization::require_permission},
     state::AppState,
 };
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
     s.as_deref().and_then(|v| v.parse::<Uuid>().ok())
+}
+
+struct BreakGlassStart {
+    patient_id: Uuid,
+    scope_type: String,
+    scope_id: Uuid,
+    requested_modules: Vec<String>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+    reason: String,
+    justification: Option<String>,
+}
+
+struct BreakGlassAccessRollup {
+    modules_seen: Vec<String>,
+    phi_access_count: i32,
+    last_phi_accessed_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+fn break_glass_grant_reason(event_id: Uuid) -> String {
+    format!("break_glass:{event_id}")
+}
+
+fn merge_accessed_modules(mut manual: Vec<String>, observed: Vec<String>) -> Vec<String> {
+    manual.extend(observed);
+    manual.retain(|module| !module.trim().is_empty());
+    manual.sort_unstable();
+    manual.dedup();
+    manual
+}
+
+fn normalize_break_glass_start(body: CreateBreakGlassRequest) -> Result<BreakGlassStart, AppError> {
+    let reason = body.reason.trim().to_owned();
+    if reason.len() < 5 {
+        return Err(AppError::BadRequest(
+            "Break-glass reason must be specific and at least 5 characters".to_owned(),
+        ));
+    }
+
+    let patient_id = body.patient_id.ok_or_else(|| {
+        AppError::BadRequest("Break-glass must be scoped to a patient".to_owned())
+    })?;
+    let scope_type = body.scope_type.unwrap_or_else(|| "patient".to_owned());
+    if scope_type != "patient" {
+        return Err(AppError::BadRequest(
+            "Only patient-scoped break-glass is enabled for this release".to_owned(),
+        ));
+    }
+
+    if let Some(scope_id) = body.scope_id {
+        if scope_id != patient_id {
+            return Err(AppError::BadRequest(
+                "Patient break-glass scope_id must match patient_id".to_owned(),
+            ));
+        }
+    }
+
+    let expires_in_minutes = body.expires_in_minutes.unwrap_or(60);
+    if !(5..=240).contains(&expires_in_minutes) {
+        return Err(AppError::BadRequest(
+            "Break-glass expiry must be between 5 and 240 minutes".to_owned(),
+        ));
+    }
+
+    let requested_modules = body
+        .requested_modules
+        .unwrap_or_default()
+        .into_iter()
+        .map(|module| module.trim().to_owned())
+        .filter(|module| !module.is_empty())
+        .collect();
+
+    Ok(BreakGlassStart {
+        patient_id,
+        scope_type,
+        scope_id: patient_id,
+        requested_modules,
+        expires_at: chrono::Utc::now() + chrono::Duration::minutes(i64::from(expires_in_minutes)),
+        reason,
+        justification: body
+            .justification
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty()),
+    })
+}
+
+async fn break_glass_access_rollup(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    event_id: Uuid,
+) -> Result<BreakGlassAccessRollup, AppError> {
+    let row = sqlx::query!(
+        r#"
+        SELECT
+            COUNT(al.id)::int AS "phi_access_count!",
+            MAX(al.created_at) AS last_phi_accessed_at,
+            COALESCE(
+                array_agg(DISTINCT al.module) FILTER (WHERE al.module IS NOT NULL),
+                '{}'::text[]
+            ) AS "modules_seen!"
+        FROM break_glass_events b
+        LEFT JOIN access_log al
+          ON al.tenant_id = b.tenant_id
+         AND al.user_id = b.user_id
+         AND al.created_at >= b.start_time
+         AND al.created_at <= LEAST(COALESCE(b.end_time, now()), b.expires_at)
+         AND (
+              b.scope_type <> 'patient'
+              OR al.patient_id = b.patient_id
+              OR (al.entity_type = 'patients' AND al.entity_id = b.patient_id)
+         )
+        WHERE b.id = $1 AND b.tenant_id = $2
+        "#,
+        event_id,
+        tenant_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(BreakGlassAccessRollup {
+        modules_seen: row.modules_seen,
+        phi_access_count: row.phi_access_count,
+        last_phi_accessed_at: row.last_phi_accessed_at,
+    })
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -109,22 +233,61 @@ pub async fn start_break_glass(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
+    let start = normalize_break_glass_start(body)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, BreakGlassEvent>(
-        "INSERT INTO break_glass_events (id, tenant_id, user_id, patient_id, reason, justification, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, true)
-         RETURNING *"
+    let row = sqlx::query_as!(
+        BreakGlassEvent,
+        r#"
+        INSERT INTO break_glass_events (
+            id, tenant_id, user_id, patient_id, reason, justification,
+            scope_type, scope_id, requested_modules, expires_at, is_active
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+        RETURNING
+            id, tenant_id, user_id, patient_id, reason, justification,
+            modules_accessed AS "modules_accessed!",
+            scope_type, scope_id,
+            requested_modules AS "requested_modules!",
+            start_time, end_time, expires_at, is_active, ip_address, user_agent,
+            supervisor_id, reviewed_at, review_notes,
+            phi_access_count, last_phi_accessed_at, created_at
+        "#,
+        id,
+        claims.tenant_id,
+        claims.sub,
+        start.patient_id,
+        start.reason,
+        start.justification,
+        start.scope_type,
+        start.scope_id,
+        &start.requested_modules,
+        start.expires_at,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .bind(body.patient_id)
-    .bind(&body.reason)
-    .bind(&body.justification)
     .fetch_one(&mut *tx)
+    .await?;
+
+    let tuple_id = Uuid::new_v4();
+    let subject_id = claims.sub.to_string();
+    let grant_reason = break_glass_grant_reason(id);
+    sqlx::query!(
+        "INSERT INTO relation_tuples (
+             tuple_id, tenant_id, object_type, object_id, relation,
+             subject_type, subject_id, expires_at, granted_by,
+             granted_reason, source
+         )
+         VALUES ($1, $2, 'patient', $3, 'viewer', 'user', $4, $5, $6, $7, 'explicit')",
+        tuple_id,
+        claims.tenant_id,
+        start.patient_id,
+        subject_id,
+        start.expires_at,
+        claims.sub,
+        grant_reason,
+    )
+    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -141,15 +304,51 @@ pub async fn end_break_glass(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BreakGlassEvent>(
-        "UPDATE break_glass_events
-         SET is_active = false, end_time = now(), modules_accessed = $2
-         WHERE id = $1 AND user_id = $3
-         RETURNING *",
+    let rollup = break_glass_access_rollup(&mut tx, claims.tenant_id, id).await?;
+    let modules_accessed = merge_accessed_modules(body.modules_accessed, rollup.modules_seen);
+    let grant_reason = break_glass_grant_reason(id);
+
+    sqlx::query!(
+        "UPDATE relation_tuples
+         SET status = 'revoked', revoked_at = now(), revoked_by = $3
+         WHERE tenant_id = $1
+           AND granted_reason = $2
+           AND granted_by = $3
+           AND status = 'active'",
+        claims.tenant_id,
+        grant_reason,
+        claims.sub,
     )
-    .bind(id)
-    .bind(&body.modules_accessed)
-    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let row = sqlx::query_as!(
+        BreakGlassEvent,
+        r#"
+        UPDATE break_glass_events
+        SET
+            is_active = false,
+            end_time = now(),
+            modules_accessed = $4,
+            phi_access_count = $5,
+            last_phi_accessed_at = $6
+        WHERE id = $1 AND tenant_id = $2 AND user_id = $3
+        RETURNING
+            id, tenant_id, user_id, patient_id, reason, justification,
+            modules_accessed AS "modules_accessed!",
+            scope_type, scope_id,
+            requested_modules AS "requested_modules!",
+            start_time, end_time, expires_at, is_active, ip_address, user_agent,
+            supervisor_id, reviewed_at, review_notes,
+            phi_access_count, last_phi_accessed_at, created_at
+        "#,
+        id,
+        claims.tenant_id,
+        claims.sub,
+        &modules_accessed,
+        rollup.phi_access_count,
+        rollup.last_phi_accessed_at,
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -171,30 +370,40 @@ pub async fn list_break_glass(
     let per_page = params.per_page.unwrap_or(50).min(200);
     let offset = (params.page.unwrap_or(1) - 1).max(0) * per_page;
 
-    let rows = sqlx::query_as::<_, BreakGlassEventSummary>(
-        "SELECT b.id, b.user_id, u.full_name AS user_name, b.patient_id,
+    let rows = sqlx::query_as!(
+        BreakGlassEventSummary,
+        r#"
+        SELECT b.id, b.user_id, u.full_name AS user_name, b.patient_id,
          (p.first_name || ' ' || p.last_name) AS patient_name,
-         b.reason, b.start_time, b.end_time, b.is_active, b.reviewed_at, b.created_at
+         b.reason, b.scope_type, b.scope_id,
+         b.requested_modules AS "requested_modules!",
+         b.start_time, b.end_time, b.expires_at,
+         (b.is_active AND b.expires_at > now()) AS "is_active!",
+         b.phi_access_count, b.last_phi_accessed_at,
+         b.reviewed_at, b.created_at
          FROM break_glass_events b
          LEFT JOIN users u ON u.id = b.user_id
          LEFT JOIN patients p ON p.id = b.patient_id
-         WHERE ($1::uuid IS NULL OR b.user_id = $1)
+         WHERE b.tenant_id = $9
+         AND ($1::uuid IS NULL OR b.user_id = $1)
          AND ($2::uuid IS NULL OR b.patient_id = $2)
-         AND ($3::boolean IS NULL OR b.is_active = $3)
+         AND ($3::boolean IS NULL OR (b.is_active AND b.expires_at > now()) = $3)
          AND ($4::boolean IS NULL OR (CASE WHEN $4 THEN b.reviewed_at IS NOT NULL ELSE b.reviewed_at IS NULL END))
-         AND ($5::timestamptz IS NULL OR b.created_at >= $5::timestamptz)
-         AND ($6::timestamptz IS NULL OR b.created_at <= $6::timestamptz)
+         AND ($5::text IS NULL OR b.created_at >= ($5::text)::timestamptz)
+         AND ($6::text IS NULL OR b.created_at <= ($6::text)::timestamptz)
          ORDER BY b.created_at DESC
-         LIMIT $7 OFFSET $8"
+         LIMIT $7 OFFSET $8
+        "#,
+        parse_uuid(&params.user_id),
+        parse_uuid(&params.patient_id),
+        params.is_active,
+        params.reviewed,
+        params.from,
+        params.to,
+        per_page,
+        offset,
+        claims.tenant_id,
     )
-    .bind(parse_uuid(&params.user_id))
-    .bind(parse_uuid(&params.patient_id))
-    .bind(params.is_active)
-    .bind(params.reviewed)
-    .bind(&params.from)
-    .bind(&params.to)
-    .bind(per_page)
-    .bind(offset)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -213,11 +422,26 @@ pub async fn get_break_glass(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row =
-        sqlx::query_as::<_, BreakGlassEvent>("SELECT * FROM break_glass_events WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let row = sqlx::query_as!(
+        BreakGlassEvent,
+        r#"
+        SELECT
+            id, tenant_id, user_id, patient_id, reason, justification,
+            modules_accessed AS "modules_accessed!",
+            scope_type, scope_id,
+            requested_modules AS "requested_modules!",
+            start_time, end_time, expires_at,
+            (is_active AND expires_at > now()) AS "is_active!",
+            ip_address, user_agent, supervisor_id, reviewed_at, review_notes,
+            phi_access_count, last_phi_accessed_at, created_at
+        FROM break_glass_events
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+        id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -235,15 +459,48 @@ pub async fn review_break_glass(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BreakGlassEvent>(
-        "UPDATE break_glass_events
-         SET reviewed_at = now(), supervisor_id = $2, review_notes = $3
-         WHERE id = $1
-         RETURNING *",
+    let rollup = break_glass_access_rollup(&mut tx, claims.tenant_id, id).await?;
+    let current_modules = sqlx::query!(
+        "SELECT modules_accessed AS \"modules_accessed!\" FROM break_glass_events
+         WHERE id = $1 AND tenant_id = $2",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.sub)
-    .bind(&body.review_notes)
+    .fetch_one(&mut *tx)
+    .await?
+    .modules_accessed;
+    let modules_accessed = merge_accessed_modules(current_modules, rollup.modules_seen);
+
+    let row = sqlx::query_as!(
+        BreakGlassEvent,
+        r#"
+        UPDATE break_glass_events
+        SET
+            reviewed_at = now(),
+            supervisor_id = $2,
+            review_notes = $3,
+            modules_accessed = $4,
+            phi_access_count = $5,
+            last_phi_accessed_at = $6
+        WHERE id = $1 AND tenant_id = $7
+        RETURNING
+            id, tenant_id, user_id, patient_id, reason, justification,
+            modules_accessed AS "modules_accessed!",
+            scope_type, scope_id,
+            requested_modules AS "requested_modules!",
+            start_time, end_time, expires_at,
+            (is_active AND expires_at > now()) AS "is_active!",
+            ip_address, user_agent, supervisor_id, reviewed_at, review_notes,
+            phi_access_count, last_phi_accessed_at, created_at
+        "#,
+        id,
+        claims.sub,
+        body.review_notes,
+        &modules_accessed,
+        rollup.phi_access_count,
+        rollup.last_phi_accessed_at,
+        claims.tenant_id,
+    )
     .fetch_one(&mut *tx)
     .await?;
 

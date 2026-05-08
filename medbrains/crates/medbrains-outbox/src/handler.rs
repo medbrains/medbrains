@@ -62,11 +62,7 @@ pub trait Handler: Send + Sync + std::fmt::Debug {
     /// Execute the side-effect. `payload` is the JSONB column value.
     /// Return value is the response to record (logged, optionally
     /// stored on the row in a `result` column — Phase-2 follow-up).
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError>;
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError>;
 }
 
 /// Registry of typed handlers + a fallback for unregistered event_types
@@ -85,11 +81,14 @@ impl Registry {
 
     /// Register a typed handler. Panics if the same event_type is
     /// registered twice — matches "compile-time exhaustiveness" intent.
+    /// Boot-time programmer-error guard, never reached at runtime.
+    #[allow(clippy::panic)]
     pub fn register<H: Handler + 'static>(&mut self, handler: H) {
         let key = handler.event_type();
-        if self.handlers.contains_key(key) {
-            panic!("medbrains-outbox: duplicate handler for event_type '{key}'");
-        }
+        assert!(
+            !self.handlers.contains_key(key),
+            "medbrains-outbox: duplicate handler for event_type '{key}'"
+        );
         self.handlers.insert(key, Arc::new(handler));
     }
 

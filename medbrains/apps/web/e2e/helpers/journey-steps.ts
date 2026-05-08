@@ -173,6 +173,7 @@ export async function createPharmacyOrder(
       },
     ],
     dispensing_type: "prescription",
+    safety_override_reason: "E2E medication safety context acknowledged",
   });
   return { id: resp.order.id, itemId: resp.items[0].id };
 }
@@ -217,6 +218,13 @@ export async function createInvoice(
   return resp.id;
 }
 
+export async function issueInvoice(
+  ctx: AuthContext,
+  invoiceId: string,
+): Promise<{ id: string; status: string; issued_at: string | null }> {
+  return api(ctx, "POST", `/api/billing/invoices/${invoiceId}/issue`);
+}
+
 export async function admitToIpd(
   ctx: AuthContext,
   args: { patientId: string; departmentId?: string; bedId?: string },
@@ -240,6 +248,78 @@ export async function admitToIpd(
     },
   );
   return resp.admission.id;
+}
+
+export async function transferAdmissionBedIfAvailable(
+  ctx: AuthContext,
+  admissionId: string,
+): Promise<string | undefined> {
+  const detail = await api<{ admission: { bed_id: string | null } }>(
+    ctx,
+    "GET",
+    `/api/ipd/admissions/${admissionId}`,
+  );
+  const beds = await api<Array<{ id: string }>>(
+    ctx,
+    "GET",
+    "/api/ipd/beds/available",
+  );
+  const bed = beds.find((candidate) => candidate.id !== detail.admission.bed_id);
+  if (!bed) return undefined;
+  await api(ctx, "PUT", `/api/ipd/admissions/${admissionId}/transfer`, {
+    bed_id: bed.id,
+    notes: "E2E transfer during golden patient journey",
+  });
+  return bed.id;
+}
+
+export async function markDischargeStep(
+  ctx: AuthContext,
+  admissionId: string,
+  step: string,
+  extra: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  return api(
+    ctx,
+    "POST",
+    `/api/ipd/admissions/${admissionId}/discharge-workflow/step`,
+    { step, ...extra },
+  );
+}
+
+export async function dischargeAdmission(
+  ctx: AuthContext,
+  admissionId: string,
+): Promise<void> {
+  await api(ctx, "PUT", `/api/ipd/admissions/${admissionId}/discharge`, {
+    discharge_type: "normal",
+    discharge_summary: "E2E golden journey discharge",
+    follow_up_instructions: "Follow up in OPD after seven days.",
+  });
+}
+
+export async function createMrdRecord(
+  ctx: AuthContext,
+  patientId: string,
+): Promise<{ id: string; status: string }> {
+  return api(ctx, "POST", "/api/mrd/records", {
+    patient_id: patientId,
+    record_type: "ipd",
+    total_pages: 12,
+    shelf_location: "E2E",
+    retention_years: 10,
+    notes: "E2E golden journey MRD record",
+  });
+}
+
+export async function archiveMrdRecord(
+  ctx: AuthContext,
+  recordId: string,
+): Promise<{ id: string; status: string }> {
+  return api(ctx, "PUT", `/api/mrd/records/${recordId}`, {
+    status: "archived",
+    notes: "Sealed after E2E discharge workflow",
+  });
 }
 
 export async function createPharmacyReturn(

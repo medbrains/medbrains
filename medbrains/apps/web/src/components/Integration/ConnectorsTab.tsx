@@ -9,8 +9,8 @@ import {
   SimpleGrid,
   Stack,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -200,19 +200,11 @@ function ConnectorCard({ connector, onTest, testing }: ConnectorCardProps) {
         <Badge variant="outline" size="xs">
           {connector.connector_type.replace(/_/g, " ")}
         </Badge>
-        <Badge
-          size="xs"
-          color={STATUS_DOT[connector.status] ?? "gray"}
-          variant="dot"
-        >
+        <Badge size="xs" color={STATUS_DOT[connector.status] ?? "gray"} variant="dot">
           {connector.status}
         </Badge>
         {connector.is_healthy !== null && (
-          <Badge
-            size="xs"
-            color={connector.is_healthy ? "green" : "red"}
-            variant="light"
-          >
+          <Badge size="xs" color={connector.is_healthy ? "green" : "red"} variant="light">
             {connector.is_healthy ? "healthy" : "unhealthy"}
           </Badge>
         )}

@@ -1,4 +1,20 @@
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ActionIcon,
   Autocomplete,
   Badge,
@@ -11,6 +27,13 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
+import type {
+  CombineMode,
+  FieldMapping,
+  MappingSource,
+  TargetFieldSuggestion,
+  TransformStep,
+} from "@medbrains/types";
 import {
   IconArrowDown,
   IconBraces,
@@ -19,34 +42,11 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  horizontalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import type {
-  CombineMode,
-  FieldMapping,
-  MappingSource,
-  TargetFieldSuggestion,
-  TransformStep,
-} from "@medbrains/types";
 import { useCallback, useMemo, useState } from "react";
+import styles from "./MappingCard.module.scss";
 import { TransformChain } from "./TransformChain";
 import { evaluateMapping, type MappingEvalResult } from "./transformEvaluator";
-import { inferFieldType, TYPE_LABELS, TYPE_COLORS } from "./typeInference";
-import styles from "./MappingCard.module.scss";
+import { inferFieldType, TYPE_COLORS, TYPE_LABELS } from "./typeInference";
 
 // ── Props ─────────────────────────────────────────────────
 
@@ -145,8 +145,9 @@ function SortableSourceChip({
   onCycleCombineMode?: (id: string) => void;
   onUngroup?: (id: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: source.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: source.id,
+  });
 
   const isGroup = source.children && source.children.length > 0;
 
@@ -166,7 +167,11 @@ function SortableSourceChip({
         <Stack gap={2} style={{ width: "100%" }}>
           <Group gap={4} wrap="nowrap" justify="space-between">
             <Group gap={4} wrap="nowrap">
-              <span {...attributes} {...listeners} style={{ display: "inline-flex", cursor: "grab" }}>
+              <span
+                {...attributes}
+                {...listeners}
+                style={{ display: "inline-flex", cursor: "grab" }}
+              >
                 <IconGripVertical size={10} color="var(--mantine-color-gray-5)" />
               </span>
               <Tooltip label="Click to change combine mode" withArrow>
@@ -218,12 +223,7 @@ function SortableSourceChip({
           {/* Children chips inside the group */}
           <Group gap={3} wrap="wrap" pl={16}>
             {source.children?.map((child) => (
-              <Badge
-                key={child.id}
-                size="xs"
-                variant="light"
-                color="success"
-              >
+              <Badge key={child.id} size="xs" variant="light" color="success">
                 {child.path.split(".").pop() ?? child.path}
               </Badge>
             ))}
@@ -296,10 +296,12 @@ export function MappingCard({
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
 
   const canGroupSelected = selectedSourceIds.size >= 2;
-  const canUngroupSelected = selectedSourceIds.size === 1 && (() => {
-    const selected = sourceItems.find((s) => s.id === [...selectedSourceIds][0]);
-    return selected?.children && selected.children.length > 0;
-  })();
+  const canUngroupSelected =
+    selectedSourceIds.size === 1 &&
+    (() => {
+      const selected = sourceItems.find((s) => s.id === [...selectedSourceIds][0]);
+      return selected?.children && selected.children.length > 0;
+    })();
 
   // Infer source type from sample data
   const sourceType = useMemo(() => {
@@ -315,7 +317,12 @@ export function MappingCard({
     return match?.type;
   }, [mapping.to, targetSuggestions]);
 
-  const typeMismatch = sourceType && destType && sourceType !== destType && sourceType !== "unknown" && destType !== "unknown";
+  const typeMismatch =
+    sourceType &&
+    destType &&
+    sourceType !== destType &&
+    sourceType !== "unknown" &&
+    destType !== "unknown";
 
   // Evaluate preview
   const preview: MappingEvalResult | null = useMemo(() => {
@@ -368,9 +375,7 @@ export function MappingCard({
       const remaining = sourceItems.filter((s) => s.id !== sourceId);
       if (remaining.length <= 1) {
         const first = remaining[0];
-        const singlePath = first
-          ? (first.children ? getLeafPaths(remaining)[0] : first.path)
-          : "";
+        const singlePath = first ? (first.children ? getLeafPaths(remaining)[0] : first.path) : "";
         onChange({
           ...mapping,
           from: singlePath ?? "",
@@ -419,9 +424,8 @@ export function MappingCard({
       ...mapping,
       from: getLeafPaths(remaining)[0] ?? mapping.from,
       sources: remaining,
-      combineMode: mapping.combineMode === "single" || !mapping.combineMode
-        ? "concat"
-        : mapping.combineMode,
+      combineMode:
+        mapping.combineMode === "single" || !mapping.combineMode ? "concat" : mapping.combineMode,
       combineConfig: mapping.combineConfig ?? { separator: " " },
     });
     setSelectedSourceIds(new Set());
@@ -508,9 +512,12 @@ export function MappingCard({
         ...mapping,
         from: getLeafPaths(reordered)[0] ?? mapping.from,
         sources: reordered,
-        combineMode: mapping.combineMode === "single" || !mapping.combineMode
-          ? (reordered.length > 1 ? "concat" : "single")
-          : mapping.combineMode,
+        combineMode:
+          mapping.combineMode === "single" || !mapping.combineMode
+            ? reordered.length > 1
+              ? "concat"
+              : "single"
+            : mapping.combineMode,
         combineConfig: mapping.combineConfig ?? { separator: " " },
       });
     },
@@ -613,7 +620,8 @@ export function MappingCard({
                 )}
               </Group>
               {/* Group / Ungroup — visible when 2+ ungrouped sources or any group exists */}
-              {(sourceItems.length >= 2 || sourceItems.some((s) => s.children && s.children.length > 0)) && (
+              {(sourceItems.length >= 2 ||
+                sourceItems.some((s) => s.children && s.children.length > 0)) && (
                 <Group gap={4}>
                   <Button
                     size="compact-xs"
@@ -764,7 +772,10 @@ export function MappingCard({
                 </Badge>
               )}
               {typeMismatch && (
-                <Tooltip label={`Type mismatch: source is ${sourceType}, destination expects ${destType}`} withArrow>
+                <Tooltip
+                  label={`Type mismatch: source is ${sourceType}, destination expects ${destType}`}
+                  withArrow
+                >
                   <Badge size="xs" variant="light" color="warning">
                     mismatch
                   </Badge>

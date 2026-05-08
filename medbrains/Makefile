@@ -1,16 +1,25 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
        build build-backend build-frontend \
-       check check-backend check-frontend lint check-api check-sqlx prepare-sqlx \
+       check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-all \
-       check-rls check-sharing check-tenant-leak check-audit check-tracing \
+       check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist \
        smoke-test e2e-test generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
+       ship ship-quick ship-cold ship-help \
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
        clean logs db-shell seed
+
+# SQLx policy:
+# - Normal build/check/test/deploy uses the committed .sqlx cache with SQLX_OFFLINE=true.
+# - Only prepare-sqlx/check-sqlx connect to a schema database, and that database must be local/CI/staging.
+# - Never run cargo sqlx prepare against production; deployment only runs embedded migrations at app startup.
+LOCAL_SQLX_DATABASE_URL ?= postgres://medbrains:medbrains_dev@localhost:5435/medbrains
+SQLX_DATABASE_URL ?= $(if $(DATABASE_URL),$(DATABASE_URL),$(LOCAL_SQLX_DATABASE_URL))
+SQLX_PREPARE_CARGO_ARGS ?= --package medbrains-server
 
 # Default
 help: ## Show this help
@@ -25,10 +34,10 @@ dev: ## Start everything (db + compile backend + frontend)
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@echo "PostgreSQL ready. Compiling backend..."
-	@SQLX_OFFLINE=false cargo build 2>&1 || { echo "❌ Backend compilation failed"; exit 1; }
+	@cargo build 2>&1 || { echo "❌ Backend compilation failed"; exit 1; }
 	@echo "✅ Backend compiled. Starting backend + frontend..."
 	@trap 'kill 0' EXIT; \
-		SQLX_OFFLINE=false cargo run & \
+		cargo run & \
 		pnpm dev:web & \
 		wait
 
@@ -36,12 +45,12 @@ dev-fast: ## Start everything (skip compile check — use when already compiled)
 	@docker compose up -d postgres 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@trap 'kill 0' EXIT; \
-		SQLX_OFFLINE=false cargo run & \
+		cargo run & \
 		pnpm dev:web & \
 		wait
 
 dev-backend: db ## Start database + backend only
-	SQLX_OFFLINE=false cargo run
+	cargo run
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
@@ -88,11 +97,21 @@ check: check-backend check-frontend ## Run all checks
 check-backend: ## Run cargo clippy
 	cargo clippy -- -D warnings
 
-prepare-sqlx: ## Refresh SQLx offline metadata from the configured database
-	SQLX_OFFLINE=false DATABASE_URL="$${DATABASE_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}" cargo sqlx prepare --workspace
+guard-sqlx-nonprod:
+	@case "$(SQLX_DATABASE_URL)" in \
+		*prod*|*production*|*hims.amh.org.in*|*amh.org.in*|*amazonaws.com*|*rds.amazonaws.com*) \
+			echo "❌ Refusing SQLx metadata generation against a production-looking DATABASE_URL."; \
+			echo "Use a migrated local/CI database. Example:"; \
+			echo "  SQLX_DATABASE_URL=$(LOCAL_SQLX_DATABASE_URL) make prepare-sqlx"; \
+			exit 1; \
+			;; \
+	esac
 
-check-sqlx: ## Verify SQLx offline metadata matches schema and query text
-	SQLX_OFFLINE=false DATABASE_URL="$${DATABASE_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}" cargo sqlx prepare --check --workspace
+prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI schema DB only
+	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
+
+check-sqlx: guard-sqlx-nonprod ## Verify SQLx offline metadata matches local/CI schema DB only
+	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --check --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
 
 check-frontend: ## Run TypeScript typecheck
 	pnpm typecheck --filter=@medbrains/web
@@ -112,17 +131,26 @@ check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
 check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
-	python3 ../scripts/check_nav_drift.py
+	python3 scripts/check_nav_drift.py
 
-check-all: check-api check-ui-api check-types check-nav-drift check-rls check-tenant-leak check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-api check-ui-api check-types check-nav-drift check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 
 check-rls: ## Verify every tenant_id-bearing table has RLS coverage
 	python3 ../scripts/check_rls.py
 
+check-authz-posture: ## Verify authz fail-closed posture invariants
+	python3 ../scripts/check_authz_posture.py
+
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py
+
+check-runtime-sqlx: ## Strict compile-time SQL — block new sqlx::query() runtime calls in routes (ratchets against baseline)
+	python3 ../scripts/check_runtime_sqlx.py
+
+check-migrations: ## Migration sanity — version uniqueness, FK targets, idempotency, NOW()-in-index, dup tables/enums
+	python3 ../scripts/check_migrations.py
 
 check-tenant-leak-update-baseline: ## Update baseline after cleanup PR
 	python3 ../scripts/check_tenant_leak.py --update-baseline
@@ -194,6 +222,23 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 	cd infra/terraform/modules/bootstrap && \
 		terraform init -upgrade && \
 		terraform apply -var=region=$(REGION)
+
+# ── Desktop (Tauri 2) ────────────────────────────────────
+
+desktop-dev: ## Run desktop app in dev mode (hot-reload SPA)
+	cd apps/desktop && pnpm install && pnpm dev
+
+desktop-build: ## Build desktop bundle for current OS
+	cd apps/desktop && pnpm install && pnpm build
+
+desktop-build-macos: ## Build .dmg (macOS host required)
+	cd apps/desktop && pnpm install && pnpm build:macos
+
+desktop-build-windows: ## Build .msi (Windows host required)
+	cd apps/desktop && pnpm install && pnpm build:windows
+
+desktop-build-linux: ## Build .AppImage + .deb + .rpm (Linux host required)
+	cd apps/desktop && pnpm install && pnpm build:linux
 
 # ── Smoke & E2E Tests ────────────────────────────────────
 
@@ -282,6 +327,79 @@ test-e2e: ## Run Playwright E2E tests (results go to Allure)
 test-all: test-rust test-ts ## Run Rust + TypeScript tests
 	@echo "All tests done. Results in qa/kiwi-results/"
 	@echo "Run 'python3 qa/sync.py' to push cases to Kiwi."
+
+# ── ship pipeline (Track 0.epsilon) ───────────────────────
+#
+# Three flavours:
+#   make ship-quick   — local dev sanity (lint + typecheck + cargo check + audit)
+#   make ship         — full CI gate (everything except deploy)
+#   make ship-cold    — full release: ship + deploy to prod
+#
+# Each step is independently runnable as its own target. `ship` chains
+# them so failures stop at the offending stage with a clear marker.
+
+ship-quick: ## Local sanity: lint + typecheck + cargo check + audit (~5 min)
+	@echo "── 1/4 lint ─────────────────────────────"
+	@$(MAKE) -s lint
+	@echo "── 2/4 typecheck ────────────────────────"
+	@$(MAKE) -s check-frontend
+	@echo "── 3/4 cargo check ──────────────────────"
+	@$(MAKE) -s check-backend
+	@echo "── 4/4 screen audit ────────────────────"
+	@python3 ../scripts/audit_screens.py
+	@echo "✅ ship-quick clean."
+
+ship: ## Full CI gate (no deploy). lint → typecheck → tests → contract → audit → build (~15-20 min)
+	@echo "── 1/9 lint ─────────────────────────────"
+	@$(MAKE) -s lint
+	@echo "── 2/9 typecheck (frontend) ─────────────"
+	@$(MAKE) -s check-frontend
+	@echo "── 3/9 cargo check ──────────────────────"
+	@$(MAKE) -s check-backend
+	@echo "── 4/9 unit tests ───────────────────────"
+	@$(MAKE) -s test-all
+	@echo "── 5/9 API + UI + type contract ─────────"
+	@$(MAKE) -s check-api
+	@$(MAKE) -s check-ui-api
+	@$(MAKE) -s check-types
+	@$(MAKE) -s check-nav-drift
+	@echo "── 6/9 RLS + audit + tenant + tracing + sqlx ──"
+	@$(MAKE) -s check-rls
+	@$(MAKE) -s check-tenant-leak
+	@$(MAKE) -s check-runtime-sqlx
+	@$(MAKE) -s check-audit
+	@$(MAKE) -s check-tracing
+	@echo "── 7/9 compliance (region/PCI/egress) ──"
+	@$(MAKE) -s check-region-pinning
+	@$(MAKE) -s check-no-card-logging
+	@$(MAKE) -s check-egress-allowlist
+	@$(MAKE) -s check-migration-headers
+	@echo "── 8/9 screen audit (strict) ───────────"
+	@python3 ../scripts/audit_screens.py --strict
+	@echo "── 9/9 release build ────────────────────"
+	@$(MAKE) -s build
+	@echo "✅ ship clean — ready to deploy."
+
+ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
+	@echo "── deploy ──────────────────────────────"
+	@cd infra/terraform/envs/standalone/alagappa && $(MAKE) apply
+	@echo "── post-deploy smoke ───────────────────"
+	@curl -sS --fail --max-time 10 https://hims.amh.org.in/api/health > /dev/null \
+		&& echo "✅ /api/health 200" \
+		|| { echo "❌ /api/health failed"; exit 1; }
+	@echo "✅ ship-cold complete."
+
+ship-help: ## Document each ship-pipeline stage
+	@echo "make ship-quick    — ~5 min  — local dev sanity"
+	@echo "make ship          — ~15 min — full CI gate (no deploy)"
+	@echo "make ship-cold     — ~25 min — ship + deploy"
+	@echo ""
+	@echo "Per-stage targets:"
+	@echo "  lint, check-frontend, check-backend, test-all,"
+	@echo "  check-api, check-ui-api, check-types, check-nav-drift,"
+	@echo "  check-rls, check-tenant-leak, check-audit, check-tracing,"
+	@echo "  check-region-pinning, check-no-card-logging,"
+	@echo "  check-egress-allowlist, check-migration-headers, build"
 
 kiwi-up: ## Start Kiwi TCMS
 	docker compose up -d kiwi

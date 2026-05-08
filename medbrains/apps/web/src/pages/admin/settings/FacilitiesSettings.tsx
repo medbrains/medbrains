@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -15,16 +14,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { Facility } from "@medbrains/types";
-import { SelectLabel, CreateFacilityModal } from "../../../components";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { CreateFacilityModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
 
 // ── Constants ─────────────────────────────────────────────
@@ -143,15 +138,12 @@ function FacilityModal({
 
   useEffect(() => {
     if (parentInline.pendingSelect) {
-      setForm((prev) => ({ ...prev, parent_id: parentInline.pendingSelect!.id }));
+      setForm((prev) => ({ ...prev, parent_id: parentInline.pendingSelect?.id }));
       parentInline.clearPendingSelect();
     }
   }, [parentInline.pendingSelect, parentInline.clearPendingSelect]);
 
-  const updateField = <K extends keyof FacilityFormState>(
-    key: K,
-    value: FacilityFormState[K],
-  ) => {
+  const updateField = <K extends keyof FacilityFormState>(key: K, value: FacilityFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -171,8 +163,7 @@ function FacilityModal({
     }));
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof formStateToPayload>) =>
-      api.createFacility(data),
+    mutationFn: (data: ReturnType<typeof formStateToPayload>) => api.createFacility(data),
     onSuccess: () => {
       notifications.show({
         title: "Facility created",
@@ -194,7 +185,7 @@ function FacilityModal({
 
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof formStateToPayload>) =>
-      api.updateFacility(editingFacility!.id, data),
+      api.updateFacility(editingFacility?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Facility updated",
@@ -269,12 +260,7 @@ function FacilityModal({
             placeholder="Select type..."
           />
           <Select
-            label={
-              <SelectLabel
-                label="Parent Facility"
-                onCreate={parentInline.openCreateModal}
-              />
-            }
+            label={<SelectLabel label="Parent Facility" onCreate={parentInline.openCreateModal} />}
             data={parentOptions}
             value={form.parent_id}
             onChange={(v) => updateField("parent_id", v)}
@@ -329,30 +315,22 @@ function FacilityModal({
           <Switch
             label="Billing"
             checked={form.shared_billing}
-            onChange={(e) =>
-              updateField("shared_billing", e.currentTarget.checked)
-            }
+            onChange={(e) => updateField("shared_billing", e.currentTarget.checked)}
           />
           <Switch
             label="Pharmacy"
             checked={form.shared_pharmacy}
-            onChange={(e) =>
-              updateField("shared_pharmacy", e.currentTarget.checked)
-            }
+            onChange={(e) => updateField("shared_pharmacy", e.currentTarget.checked)}
           />
           <Switch
             label="Lab"
             checked={form.shared_lab}
-            onChange={(e) =>
-              updateField("shared_lab", e.currentTarget.checked)
-            }
+            onChange={(e) => updateField("shared_lab", e.currentTarget.checked)}
           />
           <Switch
             label="HR"
             checked={form.shared_hr}
-            onChange={(e) =>
-              updateField("shared_hr", e.currentTarget.checked)
-            }
+            onChange={(e) => updateField("shared_hr", e.currentTarget.checked)}
           />
         </Group>
 
@@ -465,11 +443,7 @@ export function FacilitiesSettings() {
         <Text size="sm">{facility.bed_count ?? "-"}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={facility.is_active ? "success" : "slate"}
-        >
+        <Badge size="sm" variant="light" color={facility.is_active ? "success" : "slate"}>
           {facility.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -503,11 +477,7 @@ export function FacilitiesSettings() {
         <Text size="lg" fw={600}>
           Facilities
         </Text>
-        <Button
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-        >
+        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Facility
         </Button>
       </Group>

@@ -1,41 +1,41 @@
 import {
   Card,
   Container,
+  type CSSVariablesResolver,
   createTheme,
   Loader,
+  type MantineColorsTuple,
   Paper,
   rem,
   Select,
-  type CSSVariablesResolver,
-  type MantineColorsTuple,
 } from "@mantine/core";
 import { EcgLoader } from "./components/EcgLoader";
 
 // ═══════════════════════════════════════════════════════════════════
-// ── MedBrains Design System: Forest + Copper (LOCKED)
+// ── MedBrains Design System: Vibrant Clinical
 // ═══════════════════════════════════════════════════════════════════
 //
-// Brand: deep institutional forest green (#1F4332)
-// Accent: copper (#B8924A) — RESERVED for changed values, unread
-// Canvas: white-first institutional (#ffffff)
+// Brand: clinical teal-green (#0F766E)
+// Accent: copper (#B8924A), sky, violet, and orange for visual variety
+// Canvas: bright white-first clinical workspace
 // Ink: graphite (#0F1412) — never #000000
 //
 // Peers: Mayo Clinic, Roche, Patagonia-medical, Hermes
-// Fonts: Fraunces (display), Inter Tight (UI), JetBrains Mono (code)
+// Fonts: IBM Plex Sans (UI), Noto Sans family (multilingual fallback), JetBrains Mono (code)
 // ═══════════════════════════════════════════════════════════════════
 
-// Brand — Forest Green (institutional, grown, timeless)
+// Brand — Clinical teal-green (professional, brighter, responsive)
 const primary: MantineColorsTuple = [
-  "#f3f7f5", // 0  ghost
-  "#e4ede9", // 1  dimmed / selection / tint
-  "#c4d5cc", // 2  subtle / tint-2
-  "#8aa89a", // 3  medium
-  "#567a69", // 4  strong
-  "#1F4332", // 5  accent      <- BRAND (forest)
-  "#153325", // 6  hover
-  "#0d2417", // 7  pressed / deep
-  "#061610", // 8  deep
-  "#020806", // 9  abyss
+  "#ecfdf5", // 0  ghost
+  "#d1fae5", // 1  dimmed / selection / tint
+  "#99f6e4", // 2  subtle / tint-2
+  "#5eead4", // 3  medium
+  "#2dd4bf", // 4  strong
+  "#0F766E", // 5  accent      <- BRAND (clinical teal)
+  "#0d6b63", // 6  hover
+  "#115e59", // 7  pressed / deep
+  "#134e4a", // 8  deep
+  "#042f2e", // 9  abyss
 ];
 
 // Success — Clinical Green (normal vitals, healthy, completed)
@@ -179,10 +179,9 @@ const CONTAINER_SIZES: Record<string, string> = {
 // ── Font stacks ────────────────────────────────────────────────
 
 const FONT_SANS =
-  "'Inter Tight Variable', 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  "'IBM Plex Sans', 'Noto Sans', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-const FONT_DISPLAY =
-  "'Fraunces Variable', 'Fraunces', 'Source Serif Pro', Georgia, serif";
+const FONT_DISPLAY = FONT_SANS;
 
 // ── Theme ──────────────────────────────────────────────────────
 
@@ -477,7 +476,7 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   return {
     variables: {
       "--mb-radius": t.radius?.xl ?? rem("16px"),
-      // ── Forest + Copper canonical tokens (per design system SKILL.md §2) ──
+      // ── Vibrant clinical semantic tokens ──
       "--fc-brand": p[5],
       "--fc-brand-hover": p[6],
       "--fc-brand-deep": p[7],
@@ -496,6 +495,9 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--fc-copper": cop[5],
       "--fc-copper-tint": cop[1],
       "--fc-copper-deep": cop[7],
+      "--mb-accent-gradient": "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 48%, #f59e0b 100%)",
+      "--mb-accent-gradient-soft":
+        "linear-gradient(135deg, rgba(20,184,166,0.14) 0%, rgba(14,165,233,0.12) 50%, rgba(245,158,11,0.16) 100%)",
       // ── Emergency code layer (NOT themeable — safety-critical) ──
       "--code-blue": "#1E63B8",
       "--code-red": "#C8102E",
@@ -511,15 +513,15 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
     light: {
       // ── Surfaces (white-first institutional) ──
       "--mantine-color-body": "#ffffff",
-      "--mb-bg-content": "#f7f8f6",      // fog panel
-      "--mb-sidebar-bg": "#ffffff",
-      "--mb-header-bg": "rgba(255, 255, 255, 0.92)",
+      "--mb-bg-content": "#f4fbf9",
+      "--mb-sidebar-bg": "linear-gradient(180deg, #ffffff 0%, #f0fdfa 52%, #fff7ed 100%)",
+      "--mb-header-bg": "rgba(255, 255, 255, 0.9)",
       "--mb-card-bg": "#ffffff",
       "--mb-input-bg": "#ffffff",
 
       // ── Borders (cool hairline) ──
-      "--mb-border": "#e7ebe8",
-      "--mb-border-subtle": "#eef2f0",
+      "--mb-border": "#dcebe8",
+      "--mb-border-subtle": "#eaf5f2",
 
       // ── Text hierarchy (graphite ink, never #000) ──
       "--mb-text-primary": "#0F1412",
@@ -532,6 +534,21 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-focus-ring": p[5],
       "--mb-link": p[5],
       "--mb-link-hover": p[6],
+      "--mb-active-bg": "#ccfbf1",
+      "--mb-active-bg-strong": "#99f6e4",
+      "--mb-active-border": "#14b8a6",
+      "--mb-active-text": "#0f766e",
+      "--mb-icon-glow": "rgba(20, 184, 166, 0.28)",
+      "--mb-nav-hover-bg": "rgba(20, 184, 166, 0.08)",
+      "--mb-nav-hover-text": "#0f766e",
+      "--mb-nav-active-bg":
+        "linear-gradient(135deg, rgba(204,251,241,0.95) 0%, rgba(224,242,254,0.96) 58%, rgba(255,237,213,0.92) 100%)",
+      "--mb-nav-active-text": "#0f766e",
+      "--mb-nav-active-shadow": "0 10px 26px rgba(20, 184, 166, 0.2)",
+      "--mb-nav-child-active-bg": "#e0f2fe",
+      "--mb-nav-child-active-text": "#0369a1",
+      "--mb-nav-child-active-border": "#0ea5e9",
+      "--mb-search-bg": "rgba(240, 253, 250, 0.9)",
 
       // ── Semantic status colors (bg / text pairs) ──
       "--mb-success-bg": s[0],
@@ -548,17 +565,17 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-info-accent": i[5],
 
       // ── Table ──
-      "--mb-table-header-bg": "#f7f8f6",
-      "--mb-table-hover": "#e4ede9",
-      "--mb-table-border": "#e7ebe8",
+      "--mb-table-header-bg": "#ecfeff",
+      "--mb-table-hover": "#f0fdfa",
+      "--mb-table-border": "#dcebe8",
 
       // ── Shimmer ──
       "--mb-shimmer-from": "#f7f8f6",
       "--mb-shimmer-mid": "#e7ebe8",
 
       // ── Shadows ──
-      "--mb-float-shadow":
-        "0 1px 3px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.04)",
+      "--mb-float-shadow": "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(20,184,166,0.08)",
+      "--mb-card-hover-shadow": "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(20,184,166,0.08)",
 
       // ── Clinical status (high-visibility for patient safety) ──
       "--mb-critical-bg": "#fff1f2",
@@ -592,6 +609,21 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-focus-ring": p[4],
       "--mb-link": p[3],
       "--mb-link-hover": p[2],
+      "--mb-active-bg": "#134e4a",
+      "--mb-active-bg-strong": "#115e59",
+      "--mb-active-border": "#2dd4bf",
+      "--mb-active-text": "#99f6e4",
+      "--mb-icon-glow": "rgba(45, 212, 191, 0.32)",
+      "--mb-nav-hover-bg": "rgba(45, 212, 191, 0.1)",
+      "--mb-nav-hover-text": "#99f6e4",
+      "--mb-nav-active-bg":
+        "linear-gradient(135deg, rgba(19,78,74,0.98) 0%, rgba(12,74,110,0.9) 62%, rgba(120,53,15,0.72) 100%)",
+      "--mb-nav-active-text": "#ccfbf1",
+      "--mb-nav-active-shadow": "0 12px 30px rgba(20,184,166,0.24)",
+      "--mb-nav-child-active-bg": "#0c4a6e",
+      "--mb-nav-child-active-text": "#bae6fd",
+      "--mb-nav-child-active-border": "#38bdf8",
+      "--mb-search-bg": "rgba(20, 28, 24, 0.9)",
 
       "--mb-success-bg": "#052e16",
       "--mb-success-text": s[2],
@@ -613,8 +645,8 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-shimmer-from": "#1e2823",
       "--mb-shimmer-mid": "#172019",
 
-      "--mb-float-shadow":
-        "0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.25)",
+      "--mb-float-shadow": "0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.25)",
+      "--mb-card-hover-shadow": "0 8px 22px rgba(0,0,0,0.32), 0 18px 42px rgba(20,184,166,0.14)",
 
       "--mb-critical-bg": "#450a0a",
       "--mb-critical-text": "#fecdd3",

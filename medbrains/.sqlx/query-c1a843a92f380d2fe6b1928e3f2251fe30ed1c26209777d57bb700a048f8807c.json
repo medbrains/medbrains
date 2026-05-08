@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_sentinel_event_register (tenant_id, event_at, event_category, event_subtype, severity, patient_id, location, description, immediate_actions, reportable_to_authority, authority_reference, reportable_to_nqf, rca_required, rca_due_at, review_status, reported_by, notes, source_module, source_record_id) SELECT i.tenant_id, COALESCE(i.incident_date, now()), COALESCE(NULLIF(i.incident_type, ''), 'sentinel_event'), NULL, CASE i.severity::text WHEN 'sentinel' THEN 'permanent_harm' WHEN 'major' THEN 'temporary_harm' WHEN 'near_miss' THEN 'no_harm_near_miss' ELSE 'temporary_harm' END, i.patient_id, i.location, COALESCE(i.description, i.title), i.immediate_action, i.is_reportable, i.regulatory_body, true, true, COALESCE(i.incident_date, now()) + interval '72 hours', 'open', COALESCE(i.reported_by, $3), i.root_cause, $4, i.id FROM quality_incidents i WHERE i.id = $1 AND i.tenant_id = $2 ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET event_at = EXCLUDED.event_at, event_category = EXCLUDED.event_category, severity = EXCLUDED.severity, patient_id = EXCLUDED.patient_id, location = EXCLUDED.location, description = EXCLUDED.description, immediate_actions = EXCLUDED.immediate_actions, reportable_to_authority = EXCLUDED.reportable_to_authority, authority_reference = EXCLUDED.authority_reference, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1a843a92f380d2fe6b1928e3f2251fe30ed1c26209777d57bb700a048f8807c"
+}

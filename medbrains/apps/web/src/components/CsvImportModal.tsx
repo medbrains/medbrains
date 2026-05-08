@@ -28,10 +28,10 @@ function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return { headers: [], rows: [] };
 
-  const headers = lines[0]!.split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-  const rows = lines.slice(1).map((line) =>
-    line.split(",").map((cell) => cell.trim().replace(/^"|"$/g, "")),
-  );
+  const headers = lines[0]?.split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  const rows = lines
+    .slice(1)
+    .map((line) => line.split(",").map((cell) => cell.trim().replace(/^"|"$/g, "")));
 
   return { headers, rows };
 }
@@ -70,9 +70,7 @@ export function CsvImportModal({
         }
 
         const lowerHeaders = data.headers.map((h) => h.toLowerCase());
-        const missing = requiredColumns.filter(
-          (col) => !lowerHeaders.includes(col.toLowerCase()),
-        );
+        const missing = requiredColumns.filter((col) => !lowerHeaders.includes(col.toLowerCase()));
 
         if (missing.length > 0) {
           setParseError(

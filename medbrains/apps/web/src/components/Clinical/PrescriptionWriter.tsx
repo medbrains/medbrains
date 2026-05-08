@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -16,6 +15,18 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type {
+  AllergyConflict,
+  ComplianceSettings,
+  CreatePrescriptionRequest,
+  CreatePrescriptionTemplateRequest,
+  DrugInteractionAlert,
+  PrescriptionItemInput,
+  PrescriptionTemplate,
+  PrescriptionWithItems,
+  TenantSettingsRow,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBookmark,
@@ -29,19 +40,8 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@medbrains/api";
-import type {
-  ComplianceSettings,
-  CreatePrescriptionRequest,
-  CreatePrescriptionTemplateRequest,
-  DrugInteractionAlert,
-  AllergyConflict,
-  PrescriptionItemInput,
-  PrescriptionTemplate,
-  PrescriptionWithItems,
-  TenantSettingsRow,
-} from "@medbrains/types";
 import { instructionsDisplayText } from "../../lib/medication-timing-utils";
 import { PrescriptionItemEntry } from "./PrescriptionItemEntry";
 import { PrescriptionItemsTable } from "./PrescriptionItemsTable";
@@ -74,7 +74,8 @@ export function PrescriptionWriter({
   const [pendingItems, setPendingItems] = useState<PrescriptionItemInput[]>([]);
   const [rxNotes, setRxNotes] = useState("");
   const [notesOpen, { toggle: toggleNotes }] = useDisclosure(false);
-  const [saveTemplateOpen, { open: openSaveTemplate, close: closeSaveTemplate }] = useDisclosure(false);
+  const [saveTemplateOpen, { open: openSaveTemplate, close: closeSaveTemplate }] =
+    useDisclosure(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
   const [templateShared, setTemplateShared] = useState(false);
@@ -94,10 +95,18 @@ export function PrescriptionWriter({
 
   const compliance = useMemo(() => {
     const defaults: ComplianceSettings = {
-      enforce_drug_scheduling: false, enforce_ndps_tracking: false, enforce_formulary: false,
-      enforce_drug_interactions: false, enforce_antibiotic_stewardship: false, enforce_lasa_warnings: false,
-      enforce_max_dose_check: false, enforce_batch_tracking: false, show_schedule_badges: true,
-      show_controlled_warnings: true, show_formulary_status: true, show_aware_category: true,
+      enforce_drug_scheduling: false,
+      enforce_ndps_tracking: false,
+      enforce_formulary: false,
+      enforce_drug_interactions: false,
+      enforce_antibiotic_stewardship: false,
+      enforce_lasa_warnings: false,
+      enforce_max_dose_check: false,
+      enforce_batch_tracking: false,
+      show_schedule_badges: true,
+      show_controlled_warnings: true,
+      show_formulary_status: true,
+      show_aware_category: true,
     };
     for (const row of complianceRaw) {
       const key = row.key as keyof ComplianceSettings;
@@ -117,11 +126,19 @@ export function PrescriptionWriter({
     mutationFn: (data: CreatePrescriptionTemplateRequest) => api.createPrescriptionTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
-      notifications.show({ title: "Template saved", message: `"${templateName}" saved`, color: "success" });
+      notifications.show({
+        title: "Template saved",
+        message: `"${templateName}" saved`,
+        color: "success",
+      });
       closeSaveTemplate();
-      setTemplateName(""); setTemplateDesc(""); setTemplateShared(false);
+      setTemplateName("");
+      setTemplateDesc("");
+      setTemplateShared(false);
     },
-    onError: () => { notifications.show({ title: "Error", message: "Failed to save template", color: "danger" }); },
+    onError: () => {
+      notifications.show({ title: "Error", message: "Failed to save template", color: "danger" });
+    },
   });
 
   const deleteTemplateMut = useMutation({
@@ -144,8 +161,15 @@ export function PrescriptionWriter({
       return;
     }
     try {
-      setSafetyAlerts(await api.checkDrugSafety({ drug_names: items.map((i) => i.drug_name), patient_id: patientId }));
-    } catch { /* don't block prescribing */ }
+      setSafetyAlerts(
+        await api.checkDrugSafety({
+          drug_names: items.map((i) => i.drug_name),
+          patient_id: patientId,
+        }),
+      );
+    } catch {
+      /* don't block prescribing */
+    }
   };
 
   // ── Handlers ──
@@ -164,18 +188,29 @@ export function PrescriptionWriter({
   const handleSave = () => {
     if (pendingItems.length === 0) return;
     onSave({ notes: rxNotes.trim() || undefined, items: pendingItems });
-    setPendingItems([]); setRxNotes(""); closeForm();
+    setPendingItems([]);
+    setRxNotes("");
+    closeForm();
   };
 
   const handleLoadTemplate = (tpl: PrescriptionTemplate) => {
     setPendingItems(tpl.items);
     if (!showForm) toggleForm();
-    notifications.show({ title: "Template loaded", message: `"${tpl.name}" loaded with ${tpl.items.length} items`, color: "primary" });
+    notifications.show({
+      title: "Template loaded",
+      message: `"${tpl.name}" loaded with ${tpl.items.length} items`,
+      color: "primary",
+    });
   };
 
   const handleSaveTemplate = () => {
     if (!templateName.trim() || pendingItems.length === 0) return;
-    saveTemplateMut.mutate({ name: templateName.trim(), description: templateDesc.trim() || undefined, is_shared: templateShared, items: pendingItems });
+    saveTemplateMut.mutate({
+      name: templateName.trim(),
+      description: templateDesc.trim() || undefined,
+      is_shared: templateShared,
+      items: pendingItems,
+    });
   };
 
   return (
@@ -183,21 +218,48 @@ export function PrescriptionWriter({
       {/* Toolbar */}
       {canUpdate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={toggleForm} variant={showForm ? "light" : "filled"}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={toggleForm}
+            variant={showForm ? "light" : "filled"}
+          >
             {showForm ? t("common:cancel") : t("prescription.newPrescription")}
           </Button>
           {templates.length > 0 && (
             <Menu shadow="md" width={260}>
               <Menu.Target>
-                <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />}>Templates</Button>
+                <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />}>
+                  Templates
+                </Button>
               </Menu.Target>
               <Menu.Dropdown>
                 {templates.map((tpl: PrescriptionTemplate) => (
-                  <Menu.Item key={tpl.id} leftSection={<IconBookmark size={14} />}
-                    rightSection={<ActionIcon variant="subtle" color="danger" size="xs" onClick={(e) => { e.stopPropagation(); deleteTemplateMut.mutate(tpl.id); }} aria-label="Delete"><IconTrash size={12} /></ActionIcon>}
-                    onClick={() => handleLoadTemplate(tpl)}>
-                    <Text size="sm" fw={500}>{tpl.name}</Text>
-                    <Text size="xs" c="dimmed">{tpl.items.length} items{tpl.is_shared ? " · Shared" : ""}</Text>
+                  <Menu.Item
+                    key={tpl.id}
+                    leftSection={<IconBookmark size={14} />}
+                    rightSection={
+                      <ActionIcon
+                        variant="subtle"
+                        color="danger"
+                        size="xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTemplateMut.mutate(tpl.id);
+                        }}
+                        aria-label="Delete"
+                      >
+                        <IconTrash size={12} />
+                      </ActionIcon>
+                    }
+                    onClick={() => handleLoadTemplate(tpl)}
+                  >
+                    <Text size="sm" fw={500}>
+                      {tpl.name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {tpl.items.length} items{tpl.is_shared ? " · Shared" : ""}
+                    </Text>
                   </Menu.Item>
                 ))}
               </Menu.Dropdown>
@@ -210,64 +272,147 @@ export function PrescriptionWriter({
       {showForm && (
         <Card padding="sm" radius="md" withBorder className={styles.writerCard}>
           <Stack gap="xs">
-            <PrescriptionItemEntry drugCatalog={drugCatalog} compliance={compliance} onAdd={handleAddItem} />
+            <PrescriptionItemEntry
+              drugCatalog={drugCatalog}
+              compliance={compliance}
+              onAdd={handleAddItem}
+            />
 
             {/* Safety alerts */}
             {safetyAlerts.allergy_conflicts.length > 0 && (
-              <Alert color="danger" icon={<IconAlertTriangle size={16} />} title="Allergy Conflict Detected" variant="light">
+              <Alert
+                color="danger"
+                icon={<IconAlertTriangle size={16} />}
+                title="Allergy Conflict Detected"
+                variant="light"
+              >
                 {safetyAlerts.allergy_conflicts.map((c, i) => (
-                  <Text key={i} size="xs"><Text span fw={700}>{c.drug_name}</Text> conflicts with allergy to <Text span fw={700}>{c.allergen_name}</Text>{c.severity && <> ({c.severity})</>}{c.reaction && <> — {c.reaction}</>}</Text>
+                  <Text key={i} size="xs">
+                    <Text span fw={700}>
+                      {c.drug_name}
+                    </Text>{" "}
+                    conflicts with allergy to{" "}
+                    <Text span fw={700}>
+                      {c.allergen_name}
+                    </Text>
+                    {c.severity && <> ({c.severity})</>}
+                    {c.reaction && <> — {c.reaction}</>}
+                  </Text>
                 ))}
               </Alert>
             )}
             {safetyAlerts.interactions.length > 0 && (
-              <Alert color="orange" icon={<IconAlertTriangle size={16} />} title="Drug Interaction Warning" variant="light">
+              <Alert
+                color="orange"
+                icon={<IconAlertTriangle size={16} />}
+                title="Drug Interaction Warning"
+                variant="light"
+              >
                 {safetyAlerts.interactions.map((ia, i) => (
                   <Text key={i} size="xs">
-                    <Badge size="xs" color={ia.severity === "contraindicated" ? "danger" : ia.severity === "major" ? "orange" : "warning"} mr={4}>{ia.severity}</Badge>
-                    <Text span fw={700}>{ia.drug_a}</Text> + <Text span fw={700}>{ia.drug_b}</Text>: {ia.description}
-                    {ia.management && <Text size="xs" c="dimmed" mt={2}>Management: {ia.management}</Text>}
+                    <Badge
+                      size="xs"
+                      color={
+                        ia.severity === "contraindicated"
+                          ? "danger"
+                          : ia.severity === "major"
+                            ? "orange"
+                            : "warning"
+                      }
+                      mr={4}
+                    >
+                      {ia.severity}
+                    </Badge>
+                    <Text span fw={700}>
+                      {ia.drug_a}
+                    </Text>{" "}
+                    +{" "}
+                    <Text span fw={700}>
+                      {ia.drug_b}
+                    </Text>
+                    : {ia.description}
+                    {ia.management && (
+                      <Text size="xs" c="dimmed" mt={2}>
+                        Management: {ia.management}
+                      </Text>
+                    )}
                   </Text>
                 ))}
               </Alert>
             )}
 
             {/* Rx notes */}
-            <Button variant="subtle" size="xs" onClick={toggleNotes} rightSection={notesOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />} style={{ alignSelf: "flex-start" }}>
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={toggleNotes}
+              rightSection={notesOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              style={{ alignSelf: "flex-start" }}
+            >
               {t("prescription.instructions")}
             </Button>
             <Collapse expanded={notesOpen}>
-              <Textarea placeholder={t("prescription.generalNotes")} value={rxNotes} onChange={(e) => setRxNotes(e.currentTarget.value)} autosize minRows={2} maxRows={4} />
+              <Textarea
+                placeholder={t("prescription.generalNotes")}
+                value={rxNotes}
+                onChange={(e) => setRxNotes(e.currentTarget.value)}
+                autosize
+                minRows={2}
+                maxRows={4}
+              />
             </Collapse>
 
             {/* Pending items table */}
-            <PrescriptionItemsTable items={pendingItems} onRemoveItem={handleRemoveItem} onSave={handleSave} onOpenSaveTemplate={openSaveTemplate} isSaving={isSaving} />
+            <PrescriptionItemsTable
+              items={pendingItems}
+              onRemoveItem={handleRemoveItem}
+              onSave={handleSave}
+              onOpenSaveTemplate={openSaveTemplate}
+              isSaving={isSaving}
+            />
           </Stack>
         </Card>
       )}
 
       {/* Existing prescriptions */}
       {prescriptions.map((p) => (
-        <ExistingPrescriptionCard key={p.prescription.id} rx={p} onPrint={onPrint} onSendToPharmacy={onSendToPharmacy} />
+        <ExistingPrescriptionCard
+          key={p.prescription.id}
+          rx={p}
+          onPrint={onPrint}
+          onSendToPharmacy={onSendToPharmacy}
+        />
       ))}
 
       {!showForm && prescriptions.length === 0 && (
-        <Text size="sm" c="dimmed" ta="center" py="md">{t("prescription.noPrescriptions")}</Text>
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          {t("prescription.noPrescriptions")}
+        </Text>
       )}
 
       <PrescriptionTemplateModal
-        opened={saveTemplateOpen} onClose={closeSaveTemplate}
-        templateName={templateName} onTemplateNameChange={setTemplateName}
-        templateDesc={templateDesc} onTemplateDescChange={setTemplateDesc}
-        templateShared={templateShared} onTemplateSharedChange={setTemplateShared}
-        itemCount={pendingItems.length} onSave={handleSaveTemplate} isSaving={saveTemplateMut.isPending}
+        opened={saveTemplateOpen}
+        onClose={closeSaveTemplate}
+        templateName={templateName}
+        onTemplateNameChange={setTemplateName}
+        templateDesc={templateDesc}
+        onTemplateDescChange={setTemplateDesc}
+        templateShared={templateShared}
+        onTemplateSharedChange={setTemplateShared}
+        itemCount={pendingItems.length}
+        onSave={handleSaveTemplate}
+        isSaving={saveTemplateMut.isPending}
       />
     </Stack>
   );
 }
 
 /** Existing prescription display card */
-function ExistingPrescriptionCard({ rx, onPrint, onSendToPharmacy }: {
+function ExistingPrescriptionCard({
+  rx,
+  onPrint,
+  onSendToPharmacy,
+}: {
   rx: PrescriptionWithItems;
   onPrint?: (rx: PrescriptionWithItems) => void;
   onSendToPharmacy?: (rxId: string) => void;
@@ -278,15 +423,35 @@ function ExistingPrescriptionCard({ rx, onPrint, onSendToPharmacy }: {
       <Group gap={8} mb="xs" justify="space-between">
         <Group gap={8}>
           <IconPill size={16} color="var(--mantine-color-primary-5)" />
-          <Text size="xs" c="dimmed">{new Date(rx.prescription.created_at).toLocaleString()}</Text>
-          {rx.prescription.notes && <Text size="xs" c="dimmed" fs="italic">— {rx.prescription.notes}</Text>}
+          <Text size="xs" c="dimmed">
+            {new Date(rx.prescription.created_at).toLocaleString()}
+          </Text>
+          {rx.prescription.notes && (
+            <Text size="xs" c="dimmed" fs="italic">
+              — {rx.prescription.notes}
+            </Text>
+          )}
         </Group>
         <Group gap={4}>
           {onSendToPharmacy && (
-            <Tooltip label="Send to Pharmacy"><ActionIcon variant="subtle" color="teal" size="sm" onClick={() => onSendToPharmacy(rx.prescription.id)} aria-label="Medicine Syrup"><IconMedicineSyrup size={14} /></ActionIcon></Tooltip>
+            <Tooltip label="Send to Pharmacy">
+              <ActionIcon
+                variant="subtle"
+                color="teal"
+                size="sm"
+                onClick={() => onSendToPharmacy(rx.prescription.id)}
+                aria-label="Medicine Syrup"
+              >
+                <IconMedicineSyrup size={14} />
+              </ActionIcon>
+            </Tooltip>
           )}
           {onPrint && (
-            <Tooltip label={t("prescription.print")}><ActionIcon variant="subtle" size="sm" onClick={() => onPrint(rx)} aria-label="Print"><IconPrinter size={14} /></ActionIcon></Tooltip>
+            <Tooltip label={t("prescription.print")}>
+              <ActionIcon variant="subtle" size="sm" onClick={() => onPrint(rx)} aria-label="Print">
+                <IconPrinter size={14} />
+              </ActionIcon>
+            </Tooltip>
           )}
         </Group>
       </Group>
@@ -306,12 +471,24 @@ function ExistingPrescriptionCard({ rx, onPrint, onSendToPharmacy }: {
             const timing = instructionsDisplayText(item.instructions);
             return (
               <Table.Tr key={item.id}>
-                <Table.Td><Text size="sm" fw={500}>{item.drug_name}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {item.drug_name}
+                  </Text>
+                </Table.Td>
                 <Table.Td>{item.dosage}</Table.Td>
-                <Table.Td><Badge size="xs" variant="light">{item.frequency}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge size="xs" variant="light">
+                    {item.frequency}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>{item.duration}</Table.Td>
                 <Table.Td>{item.route ?? "—"}</Table.Td>
-                <Table.Td><Text size="xs" c="dimmed">{timing ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="xs" c="dimmed">
+                    {timing ?? "—"}
+                  </Text>
+                </Table.Td>
               </Table.Tr>
             );
           })}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
@@ -13,27 +13,13 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Timeline,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { BarChart } from "@mantine/charts";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertCircle,
-  IconArrowsExchange,
-  IconCircleCheck,
-  IconCircleX,
-  IconClock,
-  IconClipboardCheck,
-  IconMessageCircle,
-  IconPencil,
-  IconPlus,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -47,9 +33,23 @@ import type {
   UtilizationReview,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconAlertCircle,
+  IconArrowsExchange,
+  IconCircleCheck,
+  IconCircleX,
+  IconClipboardCheck,
+  IconClock,
+  IconMessageCircle,
+  IconPencil,
+  IconPlus,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Color maps ─────────────────────────────────────────
 
@@ -151,19 +151,29 @@ function ReviewsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-reviews"] });
       void qc.invalidateQueries({ queryKey: ["ur-analytics"] });
-      notifications.show({ title: "Review Created", message: "Utilization review has been created", color: "success" });
+      notifications.show({
+        title: "Review Created",
+        message: "Utilization review has been created",
+        color: "success",
+      });
       setForm(emptyForm);
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create review", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to create review", color: "danger" }),
   });
 
   const aiMut = useMutation({
     mutationFn: (id: string) => api.aiExtractStub(id),
     onSuccess: (res) => {
-      notifications.show({ title: "AI Extract", message: res.message ?? "AI extraction stub called successfully", color: "primary" });
+      notifications.show({
+        title: "AI Extract",
+        message: res.message ?? "AI extraction stub called successfully",
+        color: "primary",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "AI extraction failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "AI extraction failed", color: "danger" }),
   });
 
   const columns: Column<UtilizationReview>[] = [
@@ -176,7 +186,9 @@ function ReviewsTab() {
       key: "review_type",
       label: "Review Type",
       render: (r) => (
-        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>{r.review_type.replace(/_/g, " ")}</Badge>
+        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>
+          {r.review_type.replace(/_/g, " ")}
+        </Badge>
       ),
     },
     {
@@ -211,7 +223,9 @@ function ReviewsTab() {
       key: "next_review_date",
       label: "Next Review",
       render: (r) => (
-        <Text size="sm">{r.next_review_date ? new Date(r.next_review_date).toLocaleDateString() : "—"}</Text>
+        <Text size="sm">
+          {r.next_review_date ? new Date(r.next_review_date).toLocaleDateString() : "—"}
+        </Text>
       ),
     },
     {
@@ -220,7 +234,12 @@ function ReviewsTab() {
       render: (r) => (
         <Group gap="xs">
           {canUpdate && (
-            <ActionIcon variant="subtle" onClick={() => aiMut.mutate(r.id)} title="AI Extract" aria-label="Edit">
+            <ActionIcon
+              variant="subtle"
+              onClick={() => aiMut.mutate(r.id)}
+              title="AI Extract"
+              aria-label="Edit"
+            >
               <IconPencil size={16} />
             </ActionIcon>
           )}
@@ -238,7 +257,7 @@ function ReviewsTab() {
   // Get unique admission IDs for filter
   const admissionIds = useMemo(() => {
     const ids = Array.from(new Set(data.map((r) => r.admission_id)));
-    return ids.map((id) => ({ value: id, label: id.slice(0, 12) + "..." }));
+    return ids.map((id) => ({ value: id, label: `${id.slice(0, 12)}...` }));
   }, [data]);
 
   const getReviewIcon = (decision: string) => {
@@ -312,9 +331,7 @@ function ReviewsTab() {
                   bullet={getReviewIcon(r.decision)}
                   title={
                     <Group gap="xs">
-                      <Text fw={600}>
-                        {r.review_type.replace(/_/g, " ")}
-                      </Text>
+                      <Text fw={600}>{r.review_type.replace(/_/g, " ")}</Text>
                       <Badge color={decisionColors[r.decision] ?? "slate"} size="sm">
                         {r.decision.replace(/_/g, " ")}
                       </Badge>
@@ -334,10 +351,14 @@ function ReviewsTab() {
                       <Text size="sm">Expected LOS: {r.expected_los_days} days</Text>
                     )}
                     {r.approved_days && (
-                      <Text size="sm" c="success">Approved: {r.approved_days} days</Text>
+                      <Text size="sm" c="success">
+                        Approved: {r.approved_days} days
+                      </Text>
                     )}
                     {r.decision === "denied" && r.notes && (
-                      <Text size="sm" c="danger">Denial Reason: {r.notes}</Text>
+                      <Text size="sm" c="danger">
+                        Denial Reason: {r.notes}
+                      </Text>
                     )}
                     {r.clinical_summary && (
                       <Text size="xs" c="dimmed" lineClamp={2} mt={4}>
@@ -357,7 +378,13 @@ function ReviewsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Create Utilization Review" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Create Utilization Review"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
           <TextInput
             label="Admission ID"
@@ -365,7 +392,11 @@ function ReviewsTab() {
             value={form.admission_id}
             onChange={(e) => setForm({ ...form, admission_id: e.currentTarget.value })}
           />
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
           <Select
             label="Review Type"
             required
@@ -408,20 +439,27 @@ function ReviewsTab() {
             label="Expected LOS (days)"
             min={0}
             value={form.expected_los_days ?? ""}
-            onChange={(v) => setForm({ ...form, expected_los_days: typeof v === "number" ? v : undefined })}
+            onChange={(v) =>
+              setForm({ ...form, expected_los_days: typeof v === "number" ? v : undefined })
+            }
           />
           <NumberInput
             label="Approved Days"
             min={0}
             value={form.approved_days ?? ""}
-            onChange={(v) => setForm({ ...form, approved_days: typeof v === "number" ? v : undefined })}
+            onChange={(v) =>
+              setForm({ ...form, approved_days: typeof v === "number" ? v : undefined })
+            }
           />
           <DateInput
             label="Next Review Date"
             clearable
             value={form.next_review_date ? new Date(form.next_review_date) : null}
             onChange={(d) =>
-              setForm({ ...form, next_review_date: d ? new Date(d).toISOString().split("T")[0] : undefined })
+              setForm({
+                ...form,
+                next_review_date: d ? new Date(d).toISOString().split("T")[0] : undefined,
+              })
             }
           />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
@@ -463,7 +501,9 @@ function LosMonitoringTab() {
       key: "review_type",
       label: "Review Type",
       render: (r) => (
-        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>{r.review_type.replace(/_/g, " ")}</Badge>
+        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>
+          {r.review_type.replace(/_/g, " ")}
+        </Badge>
       ),
     },
     {
@@ -504,12 +544,16 @@ function LosMonitoringTab() {
     {
       key: "avg_expected_los",
       label: "Avg Expected LOS",
-      render: (r) => <Text size="sm">{r.avg_expected_los != null ? r.avg_expected_los.toFixed(1) : "—"}</Text>,
+      render: (r) => (
+        <Text size="sm">{r.avg_expected_los != null ? r.avg_expected_los.toFixed(1) : "—"}</Text>
+      ),
     },
     {
       key: "avg_actual_los",
       label: "Avg Actual LOS",
-      render: (r) => <Text size="sm">{r.avg_actual_los != null ? r.avg_actual_los.toFixed(1) : "—"}</Text>,
+      render: (r) => (
+        <Text size="sm">{r.avg_actual_los != null ? r.avg_actual_los.toFixed(1) : "—"}</Text>
+      ),
     },
   ];
 
@@ -557,31 +601,53 @@ function LosMonitoringTab() {
 
       <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }}>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Total Reviews</Text>
-          <Text fw={700} size="xl">{summaryLoading ? "..." : s.total_reviews}</Text>
-        </Card>
-        <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Avg Expected LOS</Text>
+          <Text size="xs" c="dimmed">
+            Total Reviews
+          </Text>
           <Text fw={700} size="xl">
-            {summaryLoading ? "..." : s.avg_expected_los != null ? s.avg_expected_los.toFixed(1) : "—"}
+            {summaryLoading ? "..." : s.total_reviews}
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Avg Actual LOS</Text>
+          <Text size="xs" c="dimmed">
+            Avg Expected LOS
+          </Text>
+          <Text fw={700} size="xl">
+            {summaryLoading
+              ? "..."
+              : s.avg_expected_los != null
+                ? s.avg_expected_los.toFixed(1)
+                : "—"}
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed">
+            Avg Actual LOS
+          </Text>
           <Text fw={700} size="xl">
             {summaryLoading ? "..." : s.avg_actual_los != null ? s.avg_actual_los.toFixed(1) : "—"}
           </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Outlier Count</Text>
-          <Text fw={700} size="xl" c="danger">{summaryLoading ? "..." : s.outlier_count}</Text>
+          <Text size="xs" c="dimmed">
+            Outlier Count
+          </Text>
+          <Text fw={700} size="xl" c="danger">
+            {summaryLoading ? "..." : s.outlier_count}
+          </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Denial Count</Text>
-          <Text fw={700} size="xl" c="orange">{summaryLoading ? "..." : s.denial_count}</Text>
+          <Text size="xs" c="dimmed">
+            Denial Count
+          </Text>
+          <Text fw={700} size="xl" c="orange">
+            {summaryLoading ? "..." : s.denial_count}
+          </Text>
         </Card>
         <Card withBorder padding="sm">
-          <Text size="xs" c="dimmed">Approval Rate</Text>
+          <Text size="xs" c="dimmed">
+            Approval Rate
+          </Text>
           <Text fw={700} size="xl" c="success">
             {summaryLoading ? "..." : `${s.approval_rate.toFixed(1)}%`}
           </Text>
@@ -592,26 +658,44 @@ function LosMonitoringTab() {
       {denialData && denialData.totalDenials > 0 && (
         <Card withBorder p="md">
           <Group justify="space-between" mb="md">
-            <Text fw={600} size="lg">Denial Management</Text>
-            <Badge color="danger" size="lg">{denialData.totalDenials} Denials</Badge>
+            <Text fw={600} size="lg">
+              Denial Management
+            </Text>
+            <Badge color="danger" size="lg">
+              {denialData.totalDenials} Denials
+            </Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 3 }} mb="md">
             <Card withBorder p="sm" bg="red.0">
-              <Text size="xs" c="dimmed">Denial Rate</Text>
-              <Text fw={700} size="lg" c="danger">{denialData.denialRate.toFixed(1)}%</Text>
+              <Text size="xs" c="dimmed">
+                Denial Rate
+              </Text>
+              <Text fw={700} size="lg" c="danger">
+                {denialData.denialRate.toFixed(1)}%
+              </Text>
             </Card>
             <Card withBorder p="sm" bg="green.0">
-              <Text size="xs" c="dimmed">Overturn Rate</Text>
-              <Text fw={700} size="lg" c="success">{denialData.overturnRate}%</Text>
+              <Text size="xs" c="dimmed">
+                Overturn Rate
+              </Text>
+              <Text fw={700} size="lg" c="success">
+                {denialData.overturnRate}%
+              </Text>
             </Card>
             <Card withBorder p="sm" bg="orange.0">
-              <Text size="xs" c="dimmed">Pending Appeals</Text>
-              <Text fw={700} size="lg" c="orange">—</Text>
+              <Text size="xs" c="dimmed">
+                Pending Appeals
+              </Text>
+              <Text fw={700} size="lg" c="orange">
+                —
+              </Text>
             </Card>
           </SimpleGrid>
           {denialData.topReasons.length > 0 && (
             <>
-              <Text fw={600} size="sm" mb="xs">Top Denial Reasons</Text>
+              <Text fw={600} size="sm" mb="xs">
+                Top Denial Reasons
+              </Text>
               <BarChart
                 h={200}
                 data={denialData.topReasons}
@@ -624,7 +708,9 @@ function LosMonitoringTab() {
         </Card>
       )}
 
-      <Text fw={600} size="lg" mt="sm">Outlier Reviews</Text>
+      <Text fw={600} size="lg" mt="sm">
+        Outlier Reviews
+      </Text>
       <DataTable<UtilizationReview>
         data={outliers}
         loading={outliersLoading}
@@ -632,7 +718,9 @@ function LosMonitoringTab() {
         columns={outlierColumns}
       />
 
-      <Text fw={600} size="lg" mt="sm">LOS by Department</Text>
+      <Text fw={600} size="lg" mt="sm">
+        LOS by Department
+      </Text>
       <DataTable<LosComparisonRow>
         data={losComparison}
         loading={losLoading}
@@ -672,11 +760,20 @@ function PayerLogTab() {
     mutationFn: (d: CreateUrCommunicationRequest) => api.createUrCommunication(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-communications"] });
-      notifications.show({ title: "Communication Logged", message: "Payer communication recorded", color: "success" });
+      notifications.show({
+        title: "Communication Logged",
+        message: "Payer communication recorded",
+        color: "success",
+      });
       setForm(emptyForm);
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create communication", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to create communication",
+        color: "danger",
+      }),
   });
 
   const columns: Column<UrPayerCommunication>[] = [
@@ -713,7 +810,9 @@ function PayerLogTab() {
       key: "summary",
       label: "Summary",
       render: (r) => (
-        <Text size="sm" lineClamp={1}>{r.summary ?? "—"}</Text>
+        <Text size="sm" lineClamp={1}>
+          {r.summary ?? "—"}
+        </Text>
       ),
     },
   ];
@@ -748,7 +847,13 @@ function PayerLogTab() {
         columns={columns}
       />
 
-      <Drawer opened={opened} onClose={close} title="Log Payer Communication" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Log Payer Communication"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
           <TextInput
             label="Review ID"
@@ -824,11 +929,20 @@ function StatusTrackingTab() {
     mutationFn: (d: CreateUrConversionRequest) => api.createUrConversion(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-conversions"] });
-      notifications.show({ title: "Conversion Created", message: "Status conversion recorded", color: "success" });
+      notifications.show({
+        title: "Conversion Created",
+        message: "Status conversion recorded",
+        color: "success",
+      });
       setForm(emptyForm);
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create conversion", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to create conversion",
+        color: "danger",
+      }),
   });
 
   const columns: Column<UrStatusConversion>[] = [
@@ -845,7 +959,11 @@ function StatusTrackingTab() {
     {
       key: "to_status",
       label: "To Status",
-      render: (r) => <Badge variant="outline" color="primary">{r.to_status}</Badge>,
+      render: (r) => (
+        <Badge variant="outline" color="primary">
+          {r.to_status}
+        </Badge>
+      ),
     },
     {
       key: "conversion_date",
@@ -855,7 +973,11 @@ function StatusTrackingTab() {
     {
       key: "reason",
       label: "Reason",
-      render: (r) => <Text size="sm" lineClamp={1}>{r.reason ?? "—"}</Text>,
+      render: (r) => (
+        <Text size="sm" lineClamp={1}>
+          {r.reason ?? "—"}
+        </Text>
+      ),
     },
   ];
 
@@ -880,7 +1002,13 @@ function StatusTrackingTab() {
         columns={columns}
       />
 
-      <Drawer opened={opened} onClose={close} title="Create Status Conversion" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Create Status Conversion"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
           <TextInput
             label="Admission ID"

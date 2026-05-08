@@ -1,5 +1,17 @@
 // ─── DataTable — sticky header + enhanced visuals ───
 
+.card {
+  overflow: hidden;
+  border-color: var(--mb-border-subtle);
+  box-shadow: var(--mb-float-shadow);
+}
+
+.toolbar {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.84)),
+    var(--mb-accent-gradient-soft);
+}
+
 .tableWrapper {
   overflow: auto;
   max-height: calc(100vh - 280px);
@@ -9,6 +21,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  box-shadow: 0 1px 0 var(--mb-table-border);
 }
 
 .columnHeader {
@@ -18,7 +31,8 @@
 }
 
 .columnIcon {
-  opacity: 0.6;
+  color: var(--mb-active-text);
+  opacity: 0.82;
   flex-shrink: 0;
 }
 

@@ -129,7 +129,8 @@ pub async fn list_payments(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "SELECT * FROM pharmacy_payment_transactions \
@@ -154,7 +155,8 @@ pub async fn create_payment(
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let now = Utc::now();
     let ts = now.format("%Y%m%d%H%M%S");
@@ -189,6 +191,50 @@ pub async fn create_payment(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Propagate to canonical invoices.paid_amount + status so patient
+    // running balance clears when the POS settles a billed invoice.
+    // Without this, pharmacy POS payments only land in
+    // pharmacy_payment_transactions and the invoice keeps its full balance.
+    if let Some(invoice_id) = body.invoice_id {
+        let payment_mode_enum = match body.payment_mode.as_str() {
+            "cash" => "cash",
+            "card" => "card",
+            "upi" | "gpay" | "phonepe" | "paytm" => "upi",
+            "insurance" => "insurance",
+            "credit" => "credit",
+            _ => "cash",
+        };
+        sqlx::query(
+            "INSERT INTO payments \
+             (tenant_id, invoice_id, amount, mode, reference_number, notes, paid_at, created_by) \
+             VALUES ($1, $2, $3, $4::payment_mode, $5, $6, now(), $7)",
+        )
+        .bind(claims.tenant_id)
+        .bind(invoice_id)
+        .bind(body.amount)
+        .bind(payment_mode_enum)
+        .bind(&body.reference_number)
+        .bind(format!("Pharmacy POS {transaction_number}"))
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE invoices SET \
+             paid_amount = paid_amount + $1, \
+             status = CASE \
+               WHEN paid_amount + $1 >= total_amount THEN 'paid'::invoice_status \
+               ELSE 'partially_paid'::invoice_status \
+             END, \
+             updated_at = now() \
+             WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(body.amount)
+        .bind(invoice_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -202,7 +248,8 @@ pub async fn reconcile_payment(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "UPDATE pharmacy_payment_transactions SET \
@@ -238,7 +285,8 @@ pub async fn auto_reconcile_upi(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let result = sqlx::query_scalar::<_, i64>(
         "WITH matched AS ( \
@@ -286,7 +334,8 @@ pub async fn day_reconciliation(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let target_date = params
         .date
@@ -343,7 +392,8 @@ pub async fn get_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let target_date = params
         .date
@@ -405,7 +455,8 @@ pub async fn close_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
         "UPDATE pharmacy_day_settlements SET \
@@ -440,7 +491,8 @@ pub async fn verify_settlement(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
         "UPDATE pharmacy_day_settlements SET \

@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mlc_cases\n         (tenant_id, er_visit_id, patient_id, mlc_number, case_type,\n          history_of_incident, registered_by)\n         SELECT $1, $2, $3, $4, $5, $6, $7\n         WHERE NOT EXISTS (\n           SELECT 1 FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2\n         )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f8c6c056b2a287646a5a5148dfa2ae62c8f383339558211eb47da3ec224dd2c5"
+}

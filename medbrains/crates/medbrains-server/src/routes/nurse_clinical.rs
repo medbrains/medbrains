@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── restraint_monitoring_events ─────────────────────────────────────

@@ -56,7 +56,7 @@ async fn job_worker_loop(pool: &PgPool, worker_id: &str) {
                         complete_job(pool, job_id, &output).await;
                     }
                     Err(e) => {
-                        let err_msg = format!("{e}");
+                        let err_msg = e.to_string();
                         fail_job(pool, job_id, &err_msg, job.retry_count, job.max_retries).await;
                     }
                 }

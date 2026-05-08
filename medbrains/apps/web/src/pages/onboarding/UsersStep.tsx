@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -11,15 +12,14 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createUserSchema, createRoleSchema } from "@medbrains/schemas";
-import type { CreateUserInput, CreateRoleInput } from "@medbrains/schemas";
+import { api } from "@medbrains/api";
+import type { CreateRoleInput, CreateUserInput } from "@medbrains/schemas";
+import { createRoleSchema, createUserSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingDepartment, OnboardingRole, OnboardingUser } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tabler/icons-react";
-import { api } from "@medbrains/api";
 import { CsvImportModal, SelectLabel } from "../../components";
 import classes from "./onboarding.module.scss";
 
@@ -153,16 +153,12 @@ export function UsersStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        The super admin was created during setup. Add additional staff accounts
-        below. More users can be added later from the admin panel.
+        The super admin was created during setup. Add additional staff accounts below. More users
+        can be added later from the admin panel.
       </Text>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button
-          variant="light"
-          leftSection={<IconPlus size={16} />}
-          onClick={openUserModal}
-        >
+        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openUserModal}>
           Add User
         </Button>
         <Button
@@ -194,12 +190,16 @@ export function UsersStep({ onNext, onBack }: Props) {
 
       {roles.length > 0 && (
         <div>
-          <Text size="sm" fw={600} mb="xs">Custom Roles</Text>
+          <Text size="sm" fw={600} mb="xs">
+            Custom Roles
+          </Text>
           {roles.map((r: OnboardingRole) => (
             <div key={r.local_id} className={classes.facilityCard}>
               <div className={classes.facilityInfo}>
                 <Text fw={600}>{r.name}</Text>
-                <Text size="sm" c="dimmed">{r.code}</Text>
+                <Text size="sm" c="dimmed">
+                  {r.code}
+                </Text>
               </div>
               <ActionIcon
                 variant="subtle"
@@ -218,7 +218,9 @@ export function UsersStep({ onNext, onBack }: Props) {
         <div key={u.local_id} className={classes.facilityCard}>
           <div className={classes.facilityInfo}>
             <Text fw={600}>
-              {u.role === "doctor" && <IconStethoscope size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />}
+              {u.role === "doctor" && (
+                <IconStethoscope size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
+              )}
               {u.full_name}
             </Text>
             <Text size="sm" c="dimmed">
@@ -226,7 +228,9 @@ export function UsersStep({ onNext, onBack }: Props) {
               {u.specialization && ` &middot; ${u.specialization}`}
             </Text>
             {u.consultation_fee != null && u.consultation_fee > 0 && (
-              <Text size="xs" c="teal">Fee: ₹{u.consultation_fee}</Text>
+              <Text size="xs" c="teal">
+                Fee: ₹{u.consultation_fee}
+              </Text>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -346,9 +350,7 @@ export function UsersStep({ onNext, onBack }: Props) {
               </>
             )}
 
-            <Button type="submit">
-              Create User
-            </Button>
+            <Button type="submit">Create User</Button>
           </Stack>
         </form>
       </Modal>
@@ -382,9 +384,7 @@ export function UsersStep({ onNext, onBack }: Props) {
               {...roleForm.register("description")}
               error={roleForm.formState.errors.description?.message}
             />
-            <Button type="submit">
-              Create Role
-            </Button>
+            <Button type="submit">Create Role</Button>
           </Stack>
         </form>
       </Modal>

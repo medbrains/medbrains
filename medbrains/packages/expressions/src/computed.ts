@@ -1,18 +1,18 @@
 /**
  * MBX Tier 2: Computed Field Evaluator (mbx:expr)
  *
- * Uses expr-eval for parsing and evaluating math/string expressions.
+ * Uses expr-eval-fork for parsing and evaluating math/string expressions.
  * Excel-inspired formula syntax: BMI(weight_kg, height_cm)
  *
  * Security:
- * - expr-eval does NOT use eval() or new Function()
+ * - expr-eval-fork does NOT use eval() or new Function()
  * - All functions are whitelisted via the function registry
  * - AST is validated before evaluation (node count, assignment detection)
  * - Context is sandboxed (frozen, proxy-wrapped)
  * - No access to window, document, global, process, etc.
  */
 
-import { Parser, type Value } from "expr-eval";
+import { Parser, type Value } from "expr-eval-fork";
 import { createSandboxedContext, validateExpressionString } from "./sandbox.js";
 import { getFunctionMap } from "./functions.js";
 import type {
@@ -24,7 +24,7 @@ import type {
 } from "./types.js";
 
 /**
- * Create a configured expr-eval Parser instance with all
+ * Create a configured expr-eval-fork Parser instance with all
  * whitelisted functions pre-registered.
  */
 function createParser(): Parser {

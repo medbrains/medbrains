@@ -1,12 +1,12 @@
 .wizardContainer {
   min-height: 100vh;
-  background: #f8f9fa;
+  background: var(--mb-bg-content, #f4fbf9);
 }
 
 .header {
   padding: 16px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e9ecef;
+  background: var(--mb-header-bg, #ffffff);
+  border-bottom: 1px solid var(--mb-border-subtle, #eaf5f2);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19,11 +19,11 @@
 }
 
 .stepCard {
-  background: #ffffff;
-  border: 1px solid #e9ecef;
+  background: var(--mb-card-bg, #ffffff);
+  border: 1px solid var(--mb-border-subtle, #eaf5f2);
   border-radius: 12px;
   padding: 32px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--mb-float-shadow, 0 1px 3px rgba(0, 0, 0, 0.04));
 }
 
 .stepTitle {
@@ -39,7 +39,7 @@
   justify-content: space-between;
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--mb-border-subtle, #eaf5f2);
 }
 
 .welcomeHero {
@@ -65,7 +65,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #f1f3f5;
+  background: var(--mb-accent-gradient-soft, #f0fdfa);
   border-radius: 8px;
   font-size: 14px;
 }
@@ -86,7 +86,7 @@
 
 .facilityCard {
   padding: 16px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--mb-border-subtle, #eaf5f2);
   border-radius: 8px;
   margin-bottom: 12px;
   display: flex;
@@ -106,7 +106,7 @@
 
 .moduleCard {
   padding: 16px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--mb-border-subtle, #eaf5f2);
   border-radius: 8px;
   display: flex;
   justify-content: space-between;
@@ -121,7 +121,7 @@
 .reviewSection {
   margin-bottom: 24px;
   padding: 16px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--mb-border-subtle, #eaf5f2);
   border-radius: 8px;
 }
 
@@ -129,31 +129,31 @@
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #868e96;
+  color: var(--mb-text-muted, #868e96);
   margin-bottom: 8px;
 }
 
 .reviewValue {
   font-size: 14px;
-  color: #212529;
+  color: var(--mb-text-primary, #212529);
 }
 
 .treeItem {
   padding: 8px 12px;
-  border-left: 2px solid #e9ecef;
+  border-left: 2px solid var(--mb-border-subtle, #eaf5f2);
   margin-left: 16px;
   margin-bottom: 4px;
   font-size: 14px;
 
   &:hover {
-    background: #f8f9fa;
+    background: var(--mb-nav-hover-bg, #f0fdfa);
     border-radius: 4px;
   }
 }
 
 .sequencePreview {
   padding: 12px 16px;
-  background: #f1f3f5;
+  background: var(--mb-accent-gradient-soft, #f0fdfa);
   border-radius: 8px;
   font-family: monospace;
   font-size: 16px;
@@ -166,7 +166,7 @@
   gap: 16px;
   align-items: center;
   padding: 16px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--mb-border-subtle, #eaf5f2);
   border-radius: 8px;
   margin-top: 16px;
 }
@@ -175,5 +175,5 @@
   width: 48px;
   height: 48px;
   border-radius: 8px;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--mb-border, #dcebe8);
 }

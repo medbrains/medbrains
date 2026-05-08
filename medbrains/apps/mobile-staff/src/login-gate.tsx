@@ -5,7 +5,7 @@
  * from `App.tsx` so the shell can swap login flows per variant.
  */
 
-import { useAuthStore, LoginScreen } from "@medbrains/mobile-shell";
+import { LoginScreen, useAuthStore } from "@medbrains/mobile-shell";
 import { staffSignIn } from "./auth/sign-in.js";
 
 export function StaffLoginGate() {

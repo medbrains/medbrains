@@ -55,6 +55,7 @@ export function useCrdtText(
       doc.getText(textKey).update(next);
       doc.getMap(metaKey).set("last_author", opts.authorName);
       doc.getMap(metaKey).set("last_edited_at", Date.now());
+      doc.commit({ origin: "local" });
     },
     [doc, ready, textKey, metaKey, opts.authorName],
   );

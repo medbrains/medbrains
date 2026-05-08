@@ -1,15 +1,8 @@
-import { useMemo } from "react";
-import {
-  Group,
-  Loader,
-  Progress,
-  Stack,
-  Text,
-  ThemeIcon,
-} from "@mantine/core";
+import { Group, Loader, Progress, Stack, Text, ThemeIcon } from "@mantine/core";
+import { api } from "@medbrains/api";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
+import { useMemo } from "react";
 
 interface SetupStep {
   key: string;
@@ -85,10 +78,7 @@ export function SetupWizardSettings() {
     ];
   }, [queries]);
 
-  const completedCount = useMemo(
-    () => steps.filter((s) => s.isComplete).length,
-    [steps],
-  );
+  const completedCount = useMemo(() => steps.filter((s) => s.isComplete).length, [steps]);
 
   const progressPercent = (completedCount / steps.length) * 100;
 
@@ -165,11 +155,7 @@ export function SetupWizardSettings() {
                 {step.description}
               </Text>
             </div>
-            <Text
-              size="xs"
-              fw={500}
-              c={step.isComplete ? "success" : "danger"}
-            >
+            <Text size="xs" fw={500} c={step.isComplete ? "success" : "danger"}>
               {step.isComplete ? "Complete" : "Incomplete"}
             </Text>
           </Group>

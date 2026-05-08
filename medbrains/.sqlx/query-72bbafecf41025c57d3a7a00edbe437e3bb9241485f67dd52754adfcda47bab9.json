@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id\n         FROM invoice_items\n         WHERE tenant_id = $1\n           AND reversal_source_module = $2\n           AND reversal_source_id = $3\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "72bbafecf41025c57d3a7a00edbe437e3bb9241485f67dd52754adfcda47bab9"
+}

@@ -3,15 +3,15 @@
  * tap into a row for the consultation detail.
  */
 
+import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
-import { listOpdQueue } from "../../api/opd.js";
 import type { QueueEntry } from "../../api/opd.js";
-import { useFetch } from "../../lib/use-fetch.js";
+import { listOpdQueue } from "../../api/opd.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { useFetch } from "../../lib/use-fetch.js";
 
 const STATUS_TONE: Record<string, "info" | "warn" | "success" | "neutral"> = {
   waiting: "warn",
@@ -63,13 +63,7 @@ export function QueueListScreen(): ReactNode {
   );
 }
 
-function QueueRow({
-  entry,
-  onPress,
-}: {
-  entry: QueueEntry;
-  onPress: () => void;
-}): ReactNode {
+function QueueRow({ entry, onPress }: { entry: QueueEntry; onPress: () => void }): ReactNode {
   return (
     <View
       onTouchEnd={onPress}

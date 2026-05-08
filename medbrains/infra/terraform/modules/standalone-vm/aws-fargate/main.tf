@@ -23,6 +23,11 @@ variable "fargate_task_memory" { type = number }
 variable "rds_instance_class" { type = string }
 variable "scale_to_zero_at_night" { type = bool }
 variable "hot_to_cold_days" { type = number }
+variable "kms_key_arns" {
+  description = "Optional hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
+  type        = map(string)
+  default     = {}
+}
 
 variable "container_port" {
   type    = number
@@ -194,9 +199,36 @@ resource "aws_iam_role_policy_attachment" "task_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "task_execution_secrets" {
+  name = "${var.hostname}-task-execution-secrets"
+  role = aws_iam_role.task_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [{
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = [aws_secretsmanager_secret.db_url.arn]
+      }],
+      local.secrets_kms_key_arn == null ? [] : [{
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+        ]
+        Resource = [local.secrets_kms_key_arn]
+      }]
+    )
+  })
+}
+
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${var.hostname}"
   retention_in_days = 30
+  kms_key_id        = local.audit_kms_key_arn
   tags              = local.tags
 }
 
@@ -219,7 +251,9 @@ resource "aws_ecs_task_definition" "this" {
     environment = [
       { name = "MEDBRAINS_DOMAIN", value = var.domain },
       { name = "MEDBRAINS_ADMIN_EMAIL", value = var.admin_email },
-      { name = "DATABASE_URL", value = "postgres://medbrains_admin@${aws_db_instance.this.endpoint}/medbrains?sslmode=require" },
+    ]
+    secrets = [
+      { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.db_url.arn },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -231,7 +265,8 @@ resource "aws_ecs_task_definition" "this" {
     }
   }])
 
-  tags = local.tags
+  depends_on = [aws_secretsmanager_secret_version.db_url]
+  tags       = local.tags
 }
 
 data "aws_region" "current" {}
@@ -369,25 +404,39 @@ resource "random_password" "db" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier              = "${var.hostname}-pg"
-  engine                  = "postgres"
-  engine_version          = "17.2"
-  instance_class          = var.rds_instance_class
-  allocated_storage       = 20
-  storage_type            = "gp3"
-  storage_encrypted       = true
-  db_name                 = "medbrains"
-  username                = "medbrains_admin"
-  password                = random_password.db.result
-  multi_az                = true
-  publicly_accessible     = false
-  db_subnet_group_name    = aws_db_subnet_group.this.name
-  vpc_security_group_ids  = [aws_security_group.db.id]
-  backup_retention_period = 7
-  skip_final_snapshot     = true
-  deletion_protection     = false
+  identifier                = "${var.hostname}-pg"
+  engine                    = "postgres"
+  engine_version            = "17.2"
+  instance_class            = var.rds_instance_class
+  allocated_storage         = 20
+  storage_type              = "gp3"
+  storage_encrypted         = true
+  kms_key_id                = local.db_kms_key_arn
+  db_name                   = "medbrains"
+  username                  = "medbrains_admin"
+  password                  = random_password.db.result
+  multi_az                  = true
+  publicly_accessible       = false
+  db_subnet_group_name      = aws_db_subnet_group.this.name
+  vpc_security_group_ids    = [aws_security_group.db.id]
+  backup_retention_period   = 7
+  final_snapshot_identifier = "${var.hostname}-pg-final-snapshot"
+  skip_final_snapshot       = false
+  deletion_protection       = true
 
   tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "db_url" {
+  name                    = "${var.hostname}/database-url"
+  kms_key_id              = local.secrets_kms_key_arn
+  recovery_window_in_days = 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "db_url" {
+  secret_id     = aws_secretsmanager_secret.db_url.id
+  secret_string = "postgres://medbrains_admin:${random_password.db.result}@${aws_db_instance.this.endpoint}/medbrains?sslmode=require"
 }
 
 # ── S3 hot bucket with lifecycle to STANDARD_IA ──────────────────────
@@ -409,8 +458,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = local.app_kms_key_arn == null ? "AES256" : "aws:kms"
+      kms_master_key_id = local.app_kms_key_arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -433,6 +484,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
 # ── Tags ──────────────────────────────────────────────────────────────
 
 locals {
+  app_kms_key_arn     = lookup(var.kms_key_arns, "app", null)
+  db_kms_key_arn      = lookup(var.kms_key_arns, "db", null)
+  audit_kms_key_arn   = lookup(var.kms_key_arns, "audit", null)
+  secrets_kms_key_arn = lookup(var.kms_key_arns, "secrets", null)
+
   tags = {
     Name      = var.hostname
     Project   = "medbrains"

@@ -1,13 +1,20 @@
 import { test as setup, expect } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { seedAllFixtures } from "./helpers/seed-fixtures";
+
+const e2eRoot = path.dirname(fileURLToPath(import.meta.url));
+const authStatePath = path.join(e2eRoot, ".auth/user.json");
+const backendUrl = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
 /**
  * Authenticate once and save browser storage state for reuse by all tests.
  * Runs as a project dependency before the main test suite.
  */
 setup("authenticate as admin", async ({ page, request }) => {
-  // Call backend directly (port 3000) — bypasses Vite proxy
-  const loginResp = await request.post("http://127.0.0.1:3000/api/auth/login", {
+  // Call backend directly — bypasses Vite proxy and follows E2E_BACKEND_URL.
+  const loginResp = await request.post(`${backendUrl}/api/auth/login`, {
     data: { username: "admin", password: "admin123" },
   });
 
@@ -65,7 +72,7 @@ setup("authenticate as admin", async ({ page, request }) => {
       const path = pathMatch ? pathMatch.split("=")[1] : "/";
 
       // Add the cookie under both hosts so request fixtures hitting either
-      // 127.0.0.1:3000 (E2E_BACKEND_URL default) or localhost:5173 (Vite)
+      // the direct backend host or localhost:5173 (Vite)
       // see them. The browser strictly distinguishes 127.0.0.1 ≠ localhost.
       return ["127.0.0.1", "localhost"].map((domain) => ({
         name,
@@ -102,14 +109,15 @@ setup("authenticate as admin", async ({ page, request }) => {
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 
   // Persist authenticated state
-  await page.context().storageState({ path: "e2e/.auth/user.json" });
+  await mkdir(path.dirname(authStatePath), { recursive: true });
+  await page.context().storageState({ path: authStatePath });
 
   // Seed canonical fixtures so smoke + e2e tests hit real rows.
   // Idempotent — skips entities that already exist.
   const csrfToken = data.csrf_token ?? "";
   if (csrfToken) {
     const seedResult = await seedAllFixtures({
-      baseUrl: "http://127.0.0.1:3000",
+      baseUrl: backendUrl,
       csrfToken,
       request,
       verbose: process.env.E2E_SEED_VERBOSE === "1",

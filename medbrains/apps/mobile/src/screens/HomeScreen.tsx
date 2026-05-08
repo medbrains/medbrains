@@ -1,15 +1,7 @@
 import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import {
-  ActivityIndicator,
-  Banner,
-  Card,
-  Chip,
-  Text,
-  useTheme,
-} from "react-native-paper";
+import { ActivityIndicator, Banner, Card, Chip, Text, useTheme } from "react-native-paper";
 
 function StatusChip({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";

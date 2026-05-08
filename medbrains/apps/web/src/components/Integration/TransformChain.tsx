@@ -1,38 +1,32 @@
 import {
-  ActionIcon,
-  Badge,
-  Box,
-  Group,
-  Paper,
-  Stack,
-  Text,
-  Tooltip,
-} from "@mantine/core";
-import { IconGitMerge, IconGripVertical, IconLink, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
-import {
-  DndContext,
-  PointerSensor,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
+  arrayMove,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type {
-  MappingOperationConfig,
-  MappingOperationType,
-  TransformStep,
-} from "@medbrains/types";
+import { ActionIcon, Badge, Box, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import type { MappingOperationConfig, MappingOperationType, TransformStep } from "@medbrains/types";
+import {
+  IconGitMerge,
+  IconGripVertical,
+  IconLink,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useCallback, useMemo } from "react";
 import { OperationPicker } from "./OperationPicker";
-import { StepConfigPopover } from "./StepConfigPopover";
 import { getConfigSummary, getDescriptor } from "./operationRegistry";
+import { StepConfigPopover } from "./StepConfigPopover";
 
 let _chainSeq = 0;
 function newStepId(): string {
@@ -55,11 +49,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   merge: "primary",
 };
 
-export function TransformChain({
-  chain,
-  onChange,
-  compact,
-}: TransformChainProps) {
+export function TransformChain({ chain, onChange, compact }: TransformChainProps) {
   const handleAddStep = useCallback(
     (type: MappingOperationType) => {
       const step: TransformStep = {
@@ -74,9 +64,7 @@ export function TransformChain({
 
   const handleUpdateConfig = useCallback(
     (stepId: string, config: MappingOperationConfig) => {
-      onChange(
-        chain.map((s) => (s.id === stepId ? { ...s, config } : s)),
-      );
+      onChange(chain.map((s) => (s.id === stepId ? { ...s, config } : s)));
     },
     [chain, onChange],
   );
@@ -99,10 +87,7 @@ export function TransformChain({
         {visible.map((step) => {
           const desc = getDescriptor(step.operation);
           const color = CATEGORY_COLORS[desc?.category ?? ""] ?? "slate";
-          const summary = getConfigSummary(
-            step.operation,
-            step.config as Record<string, unknown>,
-          );
+          const summary = getConfigSummary(step.operation, step.config as Record<string, unknown>);
 
           return (
             <StepConfigPopover
@@ -112,12 +97,7 @@ export function TransformChain({
               onDelete={() => handleDeleteStep(step.id)}
             >
               <Tooltip label={desc?.description ?? step.operation} withArrow>
-                <Badge
-                  size="xs"
-                  variant="light"
-                  color={color}
-                  style={{ cursor: "pointer" }}
-                >
+                <Badge size="xs" variant="light" color={color} style={{ cursor: "pointer" }}>
                   {desc?.label ?? step.operation}
                   {summary ? ` (${summary})` : ""}
                 </Badge>
@@ -250,15 +230,13 @@ function SortableStep({
   onInsertBefore: (stepId: string, type: MappingOperationType) => void;
   onInsertAfter: (stepId: string, type: MappingOperationType) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: step.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: step.id,
+  });
 
   const desc = getDescriptor(step.operation);
   const color = CATEGORY_COLORS[desc?.category ?? ""] ?? "slate";
-  const summary = getConfigSummary(
-    step.operation,
-    step.config as Record<string, unknown>,
-  );
+  const summary = getConfigSummary(step.operation, step.config as Record<string, unknown>);
 
   return (
     <Box
@@ -295,8 +273,12 @@ function SortableStep({
                   opacity: 0.4,
                   transition: "opacity 150ms",
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.4"; }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity = "1";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity = "0.4";
+                }}
                 aria-label="Add"
               >
                 <IconPlus size={10} />

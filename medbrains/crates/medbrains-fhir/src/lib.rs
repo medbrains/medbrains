@@ -12,10 +12,11 @@
 //! Bundle batch/transaction support is in `bundle.rs`; mappers from
 //! internal MedBrains domain types live in `mapper.rs`.
 
-pub mod r4;
 pub mod mapper;
+pub mod r4;
 
 pub use r4::{
+    Resource,
     bundle::{Bundle, BundleEntry, BundleType},
     coding::{CodeableConcept, Coding},
     encounter::Encounter,
@@ -23,5 +24,4 @@ pub use r4::{
     observation::Observation,
     patient::{HumanName, Patient},
     reference::Reference,
-    Resource,
 };

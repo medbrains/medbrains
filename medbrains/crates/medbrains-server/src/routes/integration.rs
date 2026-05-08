@@ -394,14 +394,8 @@ pub async fn trigger_pipeline(
         .and_then(|v| v.as_str())
         .unwrap_or("manual");
 
-    let _ = crate::events::emit_event(
-        &state.db,
-        claims.tenant_id,
-        claims.sub,
-        event_type,
-        input,
-    )
-    .await;
+    let _ =
+        crate::events::emit_event(&state.db, claims.tenant_id, claims.sub, event_type, input).await;
 
     // Fetch the latest execution for this pipeline (emit_event created one)
     let execution = sqlx::query_as::<_, IntegrationExecution>(
@@ -570,7 +564,7 @@ pub async fn list_default_pipelines(
 
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND scope = 'default_pipelines' AND key = 'disabled' \
+         WHERE tenant_id = $1 AND category = 'default_pipelines' AND key = 'disabled' \
          LIMIT 1",
     )
     .bind(claims.tenant_id)

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bed_states SET ward_id = NULL WHERE location_id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d40d17c8ae1219a9275f5a9508007e15078624bbec9d62238cb96b9ceeccd3b0"
+}

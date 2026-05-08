@@ -1,4 +1,3 @@
-import React from "react";
 import { StyleSheet, View } from "react-native";
 import { Avatar, Button, Card, Chip, Text } from "react-native-paper";
 
@@ -120,12 +119,7 @@ export function QueueItem({
           )}
 
           {(isWaiting || isCalled) && onNoShow && (
-            <Avatar.Icon
-              size={32}
-              icon="account-off"
-              style={styles.noShowIcon}
-              color="#fa5252"
-            />
+            <Avatar.Icon size={32} icon="account-off" style={styles.noShowIcon} color="#fa5252" />
           )}
         </View>
       </Card.Content>

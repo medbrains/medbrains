@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -14,24 +13,12 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertTriangle,
-  IconChartBar,
-  IconChecklist,
-  IconClipboardText,
-  IconFileText,
-  IconGavel,
-  IconPlus,
-  IconSend,
-  IconShieldCheck,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -49,7 +36,21 @@ import type {
   UpdateAppealRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconAlertTriangle,
+  IconChartBar,
+  IconChecklist,
+  IconClipboardText,
+  IconFileText,
+  IconGavel,
+  IconPlus,
+  IconSend,
+  IconShieldCheck,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
+import { PatientNameCell } from "../components/PatientNameCell";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Color maps ─────────────────────────────────────────
@@ -157,10 +158,15 @@ function VerificationTab() {
     mutationFn: (d: RunVerificationRequest) => api.runVerification(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-verifications"] });
-      notifications.show({ title: "Verification", message: "Verification completed", color: "success" });
+      notifications.show({
+        title: "Verification",
+        message: "Verification completed",
+        color: "success",
+      });
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Verification failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Verification failed", color: "danger" }),
   });
 
   const detail = data.find((v) => v.id === detailId);
@@ -198,7 +204,9 @@ function VerificationTab() {
           {
             key: "patient_id",
             label: "Patient ID",
-            render: (r: InsuranceVerification) => <Text size="sm">{r.patient_id.slice(0, 8)}...</Text>,
+            render: (r: InsuranceVerification) => (
+              <PatientNameCell patientId={r.patient_id} showUhid={false} />
+            ),
           },
           {
             key: "payer_name",
@@ -297,19 +305,33 @@ function VerificationTab() {
             </Group>
             <Grid>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Payer</Text>
-                <Text size="sm" fw={500}>{detail.payer_name ?? "—"}</Text>
+                <Text size="xs" c="dimmed">
+                  Payer
+                </Text>
+                <Text size="sm" fw={500}>
+                  {detail.payer_name ?? "—"}
+                </Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Member ID</Text>
-                <Text size="sm" fw={500}>{detail.member_id ?? "—"}</Text>
+                <Text size="xs" c="dimmed">
+                  Member ID
+                </Text>
+                <Text size="sm" fw={500}>
+                  {detail.member_id ?? "—"}
+                </Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Coverage</Text>
-                <Text size="sm">{detail.coverage_start ?? "—"} → {detail.coverage_end ?? "—"}</Text>
+                <Text size="xs" c="dimmed">
+                  Coverage
+                </Text>
+                <Text size="sm">
+                  {detail.coverage_start ?? "—"} → {detail.coverage_end ?? "—"}
+                </Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Scheme Balance</Text>
+                <Text size="xs" c="dimmed">
+                  Scheme Balance
+                </Text>
                 <Text size="sm" fw={500}>
                   {detail.scheme_balance != null ? `₹${detail.scheme_balance}` : "—"}
                 </Text>
@@ -318,15 +340,21 @@ function VerificationTab() {
             <Title order={5}>Benefits Breakdown</Title>
             <Grid>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Co-pay %</Text>
+                <Text size="xs" c="dimmed">
+                  Co-pay %
+                </Text>
                 <Text size="sm">{detail.co_pay_percent ?? "—"}</Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Co-insurance %</Text>
+                <Text size="xs" c="dimmed">
+                  Co-insurance %
+                </Text>
                 <Text size="sm">{detail.co_insurance_percent ?? "—"}</Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Deductible</Text>
+                <Text size="xs" c="dimmed">
+                  Deductible
+                </Text>
                 <Text size="sm">
                   {detail.individual_deductible != null
                     ? `₹${detail.individual_deductible_met ?? 0} / ₹${detail.individual_deductible}`
@@ -334,7 +362,9 @@ function VerificationTab() {
                 </Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Out-of-Pocket Max</Text>
+                <Text size="xs" c="dimmed">
+                  Out-of-Pocket Max
+                </Text>
                 <Text size="sm">
                   {detail.out_of_pocket_max != null
                     ? `₹${detail.out_of_pocket_met ?? 0} / ₹${detail.out_of_pocket_max}`
@@ -346,13 +376,17 @@ function VerificationTab() {
               <Paper p="sm" bg="red.0">
                 <Group gap="xs">
                   <IconAlertTriangle size={16} color="danger" />
-                  <Text size="sm" c="danger">{detail.error_code}: {detail.error_message}</Text>
+                  <Text size="sm" c="danger">
+                    {detail.error_code}: {detail.error_message}
+                  </Text>
                 </Group>
               </Paper>
             )}
             {detail.notes && (
               <>
-                <Text size="xs" c="dimmed">Notes</Text>
+                <Text size="xs" c="dimmed">
+                  Notes
+                </Text>
                 <Text size="sm">{detail.notes}</Text>
               </>
             )}
@@ -398,10 +432,15 @@ function PriorAuthTab() {
     mutationFn: (d: CreatePriorAuthRequestBody) => api.createPriorAuth(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
-      notifications.show({ title: "Prior Auth", message: "Created successfully", color: "success" });
+      notifications.show({
+        title: "Prior Auth",
+        message: "Created successfully",
+        color: "success",
+      });
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
   });
 
   const submitMut = useMutation({
@@ -409,9 +448,14 @@ function PriorAuthTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
-      notifications.show({ title: "Prior Auth", message: "Submitted successfully", color: "success" });
+      notifications.show({
+        title: "Prior Auth",
+        message: "Submitted successfully",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Submit failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Submit failed", color: "danger" }),
   });
 
   const cancelMut = useMutation({
@@ -428,14 +472,16 @@ function PriorAuthTab() {
   });
 
   const respondMut = useMutation({
-    mutationFn: (d: { id: string; body: RespondPriorAuthRequest }) => api.respondPriorAuth(d.id, d.body),
+    mutationFn: (d: { id: string; body: RespondPriorAuthRequest }) =>
+      api.respondPriorAuth(d.id, d.body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
       notifications.show({ title: "Prior Auth", message: "Response recorded", color: "success" });
       setRespondId(null);
     },
-    onError: () => notifications.show({ title: "Error", message: "Response failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Response failed", color: "danger" }),
   });
 
   const tatColor = (pa: PriorAuthRequestRow) => {
@@ -468,8 +514,15 @@ function PriorAuthTab() {
           placeholder="Filter by status"
           clearable
           data={[
-            "draft", "pending_info", "submitted", "in_review",
-            "approved", "partially_approved", "denied", "expired", "cancelled",
+            "draft",
+            "pending_info",
+            "submitted",
+            "in_review",
+            "approved",
+            "partially_approved",
+            "denied",
+            "expired",
+            "cancelled",
           ]}
           value={filterStatus}
           onChange={setFilterStatus}
@@ -485,12 +538,18 @@ function PriorAuthTab() {
           {
             key: "pa_number",
             label: "PA #",
-            render: (r: PriorAuthRequestRow) => <Text size="sm" fw={500}>{r.pa_number}</Text>,
+            render: (r: PriorAuthRequestRow) => (
+              <Text size="sm" fw={500}>
+                {r.pa_number}
+              </Text>
+            ),
           },
           {
             key: "patient_id",
             label: "Patient",
-            render: (r: PriorAuthRequestRow) => <Text size="sm">{r.patient_id.slice(0, 8)}...</Text>,
+            render: (r: PriorAuthRequestRow) => (
+              <PatientNameCell patientId={r.patient_id} showUhid={false} />
+            ),
           },
           {
             key: "service_type",
@@ -501,14 +560,18 @@ function PriorAuthTab() {
             key: "status",
             label: "Status",
             render: (r: PriorAuthRequestRow) => (
-              <Badge color={paStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+              <Badge color={paStatusColors[r.status] ?? "slate"}>
+                {r.status.replace(/_/g, " ")}
+              </Badge>
             ),
           },
           {
             key: "urgency",
             label: "Urgency",
             render: (r: PriorAuthRequestRow) => (
-              <Badge variant="outline" color={urgencyColors[r.urgency] ?? "primary"}>{r.urgency}</Badge>
+              <Badge variant="outline" color={urgencyColors[r.urgency] ?? "primary"}>
+                {r.urgency}
+              </Badge>
             ),
           },
           {
@@ -524,14 +587,24 @@ function PriorAuthTab() {
             key: "escalated",
             label: "Escalated",
             render: (r: PriorAuthRequestRow) =>
-              r.escalated ? <Badge color="danger" size="sm">Yes</Badge> : <Text size="sm">—</Text>,
+              r.escalated ? (
+                <Badge color="danger" size="sm">
+                  Yes
+                </Badge>
+              ) : (
+                <Text size="sm">—</Text>
+              ),
           },
           {
             key: "actions",
             label: "",
             render: (r: PriorAuthRequestRow) => (
               <Group gap={4}>
-                <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Document">
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => setDetailId(r.id)}
+                  aria-label="Document"
+                >
                   <IconFileText size={16} />
                 </ActionIcon>
                 {canSubmit && (r.status === "draft" || r.status === "pending_info") && (
@@ -552,7 +625,13 @@ function PriorAuthTab() {
       />
 
       {/* Create PA Drawer */}
-      <Drawer opened={opened} onClose={close} title="New Prior Authorization" position="right" size="lg">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="New Prior Authorization"
+        position="right"
+        size="lg"
+      >
         <Stack gap="sm">
           <TextInput
             label="Patient ID"
@@ -580,14 +659,19 @@ function PriorAuthTab() {
           <Textarea
             label="Service Description"
             value={form.service_description ?? ""}
-            onChange={(e) => setForm({ ...form, service_description: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, service_description: e.currentTarget.value || undefined })
+            }
           />
           <Select
             label="Urgency"
             data={["standard", "urgent", "retrospective"]}
             value={form.urgency ?? "standard"}
             onChange={(v) =>
-              setForm({ ...form, urgency: (v as "standard" | "urgent" | "retrospective") ?? undefined })
+              setForm({
+                ...form,
+                urgency: (v as "standard" | "urgent" | "retrospective") ?? undefined,
+              })
             }
           />
           <NumberInput
@@ -595,7 +679,9 @@ function PriorAuthTab() {
             min={0}
             decimalScale={2}
             value={form.estimated_cost ?? ""}
-            onChange={(v) => setForm({ ...form, estimated_cost: typeof v === "number" ? v : undefined })}
+            onChange={(v) =>
+              setForm({ ...form, estimated_cost: typeof v === "number" ? v : undefined })
+            }
           />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
             Create PA Request
@@ -618,34 +704,55 @@ function PriorAuthTab() {
               <Badge color={paStatusColors[detail.prior_auth.status] ?? "slate"} size="lg">
                 {detail.prior_auth.status.replace(/_/g, " ")}
               </Badge>
-              <Badge variant="outline" color={urgencyColors[detail.prior_auth.urgency] ?? "primary"}>
+              <Badge
+                variant="outline"
+                color={urgencyColors[detail.prior_auth.urgency] ?? "primary"}
+              >
                 {detail.prior_auth.urgency}
               </Badge>
             </Group>
 
             <Grid>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Service</Text>
-                <Text size="sm" fw={500}>{detail.prior_auth.service_type}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Service Code</Text>
-                <Text size="sm">{detail.prior_auth.service_code ?? "—"}</Text>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Estimated Cost</Text>
-                <Text size="sm">
-                  {detail.prior_auth.estimated_cost != null ? `₹${detail.prior_auth.estimated_cost}` : "—"}
+                <Text size="xs" c="dimmed">
+                  Service
+                </Text>
+                <Text size="sm" fw={500}>
+                  {detail.prior_auth.service_type}
                 </Text>
               </Grid.Col>
               <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">Auth Number</Text>
-                <Text size="sm" fw={500}>{detail.prior_auth.auth_number ?? "—"}</Text>
+                <Text size="xs" c="dimmed">
+                  Service Code
+                </Text>
+                <Text size="sm">{detail.prior_auth.service_code ?? "—"}</Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="xs" c="dimmed">
+                  Estimated Cost
+                </Text>
+                <Text size="sm">
+                  {detail.prior_auth.estimated_cost != null
+                    ? `₹${detail.prior_auth.estimated_cost}`
+                    : "—"}
+                </Text>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="xs" c="dimmed">
+                  Auth Number
+                </Text>
+                <Text size="sm" fw={500}>
+                  {detail.prior_auth.auth_number ?? "—"}
+                </Text>
               </Grid.Col>
               {detail.prior_auth.approved_amount != null && (
                 <Grid.Col span={6}>
-                  <Text size="xs" c="dimmed">Approved Amount</Text>
-                  <Text size="sm" c="success" fw={500}>₹{detail.prior_auth.approved_amount}</Text>
+                  <Text size="xs" c="dimmed">
+                    Approved Amount
+                  </Text>
+                  <Text size="sm" c="success" fw={500}>
+                    ₹{detail.prior_auth.approved_amount}
+                  </Text>
                 </Grid.Col>
               )}
               {detail.prior_auth.denial_reason && (
@@ -667,7 +774,9 @@ function PriorAuthTab() {
                   <Badge size="xs" color={paStatusColors[log.to_status] ?? "slate"}>
                     {log.to_status.replace(/_/g, " ")}
                   </Badge>
-                  <Text size="xs" c="dimmed">{new Date(log.created_at).toLocaleString()}</Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(log.created_at).toLocaleString()}
+                  </Text>
                   {log.notes && <Text size="xs">{log.notes}</Text>}
                 </Group>
               ))}
@@ -679,8 +788,12 @@ function PriorAuthTab() {
               {detail.documents.map((doc) => (
                 <Group key={doc.id} gap="sm">
                   <IconFileText size={14} />
-                  <Text size="sm">{doc.document_type}: {doc.file_name ?? "inline"}</Text>
-                  <Text size="xs" c="dimmed">{new Date(doc.created_at).toLocaleDateString()}</Text>
+                  <Text size="sm">
+                    {doc.document_type}: {doc.file_name ?? "inline"}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(doc.created_at).toLocaleDateString()}
+                  </Text>
                 </Group>
               ))}
             </Stack>
@@ -697,7 +810,8 @@ function PriorAuthTab() {
                 </Button>
               )}
               {canSubmit &&
-                (detail.prior_auth.status === "draft" || detail.prior_auth.status === "pending_info") && (
+                (detail.prior_auth.status === "draft" ||
+                  detail.prior_auth.status === "pending_info") && (
                   <Button
                     variant="filled"
                     color="primary"
@@ -751,7 +865,12 @@ function PriorAuthTab() {
               <TextInput
                 label="Auth Number"
                 value={respondForm.auth_number ?? ""}
-                onChange={(e) => setRespondForm({ ...respondForm, auth_number: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setRespondForm({
+                    ...respondForm,
+                    auth_number: e.currentTarget.value || undefined,
+                  })
+                }
               />
               <NumberInput
                 label="Approved Amount"
@@ -759,7 +878,10 @@ function PriorAuthTab() {
                 decimalScale={2}
                 value={respondForm.approved_amount ?? ""}
                 onChange={(v) =>
-                  setRespondForm({ ...respondForm, approved_amount: typeof v === "number" ? v : undefined })
+                  setRespondForm({
+                    ...respondForm,
+                    approved_amount: typeof v === "number" ? v : undefined,
+                  })
                 }
               />
               <NumberInput
@@ -767,7 +889,10 @@ function PriorAuthTab() {
                 min={0}
                 value={respondForm.approved_units ?? ""}
                 onChange={(v) =>
-                  setRespondForm({ ...respondForm, approved_units: typeof v === "number" ? v : undefined })
+                  setRespondForm({
+                    ...respondForm,
+                    approved_units: typeof v === "number" ? v : undefined,
+                  })
                 }
               />
             </>
@@ -777,13 +902,21 @@ function PriorAuthTab() {
               <TextInput
                 label="Denial Code"
                 value={respondForm.denial_code ?? ""}
-                onChange={(e) => setRespondForm({ ...respondForm, denial_code: e.currentTarget.value || undefined })}
+                onChange={(e) =>
+                  setRespondForm({
+                    ...respondForm,
+                    denial_code: e.currentTarget.value || undefined,
+                  })
+                }
               />
               <Textarea
                 label="Denial Reason"
                 value={respondForm.denial_reason ?? ""}
                 onChange={(e) =>
-                  setRespondForm({ ...respondForm, denial_reason: e.currentTarget.value || undefined })
+                  setRespondForm({
+                    ...respondForm,
+                    denial_reason: e.currentTarget.value || undefined,
+                  })
                 }
               />
             </>
@@ -791,7 +924,9 @@ function PriorAuthTab() {
           <Textarea
             label="Notes"
             value={respondForm.notes ?? ""}
-            onChange={(e) => setRespondForm({ ...respondForm, notes: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setRespondForm({ ...respondForm, notes: e.currentTarget.value || undefined })
+            }
           />
           <Button
             loading={respondMut.isPending}
@@ -833,7 +968,8 @@ function AppealsTab() {
       notifications.show({ title: "Appeal", message: "Created successfully", color: "success" });
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
   });
 
   const updateMut = useMutation({
@@ -842,7 +978,8 @@ function AppealsTab() {
       void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
       notifications.show({ title: "Appeal", message: "Updated", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
   return (
@@ -878,7 +1015,11 @@ function AppealsTab() {
           {
             key: "appeal_number",
             label: "Appeal #",
-            render: (r: PriorAuthAppeal) => <Text size="sm" fw={500}>{r.appeal_number}</Text>,
+            render: (r: PriorAuthAppeal) => (
+              <Text size="sm" fw={500}>
+                {r.appeal_number}
+              </Text>
+            ),
           },
           {
             key: "prior_auth_id",
@@ -894,14 +1035,19 @@ function AppealsTab() {
             key: "status",
             label: "Status",
             render: (r: PriorAuthAppeal) => (
-              <Badge color={appealStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+              <Badge color={appealStatusColors[r.status] ?? "slate"}>
+                {r.status.replace(/_/g, " ")}
+              </Badge>
             ),
           },
           {
             key: "deadline",
             label: "Deadline",
             render: (r: PriorAuthAppeal) => (
-              <Text size="sm" c={r.deadline && new Date(r.deadline) < new Date() ? "danger" : undefined}>
+              <Text
+                size="sm"
+                c={r.deadline && new Date(r.deadline) < new Date() ? "danger" : undefined}
+              >
                 {r.deadline ?? "—"}
               </Text>
             ),
@@ -952,19 +1098,25 @@ function AppealsTab() {
             label="Clinical Rationale"
             minRows={3}
             value={form.clinical_rationale ?? ""}
-            onChange={(e) => setForm({ ...form, clinical_rationale: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, clinical_rationale: e.currentTarget.value || undefined })
+            }
           />
           <Textarea
             label="Supporting Evidence"
             minRows={2}
             value={form.supporting_evidence ?? ""}
-            onChange={(e) => setForm({ ...form, supporting_evidence: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, supporting_evidence: e.currentTarget.value || undefined })
+            }
           />
           <Textarea
             label="Appeal Letter Content"
             minRows={4}
             value={form.letter_content ?? ""}
-            onChange={(e) => setForm({ ...form, letter_content: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, letter_content: e.currentTarget.value || undefined })
+            }
           />
           <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
             Create Appeal
@@ -998,11 +1150,13 @@ function RulesTab() {
       notifications.show({ title: "PA Rule", message: "Created", color: "success" });
       close();
     },
-    onError: () => notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
   });
 
   const toggleMut = useMutation({
-    mutationFn: (d: { id: string; is_active: boolean }) => api.updatePaRule(d.id, { is_active: d.is_active }),
+    mutationFn: (d: { id: string; is_active: boolean }) =>
+      api.updatePaRule(d.id, { is_active: d.is_active }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["insurance-rules"] }),
   });
 
@@ -1028,7 +1182,11 @@ function RulesTab() {
           {
             key: "rule_name",
             label: "Rule Name",
-            render: (r: PaRequirementRule) => <Text size="sm" fw={500}>{r.rule_name}</Text>,
+            render: (r: PaRequirementRule) => (
+              <Text size="sm" fw={500}>
+                {r.rule_name}
+              </Text>
+            ),
           },
           {
             key: "service_type",
@@ -1038,7 +1196,9 @@ function RulesTab() {
           {
             key: "insurance_provider",
             label: "Provider",
-            render: (r: PaRequirementRule) => <Text size="sm">{r.insurance_provider ?? "Any"}</Text>,
+            render: (r: PaRequirementRule) => (
+              <Text size="sm">{r.insurance_provider ?? "Any"}</Text>
+            ),
           },
           {
             key: "charge_code",
@@ -1076,14 +1236,22 @@ function RulesTab() {
                   }
                 />
               ) : (
-                <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+                <Badge color={r.is_active ? "success" : "slate"}>
+                  {r.is_active ? "Yes" : "No"}
+                </Badge>
               ),
           },
         ]}
       />
 
       {/* Create Rule Drawer */}
-      <Drawer opened={opened} onClose={close} title="Add PA Requirement Rule" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Add PA Requirement Rule"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
           <TextInput
             label="Rule Name"
@@ -1099,7 +1267,9 @@ function RulesTab() {
           <TextInput
             label="Insurance Provider (blank = all)"
             value={form.insurance_provider ?? ""}
-            onChange={(e) => setForm({ ...form, insurance_provider: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, insurance_provider: e.currentTarget.value || undefined })
+            }
           />
           <Select
             label="Scheme Type"
@@ -1126,20 +1296,26 @@ function RulesTab() {
           <TextInput
             label="Charge Code Pattern (regex)"
             value={form.charge_code_pattern ?? ""}
-            onChange={(e) => setForm({ ...form, charge_code_pattern: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setForm({ ...form, charge_code_pattern: e.currentTarget.value || undefined })
+            }
           />
           <NumberInput
             label="Cost Threshold (₹)"
             min={0}
             decimalScale={2}
             value={form.cost_threshold ?? ""}
-            onChange={(v) => setForm({ ...form, cost_threshold: typeof v === "number" ? v : undefined })}
+            onChange={(v) =>
+              setForm({ ...form, cost_threshold: typeof v === "number" ? v : undefined })
+            }
           />
           <NumberInput
             label="LOS Threshold (days)"
             min={0}
             value={form.los_threshold ?? ""}
-            onChange={(v) => setForm({ ...form, los_threshold: typeof v === "number" ? v : undefined })}
+            onChange={(v) =>
+              setForm({ ...form, los_threshold: typeof v === "number" ? v : undefined })
+            }
           />
           <NumberInput
             label="Priority"
@@ -1171,7 +1347,8 @@ function DashboardTab() {
   if (isLoading || !data) return <Text>Loading dashboard...</Text>;
 
   const d: InsuranceDashboard = data;
-  const approvalRate = d.total_prior_auths > 0 ? (d.approved_prior_auths / d.total_prior_auths) * 100 : 0;
+  const approvalRate =
+    d.total_prior_auths > 0 ? (d.approved_prior_auths / d.total_prior_auths) * 100 : 0;
 
   return (
     <Stack gap="md">
@@ -1180,41 +1357,59 @@ function DashboardTab() {
       <Grid>
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
           <Paper p="md" withBorder>
-            <Text size="xs" c="dimmed">Total Verifications</Text>
+            <Text size="xs" c="dimmed">
+              Total Verifications
+            </Text>
             <Title order={3}>{d.total_verifications}</Title>
-            <Text size="xs" c="success">{d.active_verifications} active</Text>
+            <Text size="xs" c="success">
+              {d.active_verifications} active
+            </Text>
           </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
           <Paper p="md" withBorder>
-            <Text size="xs" c="dimmed">Active PAs</Text>
+            <Text size="xs" c="dimmed">
+              Active PAs
+            </Text>
             <Title order={3}>{d.pending_prior_auths}</Title>
-            <Text size="xs" c="dimmed">of {d.total_prior_auths} total</Text>
+            <Text size="xs" c="dimmed">
+              of {d.total_prior_auths} total
+            </Text>
           </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
           <Paper p="md" withBorder>
-            <Text size="xs" c="dimmed">Denial Rate</Text>
+            <Text size="xs" c="dimmed">
+              Denial Rate
+            </Text>
             <Title order={3}>{d.denial_rate_percent.toFixed(1)}%</Title>
             <Progress value={d.denial_rate_percent} color="danger" size="sm" mt="xs" />
           </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
           <Paper p="md" withBorder>
-            <Text size="xs" c="dimmed">Pending Appeals</Text>
+            <Text size="xs" c="dimmed">
+              Pending Appeals
+            </Text>
             <Title order={3}>{d.pending_appeals}</Title>
-            <Text size="xs" c="dimmed">Avg TAT: {d.avg_tat_hours != null ? `${d.avg_tat_hours.toFixed(1)}h` : "—"}</Text>
+            <Text size="xs" c="dimmed">
+              Avg TAT: {d.avg_tat_hours != null ? `${d.avg_tat_hours.toFixed(1)}h` : "—"}
+            </Text>
           </Paper>
         </Grid.Col>
       </Grid>
 
       {/* PA Status Breakdown */}
       <Paper p="md" withBorder>
-        <Title order={5} mb="sm">PA Status Breakdown</Title>
+        <Title order={5} mb="sm">
+          PA Status Breakdown
+        </Title>
         <Group gap="lg">
           <Group gap="xs">
             <Badge color="success" variant="dot" />
-            <Text size="sm">Approved: {d.approved_prior_auths} ({approvalRate.toFixed(1)}%)</Text>
+            <Text size="sm">
+              Approved: {d.approved_prior_auths} ({approvalRate.toFixed(1)}%)
+            </Text>
           </Group>
           <Group gap="xs">
             <Badge color="danger" variant="dot" />
@@ -1249,9 +1444,15 @@ function DashboardTab() {
         {/* Top Denial Reasons */}
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper p="md" withBorder>
-            <Title order={5} mb="sm">Top Denial Reasons</Title>
+            <Title order={5} mb="sm">
+              Top Denial Reasons
+            </Title>
             <Stack gap="xs">
-              {d.top_denial_reasons.length === 0 && <Text size="sm" c="dimmed">No denials yet</Text>}
+              {d.top_denial_reasons.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  No denials yet
+                </Text>
+              )}
               {d.top_denial_reasons.map((r) => (
                 <Group key={r.reason} justify="space-between">
                   <Text size="sm">{r.reason}</Text>
@@ -1265,14 +1466,24 @@ function DashboardTab() {
         {/* Expiring Soon */}
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper p="md" withBorder>
-            <Title order={5} mb="sm">Expiring Soon (7 days)</Title>
+            <Title order={5} mb="sm">
+              Expiring Soon (7 days)
+            </Title>
             <Stack gap="xs">
-              {d.expiring_soon.length === 0 && <Text size="sm" c="dimmed">No PAs expiring soon</Text>}
+              {d.expiring_soon.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  No PAs expiring soon
+                </Text>
+              )}
               {d.expiring_soon.map((pa) => (
                 <Group key={pa.id} justify="space-between">
                   <Group gap="xs">
-                    <Text size="sm" fw={500}>{pa.pa_number}</Text>
-                    <Text size="xs" c="dimmed">{pa.service_type}</Text>
+                    <Text size="sm" fw={500}>
+                      {pa.pa_number}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {pa.service_type}
+                    </Text>
                   </Group>
                   <Text size="xs" c="orange">
                     Expires: {pa.expires_at ? new Date(pa.expires_at).toLocaleDateString() : "—"}

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -17,13 +16,82 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AddDiscountRequest,
+  AddInvoiceItemRequest,
+  AdjustAdvanceRequest,
+  AgingBucket,
+  ApproveWriteOffRequest,
+  AutoConcessionRule,
+  BadDebtWriteOff,
+  BankTransaction,
+  BillingAuditEntry,
+  // Concessions
+  BillingConcession,
+  BillingPackage,
+  BillingSummaryReport,
+  ChargeMaster,
+  CopayCalculation,
+  CorporateClient,
+  CorporateEnrollment,
+  CreateAdvanceRequest,
+  CreateChargeMasterRequest,
+  CreateCorporateRequest,
+  CreateCreditNoteRequest,
+  CreateDayCloseRequest,
+  CreateEnrollmentRequest,
+  CreateInsuranceClaimRequest,
+  CreateInvoiceRequest,
+  CreateJournalEntryRequest,
+  CreatePackageRequest,
+  CreateRefundRequest,
+  CreateTdsRequest,
+  CreateTpaRateCardRequest,
+  CreateWriteOffRequest,
+  CreditAgingRow,
+  CreditNote,
+  // Phase 3
+  CreditPatient,
+  DayEndClose,
+  DepartmentRevenueRow,
+  DoctorRevenueRow,
+  ErFastInvoiceRequest,
+  ErpExportLog,
+  ErpExportRequest,
+  GenerateGstrRequest,
+  GlAccount,
+  GstReturnSummary,
+  HsnSummaryRow,
+  ImportBankTransactionsRequest,
+  InsuranceClaim,
+  InsurancePanelRow,
+  Invoice,
+  InvoiceDetailResponse,
+  InvoiceDiscount,
+  JournalEntry,
+  JournalLineInput,
+  PatientAdvance,
+  ProfitLossDeptRow,
+  RatePlan,
+  RecordPaymentRequest,
+  Refund,
+  RefundAdvanceRequest,
+  TdsDeduction,
+  TenantSettingsRow,
+  TpaRateCard,
+  UpdateCorporateRequest,
+  UpdateCreditPatientRequest,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAmbulance,
   IconBuildingBank,
@@ -58,81 +126,21 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  AddDiscountRequest,
-  AddInvoiceItemRequest,
-  AdjustAdvanceRequest,
-  AgingBucket,
-  ApproveWriteOffRequest,
-  BadDebtWriteOff,
-  BillingAuditEntry,
-  BillingPackage,
-  BillingSummaryReport,
-  ChargeMaster,
-  CorporateClient,
-  CorporateEnrollment,
-  CreateAdvanceRequest,
-  CreateChargeMasterRequest,
-  CreateCorporateRequest,
-  CreateCreditNoteRequest,
-  CreateDayCloseRequest,
-  CreateEnrollmentRequest,
-  CreateInsuranceClaimRequest,
-  CreateInvoiceRequest,
-  CreatePackageRequest,
-  CreateRefundRequest,
-  CreateTpaRateCardRequest,
-  CreateWriteOffRequest,
-  CreditNote,
-  DayEndClose,
-  DepartmentRevenueRow,
-  DoctorRevenueRow,
-  InsuranceClaim,
-  InsurancePanelRow,
-  Invoice,
-  InvoiceDetailResponse,
-  InvoiceDiscount,
-  PatientAdvance,
-  RatePlan,
-  RecordPaymentRequest,
-  Refund,
-  RefundAdvanceRequest,
-  TenantSettingsRow,
-  TpaRateCard,
-  UpdateCorporateRequest,
-  CopayCalculation,
-  ErFastInvoiceRequest,
-  // Phase 3
-  CreditPatient,
-  CreditAgingRow,
-  CreateJournalEntryRequest,
-  CreateTdsRequest,
-  ErpExportLog,
-  ErpExportRequest,
-  GenerateGstrRequest,
-  GlAccount,
-  GstReturnSummary,
-  HsnSummaryRow,
-  ImportBankTransactionsRequest,
-  JournalEntry,
-  JournalLineInput,
-  BankTransaction,
-  ProfitLossDeptRow,
-  TdsDeduction,
-  UpdateCreditPatientRequest,
-  // Concessions
-  BillingConcession,
-  AutoConcessionRule,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
-import { PaymentModal } from "../components/PaymentModal";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  PageHeader,
+  StatusDot,
+  useClinicalEmit,
+} from "../components";
+import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { PaymentModal } from "../components/PaymentModal";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -222,41 +230,87 @@ function BillingPageInner() {
     mutationFn: (id: string) => api.cloneInvoice(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({ title: "Cloned", message: "Invoice duplicated as draft", color: "success" });
+      notifications.show({
+        title: "Cloned",
+        message: "Invoice duplicated as draft",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to clone invoice", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to clone invoice", color: "danger" }),
   });
 
   const columns = [
-    { key: "invoice_number", label: "Invoice #", render: (row: Invoice) => <Text fw={600}>{row.invoice_number}</Text> },
+    {
+      key: "invoice_number",
+      label: "Invoice #",
+      render: (row: Invoice) => <Text fw={600}>{row.invoice_number}</Text>,
+    },
     {
       key: "status",
       label: "Status",
       render: (row: Invoice) => (
         <Group gap={6}>
-          <StatusDot color={statusColors[row.status] ?? "slate"} label={row.status.replace(/_/g, " ")} />
-          {row.notes === "Auto-generated" && <Badge size="xs" color="primary" variant="light">Auto</Badge>}
-          {row.is_interim && <Badge size="xs" color="violet" variant="light">Interim</Badge>}
-          {row.corporate_id && <Badge size="xs" color="info" variant="light">Corporate</Badge>}
-          {row.is_er_deferred && <Badge size="xs" color="danger" variant="light">ER Deferred</Badge>}
-          {row.cloned_from_id && <Badge size="xs" color="violet" variant="light">Cloned</Badge>}
+          <StatusDot
+            color={statusColors[row.status] ?? "slate"}
+            label={row.status.replace(/_/g, " ")}
+          />
+          {row.notes === "Auto-generated" && (
+            <Badge size="xs" color="primary" variant="light">
+              Auto
+            </Badge>
+          )}
+          {row.is_interim && (
+            <Badge size="xs" color="violet" variant="light">
+              Interim
+            </Badge>
+          )}
+          {row.corporate_id && (
+            <Badge size="xs" color="info" variant="light">
+              Corporate
+            </Badge>
+          )}
+          {row.is_er_deferred && (
+            <Badge size="xs" color="danger" variant="light">
+              ER Deferred
+            </Badge>
+          )}
+          {row.cloned_from_id && (
+            <Badge size="xs" color="violet" variant="light">
+              Cloned
+            </Badge>
+          )}
         </Group>
       ),
     },
-    { key: "total_amount", label: "Total", render: (row: Invoice) => <Text size="sm">₹{row.total_amount}</Text> },
-    { key: "paid_amount", label: "Paid", render: (row: Invoice) => <Text size="sm">₹{row.paid_amount}</Text> },
+    {
+      key: "total_amount",
+      label: "Total",
+      render: (row: Invoice) => <Text size="sm">₹{row.total_amount}</Text>,
+    },
+    {
+      key: "paid_amount",
+      label: "Paid",
+      render: (row: Invoice) => <Text size="sm">₹{row.paid_amount}</Text>,
+    },
     {
       key: "balance",
       label: "Balance",
       render: (row: Invoice) => {
         const balance = Number(row.total_amount) - Number(row.paid_amount);
-        return <Text size="sm" c={balance > 0 ? "danger" : "success"}>₹{balance.toFixed(2)}</Text>;
+        return (
+          <Text size="sm" c={balance > 0 ? "danger" : "success"}>
+            ₹{balance.toFixed(2)}
+          </Text>
+        );
       },
     },
     {
       key: "created_at",
       label: "Date",
-      render: (row: Invoice) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>,
+      render: (row: Invoice) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "actions",
@@ -276,7 +330,12 @@ function BillingPageInner() {
           </Tooltip>
           {canCreate && (
             <Tooltip label="Clone">
-              <ActionIcon variant="subtle" color="violet" onClick={() => cloneMutation.mutate(row.id)} loading={cloneMutation.isPending}>
+              <ActionIcon
+                variant="subtle"
+                color="violet"
+                onClick={() => cloneMutation.mutate(row.id)}
+                loading={cloneMutation.isPending}
+              >
                 <IconCopy size={16} />
               </ActionIcon>
             </Tooltip>
@@ -299,7 +358,12 @@ function BillingPageInner() {
               <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
                 New Invoice
               </Button>
-              <Button variant="light" color="danger" leftSection={<IconAmbulance size={16} />} onClick={openErInvoice}>
+              <Button
+                variant="light"
+                color="danger"
+                leftSection={<IconAmbulance size={16} />}
+                onClick={openErInvoice}
+              >
                 ER Fast Invoice
               </Button>
             </Group>
@@ -309,25 +373,79 @@ function BillingPageInner() {
 
       <Tabs defaultValue="invoices">
         <Tabs.List mb="md">
-          <Tabs.Tab value="invoices" leftSection={<IconFileInvoice size={14} />}>{t("invoices")}</Tabs.Tab>
-          <Tabs.Tab value="charge-master" leftSection={<IconTags size={14} />}>{t("chargeMaster")}</Tabs.Tab>
-          <Tabs.Tab value="packages" leftSection={<IconPackage size={14} />}>{t("packages")}</Tabs.Tab>
-          <Tabs.Tab value="rate-plans" leftSection={<IconCreditCard size={14} />}>{t("ratePlans")}</Tabs.Tab>
-          <Tabs.Tab value="refunds" leftSection={<IconRefresh size={14} />}>{t("refunds&Credits")}</Tabs.Tab>
-          <Tabs.Tab value="insurance" leftSection={<IconShieldCheck size={14} />}>{t("insuranceClaims")}</Tabs.Tab>
-          <Tabs.Tab value="advances" leftSection={<IconWallet size={14} />}>{t("advances")}</Tabs.Tab>
-          <Tabs.Tab value="corporate" leftSection={<IconBuildingBank size={14} />}>{t("corporate")}</Tabs.Tab>
-          <Tabs.Tab value="reports" leftSection={<IconChartBar size={14} />}>{t("reports")}</Tabs.Tab>
-          {canDayClose && <Tabs.Tab value="day-close" leftSection={<IconCalendarCheck size={14} />}>{t("dayClose")}</Tabs.Tab>}
-          {canAudit && <Tabs.Tab value="audit-log" leftSection={<IconClipboardList size={14} />}>{t("auditLog")}</Tabs.Tab>}
-          {canCredit && <Tabs.Tab value="credit-patients" leftSection={<IconMoneybag size={14} />}>{t("creditPatients")}</Tabs.Tab>}
-          {canGst && <Tabs.Tab value="gst-tds" leftSection={<IconReportMoney size={14} />}>{t("gst&Tds")}</Tabs.Tab>}
-          {canJournal && <Tabs.Tab value="journal" leftSection={<IconScale size={14} />}>{t("journalEntries")}</Tabs.Tab>}
-          {canBankRecon && <Tabs.Tab value="bank-recon" leftSection={<IconTransferIn size={14} />}>{t("bankRecon")}</Tabs.Tab>}
-          <Tabs.Tab value="financial-mis" leftSection={<IconCoin size={14} />}>{t("financialMis")}</Tabs.Tab>
-          {canErp && <Tabs.Tab value="erp-export" leftSection={<IconDatabase size={14} />}>{t("erpExport")}</Tabs.Tab>}
-          {canConcessions && <Tabs.Tab value="concessions" leftSection={<IconDiscount size={14} />}>Concessions</Tabs.Tab>}
-          <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>{t("settings")}</Tabs.Tab>
+          <Tabs.Tab value="invoices" leftSection={<IconFileInvoice size={14} />}>
+            {t("invoices")}
+          </Tabs.Tab>
+          <Tabs.Tab value="charge-master" leftSection={<IconTags size={14} />}>
+            {t("chargeMaster")}
+          </Tabs.Tab>
+          <Tabs.Tab value="packages" leftSection={<IconPackage size={14} />}>
+            {t("packages")}
+          </Tabs.Tab>
+          <Tabs.Tab value="rate-plans" leftSection={<IconCreditCard size={14} />}>
+            {t("ratePlans")}
+          </Tabs.Tab>
+          <Tabs.Tab value="refunds" leftSection={<IconRefresh size={14} />}>
+            {t("refunds&Credits")}
+          </Tabs.Tab>
+          <Tabs.Tab value="insurance" leftSection={<IconShieldCheck size={14} />}>
+            {t("insuranceClaims")}
+          </Tabs.Tab>
+          <Tabs.Tab value="advances" leftSection={<IconWallet size={14} />}>
+            {t("advances")}
+          </Tabs.Tab>
+          <Tabs.Tab value="corporate" leftSection={<IconBuildingBank size={14} />}>
+            {t("corporate")}
+          </Tabs.Tab>
+          <Tabs.Tab value="reports" leftSection={<IconChartBar size={14} />}>
+            {t("reports")}
+          </Tabs.Tab>
+          {canDayClose && (
+            <Tabs.Tab value="day-close" leftSection={<IconCalendarCheck size={14} />}>
+              {t("dayClose")}
+            </Tabs.Tab>
+          )}
+          {canAudit && (
+            <Tabs.Tab value="audit-log" leftSection={<IconClipboardList size={14} />}>
+              {t("auditLog")}
+            </Tabs.Tab>
+          )}
+          {canCredit && (
+            <Tabs.Tab value="credit-patients" leftSection={<IconMoneybag size={14} />}>
+              {t("creditPatients")}
+            </Tabs.Tab>
+          )}
+          {canGst && (
+            <Tabs.Tab value="gst-tds" leftSection={<IconReportMoney size={14} />}>
+              {t("gst&Tds")}
+            </Tabs.Tab>
+          )}
+          {canJournal && (
+            <Tabs.Tab value="journal" leftSection={<IconScale size={14} />}>
+              {t("journalEntries")}
+            </Tabs.Tab>
+          )}
+          {canBankRecon && (
+            <Tabs.Tab value="bank-recon" leftSection={<IconTransferIn size={14} />}>
+              {t("bankRecon")}
+            </Tabs.Tab>
+          )}
+          <Tabs.Tab value="financial-mis" leftSection={<IconCoin size={14} />}>
+            {t("financialMis")}
+          </Tabs.Tab>
+          {canErp && (
+            <Tabs.Tab value="erp-export" leftSection={<IconDatabase size={14} />}>
+              {t("erpExport")}
+            </Tabs.Tab>
+          )}
+          {canConcessions && (
+            <Tabs.Tab value="concessions" leftSection={<IconDiscount size={14} />}>
+              Concessions
+            </Tabs.Tab>
+          )}
+          <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>
+            {t("settings")}
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="invoices">
@@ -450,8 +568,16 @@ function BillingPageInner() {
       <CreateInvoiceDrawer opened={createOpened} onClose={closeCreate} />
       <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Invoice Detail" position="right" size="lg">
-        {selectedInvoiceId && <InvoiceDetail invoiceId={selectedInvoiceId} canCreate={canCreate} canPay={canPay} />}
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Invoice Detail"
+        position="right"
+        size="lg"
+      >
+        {selectedInvoiceId && (
+          <InvoiceDetail invoiceId={selectedInvoiceId} canCreate={canCreate} canPay={canPay} />
+        )}
       </Drawer>
     </div>
   );
@@ -468,7 +594,11 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
     mutationFn: (data: CreateInvoiceRequest) => api.createInvoice(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({ title: "Invoice created", message: "Draft invoice created", color: "success" });
+      notifications.show({
+        title: "Invoice created",
+        message: "Draft invoice created",
+        color: "success",
+      });
       emit("invoice.created", { patient_id: variables.patient_id });
       onClose();
       setPatientId("");
@@ -479,14 +609,34 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
       notifications.show({ title: "Error", message: "Failed to create invoice", color: "danger" });
     },
   });
+  const contextPatientId = patientId.trim().length >= 32 ? patientId.trim() : null;
 
   return (
     <Drawer opened={opened} onClose={onClose} title="Create Invoice" position="right" size="xl">
       <Stack>
-        <TextInput label="Patient ID" required value={patientId} onChange={(e) => setPatientId(e.currentTarget.value)} />
-        <TextInput label="Encounter ID" value={encounterId} onChange={(e) => setEncounterId(e.currentTarget.value)} />
+        <TextInput
+          label="Patient ID"
+          required
+          value={patientId}
+          onChange={(e) => setPatientId(e.currentTarget.value)}
+        />
+        <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+        <TextInput
+          label="Encounter ID"
+          value={encounterId}
+          onChange={(e) => setEncounterId(e.currentTarget.value)}
+        />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Button onClick={() => createMutation.mutate({ patient_id: patientId, encounter_id: encounterId || undefined, notes: notes || undefined })} loading={createMutation.isPending}>
+        <Button
+          onClick={() =>
+            createMutation.mutate({
+              patient_id: patientId,
+              encounter_id: encounterId || undefined,
+              notes: notes || undefined,
+            })
+          }
+          loading={createMutation.isPending}
+        >
           Create Draft Invoice
         </Button>
       </Stack>
@@ -494,7 +644,15 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   );
 }
 
-function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; canCreate: boolean; canPay: boolean }) {
+function InvoiceDetail({
+  invoiceId,
+  canCreate,
+  canPay,
+}: {
+  invoiceId: string;
+  canCreate: boolean;
+  canPay: boolean;
+}) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [showAddItem, setShowAddItem] = useState(false);
@@ -502,9 +660,14 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
   const [showGateway, setShowGateway] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [showCopay, setShowCopay] = useState(false);
-  const [itemForm, setItemForm] = useState<Partial<AddInvoiceItemRequest>>({ source: "manual", quantity: 1 });
+  const [itemForm, setItemForm] = useState<Partial<AddInvoiceItemRequest>>({
+    source: "manual",
+    quantity: 1,
+  });
   const [payForm, setPayForm] = useState<Partial<RecordPaymentRequest>>({ mode: "cash" });
-  const [discForm, setDiscForm] = useState<Partial<AddDiscountRequest>>({ discount_type: "percentage" });
+  const [discForm, setDiscForm] = useState<Partial<AddDiscountRequest>>({
+    discount_type: "percentage",
+  });
 
   const { data } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
@@ -521,7 +684,8 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
 
   const cancelMutation = useMutation({
     mutationFn: () => api.cancelInvoice(invoiceId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
   const addItemMutation = useMutation({
@@ -534,14 +698,19 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
 
   const removeItemMutation = useMutation({
     mutationFn: (itemId: string) => api.removeInvoiceItem(invoiceId, itemId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
   const payMutation = useMutation({
     mutationFn: (pay: RecordPaymentRequest) => api.recordPayment(invoiceId, pay),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      emit("payment.recorded", { invoice_id: invoiceId, amount: variables.amount, mode: variables.mode });
+      emit("payment.recorded", {
+        invoice_id: invoiceId,
+        amount: variables.amount,
+        mode: variables.mode,
+      });
       setShowPayment(false);
     },
   });
@@ -571,7 +740,11 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
   const receiptMutation = useMutation({
     mutationFn: (paymentId: string) => api.generateReceipt(invoiceId, paymentId),
     onSuccess: () => {
-      notifications.show({ title: "Receipt generated", message: "Receipt created successfully", color: "success" });
+      notifications.show({
+        title: "Receipt generated",
+        message: "Receipt created successfully",
+        color: "success",
+      });
     },
   });
 
@@ -583,7 +756,9 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
   return (
     <Stack>
       <Group justify="space-between">
-        <Text fw={700} size="lg">{inv.invoice_number}</Text>
+        <Text fw={700} size="lg">
+          {inv.invoice_number}
+        </Text>
         <Badge color={statusColors[inv.status] ?? "slate"} variant="light" size="lg">
           {inv.status.replace(/_/g, " ")}
         </Badge>
@@ -591,22 +766,40 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
       <Group>
         <Text size="sm">Total: ₹{inv.total_amount}</Text>
         <Text size="sm">Paid: ₹{inv.paid_amount}</Text>
-        <Text size="sm" c="danger">Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toFixed(2)}</Text>
+        <Text size="sm" c="danger">
+          Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toFixed(2)}
+        </Text>
       </Group>
-      {(Number(inv.cgst_amount ?? 0) > 0 || Number(inv.sgst_amount ?? 0) > 0 || Number(inv.igst_amount ?? 0) > 0) && (
+      <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
+      {(Number(inv.cgst_amount ?? 0) > 0 ||
+        Number(inv.sgst_amount ?? 0) > 0 ||
+        Number(inv.igst_amount ?? 0) > 0) && (
         <Group gap="xs">
-          <Badge variant="light" color="teal" size="sm">CGST: ₹{inv.cgst_amount}</Badge>
-          <Badge variant="light" color="teal" size="sm">SGST: ₹{inv.sgst_amount}</Badge>
-          <Badge variant="light" color="primary" size="sm">IGST: ₹{inv.igst_amount}</Badge>
-          {Number(inv.cess_amount ?? 0) > 0 && <Badge variant="light" color="orange" size="sm">Cess: ₹{inv.cess_amount}</Badge>}
+          <Badge variant="light" color="teal" size="sm">
+            CGST: ₹{inv.cgst_amount}
+          </Badge>
+          <Badge variant="light" color="teal" size="sm">
+            SGST: ₹{inv.sgst_amount}
+          </Badge>
+          <Badge variant="light" color="primary" size="sm">
+            IGST: ₹{inv.igst_amount}
+          </Badge>
+          {Number(inv.cess_amount ?? 0) > 0 && (
+            <Badge variant="light" color="orange" size="sm">
+              Cess: ₹{inv.cess_amount}
+            </Badge>
+          )}
         </Group>
       )}
       {inv.is_interim && (
         <Group gap="xs">
-          <Badge color="violet" variant="light">Interim #{inv.sequence_number}</Badge>
+          <Badge color="violet" variant="light">
+            Interim #{inv.sequence_number}
+          </Badge>
           {inv.billing_period_start && inv.billing_period_end && (
             <Text size="xs" c="dimmed">
-              Period: {new Date(inv.billing_period_start).toLocaleDateString()} – {new Date(inv.billing_period_end).toLocaleDateString()}
+              Period: {new Date(inv.billing_period_start).toLocaleDateString()} –{" "}
+              {new Date(inv.billing_period_end).toLocaleDateString()}
             </Text>
           )}
         </Group>
@@ -614,19 +807,31 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
 
       {canCreate && inv.status === "draft" && (
         <Group>
-          <Button size="xs" color="primary" onClick={() => issueMutation.mutate()}>Issue Invoice</Button>
-          <Button size="xs" color="danger" variant="light" onClick={() => cancelMutation.mutate()}>Cancel</Button>
+          <Button size="xs" color="primary" onClick={() => issueMutation.mutate()}>
+            Issue Invoice
+          </Button>
+          <Button size="xs" color="danger" variant="light" onClick={() => cancelMutation.mutate()}>
+            Cancel
+          </Button>
         </Group>
       )}
 
       <Group>
-        <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={14} />} onClick={() => setShowCopay(!showCopay)}>
+        <Button
+          size="xs"
+          variant="light"
+          color="teal"
+          leftSection={<IconShieldCheck size={14} />}
+          onClick={() => setShowCopay(!showCopay)}
+        >
           {showCopay ? "Hide Co-pay" : "Calculate Co-pay"}
         </Button>
       </Group>
       {showCopay && <CopayBreakdown invoiceId={invoiceId} />}
 
-      <Text fw={600} mt="md">Items</Text>
+      <Text fw={600} mt="md">
+        Items
+      </Text>
       <Table striped>
         <Table.Thead>
           <Table.Tr>
@@ -648,7 +853,11 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
               <Table.Td>₹{item.total_price}</Table.Td>
               {canCreate && inv.status === "draft" && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" onClick={() => removeItemMutation.mutate(item.id)}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    onClick={() => removeItemMutation.mutate(item.id)}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -660,13 +869,22 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
 
       {canCreate && inv.status === "draft" && (
         <>
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setShowAddItem(!showAddItem)}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowAddItem(!showAddItem)}
+          >
             Add Item
           </Button>
           {showAddItem && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Charge Code" required onChange={(e) => setItemForm({ ...itemForm, charge_code: e.currentTarget.value })} />
+                <TextInput
+                  label="Charge Code"
+                  required
+                  onChange={(e) => setItemForm({ ...itemForm, charge_code: e.currentTarget.value })}
+                />
                 <Select
                   label="Source"
                   data={[
@@ -682,13 +900,37 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
                   onChange={(v) => setItemForm({ ...itemForm, source: v ?? "manual" })}
                 />
               </Group>
-              <TextInput label="Description" required onChange={(e) => setItemForm({ ...itemForm, description: e.currentTarget.value })} />
+              <TextInput
+                label="Description"
+                required
+                onChange={(e) => setItemForm({ ...itemForm, description: e.currentTarget.value })}
+              />
               <Group grow>
-                <NumberInput label="Qty" min={1} value={itemForm.quantity} onChange={(v) => setItemForm({ ...itemForm, quantity: Number(v) })} />
-                <NumberInput label="Unit Price" min={0} decimalScale={2} onChange={(v) => setItemForm({ ...itemForm, unit_price: Number(v) })} />
-                <NumberInput label="Tax %" min={0} max={100} decimalScale={2} onChange={(v) => setItemForm({ ...itemForm, tax_percent: Number(v) })} />
+                <NumberInput
+                  label="Qty"
+                  min={1}
+                  value={itemForm.quantity}
+                  onChange={(v) => setItemForm({ ...itemForm, quantity: Number(v) })}
+                />
+                <NumberInput
+                  label="Unit Price"
+                  min={0}
+                  decimalScale={2}
+                  onChange={(v) => setItemForm({ ...itemForm, unit_price: Number(v) })}
+                />
+                <NumberInput
+                  label="Tax %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  onChange={(v) => setItemForm({ ...itemForm, tax_percent: Number(v) })}
+                />
               </Group>
-              <Button size="xs" onClick={() => addItemMutation.mutate(itemForm as AddInvoiceItemRequest)} loading={addItemMutation.isPending}>
+              <Button
+                size="xs"
+                onClick={() => addItemMutation.mutate(itemForm as AddInvoiceItemRequest)}
+                loading={addItemMutation.isPending}
+              >
                 Add
               </Button>
             </Stack>
@@ -696,7 +938,9 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
         </>
       )}
 
-      <Text fw={600} mt="md">Payments</Text>
+      <Text fw={600} mt="md">
+        Payments
+      </Text>
       <Table striped>
         <Table.Thead>
           <Table.Tr>
@@ -715,7 +959,11 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
               <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
               <Table.Td>
                 <Tooltip label="Generate Receipt">
-                  <ActionIcon variant="subtle" size="sm" onClick={() => receiptMutation.mutate(p.id)}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => receiptMutation.mutate(p.id)}
+                  >
                     <IconReceipt size={14} />
                   </ActionIcon>
                 </Tooltip>
@@ -728,16 +976,31 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
       {canPay && (inv.status === "issued" || inv.status === "partially_paid") && (
         <>
           <Group gap="xs">
-            <Button size="xs" leftSection={<IconCash size={14} />} onClick={() => setShowPayment(!showPayment)}>
+            <Button
+              size="xs"
+              leftSection={<IconCash size={14} />}
+              onClick={() => setShowPayment(!showPayment)}
+            >
               Record Payment
             </Button>
-            <Button size="xs" variant="light" leftSection={<IconCreditCard size={14} />} onClick={() => setShowGateway(true)}>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconCreditCard size={14} />}
+              onClick={() => setShowGateway(true)}
+            >
               Pay via Gateway
             </Button>
           </Group>
           {showPayment && (
             <Stack gap="xs">
-              <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setPayForm({ ...payForm, amount: Number(v) })} />
+              <NumberInput
+                label="Amount"
+                required
+                min={0}
+                decimalScale={2}
+                onChange={(v) => setPayForm({ ...payForm, amount: Number(v) })}
+              />
               <Select
                 label="Mode"
                 data={[
@@ -752,8 +1015,17 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
                 value={payForm.mode}
                 onChange={(v) => setPayForm({ ...payForm, mode: v ?? "cash" })}
               />
-              <TextInput label="Reference #" onChange={(e) => setPayForm({ ...payForm, reference_number: e.currentTarget.value || undefined })} />
-              <Button size="xs" onClick={() => payMutation.mutate(payForm as RecordPaymentRequest)} loading={payMutation.isPending}>
+              <TextInput
+                label="Reference #"
+                onChange={(e) =>
+                  setPayForm({ ...payForm, reference_number: e.currentTarget.value || undefined })
+                }
+              />
+              <Button
+                size="xs"
+                onClick={() => payMutation.mutate(payForm as RecordPaymentRequest)}
+                loading={payMutation.isPending}
+              >
                 Save Payment
               </Button>
             </Stack>
@@ -771,7 +1043,9 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
         </>
       )}
 
-      <Text fw={600} mt="md">Discounts</Text>
+      <Text fw={600} mt="md">
+        Discounts
+      </Text>
       {discounts.length > 0 ? (
         <Table striped>
           <Table.Thead>
@@ -785,12 +1059,23 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
           <Table.Tbody>
             {discounts.map((d: InvoiceDiscount) => (
               <Table.Tr key={d.id}>
-                <Table.Td><Badge variant="light">{d.discount_type}</Badge></Table.Td>
-                <Table.Td>{d.discount_type === "percentage" ? `${d.discount_value}%` : `₹${d.discount_value}`}</Table.Td>
+                <Table.Td>
+                  <Badge variant="light">{d.discount_type}</Badge>
+                </Table.Td>
+                <Table.Td>
+                  {d.discount_type === "percentage"
+                    ? `${d.discount_value}%`
+                    : `₹${d.discount_value}`}
+                </Table.Td>
                 <Table.Td>{d.reason ?? "—"}</Table.Td>
                 {canCreate && (
                   <Table.Td>
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeDiscountMutation.mutate(d.id)}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      size="sm"
+                      onClick={() => removeDiscountMutation.mutate(d.id)}
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -800,12 +1085,19 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No discounts applied</Text>
+        <Text size="sm" c="dimmed">
+          No discounts applied
+        </Text>
       )}
 
       {canCreate && inv.status === "draft" && (
         <>
-          <Button size="xs" variant="light" leftSection={<IconDiscount2 size={14} />} onClick={() => setShowDiscount(!showDiscount)}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconDiscount2 size={14} />}
+            onClick={() => setShowDiscount(!showDiscount)}
+          >
             Add Discount
           </Button>
           {showDiscount && (
@@ -821,10 +1113,25 @@ function InvoiceDetail({ invoiceId, canCreate, canPay }: { invoiceId: string; ca
                   value={discForm.discount_type}
                   onChange={(v) => setDiscForm({ ...discForm, discount_type: v ?? "percentage" })}
                 />
-                <NumberInput label="Value" required min={0} decimalScale={2} onChange={(v) => setDiscForm({ ...discForm, discount_value: Number(v) })} />
+                <NumberInput
+                  label="Value"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  onChange={(v) => setDiscForm({ ...discForm, discount_value: Number(v) })}
+                />
               </Group>
-              <TextInput label="Reason" onChange={(e) => setDiscForm({ ...discForm, reason: e.currentTarget.value || undefined })} />
-              <Button size="xs" onClick={() => addDiscountMutation.mutate(discForm as AddDiscountRequest)} loading={addDiscountMutation.isPending}>
+              <TextInput
+                label="Reason"
+                onChange={(e) =>
+                  setDiscForm({ ...discForm, reason: e.currentTarget.value || undefined })
+                }
+              />
+              <Button
+                size="xs"
+                onClick={() => addDiscountMutation.mutate(discForm as AddDiscountRequest)}
+                loading={addDiscountMutation.isPending}
+              >
                 Apply Discount
               </Button>
             </Stack>
@@ -867,12 +1174,41 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
 
   const columns = [
     { key: "code", label: "Code", render: (row: ChargeMaster) => <Text fw={500}>{row.code}</Text> },
-    { key: "name", label: "Name", render: (row: ChargeMaster) => <Text size="sm">{row.name}</Text> },
-    { key: "category", label: "Category", render: (row: ChargeMaster) => <Text size="sm">{row.category || "—"}</Text> },
-    { key: "base_price", label: "Price", render: (row: ChargeMaster) => <Text size="sm">₹{row.base_price}</Text> },
-    { key: "hsn_sac_code", label: "HSN/SAC", render: (row: ChargeMaster) => <Text size="sm">{row.hsn_sac_code ?? "—"}</Text> },
-    { key: "gst_category", label: "GST Cat.", render: (row: ChargeMaster) => <Text size="sm">{row.gst_category ?? "—"}</Text> },
-    { key: "is_active", label: "Active", render: (row: ChargeMaster) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
+    {
+      key: "name",
+      label: "Name",
+      render: (row: ChargeMaster) => <Text size="sm">{row.name}</Text>,
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (row: ChargeMaster) => <Text size="sm">{row.category || "—"}</Text>,
+    },
+    {
+      key: "base_price",
+      label: "Price",
+      render: (row: ChargeMaster) => <Text size="sm">₹{row.base_price}</Text>,
+    },
+    {
+      key: "hsn_sac_code",
+      label: "HSN/SAC",
+      render: (row: ChargeMaster) => <Text size="sm">{row.hsn_sac_code ?? "—"}</Text>,
+    },
+    {
+      key: "gst_category",
+      label: "GST Cat.",
+      render: (row: ChargeMaster) => <Text size="sm">{row.gst_category ?? "—"}</Text>,
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: ChargeMaster) =>
+        row.is_active ? (
+          <IconCheck size={14} color="success" />
+        ) : (
+          <IconX size={14} color="danger" />
+        ),
+    },
     {
       key: "actions",
       label: "",
@@ -889,7 +1225,11 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Charge
           </Button>
         </Group>
@@ -897,16 +1237,48 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput
+              label="Code"
+              required
+              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Name"
+              required
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
           </Group>
-          <Select label="Category" required data={SERVICE_CATEGORIES} onChange={(v) => setForm({ ...form, category: v ?? "" })} searchable />
+          <Select
+            label="Category"
+            required
+            data={SERVICE_CATEGORIES}
+            onChange={(v) => setForm({ ...form, category: v ?? "" })}
+            searchable
+          />
           <Group grow>
-            <NumberInput label="Base Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, base_price: Number(v) })} />
-            <NumberInput label="Tax %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, tax_percent: Number(v) })} />
+            <NumberInput
+              label="Base Price"
+              required
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, base_price: Number(v) })}
+            />
+            <NumberInput
+              label="Tax %"
+              min={0}
+              max={100}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, tax_percent: Number(v) })}
+            />
           </Group>
           <Group grow>
-            <TextInput label="HSN/SAC Code" placeholder="e.g. 999312" onChange={(e) => setForm({ ...form, hsn_sac_code: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="HSN/SAC Code"
+              placeholder="e.g. 999312"
+              onChange={(e) =>
+                setForm({ ...form, hsn_sac_code: e.currentTarget.value || undefined })
+              }
+            />
             <Select
               label="GST Category"
               data={[
@@ -920,7 +1292,11 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
               clearable
             />
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateChargeMasterRequest)} loading={createMutation.isPending}>
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateChargeMasterRequest)}
+            loading={createMutation.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -951,32 +1327,65 @@ function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
   return (
     <Card withBorder p="sm">
       {!copay && !isLoading && (
-        <Button size="xs" onClick={() => calculateMutation.mutate()} loading={calculateMutation.isPending}>
+        <Button
+          size="xs"
+          onClick={() => calculateMutation.mutate()}
+          loading={calculateMutation.isPending}
+        >
           Calculate Co-pay
         </Button>
       )}
-      {(isLoading || calculateMutation.isPending) && <Text size="sm" c="dimmed">Calculating...</Text>}
+      {(isLoading || calculateMutation.isPending) && (
+        <Text size="sm" c="dimmed">
+          Calculating...
+        </Text>
+      )}
       {copay && (
         <SimpleGrid cols={5}>
           <Stack gap={2}>
-            <Text size="xs" c="dimmed">Invoice Amount</Text>
-            <Text size="sm" fw={700}>{"\u20B9"}{copay.invoice_amount.toFixed(2)}</Text>
+            <Text size="xs" c="dimmed">
+              Invoice Amount
+            </Text>
+            <Text size="sm" fw={700}>
+              {"\u20B9"}
+              {copay.invoice_amount.toFixed(2)}
+            </Text>
           </Stack>
           <Stack gap={2}>
-            <Text size="xs" c="dimmed">Insurance Coverage</Text>
-            <Text size="sm" fw={700} c="success">{"\u20B9"}{copay.insurance_coverage.toFixed(2)}</Text>
+            <Text size="xs" c="dimmed">
+              Insurance Coverage
+            </Text>
+            <Text size="sm" fw={700} c="success">
+              {"\u20B9"}
+              {copay.insurance_coverage.toFixed(2)}
+            </Text>
           </Stack>
           <Stack gap={2}>
-            <Text size="xs" c="dimmed">Co-pay</Text>
-            <Text size="sm" fw={700}>{"\u20B9"}{copay.copay_amount.toFixed(2)}</Text>
+            <Text size="xs" c="dimmed">
+              Co-pay
+            </Text>
+            <Text size="sm" fw={700}>
+              {"\u20B9"}
+              {copay.copay_amount.toFixed(2)}
+            </Text>
           </Stack>
           <Stack gap={2}>
-            <Text size="xs" c="dimmed">Deductible</Text>
-            <Text size="sm" fw={700}>{"\u20B9"}{copay.deductible.toFixed(2)}</Text>
+            <Text size="xs" c="dimmed">
+              Deductible
+            </Text>
+            <Text size="sm" fw={700}>
+              {"\u20B9"}
+              {copay.deductible.toFixed(2)}
+            </Text>
           </Stack>
           <Stack gap={2}>
-            <Text size="xs" c="dimmed">Patient Responsibility</Text>
-            <Text size="sm" fw={700} c="danger">{"\u20B9"}{copay.patient_responsibility.toFixed(2)}</Text>
+            <Text size="xs" c="dimmed">
+              Patient Responsibility
+            </Text>
+            <Text size="sm" fw={700} c="danger">
+              {"\u20B9"}
+              {copay.patient_responsibility.toFixed(2)}
+            </Text>
           </Stack>
         </SimpleGrid>
       )}
@@ -995,13 +1404,21 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
     mutationFn: (data: ErFastInvoiceRequest) => api.erFastInvoice(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({ title: "ER Invoice Created", message: `Invoice ${(result as Invoice).invoice_number} created`, color: "success" });
+      notifications.show({
+        title: "ER Invoice Created",
+        message: `Invoice ${(result as Invoice).invoice_number} created`,
+        color: "success",
+      });
       emit("invoice.created", { invoice_id: (result as Invoice).id });
       onClose();
       setEmergencyVisitId("");
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create ER invoice", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to create ER invoice",
+        color: "danger",
+      });
     },
   });
 
@@ -1009,7 +1426,10 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
     <Drawer opened={opened} onClose={onClose} title="ER Fast Invoice" position="right" size="xl">
       <Stack>
         <Alert color="danger" variant="light" title="Emergency Department Fast Billing">
-          <Text size="sm">Creates an invoice with standard ER charges for the specified emergency visit. Additional charges can be added later.</Text>
+          <Text size="sm">
+            Creates an invoice with standard ER charges for the specified emergency visit.
+            Additional charges can be added later.
+          </Text>
         </Alert>
         <TextInput
           label="Emergency Visit ID"
@@ -1064,7 +1484,10 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
     if (!itemCode || !itemDesc) return;
     setForm({
       ...form,
-      items: [...(form.items ?? []), { charge_code: itemCode, description: itemDesc, quantity: itemQty, unit_price: itemPrice }],
+      items: [
+        ...(form.items ?? []),
+        { charge_code: itemCode, description: itemDesc, quantity: itemQty, unit_price: itemPrice },
+      ],
     });
     setItemCode("");
     setItemDesc("");
@@ -1073,18 +1496,45 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
   };
 
   const columns = [
-    { key: "code", label: "Code", render: (row: BillingPackage) => <Text fw={500}>{row.code}</Text> },
-    { key: "name", label: "Name", render: (row: BillingPackage) => <Text size="sm">{row.name}</Text> },
-    { key: "total_price", label: "Price", render: (row: BillingPackage) => <Text size="sm">₹{row.total_price}</Text> },
-    { key: "discount_percent", label: "Discount", render: (row: BillingPackage) => <Text size="sm">{row.discount_percent}%</Text> },
-    { key: "is_active", label: "Active", render: (row: BillingPackage) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
     {
-      key: "actions", label: "",
-      render: (row: BillingPackage) => canCreate ? (
-        <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
-          <IconTrash size={14} />
-        </ActionIcon>
-      ) : null,
+      key: "code",
+      label: "Code",
+      render: (row: BillingPackage) => <Text fw={500}>{row.code}</Text>,
+    },
+    {
+      key: "name",
+      label: "Name",
+      render: (row: BillingPackage) => <Text size="sm">{row.name}</Text>,
+    },
+    {
+      key: "total_price",
+      label: "Price",
+      render: (row: BillingPackage) => <Text size="sm">₹{row.total_price}</Text>,
+    },
+    {
+      key: "discount_percent",
+      label: "Discount",
+      render: (row: BillingPackage) => <Text size="sm">{row.discount_percent}%</Text>,
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: BillingPackage) =>
+        row.is_active ? (
+          <IconCheck size={14} color="success" />
+        ) : (
+          <IconX size={14} color="danger" />
+        ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: BillingPackage) =>
+        canCreate ? (
+          <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        ) : null,
     },
   ];
 
@@ -1092,7 +1542,11 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Package
           </Button>
         </Group>
@@ -1100,26 +1554,82 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput
+              label="Code"
+              required
+              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Name"
+              required
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Total Price" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, total_price: Number(v) })} />
-            <NumberInput label="Discount %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, discount_percent: Number(v) })} />
+            <NumberInput
+              label="Total Price"
+              required
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, total_price: Number(v) })}
+            />
+            <NumberInput
+              label="Discount %"
+              min={0}
+              max={100}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, discount_percent: Number(v) })}
+            />
           </Group>
-          <Textarea label="Description" onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })} />
-          <Text fw={500} size="sm" mt="xs">Package Items ({form.items?.length ?? 0})</Text>
-          {(form.items ?? []).map((it, i) => (
-            <Text key={i} size="xs" c="dimmed">{it.charge_code} — {it.description} x{it.quantity} @ ₹{it.unit_price}</Text>
+          <Textarea
+            label="Description"
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+          />
+          <Text fw={500} size="sm" mt="xs">
+            Package Items ({form.items?.length ?? 0})
+          </Text>
+          {(form.items ?? []).map((it) => (
+            <Text key={`${it.charge_code}-${it.description}`} size="xs" c="dimmed">
+              {it.charge_code} — {it.description} x{it.quantity} @ ₹{it.unit_price}
+            </Text>
           ))}
           <Group grow>
-            <TextInput size="xs" placeholder="Charge Code" value={itemCode} onChange={(e) => setItemCode(e.currentTarget.value)} />
-            <TextInput size="xs" placeholder="Description" value={itemDesc} onChange={(e) => setItemDesc(e.currentTarget.value)} />
-            <NumberInput size="xs" placeholder="Qty" min={1} value={itemQty} onChange={(v) => setItemQty(Number(v))} />
-            <NumberInput size="xs" placeholder="Price" min={0} decimalScale={2} value={itemPrice} onChange={(v) => setItemPrice(Number(v))} />
-            <Button size="xs" variant="light" onClick={addPkgItem}>+ Item</Button>
+            <TextInput
+              size="xs"
+              placeholder="Charge Code"
+              value={itemCode}
+              onChange={(e) => setItemCode(e.currentTarget.value)}
+            />
+            <TextInput
+              size="xs"
+              placeholder="Description"
+              value={itemDesc}
+              onChange={(e) => setItemDesc(e.currentTarget.value)}
+            />
+            <NumberInput
+              size="xs"
+              placeholder="Qty"
+              min={1}
+              value={itemQty}
+              onChange={(v) => setItemQty(Number(v))}
+            />
+            <NumberInput
+              size="xs"
+              placeholder="Price"
+              min={0}
+              decimalScale={2}
+              value={itemPrice}
+              onChange={(v) => setItemPrice(Number(v))}
+            />
+            <Button size="xs" variant="light" onClick={addPkgItem}>
+              + Item
+            </Button>
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreatePackageRequest)} loading={createMutation.isPending}>
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreatePackageRequest)}
+            loading={createMutation.isPending}
+          >
             Save Package
           </Button>
         </Stack>
@@ -1134,7 +1644,12 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
 function RatePlansTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<{ name: string; description: string; patient_category: string; items: { charge_code: string; override_price: number; override_tax_percent?: number }[] }>({ name: "", description: "", patient_category: "", items: [] });
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    patient_category: string;
+    items: { charge_code: string; override_price: number; override_tax_percent?: number }[];
+  }>({ name: "", description: "", patient_category: "", items: [] });
   const [rpCode, setRpCode] = useState("");
   const [rpPrice, setRpPrice] = useState(0);
 
@@ -1144,7 +1659,13 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.createRatePlan({ name: form.name, description: form.description || undefined, patient_category: form.patient_category || undefined, items: form.items }),
+    mutationFn: () =>
+      api.createRatePlan({
+        name: form.name,
+        description: form.description || undefined,
+        patient_category: form.patient_category || undefined,
+        items: form.items,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["rate-plans"] });
       setShowForm(false);
@@ -1166,16 +1687,40 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
 
   const columns = [
     { key: "name", label: "Name", render: (row: RatePlan) => <Text fw={500}>{row.name}</Text> },
-    { key: "patient_category", label: "Category", render: (row: RatePlan) => <Text size="sm">{row.patient_category ?? "All"}</Text> },
-    { key: "is_default", label: "Default", render: (row: RatePlan) => row.is_default ? <Badge size="xs" color="primary">Default</Badge> : null },
-    { key: "is_active", label: "Active", render: (row: RatePlan) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
     {
-      key: "actions", label: "",
-      render: (row: RatePlan) => canCreate ? (
-        <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
-          <IconTrash size={14} />
-        </ActionIcon>
-      ) : null,
+      key: "patient_category",
+      label: "Category",
+      render: (row: RatePlan) => <Text size="sm">{row.patient_category ?? "All"}</Text>,
+    },
+    {
+      key: "is_default",
+      label: "Default",
+      render: (row: RatePlan) =>
+        row.is_default ? (
+          <Badge size="xs" color="primary">
+            Default
+          </Badge>
+        ) : null,
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: RatePlan) =>
+        row.is_active ? (
+          <IconCheck size={14} color="success" />
+        ) : (
+          <IconX size={14} color="danger" />
+        ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: RatePlan) =>
+        canCreate ? (
+          <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        ) : null,
     },
   ];
 
@@ -1183,7 +1728,11 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Rate Plan
           </Button>
         </Group>
@@ -1191,7 +1740,12 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput
+              label="Name"
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
             <Select
               label="Patient Category"
               data={[
@@ -1205,17 +1759,43 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
               clearable
             />
           </Group>
-          <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
-          <Text fw={500} size="sm" mt="xs">Price Overrides ({form.items.length})</Text>
-          {form.items.map((it, i) => (
-            <Text key={i} size="xs" c="dimmed">{it.charge_code} → ₹{it.override_price}</Text>
+          <Textarea
+            label="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+          />
+          <Text fw={500} size="sm" mt="xs">
+            Price Overrides ({form.items.length})
+          </Text>
+          {form.items.map((it) => (
+            <Text key={`${it.charge_code}-${it.override_price}`} size="xs" c="dimmed">
+              {it.charge_code} → ₹{it.override_price}
+            </Text>
           ))}
           <Group grow>
-            <TextInput size="xs" placeholder="Charge Code" value={rpCode} onChange={(e) => setRpCode(e.currentTarget.value)} />
-            <NumberInput size="xs" placeholder="Override Price" min={0} decimalScale={2} value={rpPrice} onChange={(v) => setRpPrice(Number(v))} />
-            <Button size="xs" variant="light" onClick={addRpItem}>+ Override</Button>
+            <TextInput
+              size="xs"
+              placeholder="Charge Code"
+              value={rpCode}
+              onChange={(e) => setRpCode(e.currentTarget.value)}
+            />
+            <NumberInput
+              size="xs"
+              placeholder="Override Price"
+              min={0}
+              decimalScale={2}
+              value={rpPrice}
+              onChange={(v) => setRpPrice(Number(v))}
+            />
+            <Button size="xs" variant="light" onClick={addRpItem}>
+              + Override
+            </Button>
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate()} loading={createMutation.isPending}>
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate()}
+            loading={createMutation.isPending}
+          >
             Save Rate Plan
           </Button>
         </Stack>
@@ -1227,7 +1807,13 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
 
 // ── Refunds & Credits Tab ───────────────────────────────
 
-function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; canWriteOff: boolean }) {
+function RefundsCreditsTab({
+  canCreate,
+  canWriteOff,
+}: {
+  canCreate: boolean;
+  canWriteOff: boolean;
+}) {
   const queryClient = useQueryClient();
   const canApproveWriteOff = useHasPermission(P.BILLING.WRITE_OFF_APPROVE);
   const [showRefund, setShowRefund] = useState(false);
@@ -1286,56 +1872,150 @@ function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; can
   });
 
   const approveWriteOffMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ApproveWriteOffRequest }) => api.approveWriteOff(id, data),
+    mutationFn: ({ id, data }: { id: string; data: ApproveWriteOffRequest }) =>
+      api.approveWriteOff(id, data),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["write-offs"] }),
   });
 
   const writeOffColumns = [
-    { key: "write_off_number", label: "WO #", render: (row: BadDebtWriteOff) => <Text fw={500}>{row.write_off_number}</Text> },
-    { key: "amount", label: "Amount", render: (row: BadDebtWriteOff) => <Text size="sm">₹{row.amount}</Text> },
-    { key: "reason", label: "Reason", render: (row: BadDebtWriteOff) => <Text size="sm">{row.reason}</Text> },
     {
-      key: "status", label: "Status",
+      key: "write_off_number",
+      label: "WO #",
+      render: (row: BadDebtWriteOff) => <Text fw={500}>{row.write_off_number}</Text>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row: BadDebtWriteOff) => <Text size="sm">₹{row.amount}</Text>,
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: BadDebtWriteOff) => <Text size="sm">{row.reason}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row: BadDebtWriteOff) => (
-        <Badge variant="light" color={row.status === "approved" ? "success" : row.status === "rejected" ? "danger" : "warning"}>
+        <Badge
+          variant="light"
+          color={
+            row.status === "approved" ? "success" : row.status === "rejected" ? "danger" : "warning"
+          }
+        >
           {row.status}
         </Badge>
       ),
     },
     {
-      key: "actions", label: "",
-      render: (row: BadDebtWriteOff) => row.status === "pending" && canApproveWriteOff ? (
-        <Group gap={4}>
-          <Tooltip label="Approve"><ActionIcon color="success" variant="light" size="sm" onClick={() => approveWriteOffMutation.mutate({ id: row.id, data: { approved: true } })}><IconCheck size={14} /></ActionIcon></Tooltip>
-          <Tooltip label="Reject"><ActionIcon color="danger" variant="light" size="sm" onClick={() => approveWriteOffMutation.mutate({ id: row.id, data: { approved: false } })}><IconX size={14} /></ActionIcon></Tooltip>
-        </Group>
-      ) : null,
+      key: "actions",
+      label: "",
+      render: (row: BadDebtWriteOff) =>
+        row.status === "pending" && canApproveWriteOff ? (
+          <Group gap={4}>
+            <Tooltip label="Approve">
+              <ActionIcon
+                color="success"
+                variant="light"
+                size="sm"
+                onClick={() =>
+                  approveWriteOffMutation.mutate({ id: row.id, data: { approved: true } })
+                }
+              >
+                <IconCheck size={14} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Reject">
+              <ActionIcon
+                color="danger"
+                variant="light"
+                size="sm"
+                onClick={() =>
+                  approveWriteOffMutation.mutate({ id: row.id, data: { approved: false } })
+                }
+              >
+                <IconX size={14} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        ) : null,
     },
   ];
 
   const refundColumns = [
-    { key: "refund_number", label: "Refund #", render: (row: Refund) => <Text fw={500}>{row.refund_number}</Text> },
-    { key: "amount", label: "Amount", render: (row: Refund) => <Text size="sm">₹{row.amount}</Text> },
-    { key: "reason", label: "Reason", render: (row: Refund) => <Text size="sm">{row.reason}</Text> },
-    { key: "mode", label: "Mode", render: (row: Refund) => <Badge variant="light">{row.mode}</Badge> },
-    { key: "refunded_at", label: "Date", render: (row: Refund) => <Text size="sm">{new Date(row.refunded_at).toLocaleDateString()}</Text> },
+    {
+      key: "refund_number",
+      label: "Refund #",
+      render: (row: Refund) => <Text fw={500}>{row.refund_number}</Text>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row: Refund) => <Text size="sm">₹{row.amount}</Text>,
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: Refund) => <Text size="sm">{row.reason}</Text>,
+    },
+    {
+      key: "mode",
+      label: "Mode",
+      render: (row: Refund) => <Badge variant="light">{row.mode}</Badge>,
+    },
+    {
+      key: "refunded_at",
+      label: "Date",
+      render: (row: Refund) => (
+        <Text size="sm">{new Date(row.refunded_at).toLocaleDateString()}</Text>
+      ),
+    },
   ];
 
   const creditColumns = [
-    { key: "credit_note_number", label: "CN #", render: (row: CreditNote) => <Text fw={500}>{row.credit_note_number}</Text> },
-    { key: "amount", label: "Amount", render: (row: CreditNote) => <Text size="sm">₹{row.amount}</Text> },
-    { key: "reason", label: "Reason", render: (row: CreditNote) => <Text size="sm">{row.reason}</Text> },
-    { key: "status", label: "Status", render: (row: CreditNote) => <Badge variant="light" color={row.status === "active" ? "success" : row.status === "used" ? "primary" : "danger"}>{row.status}</Badge> },
     {
-      key: "actions", label: "",
-      render: (row: CreditNote) => row.status === "active" && canCreate ? (
-        <Button size="compact-xs" variant="light" onClick={() => {
-          const invoiceId = prompt("Enter Invoice ID to apply credit note:");
-          if (invoiceId) applyMutation.mutate({ noteId: row.id, invoiceId });
-        }}>
-          Apply
-        </Button>
-      ) : null,
+      key: "credit_note_number",
+      label: "CN #",
+      render: (row: CreditNote) => <Text fw={500}>{row.credit_note_number}</Text>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row: CreditNote) => <Text size="sm">₹{row.amount}</Text>,
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: CreditNote) => <Text size="sm">{row.reason}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: CreditNote) => (
+        <Badge
+          variant="light"
+          color={row.status === "active" ? "success" : row.status === "used" ? "primary" : "danger"}
+        >
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: CreditNote) =>
+        row.status === "active" && canCreate ? (
+          <Button
+            size="compact-xs"
+            variant="light"
+            onClick={() => {
+              const invoiceId = prompt("Enter Invoice ID to apply credit note:");
+              if (invoiceId) applyMutation.mutate({ noteId: row.id, invoiceId });
+            }}
+          >
+            Apply
+          </Button>
+        ) : null,
     },
   ];
 
@@ -1344,23 +2024,47 @@ function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; can
       <Text fw={600}>Refunds</Text>
       {canCreate && (
         <>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowRefund(!showRefund)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowRefund(!showRefund)}
+          >
             Create Refund
           </Button>
           {showRefund && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Invoice ID" required onChange={(e) => setRefundForm({ ...refundForm, invoice_id: e.currentTarget.value })} />
-                <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })} />
+                <TextInput
+                  label="Invoice ID"
+                  required
+                  onChange={(e) =>
+                    setRefundForm({ ...refundForm, invoice_id: e.currentTarget.value })
+                  }
+                />
+                <NumberInput
+                  label="Amount"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })}
+                />
               </Group>
-              <TextInput label="Reason" required onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })} />
+              <TextInput
+                label="Reason"
+                required
+                onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })}
+              />
               <Select
                 label="Mode"
                 data={["cash", "card", "upi", "bank_transfer", "cheque", "insurance", "credit"]}
                 value={refundForm.mode}
                 onChange={(v) => setRefundForm({ ...refundForm, mode: v ?? "cash" })}
               />
-              <Button size="xs" onClick={() => refundMutation.mutate(refundForm as CreateRefundRequest)} loading={refundMutation.isPending}>
+              <Button
+                size="xs"
+                onClick={() => refundMutation.mutate(refundForm as CreateRefundRequest)}
+                loading={refundMutation.isPending}
+              >
                 Process Refund
               </Button>
             </Stack>
@@ -1369,18 +2073,44 @@ function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; can
       )}
       <DataTable columns={refundColumns} data={refunds} rowKey={(row) => row.id} />
 
-      <Text fw={600} mt="lg">Credit Notes</Text>
+      <Text fw={600} mt="lg">
+        Credit Notes
+      </Text>
       {canCreate && (
         <>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowCredit(!showCredit)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowCredit(!showCredit)}
+          >
             Create Credit Note
           </Button>
           {showCredit && (
             <Stack gap="xs">
-              <TextInput label="Invoice ID" required onChange={(e) => setCreditForm({ ...creditForm, invoice_id: e.currentTarget.value })} />
-              <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setCreditForm({ ...creditForm, amount: Number(v) })} />
-              <TextInput label="Reason" required onChange={(e) => setCreditForm({ ...creditForm, reason: e.currentTarget.value })} />
-              <Button size="xs" onClick={() => creditMutation.mutate(creditForm as CreateCreditNoteRequest)} loading={creditMutation.isPending}>
+              <TextInput
+                label="Invoice ID"
+                required
+                onChange={(e) =>
+                  setCreditForm({ ...creditForm, invoice_id: e.currentTarget.value })
+                }
+              />
+              <NumberInput
+                label="Amount"
+                required
+                min={0}
+                decimalScale={2}
+                onChange={(v) => setCreditForm({ ...creditForm, amount: Number(v) })}
+              />
+              <TextInput
+                label="Reason"
+                required
+                onChange={(e) => setCreditForm({ ...creditForm, reason: e.currentTarget.value })}
+              />
+              <Button
+                size="xs"
+                onClick={() => creditMutation.mutate(creditForm as CreateCreditNoteRequest)}
+                loading={creditMutation.isPending}
+              >
                 Issue Credit Note
               </Button>
             </Stack>
@@ -1389,19 +2119,52 @@ function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; can
       )}
       <DataTable columns={creditColumns} data={creditNotes} rowKey={(row) => row.id} />
 
-      <Text fw={600} mt="lg">Write-Offs</Text>
+      <Text fw={600} mt="lg">
+        Write-Offs
+      </Text>
       {canWriteOff && (
         <>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowWriteOff(!showWriteOff)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowWriteOff(!showWriteOff)}
+          >
             Request Write-Off
           </Button>
           {showWriteOff && (
             <Stack gap="xs">
-              <TextInput label="Invoice ID" required onChange={(e) => setWriteOffForm({ ...writeOffForm, invoice_id: e.currentTarget.value })} />
-              <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setWriteOffForm({ ...writeOffForm, amount: Number(v) })} />
-              <TextInput label="Reason" required onChange={(e) => setWriteOffForm({ ...writeOffForm, reason: e.currentTarget.value })} />
-              <Textarea label="Notes" onChange={(e) => setWriteOffForm({ ...writeOffForm, notes: e.currentTarget.value || undefined })} />
-              <Button size="xs" onClick={() => writeOffMutation.mutate(writeOffForm as CreateWriteOffRequest)} loading={writeOffMutation.isPending}>
+              <TextInput
+                label="Invoice ID"
+                required
+                onChange={(e) =>
+                  setWriteOffForm({ ...writeOffForm, invoice_id: e.currentTarget.value })
+                }
+              />
+              <NumberInput
+                label="Amount"
+                required
+                min={0}
+                decimalScale={2}
+                onChange={(v) => setWriteOffForm({ ...writeOffForm, amount: Number(v) })}
+              />
+              <TextInput
+                label="Reason"
+                required
+                onChange={(e) =>
+                  setWriteOffForm({ ...writeOffForm, reason: e.currentTarget.value })
+                }
+              />
+              <Textarea
+                label="Notes"
+                onChange={(e) =>
+                  setWriteOffForm({ ...writeOffForm, notes: e.currentTarget.value || undefined })
+                }
+              />
+              <Button
+                size="xs"
+                onClick={() => writeOffMutation.mutate(writeOffForm as CreateWriteOffRequest)}
+                loading={writeOffMutation.isPending}
+              >
                 Submit Write-Off
               </Button>
             </Stack>
@@ -1415,11 +2178,19 @@ function RefundsCreditsTab({ canCreate, canWriteOff }: { canCreate: boolean; can
 
 // ── Insurance Claims Tab ────────────────────────────────
 
-function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boolean; canWriteOff: boolean }) {
+function InsuranceClaimsTab({
+  canCreate,
+  canWriteOff: _cwo,
+}: {
+  canCreate: boolean;
+  canWriteOff: boolean;
+}) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [showTpa, setShowTpa] = useState(false);
-  const [form, setForm] = useState<Partial<CreateInsuranceClaimRequest>>({ claim_type: "cashless" });
+  const [form, setForm] = useState<Partial<CreateInsuranceClaimRequest>>({
+    claim_type: "cashless",
+  });
   const [tpaForm, setTpaForm] = useState<Partial<CreateTpaRateCardRequest>>({});
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
 
@@ -1469,17 +2240,54 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
   });
 
   const tpaColumns = [
-    { key: "tpa_name", label: "TPA Name", render: (row: TpaRateCard) => <Text fw={500}>{row.tpa_name}</Text> },
-    { key: "insurance_provider", label: "Provider", render: (row: TpaRateCard) => <Text size="sm">{row.insurance_provider}</Text> },
-    { key: "scheme_type", label: "Scheme", render: (row: TpaRateCard) => <Badge variant="light">{row.scheme_type ?? "—"}</Badge> },
-    { key: "valid_from", label: "Valid From", render: (row: TpaRateCard) => <Text size="sm">{row.valid_from ?? "—"}</Text> },
-    { key: "valid_to", label: "Valid To", render: (row: TpaRateCard) => <Text size="sm">{row.valid_to ?? "—"}</Text> },
-    { key: "is_active", label: "Active", render: (row: TpaRateCard) => <Badge color={row.is_active ? "success" : "slate"}>{row.is_active ? "Yes" : "No"}</Badge> },
     {
-      key: "actions", label: "",
-      render: (row: TpaRateCard) => canCreate ? (
-        <Tooltip label="Delete"><ActionIcon color="danger" variant="subtle" size="sm" onClick={() => deleteTpaMutation.mutate(row.id)}><IconTrash size={14} /></ActionIcon></Tooltip>
-      ) : null,
+      key: "tpa_name",
+      label: "TPA Name",
+      render: (row: TpaRateCard) => <Text fw={500}>{row.tpa_name}</Text>,
+    },
+    {
+      key: "insurance_provider",
+      label: "Provider",
+      render: (row: TpaRateCard) => <Text size="sm">{row.insurance_provider}</Text>,
+    },
+    {
+      key: "scheme_type",
+      label: "Scheme",
+      render: (row: TpaRateCard) => <Badge variant="light">{row.scheme_type ?? "—"}</Badge>,
+    },
+    {
+      key: "valid_from",
+      label: "Valid From",
+      render: (row: TpaRateCard) => <Text size="sm">{row.valid_from ?? "—"}</Text>,
+    },
+    {
+      key: "valid_to",
+      label: "Valid To",
+      render: (row: TpaRateCard) => <Text size="sm">{row.valid_to ?? "—"}</Text>,
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: TpaRateCard) => (
+        <Badge color={row.is_active ? "success" : "slate"}>{row.is_active ? "Yes" : "No"}</Badge>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: TpaRateCard) =>
+        canCreate ? (
+          <Tooltip label="Delete">
+            <ActionIcon
+              color="danger"
+              variant="subtle"
+              size="sm"
+              onClick={() => deleteTpaMutation.mutate(row.id)}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Tooltip>
+        ) : null,
     },
   ];
 
@@ -1496,26 +2304,59 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
   };
 
   const columns = [
-    { key: "insurance_provider", label: "Provider", render: (row: InsuranceClaim) => <Text fw={500}>{row.insurance_provider}</Text> },
-    { key: "claim_type", label: "Type", render: (row: InsuranceClaim) => <Badge variant="light">{row.claim_type}</Badge> },
     {
-      key: "status", label: "Status",
+      key: "insurance_provider",
+      label: "Provider",
+      render: (row: InsuranceClaim) => <Text fw={500}>{row.insurance_provider}</Text>,
+    },
+    {
+      key: "claim_type",
+      label: "Type",
+      render: (row: InsuranceClaim) => <Badge variant="light">{row.claim_type}</Badge>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row: InsuranceClaim) => (
         <Badge variant="light" color={claimStatusColors[row.status] ?? "slate"}>
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
     },
-    { key: "pre_auth_amount", label: "Pre-Auth", render: (row: InsuranceClaim) => <Text size="sm">{row.pre_auth_amount ? `₹${row.pre_auth_amount}` : "—"}</Text> },
-    { key: "approved_amount", label: "Approved", render: (row: InsuranceClaim) => <Text size="sm">{row.approved_amount ? `₹${row.approved_amount}` : "—"}</Text> },
-    { key: "settled_amount", label: "Settled", render: (row: InsuranceClaim) => <Text size="sm">{row.settled_amount ? `₹${row.settled_amount}` : "—"}</Text> },
     {
-      key: "actions", label: "",
-      render: (row: InsuranceClaim) => canCreate && row.status === "initiated" ? (
-        <Button size="compact-xs" variant="light" onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}>
-          Request Pre-Auth
-        </Button>
-      ) : null,
+      key: "pre_auth_amount",
+      label: "Pre-Auth",
+      render: (row: InsuranceClaim) => (
+        <Text size="sm">{row.pre_auth_amount ? `₹${row.pre_auth_amount}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "approved_amount",
+      label: "Approved",
+      render: (row: InsuranceClaim) => (
+        <Text size="sm">{row.approved_amount ? `₹${row.approved_amount}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "settled_amount",
+      label: "Settled",
+      render: (row: InsuranceClaim) => (
+        <Text size="sm">{row.settled_amount ? `₹${row.settled_amount}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: InsuranceClaim) =>
+        canCreate && row.status === "initiated" ? (
+          <Button
+            size="compact-xs"
+            variant="light"
+            onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
+          >
+            Request Pre-Auth
+          </Button>
+        ) : null,
     },
   ];
 
@@ -1523,18 +2364,39 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
     <Stack>
       {canCreate && (
         <>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             New Claim
           </Button>
           {showForm && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Invoice ID" required onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })} />
-                <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
+                <TextInput
+                  label="Invoice ID"
+                  required
+                  onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })}
+                />
+                <TextInput
+                  label="Patient ID"
+                  required
+                  onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+                />
               </Group>
               <Group grow>
-                <TextInput label="Insurance Provider" required onChange={(e) => setForm({ ...form, insurance_provider: e.currentTarget.value })} />
-                <TextInput label="Policy Number" onChange={(e) => setForm({ ...form, policy_number: e.currentTarget.value || undefined })} />
+                <TextInput
+                  label="Insurance Provider"
+                  required
+                  onChange={(e) => setForm({ ...form, insurance_provider: e.currentTarget.value })}
+                />
+                <TextInput
+                  label="Policy Number"
+                  onChange={(e) =>
+                    setForm({ ...form, policy_number: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
               <Group grow>
                 <Select
@@ -1546,7 +2408,12 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
                   value={form.claim_type}
                   onChange={(v) => setForm({ ...form, claim_type: v ?? "cashless" })}
                 />
-                <NumberInput label="Pre-Auth Amount" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, pre_auth_amount: Number(v) || undefined })} />
+                <NumberInput
+                  label="Pre-Auth Amount"
+                  min={0}
+                  decimalScale={2}
+                  onChange={(v) => setForm({ ...form, pre_auth_amount: Number(v) || undefined })}
+                />
               </Group>
               <Group grow>
                 <Select
@@ -1562,18 +2429,51 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
                   onChange={(v) => setForm({ ...form, scheme_type: v ?? undefined })}
                   clearable
                 />
-                <TextInput label="TPA Name" onChange={(e) => setForm({ ...form, tpa_name: e.currentTarget.value || undefined })} />
+                <TextInput
+                  label="TPA Name"
+                  onChange={(e) =>
+                    setForm({ ...form, tpa_name: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
               <Group grow>
-                <NumberInput label="Co-Pay %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, co_pay_percent: Number(v) || undefined })} />
-                <NumberInput label="Deductible Amount" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, deductible_amount: Number(v) || undefined })} />
+                <NumberInput
+                  label="Co-Pay %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  onChange={(v) => setForm({ ...form, co_pay_percent: Number(v) || undefined })}
+                />
+                <NumberInput
+                  label="Deductible Amount"
+                  min={0}
+                  decimalScale={2}
+                  onChange={(v) => setForm({ ...form, deductible_amount: Number(v) || undefined })}
+                />
               </Group>
               <Group grow>
-                <TextInput label="Member ID" onChange={(e) => setForm({ ...form, member_id: e.currentTarget.value || undefined })} />
-                <TextInput label="Scheme Card Number" onChange={(e) => setForm({ ...form, scheme_card_number: e.currentTarget.value || undefined })} />
+                <TextInput
+                  label="Member ID"
+                  onChange={(e) =>
+                    setForm({ ...form, member_id: e.currentTarget.value || undefined })
+                  }
+                />
+                <TextInput
+                  label="Scheme Card Number"
+                  onChange={(e) =>
+                    setForm({ ...form, scheme_card_number: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
-              <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-              <Button size="xs" onClick={() => createMutation.mutate(form as CreateInsuranceClaimRequest)} loading={createMutation.isPending}>
+              <Textarea
+                label="Notes"
+                onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+              />
+              <Button
+                size="xs"
+                onClick={() => createMutation.mutate(form as CreateInsuranceClaimRequest)}
+                loading={createMutation.isPending}
+              >
                 Create Claim
               </Button>
             </Stack>
@@ -1594,27 +2494,70 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
         onClose={() => setDetailClaim(null)}
       />
 
-      <Text fw={600} mt="lg">TPA Rate Cards</Text>
+      <Text fw={600} mt="lg">
+        TPA Rate Cards
+      </Text>
       {canCreate && (
         <>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowTpa(!showTpa)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowTpa(!showTpa)}
+          >
             Add TPA Rate Card
           </Button>
           {showTpa && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="TPA Name" required onChange={(e) => setTpaForm({ ...tpaForm, tpa_name: e.currentTarget.value })} />
-                <TextInput label="Insurance Provider" required onChange={(e) => setTpaForm({ ...tpaForm, insurance_provider: e.currentTarget.value })} />
+                <TextInput
+                  label="TPA Name"
+                  required
+                  onChange={(e) => setTpaForm({ ...tpaForm, tpa_name: e.currentTarget.value })}
+                />
+                <TextInput
+                  label="Insurance Provider"
+                  required
+                  onChange={(e) =>
+                    setTpaForm({ ...tpaForm, insurance_provider: e.currentTarget.value })
+                  }
+                />
               </Group>
               <Group grow>
-                <Select label="Scheme Type" data={INSURANCE_SCHEME_TYPES} onChange={(v) => setTpaForm({ ...tpaForm, scheme_type: v || undefined })} clearable searchable />
-                <TextInput label="Rate Plan ID" onChange={(e) => setTpaForm({ ...tpaForm, rate_plan_id: e.currentTarget.value || undefined })} />
+                <Select
+                  label="Scheme Type"
+                  data={INSURANCE_SCHEME_TYPES}
+                  onChange={(v) => setTpaForm({ ...tpaForm, scheme_type: v || undefined })}
+                  clearable
+                  searchable
+                />
+                <TextInput
+                  label="Rate Plan ID"
+                  onChange={(e) =>
+                    setTpaForm({ ...tpaForm, rate_plan_id: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
               <Group grow>
-                <TextInput label="Valid From" type="date" onChange={(e) => setTpaForm({ ...tpaForm, valid_from: e.currentTarget.value || undefined })} />
-                <TextInput label="Valid To" type="date" onChange={(e) => setTpaForm({ ...tpaForm, valid_to: e.currentTarget.value || undefined })} />
+                <TextInput
+                  label="Valid From"
+                  type="date"
+                  onChange={(e) =>
+                    setTpaForm({ ...tpaForm, valid_from: e.currentTarget.value || undefined })
+                  }
+                />
+                <TextInput
+                  label="Valid To"
+                  type="date"
+                  onChange={(e) =>
+                    setTpaForm({ ...tpaForm, valid_to: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
-              <Button size="xs" onClick={() => tpaMutation.mutate(tpaForm as CreateTpaRateCardRequest)} loading={tpaMutation.isPending}>
+              <Button
+                size="xs"
+                onClick={() => tpaMutation.mutate(tpaForm as CreateTpaRateCardRequest)}
+                loading={tpaMutation.isPending}
+              >
                 Save TPA Rate Card
               </Button>
             </Stack>
@@ -1629,11 +2572,31 @@ function InsuranceClaimsTab({ canCreate, canWriteOff: _cwo }: { canCreate: boole
 // ── Billing Settings Tab ────────────────────────────────
 
 const AUTO_BILLING_KEYS = [
-  { key: "auto_charge_opd", label: "OPD Consultation", description: "Auto-charge when an OPD visit is completed" },
-  { key: "auto_charge_lab", label: "Lab Tests", description: "Auto-charge when a lab order is completed" },
-  { key: "auto_charge_pharmacy", label: "Pharmacy Dispensing", description: "Auto-charge when a pharmacy order is dispensed" },
-  { key: "auto_charge_radiology", label: "Radiology Exams", description: "Auto-charge when a radiology order is completed" },
-  { key: "auto_charge_ipd_room", label: "IPD Room Charges", description: "Auto-charge room/bed fees on patient discharge" },
+  {
+    key: "auto_charge_opd",
+    label: "OPD Consultation",
+    description: "Auto-charge when an OPD visit is completed",
+  },
+  {
+    key: "auto_charge_lab",
+    label: "Lab Tests",
+    description: "Auto-charge when a lab order is completed",
+  },
+  {
+    key: "auto_charge_pharmacy",
+    label: "Pharmacy Dispensing",
+    description: "Auto-charge when a pharmacy order is dispensed",
+  },
+  {
+    key: "auto_charge_radiology",
+    label: "Radiology Exams",
+    description: "Auto-charge when a radiology order is completed",
+  },
+  {
+    key: "auto_charge_ipd_room",
+    label: "IPD Room Charges",
+    description: "Auto-charge room/bed fees on patient discharge",
+  },
 ] as const;
 
 interface NhcxCallbackRow {
@@ -1677,40 +2640,72 @@ function ClaimDetailDrawer({
       {claim && (
         <Stack gap="md">
           <SimpleGrid cols={2} spacing="xs">
-            <Text size="xs" c="dimmed">Status</Text>
+            <Text size="xs" c="dimmed">
+              Status
+            </Text>
             <Text size="sm">{claim.status.replace(/_/g, " ")}</Text>
-            <Text size="xs" c="dimmed">Type</Text>
+            <Text size="xs" c="dimmed">
+              Type
+            </Text>
             <Text size="sm">{claim.claim_type}</Text>
-            <Text size="xs" c="dimmed">Pre-auth</Text>
+            <Text size="xs" c="dimmed">
+              Pre-auth
+            </Text>
             <Text size="sm">{claim.pre_auth_amount ? `₹${claim.pre_auth_amount}` : "—"}</Text>
-            <Text size="xs" c="dimmed">Approved</Text>
+            <Text size="xs" c="dimmed">
+              Approved
+            </Text>
             <Text size="sm">{claim.approved_amount ? `₹${claim.approved_amount}` : "—"}</Text>
-            <Text size="sm" c="dimmed">Settled</Text>
+            <Text size="sm" c="dimmed">
+              Settled
+            </Text>
             <Text size="sm">{claim.settled_amount ? `₹${claim.settled_amount}` : "—"}</Text>
-            <Text size="xs" c="dimmed">TPA</Text>
+            <Text size="xs" c="dimmed">
+              TPA
+            </Text>
             <Text size="sm">{claim.tpa_name ?? "—"}</Text>
-            <Text size="xs" c="dimmed">Submitted</Text>
-            <Text size="sm">{claim.submitted_at ? new Date(claim.submitted_at).toLocaleString() : "—"}</Text>
+            <Text size="xs" c="dimmed">
+              Submitted
+            </Text>
+            <Text size="sm">
+              {claim.submitted_at ? new Date(claim.submitted_at).toLocaleString() : "—"}
+            </Text>
           </SimpleGrid>
 
           <Card withBorder padding="sm" radius="md">
-            <Text fw={600} size="sm" mb="xs">NHCX exchange</Text>
+            <Text fw={600} size="sm" mb="xs">
+              NHCX exchange
+            </Text>
             {claim.nhcx_correlation_id ? (
               <Stack gap={4}>
                 <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Correlation ID</Text>
-                  <Text size="xs" ff="monospace">{claim.nhcx_correlation_id}</Text>
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
+                    Correlation ID
+                  </Text>
+                  <Text size="xs" ff="monospace">
+                    {claim.nhcx_correlation_id}
+                  </Text>
                 </Group>
                 <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>API call ID</Text>
-                  <Text size="xs" ff="monospace">{claim.nhcx_api_call_id ?? "—"}</Text>
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
+                    API call ID
+                  </Text>
+                  <Text size="xs" ff="monospace">
+                    {claim.nhcx_api_call_id ?? "—"}
+                  </Text>
                 </Group>
                 <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Recipient code</Text>
-                  <Text size="xs" ff="monospace">{claim.nhcx_recipient_code ?? "—"}</Text>
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
+                    Recipient code
+                  </Text>
+                  <Text size="xs" ff="monospace">
+                    {claim.nhcx_recipient_code ?? "—"}
+                  </Text>
                 </Group>
                 <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>Last response at</Text>
+                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
+                    Last response at
+                  </Text>
                   <Text size="xs">
                     {claim.nhcx_response_at
                       ? new Date(claim.nhcx_response_at).toLocaleString()
@@ -1719,7 +2714,9 @@ function ClaimDetailDrawer({
                 </Group>
                 {claim.nhcx_response_payload != null && (
                   <Card withBorder padding="xs" radius="sm" mt="xs" bg="gray.0">
-                    <Text size="xs" c="dimmed" mb={4}>Decrypted response payload</Text>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Decrypted response payload
+                    </Text>
                     <pre
                       style={{
                         margin: 0,
@@ -1744,11 +2741,15 @@ function ClaimDetailDrawer({
 
           <Card withBorder padding="sm" radius="md">
             <Group justify="space-between" mb="xs">
-              <Text fw={600} size="sm">Webhook callbacks</Text>
+              <Text fw={600} size="sm">
+                Webhook callbacks
+              </Text>
               <Badge variant="light">{callbacks.length}</Badge>
             </Group>
             {callbacks.length === 0 ? (
-              <Text size="sm" c="dimmed">No callbacks received yet.</Text>
+              <Text size="sm" c="dimmed">
+                No callbacks received yet.
+              </Text>
             ) : (
               <Table verticalSpacing={4} fz="xs">
                 <Table.Thead>
@@ -1807,7 +2808,8 @@ function BillingSettingsTab() {
     },
   });
 
-  const isEnabled = (key: string) => settingsMap.get(key) === true || settingsMap.get(key) === "true";
+  const isEnabled = (key: string) =>
+    settingsMap.get(key) === true || settingsMap.get(key) === "true";
 
   const toggle = (key: string) => {
     const current = isEnabled(key);
@@ -1853,11 +2855,15 @@ function BillingSettingsTab() {
             { value: "exempt", label: "Exempt" },
           ]}
           value={getStrVal("default_gst_type") || "exempt"}
-          onChange={(v) => { if (v) updateStr("default_gst_type", v); }}
+          onChange={(v) => {
+            if (v) updateStr("default_gst_type", v);
+          }}
         />
       </Group>
 
-      <Text fw={600} mt="lg">Advance Settings</Text>
+      <Text fw={600} mt="lg">
+        Advance Settings
+      </Text>
       <Switch
         label="Auto-adjust advance on invoice payment"
         description="Automatically apply available patient advance deposits when recording payments"
@@ -1866,7 +2872,9 @@ function BillingSettingsTab() {
         disabled={updateMutation.isPending}
       />
 
-      <Text fw={600} mt="lg">Auto-Billing</Text>
+      <Text fw={600} mt="lg">
+        Auto-Billing
+      </Text>
       <Text size="sm" c="dimmed">
         When enabled, invoices are automatically created or updated when services are completed.
         Charges use the Charge Master and Rate Plans for pricing.
@@ -1900,7 +2908,10 @@ function AdvancesTab() {
   const canRefund = useHasPermission(P.BILLING.ADVANCES_REFUND);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateAdvanceRequest>>({ payment_mode: "cash", purpose: "general" });
+  const [form, setForm] = useState<Partial<CreateAdvanceRequest>>({
+    payment_mode: "cash",
+    purpose: "general",
+  });
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [adjustForm, setAdjustForm] = useState<Partial<AdjustAdvanceRequest>>({});
   const [refundId, setRefundId] = useState<string | null>(null);
@@ -1915,55 +2926,97 @@ function AdvancesTab() {
     mutationFn: (data: CreateAdvanceRequest) => api.createAdvance(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
-      notifications.show({ title: "Advance created", message: "Patient advance recorded", color: "success" });
+      notifications.show({
+        title: "Advance created",
+        message: "Patient advance recorded",
+        color: "success",
+      });
       setShowForm(false);
       setForm({ payment_mode: "cash", purpose: "general" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create advance", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to create advance", color: "danger" }),
   });
 
   const adjustMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AdjustAdvanceRequest }) => api.adjustAdvance(id, data),
+    mutationFn: ({ id, data }: { id: string; data: AdjustAdvanceRequest }) =>
+      api.adjustAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
-      notifications.show({ title: "Adjusted", message: "Advance adjusted against invoice", color: "success" });
+      notifications.show({
+        title: "Adjusted",
+        message: "Advance adjusted against invoice",
+        color: "success",
+      });
       setAdjustId(null);
       setAdjustForm({});
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to adjust advance", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to adjust advance", color: "danger" }),
   });
 
   const refundMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: RefundAdvanceRequest }) => api.refundAdvance(id, data),
+    mutationFn: ({ id, data }: { id: string; data: RefundAdvanceRequest }) =>
+      api.refundAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
       notifications.show({ title: "Refunded", message: "Advance refunded", color: "success" });
       setRefundId(null);
       setRefundForm({ mode: "cash" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to refund advance", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to refund advance", color: "danger" }),
   });
 
   const columns = [
-    { key: "advance_number", label: "Advance #", render: (row: PatientAdvance) => <Text fw={600}>{row.advance_number}</Text> },
-    { key: "amount", label: "Amount", render: (row: PatientAdvance) => <Text size="sm">₹{row.amount}</Text> },
     {
-      key: "balance", label: "Balance",
-      render: (row: PatientAdvance) => <Text size="sm" c={Number(row.balance) > 0 ? "success" : "dimmed"}>₹{row.balance}</Text>,
+      key: "advance_number",
+      label: "Advance #",
+      render: (row: PatientAdvance) => <Text fw={600}>{row.advance_number}</Text>,
     },
-    { key: "purpose", label: "Purpose", render: (row: PatientAdvance) => <Badge variant="light">{row.purpose}</Badge> },
-    { key: "payment_mode", label: "Mode", render: (row: PatientAdvance) => <Text size="sm">{row.payment_mode}</Text> },
     {
-      key: "status", label: "Status",
+      key: "amount",
+      label: "Amount",
+      render: (row: PatientAdvance) => <Text size="sm">₹{row.amount}</Text>,
+    },
+    {
+      key: "balance",
+      label: "Balance",
+      render: (row: PatientAdvance) => (
+        <Text size="sm" c={Number(row.balance) > 0 ? "success" : "dimmed"}>
+          ₹{row.balance}
+        </Text>
+      ),
+    },
+    {
+      key: "purpose",
+      label: "Purpose",
+      render: (row: PatientAdvance) => <Badge variant="light">{row.purpose}</Badge>,
+    },
+    {
+      key: "payment_mode",
+      label: "Mode",
+      render: (row: PatientAdvance) => <Text size="sm">{row.payment_mode}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row: PatientAdvance) => (
         <Badge variant="light" color={advanceStatusColors[row.status] ?? "slate"}>
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
     },
-    { key: "created_at", label: "Date", render: (row: PatientAdvance) => <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text> },
     {
-      key: "actions", label: "",
+      key: "created_at",
+      label: "Date",
+      render: (row: PatientAdvance) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
       render: (row: PatientAdvance) => {
         if (Number(row.balance) <= 0) return null;
         return (
@@ -1974,7 +3027,12 @@ function AdvancesTab() {
               </Button>
             )}
             {canRefund && (
-              <Button size="compact-xs" variant="light" color="orange" onClick={() => setRefundId(row.id)}>
+              <Button
+                size="compact-xs"
+                variant="light"
+                color="orange"
+                onClick={() => setRefundId(row.id)}
+              >
                 Refund
               </Button>
             )}
@@ -1988,7 +3046,11 @@ function AdvancesTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Collect Advance
           </Button>
         </Group>
@@ -1996,11 +3058,26 @@ function AdvancesTab() {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Patient ID" required onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} />
-            <TextInput label="Encounter ID" onChange={(e) => setForm({ ...form, encounter_id: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="Patient ID"
+              required
+              onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Encounter ID"
+              onChange={(e) =>
+                setForm({ ...form, encounter_id: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, amount: Number(v) })} />
+            <NumberInput
+              label="Amount"
+              required
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, amount: Number(v) })}
+            />
             <Select
               label="Payment Mode"
               data={["cash", "card", "upi", "bank_transfer", "cheque"]}
@@ -2020,10 +3097,22 @@ function AdvancesTab() {
               value={form.purpose}
               onChange={(v) => setForm({ ...form, purpose: v ?? "general" })}
             />
-            <TextInput label="Reference #" onChange={(e) => setForm({ ...form, reference_number: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="Reference #"
+              onChange={(e) =>
+                setForm({ ...form, reference_number: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
-          <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateAdvanceRequest)} loading={createMutation.isPending}>
+          <Textarea
+            label="Notes"
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateAdvanceRequest)}
+            loading={createMutation.isPending}
+          >
             Save Advance
           </Button>
         </Stack>
@@ -2031,29 +3120,83 @@ function AdvancesTab() {
 
       <DataTable columns={columns} data={advances} loading={isLoading} rowKey={(row) => row.id} />
 
-      <Drawer opened={adjustId !== null} onClose={() => setAdjustId(null)} title="Adjust Advance Against Invoice" position="right" size="sm">
+      <Drawer
+        opened={adjustId !== null}
+        onClose={() => setAdjustId(null)}
+        title="Adjust Advance Against Invoice"
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <TextInput label="Invoice ID" required onChange={(e) => setAdjustForm({ ...adjustForm, invoice_id: e.currentTarget.value })} />
-          <NumberInput label="Amount" required min={0} decimalScale={2} onChange={(v) => setAdjustForm({ ...adjustForm, amount: Number(v) })} />
-          <Textarea label="Notes" onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.currentTarget.value || undefined })} />
-          <Button onClick={() => adjustId && adjustMutation.mutate({ id: adjustId, data: adjustForm as AdjustAdvanceRequest })} loading={adjustMutation.isPending}>
+          <TextInput
+            label="Invoice ID"
+            required
+            onChange={(e) => setAdjustForm({ ...adjustForm, invoice_id: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Amount"
+            required
+            min={0}
+            decimalScale={2}
+            onChange={(v) => setAdjustForm({ ...adjustForm, amount: Number(v) })}
+          />
+          <Textarea
+            label="Notes"
+            onChange={(e) =>
+              setAdjustForm({ ...adjustForm, notes: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            onClick={() =>
+              adjustId &&
+              adjustMutation.mutate({ id: adjustId, data: adjustForm as AdjustAdvanceRequest })
+            }
+            loading={adjustMutation.isPending}
+          >
             Apply Adjustment
           </Button>
         </Stack>
       </Drawer>
 
-      <Drawer opened={refundId !== null} onClose={() => setRefundId(null)} title="Refund Advance" position="right" size="sm">
+      <Drawer
+        opened={refundId !== null}
+        onClose={() => setRefundId(null)}
+        title="Refund Advance"
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <NumberInput label="Refund Amount" required min={0} decimalScale={2} onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })} />
-          <TextInput label="Reason" required onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })} />
+          <NumberInput
+            label="Refund Amount"
+            required
+            min={0}
+            decimalScale={2}
+            onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })}
+          />
+          <TextInput
+            label="Reason"
+            required
+            onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })}
+          />
           <Select
             label="Refund Mode"
             data={["cash", "card", "upi", "bank_transfer", "cheque"]}
             value={refundForm.mode}
             onChange={(v) => setRefundForm({ ...refundForm, mode: v ?? "cash" })}
           />
-          <TextInput label="Reference #" onChange={(e) => setRefundForm({ ...refundForm, reference_number: e.currentTarget.value || undefined })} />
-          <Button onClick={() => refundId && refundMutation.mutate({ id: refundId, data: refundForm as RefundAdvanceRequest })} loading={refundMutation.isPending}>
+          <TextInput
+            label="Reference #"
+            onChange={(e) =>
+              setRefundForm({ ...refundForm, reference_number: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            onClick={() =>
+              refundId &&
+              refundMutation.mutate({ id: refundId, data: refundForm as RefundAdvanceRequest })
+            }
+            loading={refundMutation.isPending}
+          >
             Process Refund
           </Button>
         </Stack>
@@ -2082,26 +3225,75 @@ function CorporateTab() {
     mutationFn: (data: CreateCorporateRequest) => api.createCorporate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["corporates"] });
-      notifications.show({ title: "Created", message: "Corporate client created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Corporate client created",
+        color: "success",
+      });
       setShowForm(false);
       setForm({});
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create corporate client", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to create corporate client",
+        color: "danger",
+      }),
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: CorporateClient) => <Text fw={600}>{row.code}</Text> },
-    { key: "name", label: "Name", render: (row: CorporateClient) => <Text size="sm">{row.name}</Text> },
-    { key: "gst_number", label: "GSTIN", render: (row: CorporateClient) => <Text size="sm">{row.gst_number ?? "—"}</Text> },
-    { key: "credit_limit", label: "Credit Limit", render: (row: CorporateClient) => <Text size="sm">₹{row.credit_limit}</Text> },
-    { key: "credit_days", label: "Credit Days", render: (row: CorporateClient) => <Text size="sm">{row.credit_days}</Text> },
-    { key: "discount", label: "Discount %", render: (row: CorporateClient) => <Text size="sm">{row.agreed_discount_percent}%</Text> },
-    { key: "is_active", label: "Active", render: (row: CorporateClient) => row.is_active ? <IconCheck size={14} color="success" /> : <IconX size={14} color="danger" /> },
     {
-      key: "actions", label: "",
+      key: "code",
+      label: "Code",
+      render: (row: CorporateClient) => <Text fw={600}>{row.code}</Text>,
+    },
+    {
+      key: "name",
+      label: "Name",
+      render: (row: CorporateClient) => <Text size="sm">{row.name}</Text>,
+    },
+    {
+      key: "gst_number",
+      label: "GSTIN",
+      render: (row: CorporateClient) => <Text size="sm">{row.gst_number ?? "—"}</Text>,
+    },
+    {
+      key: "credit_limit",
+      label: "Credit Limit",
+      render: (row: CorporateClient) => <Text size="sm">₹{row.credit_limit}</Text>,
+    },
+    {
+      key: "credit_days",
+      label: "Credit Days",
+      render: (row: CorporateClient) => <Text size="sm">{row.credit_days}</Text>,
+    },
+    {
+      key: "discount",
+      label: "Discount %",
+      render: (row: CorporateClient) => <Text size="sm">{row.agreed_discount_percent}%</Text>,
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (row: CorporateClient) =>
+        row.is_active ? (
+          <IconCheck size={14} color="success" />
+        ) : (
+          <IconX size={14} color="danger" />
+        ),
+    },
+    {
+      key: "actions",
+      label: "",
       render: (row: CorporateClient) => (
         <Tooltip label="View Details">
-          <ActionIcon variant="subtle" onClick={() => { setSelectedId(row.id); openDetail(); }}>
+          <ActionIcon
+            variant="subtle"
+            onClick={() => {
+              setSelectedId(row.id);
+              openDetail();
+            }}
+          >
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -2113,7 +3305,11 @@ function CorporateTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowForm(!showForm)}
+          >
             Add Corporate Client
           </Button>
         </Group>
@@ -2121,21 +3317,68 @@ function CorporateTab() {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Code" required placeholder="e.g. CORP-001" onChange={(e) => setForm({ ...form, code: e.currentTarget.value })} />
-            <TextInput label="Name" required onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+            <TextInput
+              label="Code"
+              required
+              placeholder="e.g. CORP-001"
+              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Name"
+              required
+              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            />
           </Group>
           <Group grow>
-            <TextInput label="GST Number" onChange={(e) => setForm({ ...form, gst_number: e.currentTarget.value || undefined })} />
-            <TextInput label="Contact Email" onChange={(e) => setForm({ ...form, contact_email: e.currentTarget.value || undefined })} />
-            <TextInput label="Contact Phone" onChange={(e) => setForm({ ...form, contact_phone: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="GST Number"
+              onChange={(e) => setForm({ ...form, gst_number: e.currentTarget.value || undefined })}
+            />
+            <TextInput
+              label="Contact Email"
+              onChange={(e) =>
+                setForm({ ...form, contact_email: e.currentTarget.value || undefined })
+              }
+            />
+            <TextInput
+              label="Contact Phone"
+              onChange={(e) =>
+                setForm({ ...form, contact_phone: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
-          <Textarea label="Billing Address" onChange={(e) => setForm({ ...form, billing_address: e.currentTarget.value || undefined })} />
+          <Textarea
+            label="Billing Address"
+            onChange={(e) =>
+              setForm({ ...form, billing_address: e.currentTarget.value || undefined })
+            }
+          />
           <Group grow>
-            <NumberInput label="Credit Limit (₹)" min={0} decimalScale={2} onChange={(v) => setForm({ ...form, credit_limit: Number(v) })} />
-            <NumberInput label="Credit Days" min={0} value={30} onChange={(v) => setForm({ ...form, credit_days: Number(v) })} />
-            <NumberInput label="Agreed Discount %" min={0} max={100} decimalScale={2} onChange={(v) => setForm({ ...form, agreed_discount_percent: Number(v) })} />
+            <NumberInput
+              label="Credit Limit (₹)"
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, credit_limit: Number(v) })}
+            />
+            <NumberInput
+              label="Credit Days"
+              min={0}
+              value={30}
+              onChange={(v) => setForm({ ...form, credit_days: Number(v) })}
+            />
+            <NumberInput
+              label="Agreed Discount %"
+              min={0}
+              max={100}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, agreed_discount_percent: Number(v) })}
+            />
           </Group>
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateCorporateRequest)} loading={createMutation.isPending}>
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateCorporateRequest)}
+            loading={createMutation.isPending}
+          >
             Save Client
           </Button>
         </Stack>
@@ -2143,7 +3386,13 @@ function CorporateTab() {
 
       <DataTable columns={columns} data={corporates} loading={isLoading} rowKey={(row) => row.id} />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Corporate Client Detail" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Corporate Client Detail"
+        position="right"
+        size="lg"
+      >
         {selectedId && <CorporateDetail corporateId={selectedId} canUpdate={canUpdate} />}
       </Drawer>
     </Stack>
@@ -2192,7 +3441,8 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
 
   const unenrollMutation = useMutation({
     mutationFn: (enrollmentId: string) => api.deleteCorporateEnrollment(corporateId, enrollmentId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["corporate-enrollments", corporateId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["corporate-enrollments", corporateId] }),
   });
 
   if (!corporate) return <Text c="dimmed">Loading...</Text>;
@@ -2200,14 +3450,18 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
   return (
     <Stack>
       <Group justify="space-between">
-        <Text fw={700} size="lg">{corporate.name}</Text>
+        <Text fw={700} size="lg">
+          {corporate.name}
+        </Text>
         <Badge size="lg" variant="light" color={corporate.is_active ? "success" : "danger"}>
           {corporate.is_active ? "Active" : "Inactive"}
         </Badge>
       </Group>
 
       <SimpleGrid cols={2}>
-        <Text size="sm">Code: <b>{corporate.code}</b></Text>
+        <Text size="sm">
+          Code: <b>{corporate.code}</b>
+        </Text>
         <Text size="sm">GSTIN: {corporate.gst_number ?? "—"}</Text>
         <Text size="sm">Credit Limit: ₹{corporate.credit_limit}</Text>
         <Text size="sm">Credit Days: {corporate.credit_days}</Text>
@@ -2223,14 +3477,36 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
           {editing && (
             <Stack gap="xs">
               <Group grow>
-                <TextInput label="Name" defaultValue={corporate.name} onChange={(e) => setEditForm({ ...editForm, name: e.currentTarget.value })} />
-                <NumberInput label="Credit Limit" defaultValue={Number(corporate.credit_limit)} decimalScale={2} onChange={(v) => setEditForm({ ...editForm, credit_limit: Number(v) })} />
+                <TextInput
+                  label="Name"
+                  defaultValue={corporate.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.currentTarget.value })}
+                />
+                <NumberInput
+                  label="Credit Limit"
+                  defaultValue={Number(corporate.credit_limit)}
+                  decimalScale={2}
+                  onChange={(v) => setEditForm({ ...editForm, credit_limit: Number(v) })}
+                />
               </Group>
               <Group grow>
-                <NumberInput label="Credit Days" defaultValue={corporate.credit_days} onChange={(v) => setEditForm({ ...editForm, credit_days: Number(v) })} />
-                <NumberInput label="Discount %" defaultValue={Number(corporate.agreed_discount_percent)} decimalScale={2} onChange={(v) => setEditForm({ ...editForm, agreed_discount_percent: Number(v) })} />
+                <NumberInput
+                  label="Credit Days"
+                  defaultValue={corporate.credit_days}
+                  onChange={(v) => setEditForm({ ...editForm, credit_days: Number(v) })}
+                />
+                <NumberInput
+                  label="Discount %"
+                  defaultValue={Number(corporate.agreed_discount_percent)}
+                  decimalScale={2}
+                  onChange={(v) => setEditForm({ ...editForm, agreed_discount_percent: Number(v) })}
+                />
               </Group>
-              <Button size="xs" onClick={() => updateMutation.mutate(editForm)} loading={updateMutation.isPending}>
+              <Button
+                size="xs"
+                onClick={() => updateMutation.mutate(editForm)}
+                loading={updateMutation.isPending}
+              >
                 Save Changes
               </Button>
             </Stack>
@@ -2238,7 +3514,9 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
         </>
       )}
 
-      <Text fw={600} mt="md">Enrollments ({enrollments.length})</Text>
+      <Text fw={600} mt="md">
+        Enrollments ({enrollments.length})
+      </Text>
       <Table striped>
         <Table.Thead>
           <Table.Tr>
@@ -2258,7 +3536,12 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
               <Table.Td>{new Date(e.enrolled_at).toLocaleDateString()}</Table.Td>
               {canUpdate && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => unenrollMutation.mutate(e.id)}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => unenrollMutation.mutate(e.id)}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -2269,17 +3552,38 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
       </Table>
       {canUpdate && (
         <>
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setShowEnroll(!showEnroll)}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setShowEnroll(!showEnroll)}
+          >
             Enroll Patient
           </Button>
           {showEnroll && (
             <Stack gap="xs">
               <Group grow>
-                <PatientSearchSelect value={enrollForm.patient_id ?? ""} onChange={(id) => setEnrollForm({ ...enrollForm, patient_id: id })} required />
-                <EmployeeSearchSelect value={enrollForm.employee_id ?? ""} onChange={(id) => setEnrollForm({ ...enrollForm, employee_id: id || undefined })} />
-                <TextInput label="Department" onChange={(e) => setEnrollForm({ ...enrollForm, department: e.currentTarget.value || undefined })} />
+                <PatientSearchSelect
+                  value={enrollForm.patient_id ?? ""}
+                  onChange={(id) => setEnrollForm({ ...enrollForm, patient_id: id })}
+                  required
+                />
+                <EmployeeSearchSelect
+                  value={enrollForm.employee_id ?? ""}
+                  onChange={(id) => setEnrollForm({ ...enrollForm, employee_id: id || undefined })}
+                />
+                <TextInput
+                  label="Department"
+                  onChange={(e) =>
+                    setEnrollForm({ ...enrollForm, department: e.currentTarget.value || undefined })
+                  }
+                />
               </Group>
-              <Button size="xs" onClick={() => enrollMutation.mutate(enrollForm as CreateEnrollmentRequest)} loading={enrollMutation.isPending}>
+              <Button
+                size="xs"
+                onClick={() => enrollMutation.mutate(enrollForm as CreateEnrollmentRequest)}
+                loading={enrollMutation.isPending}
+              >
                 Enroll
               </Button>
             </Stack>
@@ -2287,7 +3591,9 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
         </>
       )}
 
-      <Text fw={600} mt="md">Corporate Invoices ({invoices.length})</Text>
+      <Text fw={600} mt="md">
+        Corporate Invoices ({invoices.length})
+      </Text>
       {invoices.length > 0 ? (
         <Table striped>
           <Table.Thead>
@@ -2302,7 +3608,11 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
             {invoices.map((inv: Invoice) => (
               <Table.Tr key={inv.id}>
                 <Table.Td>{inv.invoice_number}</Table.Td>
-                <Table.Td><Badge variant="light" color={statusColors[inv.status] ?? "slate"}>{inv.status.replace(/_/g, " ")}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge variant="light" color={statusColors[inv.status] ?? "slate"}>
+                    {inv.status.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>₹{inv.total_amount}</Table.Td>
                 <Table.Td>{new Date(inv.created_at).toLocaleDateString()}</Table.Td>
               </Table.Tr>
@@ -2310,7 +3620,9 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
           </Table.Tbody>
         </Table>
       ) : (
-        <Text size="sm" c="dimmed">No invoices found</Text>
+        <Text size="sm" c="dimmed">
+          No invoices found
+        </Text>
       )}
     </Stack>
   );
@@ -2377,8 +3689,18 @@ function ReportsTab() {
   return (
     <Stack>
       <Group>
-        <TextInput label="From" type="date" value={fromStr} onChange={(e) => setFromStr(e.currentTarget.value)} />
-        <TextInput label="To" type="date" value={toStr} onChange={(e) => setToStr(e.currentTarget.value)} />
+        <TextInput
+          label="From"
+          type="date"
+          value={fromStr}
+          onChange={(e) => setFromStr(e.currentTarget.value)}
+        />
+        <TextInput
+          label="To"
+          type="date"
+          value={toStr}
+          onChange={(e) => setToStr(e.currentTarget.value)}
+        />
       </Group>
 
       {summaryLoading && <Text c="dimmed">Loading reports...</Text>}
@@ -2387,23 +3709,41 @@ function ReportsTab() {
 
       {daily && (
         <>
-          <Text fw={600} mt="md">Today&apos;s Summary</Text>
+          <Text fw={600} mt="md">
+            Today&apos;s Summary
+          </Text>
           <SimpleGrid cols={4}>
             <Card withBorder p="sm">
-              <Text size="xs" c="dimmed">Invoices Created</Text>
-              <Text fw={700} size="lg">{daily.invoices_created}</Text>
+              <Text size="xs" c="dimmed">
+                Invoices Created
+              </Text>
+              <Text fw={700} size="lg">
+                {daily.invoices_created}
+              </Text>
             </Card>
             <Card withBorder p="sm">
-              <Text size="xs" c="dimmed">Invoices Issued</Text>
-              <Text fw={700} size="lg">{daily.invoices_issued}</Text>
+              <Text size="xs" c="dimmed">
+                Invoices Issued
+              </Text>
+              <Text fw={700} size="lg">
+                {daily.invoices_issued}
+              </Text>
             </Card>
             <Card withBorder p="sm">
-              <Text size="xs" c="dimmed">Total Billed</Text>
-              <Text fw={700} size="lg">₹{daily.total_billed}</Text>
+              <Text size="xs" c="dimmed">
+                Total Billed
+              </Text>
+              <Text fw={700} size="lg">
+                ₹{daily.total_billed}
+              </Text>
             </Card>
             <Card withBorder p="sm">
-              <Text size="xs" c="dimmed">Total Collected</Text>
-              <Text fw={700} size="lg" c="success">₹{daily.total_collected}</Text>
+              <Text size="xs" c="dimmed">
+                Total Collected
+              </Text>
+              <Text fw={700} size="lg" c="success">
+                ₹{daily.total_collected}
+              </Text>
             </Card>
           </SimpleGrid>
         </>
@@ -2411,7 +3751,9 @@ function ReportsTab() {
 
       {aging.length > 0 && (
         <>
-          <Text fw={600} mt="md">Aging Analysis</Text>
+          <Text fw={600} mt="md">
+            Aging Analysis
+          </Text>
           <Table striped>
             <Table.Thead>
               <Table.Tr>
@@ -2423,7 +3765,22 @@ function ReportsTab() {
             <Table.Tbody>
               {aging.map((b: AgingBucket) => (
                 <Table.Tr key={b.bucket}>
-                  <Table.Td><Badge variant="light" color={b.bucket.includes("90") ? "danger" : b.bucket.includes("60") ? "orange" : b.bucket.includes("30") ? "warning" : "success"}>{b.bucket}</Badge></Table.Td>
+                  <Table.Td>
+                    <Badge
+                      variant="light"
+                      color={
+                        b.bucket.includes("90")
+                          ? "danger"
+                          : b.bucket.includes("60")
+                            ? "orange"
+                            : b.bucket.includes("30")
+                              ? "warning"
+                              : "success"
+                      }
+                    >
+                      {b.bucket}
+                    </Badge>
+                  </Table.Td>
                   <Table.Td>{b.count}</Table.Td>
                   <Table.Td>₹{b.total_amount}</Table.Td>
                 </Table.Tr>
@@ -2435,7 +3792,9 @@ function ReportsTab() {
 
       {deptRevenue.length > 0 && (
         <>
-          <Text fw={600} mt="md">Department Revenue</Text>
+          <Text fw={600} mt="md">
+            Department Revenue
+          </Text>
           <Table striped>
             <Table.Thead>
               <Table.Tr>
@@ -2459,8 +3818,12 @@ function ReportsTab() {
 
       {efficiency && efficiency.months.length > 0 && (
         <>
-          <Text fw={600} mt="md">Collection Efficiency</Text>
-          <Text size="sm" c="dimmed" mb="xs">Overall rate: {efficiency.overall_rate}%</Text>
+          <Text fw={600} mt="md">
+            Collection Efficiency
+          </Text>
+          <Text size="sm" c="dimmed" mb="xs">
+            Overall rate: {efficiency.overall_rate}%
+          </Text>
           <Table striped>
             <Table.Thead>
               <Table.Tr>
@@ -2478,7 +3841,18 @@ function ReportsTab() {
                   <Table.Td>₹{m.collected}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <Progress value={Number(m.rate)} size="sm" w={80} color={Number(m.rate) > 80 ? "success" : Number(m.rate) > 50 ? "warning" : "danger"} />
+                      <Progress
+                        value={Number(m.rate)}
+                        size="sm"
+                        w={80}
+                        color={
+                          Number(m.rate) > 80
+                            ? "success"
+                            : Number(m.rate) > 50
+                              ? "warning"
+                              : "danger"
+                        }
+                      />
                       <Text size="xs">{m.rate}%</Text>
                     </Group>
                   </Table.Td>
@@ -2491,7 +3865,9 @@ function ReportsTab() {
 
       {doctorRevenue.length > 0 && (
         <>
-          <Text fw={600} mt="md">Doctor Revenue</Text>
+          <Text fw={600} mt="md">
+            Doctor Revenue
+          </Text>
           <Table striped>
             <Table.Thead>
               <Table.Tr>
@@ -2515,7 +3891,9 @@ function ReportsTab() {
 
       {insurancePanel.length > 0 && (
         <>
-          <Text fw={600} mt="md">Insurance Panel</Text>
+          <Text fw={600} mt="md">
+            Insurance Panel
+          </Text>
           <Table striped>
             <Table.Thead>
               <Table.Tr>
@@ -2535,7 +3913,11 @@ function ReportsTab() {
                   <Table.Td>₹{row.total_claimed}</Table.Td>
                   <Table.Td>₹{row.total_approved}</Table.Td>
                   <Table.Td>₹{row.total_settled}</Table.Td>
-                  <Table.Td><Badge color="warning" variant="light">{row.pending_count}</Badge></Table.Td>
+                  <Table.Td>
+                    <Badge color="warning" variant="light">
+                      {row.pending_count}
+                    </Badge>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -2543,27 +3925,54 @@ function ReportsTab() {
         </>
       )}
 
-      <Text fw={600} mt="md">Reconciliation</Text>
+      <Text fw={600} mt="md">
+        Reconciliation
+      </Text>
       <Group>
-        <TextInput label="Date" type="date" value={reconDate} onChange={(e) => setReconDate(e.currentTarget.value)} />
+        <TextInput
+          label="Date"
+          type="date"
+          value={reconDate}
+          onChange={(e) => setReconDate(e.currentTarget.value)}
+        />
       </Group>
       {reconciliation && (
         <SimpleGrid cols={4} mt="xs">
           <Card withBorder p="sm">
-            <Text size="xs" c="dimmed">Expected Cash</Text>
+            <Text size="xs" c="dimmed">
+              Expected Cash
+            </Text>
             <Text fw={700}>₹{reconciliation.expected_cash}</Text>
           </Card>
           <Card withBorder p="sm">
-            <Text size="xs" c="dimmed">Actual Cash</Text>
+            <Text size="xs" c="dimmed">
+              Actual Cash
+            </Text>
             <Text fw={700}>₹{reconciliation.actual_cash}</Text>
           </Card>
           <Card withBorder p="sm">
-            <Text size="xs" c="dimmed">Cash Difference</Text>
-            <Text fw={700} c={Number(reconciliation.cash_difference) === 0 ? "success" : "danger"}>₹{reconciliation.cash_difference}</Text>
+            <Text size="xs" c="dimmed">
+              Cash Difference
+            </Text>
+            <Text fw={700} c={Number(reconciliation.cash_difference) === 0 ? "success" : "danger"}>
+              ₹{reconciliation.cash_difference}
+            </Text>
           </Card>
           <Card withBorder p="sm">
-            <Text size="xs" c="dimmed">Status</Text>
-            <Badge color={reconciliation.status === "verified" ? "success" : reconciliation.status === "discrepancy" ? "danger" : "primary"}>{reconciliation.status}</Badge>
+            <Text size="xs" c="dimmed">
+              Status
+            </Text>
+            <Badge
+              color={
+                reconciliation.status === "verified"
+                  ? "success"
+                  : reconciliation.status === "discrepancy"
+                    ? "danger"
+                    : "primary"
+              }
+            >
+              {reconciliation.status}
+            </Badge>
           </Card>
         </SimpleGrid>
       )}
@@ -2575,33 +3984,61 @@ function ReportSummaryCards({ summary }: { summary: BillingSummaryReport }) {
   return (
     <SimpleGrid cols={4}>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Total Invoiced</Text>
-        <Text fw={700} size="lg">₹{summary.total_invoiced}</Text>
+        <Text size="xs" c="dimmed">
+          Total Invoiced
+        </Text>
+        <Text fw={700} size="lg">
+          ₹{summary.total_invoiced}
+        </Text>
       </Card>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Total Collected</Text>
-        <Text fw={700} size="lg" c="success">₹{summary.total_collected}</Text>
+        <Text size="xs" c="dimmed">
+          Total Collected
+        </Text>
+        <Text fw={700} size="lg" c="success">
+          ₹{summary.total_collected}
+        </Text>
       </Card>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Outstanding</Text>
-        <Text fw={700} size="lg" c="danger">₹{summary.total_outstanding}</Text>
+        <Text size="xs" c="dimmed">
+          Outstanding
+        </Text>
+        <Text fw={700} size="lg" c="danger">
+          ₹{summary.total_outstanding}
+        </Text>
       </Card>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Invoices</Text>
-        <Text fw={700} size="lg">{summary.invoice_count}</Text>
+        <Text size="xs" c="dimmed">
+          Invoices
+        </Text>
+        <Text fw={700} size="lg">
+          {summary.invoice_count}
+        </Text>
       </Card>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Total Refunded</Text>
-        <Text fw={700} size="lg" c="orange">₹{summary.total_refunded}</Text>
+        <Text size="xs" c="dimmed">
+          Total Refunded
+        </Text>
+        <Text fw={700} size="lg" c="orange">
+          ₹{summary.total_refunded}
+        </Text>
       </Card>
       <Card withBorder p="sm">
-        <Text size="xs" c="dimmed">Total Discounts</Text>
-        <Text fw={700} size="lg" c="violet">₹{summary.total_discounts}</Text>
+        <Text size="xs" c="dimmed">
+          Total Discounts
+        </Text>
+        <Text fw={700} size="lg" c="violet">
+          ₹{summary.total_discounts}
+        </Text>
       </Card>
       {summary.payment_modes.map((pm) => (
         <Card key={pm.mode} withBorder p="sm">
-          <Text size="xs" c="dimmed">{pm.mode} ({pm.count})</Text>
-          <Text fw={700} size="lg">₹{pm.total}</Text>
+          <Text size="xs" c="dimmed">
+            {pm.mode} ({pm.count})
+          </Text>
+          <Text fw={700} size="lg">
+            ₹{pm.total}
+          </Text>
         </Card>
       ))}
     </SimpleGrid>
@@ -2629,7 +4066,12 @@ function DayCloseTab() {
       setForm({});
       notifications.show({ title: "Success", message: "Day close created", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create day close", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed to create day close",
+        color: "danger",
+      }),
   });
 
   const verifyMutation = useMutation({
@@ -2647,31 +4089,67 @@ function DayCloseTab() {
   };
 
   const columns = [
-    { key: "close_date", label: "Date", render: (row: DayEndClose) => <Text fw={500}>{row.close_date}</Text> },
-    { key: "expected_cash", label: "Expected Cash", render: (row: DayEndClose) => <Text size="sm">₹{row.expected_cash}</Text> },
-    { key: "actual_cash", label: "Actual Cash", render: (row: DayEndClose) => <Text size="sm">₹{row.actual_cash}</Text> },
     {
-      key: "cash_difference", label: "Difference",
+      key: "close_date",
+      label: "Date",
+      render: (row: DayEndClose) => <Text fw={500}>{row.close_date}</Text>,
+    },
+    {
+      key: "expected_cash",
+      label: "Expected Cash",
+      render: (row: DayEndClose) => <Text size="sm">₹{row.expected_cash}</Text>,
+    },
+    {
+      key: "actual_cash",
+      label: "Actual Cash",
+      render: (row: DayEndClose) => <Text size="sm">₹{row.actual_cash}</Text>,
+    },
+    {
+      key: "cash_difference",
+      label: "Difference",
       render: (row: DayEndClose) => {
         const diff = Number(row.cash_difference);
-        return <Text size="sm" fw={600} c={diff === 0 ? "success" : "danger"}>₹{row.cash_difference}</Text>;
+        return (
+          <Text size="sm" fw={600} c={diff === 0 ? "success" : "danger"}>
+            ₹{row.cash_difference}
+          </Text>
+        );
       },
     },
-    { key: "total_collected", label: "Total Collected", render: (row: DayEndClose) => <Text size="sm">₹{row.total_collected}</Text> },
-    { key: "invoices_count", label: "Invoices", render: (row: DayEndClose) => <Text size="sm">{row.invoices_count}</Text> },
     {
-      key: "status", label: "Status",
+      key: "total_collected",
+      label: "Total Collected",
+      render: (row: DayEndClose) => <Text size="sm">₹{row.total_collected}</Text>,
+    },
+    {
+      key: "invoices_count",
+      label: "Invoices",
+      render: (row: DayEndClose) => <Text size="sm">{row.invoices_count}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row: DayEndClose) => (
-        <Badge color={dayCloseStatusColors[row.status] ?? "slate"} variant="light">{row.status}</Badge>
+        <Badge color={dayCloseStatusColors[row.status] ?? "slate"} variant="light">
+          {row.status}
+        </Badge>
       ),
     },
     {
-      key: "actions", label: "",
-      render: (row: DayEndClose) => row.status === "open" && canVerify ? (
-        <Button size="compact-xs" variant="light" color="success" leftSection={<IconCheck size={14} />} onClick={() => verifyMutation.mutate(row.id)}>
-          Verify
-        </Button>
-      ) : null,
+      key: "actions",
+      label: "",
+      render: (row: DayEndClose) =>
+        row.status === "open" && canVerify ? (
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="success"
+            leftSection={<IconCheck size={14} />}
+            onClick={() => verifyMutation.mutate(row.id)}
+          >
+            Verify
+          </Button>
+        ) : null,
     },
   ];
 
@@ -2683,11 +4161,29 @@ function DayCloseTab() {
       {showForm && (
         <Stack gap="xs">
           <Group grow>
-            <TextInput label="Close Date" type="date" required onChange={(e) => setForm({ ...form, close_date: e.currentTarget.value })} />
-            <NumberInput label="Actual Cash" required min={0} decimalScale={2} onChange={(v) => setForm({ ...form, actual_cash: Number(v) })} />
+            <TextInput
+              label="Close Date"
+              type="date"
+              required
+              onChange={(e) => setForm({ ...form, close_date: e.currentTarget.value })}
+            />
+            <NumberInput
+              label="Actual Cash"
+              required
+              min={0}
+              decimalScale={2}
+              onChange={(v) => setForm({ ...form, actual_cash: Number(v) })}
+            />
           </Group>
-          <Textarea label="Notes" onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button size="xs" onClick={() => createMutation.mutate(form as CreateDayCloseRequest)} loading={createMutation.isPending}>
+          <Textarea
+            label="Notes"
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            size="xs"
+            onClick={() => createMutation.mutate(form as CreateDayCloseRequest)}
+            loading={createMutation.isPending}
+          >
             Submit Day Close
           </Button>
         </Stack>
@@ -2735,20 +4231,38 @@ function AuditLogTab() {
 
   const columns = [
     {
-      key: "created_at", label: "Time",
-      render: (row: BillingAuditEntry) => <Text size="sm">{new Date(row.created_at).toLocaleString()}</Text>,
+      key: "created_at",
+      label: "Time",
+      render: (row: BillingAuditEntry) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleString()}</Text>
+      ),
     },
     {
-      key: "action", label: "Action",
+      key: "action",
+      label: "Action",
       render: (row: BillingAuditEntry) => (
         <Badge size="sm" variant="light" color={actionColors[row.action] ?? "slate"}>
           {row.action.replace(/_/g, " ")}
         </Badge>
       ),
     },
-    { key: "entity_type", label: "Entity", render: (row: BillingAuditEntry) => <Text size="sm">{row.entity_type}</Text> },
-    { key: "amount", label: "Amount", render: (row: BillingAuditEntry) => <Text size="sm">{row.amount ? `₹${row.amount}` : "—"}</Text> },
-    { key: "performed_by", label: "By", render: (row: BillingAuditEntry) => <Text size="sm">{row.performed_by ?? "—"}</Text> },
+    {
+      key: "entity_type",
+      label: "Entity",
+      render: (row: BillingAuditEntry) => <Text size="sm">{row.entity_type}</Text>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row: BillingAuditEntry) => (
+        <Text size="sm">{row.amount ? `₹${row.amount}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "performed_by",
+      label: "By",
+      render: (row: BillingAuditEntry) => <Text size="sm">{row.performed_by ?? "—"}</Text>,
+    },
   ];
 
   return (
@@ -2757,11 +4271,21 @@ function AuditLogTab() {
         <Select
           placeholder="Filter by action"
           data={[
-            "invoice_created", "invoice_issued", "invoice_cancelled",
-            "payment_recorded", "payment_voided", "refund_created",
-            "discount_applied", "advance_collected", "advance_adjusted",
-            "credit_note_created", "claim_created", "day_closed",
-            "write_off_created", "write_off_approved", "invoice_cloned",
+            "invoice_created",
+            "invoice_issued",
+            "invoice_cancelled",
+            "payment_recorded",
+            "payment_voided",
+            "refund_created",
+            "discount_applied",
+            "advance_collected",
+            "advance_adjusted",
+            "credit_note_created",
+            "claim_created",
+            "day_closed",
+            "write_off_created",
+            "write_off_approved",
+            "invoice_cloned",
           ].map((a) => ({ value: a, label: a.replace(/_/g, " ") }))}
           value={filterAction}
           onChange={setFilterAction}
@@ -2818,13 +4342,19 @@ function CreditPatientsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.createCreditPatient({ patient_id: form.patient_id, credit_limit: form.credit_limit, notes: form.notes }),
+    mutationFn: () =>
+      api.createCreditPatient({
+        patient_id: form.patient_id,
+        credit_limit: form.credit_limit,
+        notes: form.notes,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["credit-patients"] });
       close();
       notifications.show({ title: "Created", message: "Credit patient added", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to create", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to create", color: "danger" }),
   });
 
   const updateMut = useMutation({
@@ -2835,27 +4365,40 @@ function CreditPatientsTab() {
       close();
       notifications.show({ title: "Updated", message: "Credit patient updated", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
   const creditStatusColors: Record<string, string> = {
-    active: "success", overdue: "danger", suspended: "orange", closed: "slate",
+    active: "success",
+    overdue: "danger",
+    suspended: "orange",
+    closed: "slate",
   };
 
   const columns = [
-    { key: "patient_id", label: "Patient ID", render: (r: CreditPatient) => <Text size="sm">{r.patient_id}</Text> },
     {
-      key: "status", label: "Status",
+      key: "patient_id",
+      label: "Patient ID",
+      render: (r: CreditPatient) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (r: CreditPatient) => (
-        <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>{r.status}</Badge>
+        <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>
+          {r.status}
+        </Badge>
       ),
     },
     {
-      key: "credit_limit", label: "Limit",
+      key: "credit_limit",
+      label: "Limit",
       render: (r: CreditPatient) => <Text size="sm">₹{r.credit_limit.toLocaleString()}</Text>,
     },
     {
-      key: "current_balance", label: "Balance",
+      key: "current_balance",
+      label: "Balance",
       render: (r: CreditPatient) => (
         <Text size="sm" c={r.current_balance > r.credit_limit * 0.8 ? "danger" : undefined}>
           ₹{r.current_balance.toLocaleString()}
@@ -2863,33 +4406,102 @@ function CreditPatientsTab() {
       ),
     },
     {
-      key: "overdue_since", label: "Overdue Since",
-      render: (r: CreditPatient) => <Text size="sm">{r.overdue_since ? new Date(r.overdue_since).toLocaleDateString() : "—"}</Text>,
-    },
-    ...(canManage ? [{
-      key: "actions", label: "",
+      key: "overdue_since",
+      label: "Overdue Since",
       render: (r: CreditPatient) => (
-        <ActionIcon variant="subtle" onClick={() => { setEditId(r.id); setForm({ patient_id: r.patient_id, credit_limit: r.credit_limit, notes: r.notes ?? "", status: r.status }); open(); }}>
-          <IconPencil size={16} />
-        </ActionIcon>
+        <Text size="sm">
+          {r.overdue_since ? new Date(r.overdue_since).toLocaleDateString() : "—"}
+        </Text>
       ),
-    }] : []),
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (r: CreditPatient) => (
+              <ActionIcon
+                variant="subtle"
+                onClick={() => {
+                  setEditId(r.id);
+                  setForm({
+                    patient_id: r.patient_id,
+                    credit_limit: r.credit_limit,
+                    notes: r.notes ?? "",
+                    status: r.status,
+                  });
+                  open();
+                }}
+              >
+                <IconPencil size={16} />
+              </ActionIcon>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const agingColumns = [
-    { key: "patient_id", label: "Patient", render: (r: CreditAgingRow) => <Text size="sm">{r.patient_name ?? r.patient_id}</Text> },
-    { key: "credit_limit", label: "Credit Limit", render: (r: CreditAgingRow) => <Text size="sm">₹{r.credit_limit.toLocaleString()}</Text> },
-    { key: "current_balance", label: "Balance", render: (r: CreditAgingRow) => <Text size="sm" fw={600}>₹{r.current_balance.toLocaleString()}</Text> },
     {
-      key: "utilization", label: "Utilization",
+      key: "patient_id",
+      label: "Patient",
+      render: (r: CreditAgingRow) => <Text size="sm">{r.patient_name ?? r.patient_id}</Text>,
+    },
+    {
+      key: "credit_limit",
+      label: "Credit Limit",
+      render: (r: CreditAgingRow) => <Text size="sm">₹{r.credit_limit.toLocaleString()}</Text>,
+    },
+    {
+      key: "current_balance",
+      label: "Balance",
+      render: (r: CreditAgingRow) => (
+        <Text size="sm" fw={600}>
+          ₹{r.current_balance.toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "utilization",
+      label: "Utilization",
       render: (r: CreditAgingRow) => {
         const pct = r.credit_limit > 0 ? (r.current_balance / r.credit_limit) * 100 : 0;
-        return <Progress value={pct} size="sm" color={pct > 90 ? "danger" : pct > 70 ? "orange" : "success"} />;
+        return (
+          <Progress
+            value={pct}
+            size="sm"
+            color={pct > 90 ? "danger" : pct > 70 ? "orange" : "success"}
+          />
+        );
       },
     },
-    { key: "status", label: "Status", render: (r: CreditAgingRow) => <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>{r.status}</Badge> },
-    { key: "days_overdue", label: "Days Overdue", render: (r: CreditAgingRow) => <Text size="sm" c={r.days_overdue && r.days_overdue > 30 ? "danger" : undefined}>{r.days_overdue ?? "—"}</Text> },
-    { key: "overdue_since", label: "Overdue Since", render: (r: CreditAgingRow) => <Text size="sm">{r.overdue_since ? new Date(r.overdue_since).toLocaleDateString() : "—"}</Text> },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: CreditAgingRow) => (
+        <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "days_overdue",
+      label: "Days Overdue",
+      render: (r: CreditAgingRow) => (
+        <Text size="sm" c={r.days_overdue && r.days_overdue > 30 ? "danger" : undefined}>
+          {r.days_overdue ?? "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "overdue_since",
+      label: "Overdue Since",
+      render: (r: CreditAgingRow) => (
+        <Text size="sm">
+          {r.overdue_since ? new Date(r.overdue_since).toLocaleDateString() : "—"}
+        </Text>
+      ),
+    },
   ];
 
   return (
@@ -2909,7 +4521,14 @@ function CreditPatientsTab() {
           </Button>
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={() => { setEditId(null); setForm({ patient_id: "", credit_limit: 0, notes: "", status: "" }); open(); }}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              setEditId(null);
+              setForm({ patient_id: "", credit_limit: 0, notes: "", status: "" });
+              open();
+            }}
+          >
             Add Credit Patient
           </Button>
         )}
@@ -2927,7 +4546,9 @@ function CreditPatientsTab() {
 
       {showAging && agingData.length > 0 && (
         <Card withBorder mt="md">
-          <Title order={5} mb="sm">Credit Aging Report</Title>
+          <Title order={5} mb="sm">
+            Credit Aging Report
+          </Title>
           <DataTable
             columns={agingColumns}
             data={agingData}
@@ -2940,24 +4561,58 @@ function CreditPatientsTab() {
         </Card>
       )}
 
-      <Drawer opened={opened} onClose={close} title={editId ? "Edit Credit Patient" : "Add Credit Patient"} position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title={editId ? "Edit Credit Patient" : "Add Credit Patient"}
+        position="right"
+        size="xl"
+      >
         <Stack>
           {!editId && (
-            <TextInput label="Patient ID" value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })} required />
+            <TextInput
+              label="Patient ID"
+              value={form.patient_id}
+              onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+              required
+            />
           )}
-          <NumberInput label="Credit Limit (₹)" value={form.credit_limit} onChange={(v) => setForm({ ...form, credit_limit: Number(v) })} min={0} required />
-          <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
+          <NumberInput
+            label="Credit Limit (₹)"
+            value={form.credit_limit}
+            onChange={(v) => setForm({ ...form, credit_limit: Number(v) })}
+            min={0}
+            required
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          />
           {editId && (
             <Select
               label="Status"
-              data={["active", "overdue", "suspended", "closed"].map((s) => ({ value: s, label: s }))}
+              data={["active", "overdue", "suspended", "closed"].map((s) => ({
+                value: s,
+                label: s,
+              }))}
               onChange={(v) => setForm({ ...form, status: v ?? "" })}
             />
           )}
           <Button
-            onClick={() => editId
-              ? updateMut.mutate({ id: editId, req: { credit_limit: form.credit_limit, notes: form.notes, ...(form.status ? { status: form.status as UpdateCreditPatientRequest["status"] } : {}) } })
-              : createMut.mutate()
+            onClick={() =>
+              editId
+                ? updateMut.mutate({
+                    id: editId,
+                    req: {
+                      credit_limit: form.credit_limit,
+                      notes: form.notes,
+                      ...(form.status
+                        ? { status: form.status as UpdateCreditPatientRequest["status"] }
+                        : {}),
+                    },
+                  })
+                : createMut.mutate()
             }
             loading={createMut.isPending || updateMut.isPending}
           >
@@ -2996,7 +4651,10 @@ function GstTdsTab({ canTds }: { canTds: boolean }) {
 
 function GstrSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [genForm, setGenForm] = useState<GenerateGstrRequest>({ return_type: "GSTR-1", period: "" });
+  const [genForm, setGenForm] = useState<GenerateGstrRequest>({
+    return_type: "GSTR-1",
+    period: "",
+  });
   const [genOpened, { open: openGen, close: closeGen }] = useDisclosure(false);
 
   const { data: gstrSummaries, isLoading } = useQuery({
@@ -3011,7 +4669,8 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       closeGen();
       notifications.show({ title: "Generated", message: "GSTR summary created", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to generate", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to generate", color: "danger" }),
   });
 
   const fileMut = useMutation({
@@ -3020,42 +4679,119 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       notifications.show({ title: "Filed", message: "GSTR marked as filed", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Filing failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Filing failed", color: "danger" }),
   });
 
   const gstrStatusColors: Record<string, string> = {
-    draft: "slate", validated: "primary", filed: "success", accepted: "teal", error: "danger",
+    draft: "slate",
+    validated: "primary",
+    filed: "success",
+    accepted: "teal",
+    error: "danger",
   };
 
   const columns = [
-    { key: "return_type", label: "Type", render: (r: GstReturnSummary) => <Badge size="sm">{r.return_type}</Badge> },
-    { key: "period", label: "Period", render: (r: GstReturnSummary) => <Text size="sm">{r.period}</Text> },
-    { key: "filing_status", label: "Status", render: (r: GstReturnSummary) => <Badge size="sm" color={gstrStatusColors[r.filing_status] ?? "slate"}>{r.filing_status}</Badge> },
-    { key: "total_taxable", label: "Taxable", render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_taxable.toLocaleString()}</Text> },
-    { key: "cgst", label: "CGST", render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_cgst.toLocaleString()}</Text> },
-    { key: "sgst", label: "SGST", render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_sgst.toLocaleString()}</Text> },
-    { key: "igst", label: "IGST", render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_igst.toLocaleString()}</Text> },
-    ...(canManage ? [{
-      key: "actions", label: "",
-      render: (r: GstReturnSummary) => r.filing_status === "validated" ? (
-        <Button size="xs" variant="light" onClick={() => fileMut.mutate(r.id)}>File</Button>
-      ) : <Text size="sm">—</Text>,
-    }] : []),
+    {
+      key: "return_type",
+      label: "Type",
+      render: (r: GstReturnSummary) => <Badge size="sm">{r.return_type}</Badge>,
+    },
+    {
+      key: "period",
+      label: "Period",
+      render: (r: GstReturnSummary) => <Text size="sm">{r.period}</Text>,
+    },
+    {
+      key: "filing_status",
+      label: "Status",
+      render: (r: GstReturnSummary) => (
+        <Badge size="sm" color={gstrStatusColors[r.filing_status] ?? "slate"}>
+          {r.filing_status}
+        </Badge>
+      ),
+    },
+    {
+      key: "total_taxable",
+      label: "Taxable",
+      render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_taxable.toLocaleString()}</Text>,
+    },
+    {
+      key: "cgst",
+      label: "CGST",
+      render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_cgst.toLocaleString()}</Text>,
+    },
+    {
+      key: "sgst",
+      label: "SGST",
+      render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_sgst.toLocaleString()}</Text>,
+    },
+    {
+      key: "igst",
+      label: "IGST",
+      render: (r: GstReturnSummary) => <Text size="sm">₹{r.total_igst.toLocaleString()}</Text>,
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (r: GstReturnSummary) =>
+              r.filing_status === "validated" ? (
+                <Button size="xs" variant="light" onClick={() => fileMut.mutate(r.id)}>
+                  File
+                </Button>
+              ) : (
+                <Text size="sm">—</Text>
+              ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>GST Return Summaries</Text>
-        {canManage && <Button leftSection={<IconPlus size={16} />} onClick={openGen}>Generate Summary</Button>}
+        {canManage && (
+          <Button leftSection={<IconPlus size={16} />} onClick={openGen}>
+            Generate Summary
+          </Button>
+        )}
       </Group>
-      <DataTable columns={columns} data={gstrSummaries ?? []} loading={isLoading} page={1} totalPages={1} onPageChange={() => {}} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={gstrSummaries ?? []}
+        loading={isLoading}
+        page={1}
+        totalPages={1}
+        onPageChange={() => {}}
+        rowKey={(r) => r.id}
+      />
 
-      <Drawer opened={genOpened} onClose={closeGen} title="Generate GSTR Summary" position="right" size="xl">
+      <Drawer
+        opened={genOpened}
+        onClose={closeGen}
+        title="Generate GSTR Summary"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <Select label="Return Type" data={["GSTR-1", "GSTR-2B", "GSTR-3B"].map((v) => ({ value: v, label: v }))} value={genForm.return_type} onChange={(v) => setGenForm({ ...genForm, return_type: v ?? "GSTR-1" })} />
-          <TextInput label="Period (e.g. 2026-03)" value={genForm.period} onChange={(e) => setGenForm({ ...genForm, period: e.currentTarget.value })} required />
-          <Button onClick={() => generateMut.mutate()} loading={generateMut.isPending}>Generate</Button>
+          <Select
+            label="Return Type"
+            data={["GSTR-1", "GSTR-2B", "GSTR-3B"].map((v) => ({ value: v, label: v }))}
+            value={genForm.return_type}
+            onChange={(v) => setGenForm({ ...genForm, return_type: v ?? "GSTR-1" })}
+          />
+          <TextInput
+            label="Period (e.g. 2026-03)"
+            value={genForm.period}
+            onChange={(e) => setGenForm({ ...genForm, period: e.currentTarget.value })}
+            required
+          />
+          <Button onClick={() => generateMut.mutate()} loading={generateMut.isPending}>
+            Generate
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -3067,8 +4803,15 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   const [page, setPage] = useState(1);
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<CreateTdsRequest>({
-    invoice_id: "", deductee_name: "", deductee_pan: "", tds_section: "194J",
-    tds_rate: 10, base_amount: 0, deducted_date: new Date().toISOString().slice(0, 10), financial_year: "2025-26", quarter: "Q4",
+    invoice_id: "",
+    deductee_name: "",
+    deductee_pan: "",
+    tds_section: "194J",
+    tds_rate: 10,
+    base_amount: 0,
+    deducted_date: new Date().toISOString().slice(0, 10),
+    financial_year: "2025-26",
+    quarter: "Q4",
   });
 
   const { data: tdsItems, isLoading } = useQuery({
@@ -3088,7 +4831,10 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
 
   const depositMut = useMutation({
     mutationFn: (args: { id: string; challan: string }) =>
-      api.depositTds(args.id, { challan_number: args.challan, challan_date: new Date().toISOString().slice(0, 10) }),
+      api.depositTds(args.id, {
+        challan_number: args.challan,
+        challan_date: new Date().toISOString().slice(0, 10),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       notifications.show({ title: "Deposited", message: "TDS challan recorded", color: "success" });
@@ -3097,7 +4843,10 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
 
   const certMut = useMutation({
     mutationFn: (args: { id: string; cert: string }) =>
-      api.issueTdsCertificate(args.id, { certificate_number: args.cert, certificate_date: new Date().toISOString().slice(0, 10) }),
+      api.issueTdsCertificate(args.id, {
+        certificate_number: args.cert,
+        certificate_date: new Date().toISOString().slice(0, 10),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       notifications.show({ title: "Issued", message: "Certificate recorded", color: "success" });
@@ -3105,62 +4854,204 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   });
 
   const tdsStatusColors: Record<string, string> = {
-    deducted: "primary", deposited: "teal", certificate_issued: "success",
+    deducted: "primary",
+    deposited: "teal",
+    certificate_issued: "success",
   };
 
   const columns = [
-    { key: "deductee_name", label: "Deductee", render: (r: TdsDeduction) => <Text size="sm">{r.deductee_name}</Text> },
-    { key: "deductee_pan", label: "PAN", render: (r: TdsDeduction) => <Text size="sm" ff="monospace">{r.deductee_pan}</Text> },
-    { key: "tds_section", label: "Section", render: (r: TdsDeduction) => <Badge size="sm" variant="outline">{r.tds_section}</Badge> },
-    { key: "tds_rate", label: "Rate %", render: (r: TdsDeduction) => <Text size="sm">{r.tds_rate}%</Text> },
-    { key: "base_amount", label: "Base", render: (r: TdsDeduction) => <Text size="sm">₹{r.base_amount.toLocaleString()}</Text> },
-    { key: "tds_amount", label: "TDS", render: (r: TdsDeduction) => <Text size="sm" fw={600}>₹{r.tds_amount.toLocaleString()}</Text> },
-    { key: "status", label: "Status", render: (r: TdsDeduction) => <Badge size="sm" color={tdsStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge> },
-    { key: "fy", label: "FY / Q", render: (r: TdsDeduction) => <Text size="sm">{r.financial_year} {r.quarter}</Text> },
-    ...(canManage ? [{
-      key: "actions", label: "",
+    {
+      key: "deductee_name",
+      label: "Deductee",
+      render: (r: TdsDeduction) => <Text size="sm">{r.deductee_name}</Text>,
+    },
+    {
+      key: "deductee_pan",
+      label: "PAN",
       render: (r: TdsDeduction) => (
-        <Group gap={4}>
-          {r.status === "deducted" && (
-            <Tooltip label="Deposit">
-              <ActionIcon variant="subtle" color="teal" onClick={() => depositMut.mutate({ id: r.id, challan: `CH-${Date.now()}` })}>
-                <IconCheck size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {r.status === "deposited" && (
-            <Tooltip label="Issue Certificate">
-              <ActionIcon variant="subtle" color="success" onClick={() => certMut.mutate({ id: r.id, cert: `CERT-${Date.now()}` })}>
-                <IconShieldCheck size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
+        <Text size="sm" ff="monospace">
+          {r.deductee_pan}
+        </Text>
       ),
-    }] : []),
+    },
+    {
+      key: "tds_section",
+      label: "Section",
+      render: (r: TdsDeduction) => (
+        <Badge size="sm" variant="outline">
+          {r.tds_section}
+        </Badge>
+      ),
+    },
+    {
+      key: "tds_rate",
+      label: "Rate %",
+      render: (r: TdsDeduction) => <Text size="sm">{r.tds_rate}%</Text>,
+    },
+    {
+      key: "base_amount",
+      label: "Base",
+      render: (r: TdsDeduction) => <Text size="sm">₹{r.base_amount.toLocaleString()}</Text>,
+    },
+    {
+      key: "tds_amount",
+      label: "TDS",
+      render: (r: TdsDeduction) => (
+        <Text size="sm" fw={600}>
+          ₹{r.tds_amount.toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: TdsDeduction) => (
+        <Badge size="sm" color={tdsStatusColors[r.status] ?? "slate"}>
+          {r.status.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "fy",
+      label: "FY / Q",
+      render: (r: TdsDeduction) => (
+        <Text size="sm">
+          {r.financial_year} {r.quarter}
+        </Text>
+      ),
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (r: TdsDeduction) => (
+              <Group gap={4}>
+                {r.status === "deducted" && (
+                  <Tooltip label="Deposit">
+                    <ActionIcon
+                      variant="subtle"
+                      color="teal"
+                      onClick={() => depositMut.mutate({ id: r.id, challan: `CH-${Date.now()}` })}
+                    >
+                      <IconCheck size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+                {r.status === "deposited" && (
+                  <Tooltip label="Issue Certificate">
+                    <ActionIcon
+                      variant="subtle"
+                      color="success"
+                      onClick={() => certMut.mutate({ id: r.id, cert: `CERT-${Date.now()}` })}
+                    >
+                      <IconShieldCheck size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </Group>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>TDS Deductions</Text>
-        {canManage && <Button leftSection={<IconPlus size={16} />} onClick={open}>Record TDS</Button>}
+        {canManage && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Record TDS
+          </Button>
+        )}
       </Group>
-      <DataTable columns={columns} data={tdsItems ?? []} loading={isLoading} page={page} totalPages={Math.ceil((tdsItems?.length ?? 0) / 20) || 1} onPageChange={setPage} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={tdsItems ?? []}
+        loading={isLoading}
+        page={page}
+        totalPages={Math.ceil((tdsItems?.length ?? 0) / 20) || 1}
+        onPageChange={setPage}
+        rowKey={(r) => r.id}
+      />
 
-      <Drawer opened={opened} onClose={close} title="Record TDS Deduction" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Record TDS Deduction"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Invoice ID" value={form.invoice_id} onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })} required />
-          <TextInput label="Deductee Name" value={form.deductee_name} onChange={(e) => setForm({ ...form, deductee_name: e.currentTarget.value })} required />
-          <TextInput label="PAN" value={form.deductee_pan} onChange={(e) => setForm({ ...form, deductee_pan: e.currentTarget.value.toUpperCase() })} required maxLength={10} />
-          <Select label="Section" data={["194J", "194C", "194H", "194I", "194A", "194Q"].map((v) => ({ value: v, label: v }))} value={form.tds_section} onChange={(v) => setForm({ ...form, tds_section: v ?? "194J" })} />
-          <NumberInput label="TDS Rate %" value={form.tds_rate} onChange={(v) => setForm({ ...form, tds_rate: Number(v) })} min={0} max={100} />
-          <NumberInput label="Base Amount" value={form.base_amount} onChange={(v) => setForm({ ...form, base_amount: Number(v) })} min={0} />
-          <Text size="sm" c="dimmed">Estimated TDS: ₹{Math.round(form.base_amount * form.tds_rate / 100).toLocaleString()}</Text>
-          <TextInput label="Deducted Date" type="date" value={form.deducted_date} onChange={(e) => setForm({ ...form, deducted_date: e.currentTarget.value })} required />
-          <Select label="Financial Year" data={["2024-25", "2025-26", "2026-27"].map((v) => ({ value: v, label: v }))} value={form.financial_year} onChange={(v) => setForm({ ...form, financial_year: v ?? "2025-26" })} />
-          <Select label="Quarter" data={["Q1", "Q2", "Q3", "Q4"].map((v) => ({ value: v, label: v }))} value={form.quarter} onChange={(v) => setForm({ ...form, quarter: v ?? "Q4" })} />
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending}>Record</Button>
+          <TextInput
+            label="Invoice ID"
+            value={form.invoice_id}
+            onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })}
+            required
+          />
+          <TextInput
+            label="Deductee Name"
+            value={form.deductee_name}
+            onChange={(e) => setForm({ ...form, deductee_name: e.currentTarget.value })}
+            required
+          />
+          <TextInput
+            label="PAN"
+            value={form.deductee_pan}
+            onChange={(e) =>
+              setForm({ ...form, deductee_pan: e.currentTarget.value.toUpperCase() })
+            }
+            required
+            maxLength={10}
+          />
+          <Select
+            label="Section"
+            data={["194J", "194C", "194H", "194I", "194A", "194Q"].map((v) => ({
+              value: v,
+              label: v,
+            }))}
+            value={form.tds_section}
+            onChange={(v) => setForm({ ...form, tds_section: v ?? "194J" })}
+          />
+          <NumberInput
+            label="TDS Rate %"
+            value={form.tds_rate}
+            onChange={(v) => setForm({ ...form, tds_rate: Number(v) })}
+            min={0}
+            max={100}
+          />
+          <NumberInput
+            label="Base Amount"
+            value={form.base_amount}
+            onChange={(v) => setForm({ ...form, base_amount: Number(v) })}
+            min={0}
+          />
+          <Text size="sm" c="dimmed">
+            Estimated TDS: ₹{Math.round((form.base_amount * form.tds_rate) / 100).toLocaleString()}
+          </Text>
+          <TextInput
+            label="Deducted Date"
+            type="date"
+            value={form.deducted_date}
+            onChange={(e) => setForm({ ...form, deducted_date: e.currentTarget.value })}
+            required
+          />
+          <Select
+            label="Financial Year"
+            data={["2024-25", "2025-26", "2026-27"].map((v) => ({ value: v, label: v }))}
+            value={form.financial_year}
+            onChange={(v) => setForm({ ...form, financial_year: v ?? "2025-26" })}
+          />
+          <Select
+            label="Quarter"
+            data={["Q1", "Q2", "Q3", "Q4"].map((v) => ({ value: v, label: v }))}
+            value={form.quarter}
+            onChange={(v) => setForm({ ...form, quarter: v ?? "Q4" })}
+          />
+          <Button onClick={() => createMut.mutate()} loading={createMut.isPending}>
+            Record
+          </Button>
         </Stack>
       </Drawer>
     </Stack>
@@ -3176,22 +5067,72 @@ function HsnSubView() {
   });
 
   const columns = [
-    { key: "hsn_code", label: "HSN Code", render: (r: HsnSummaryRow) => <Text size="sm" ff="monospace">{r.hsn_code}</Text> },
-    { key: "item_count", label: "Items", render: (r: HsnSummaryRow) => <Text size="sm">{r.item_count}</Text> },
-    { key: "taxable_amount", label: "Taxable Amount", render: (r: HsnSummaryRow) => <Text size="sm">₹{r.taxable_amount.toLocaleString()}</Text> },
-    { key: "cgst_amount", label: "CGST", render: (r: HsnSummaryRow) => <Text size="sm">₹{r.cgst_amount.toLocaleString()}</Text> },
-    { key: "sgst_amount", label: "SGST", render: (r: HsnSummaryRow) => <Text size="sm">₹{r.sgst_amount.toLocaleString()}</Text> },
-    { key: "igst_amount", label: "IGST", render: (r: HsnSummaryRow) => <Text size="sm">₹{r.igst_amount.toLocaleString()}</Text> },
-    { key: "total_tax", label: "Total Tax", render: (r: HsnSummaryRow) => <Text size="sm" fw={600}>₹{r.total_tax.toLocaleString()}</Text> },
+    {
+      key: "hsn_code",
+      label: "HSN Code",
+      render: (r: HsnSummaryRow) => (
+        <Text size="sm" ff="monospace">
+          {r.hsn_code}
+        </Text>
+      ),
+    },
+    {
+      key: "item_count",
+      label: "Items",
+      render: (r: HsnSummaryRow) => <Text size="sm">{r.item_count}</Text>,
+    },
+    {
+      key: "taxable_amount",
+      label: "Taxable Amount",
+      render: (r: HsnSummaryRow) => <Text size="sm">₹{r.taxable_amount.toLocaleString()}</Text>,
+    },
+    {
+      key: "cgst_amount",
+      label: "CGST",
+      render: (r: HsnSummaryRow) => <Text size="sm">₹{r.cgst_amount.toLocaleString()}</Text>,
+    },
+    {
+      key: "sgst_amount",
+      label: "SGST",
+      render: (r: HsnSummaryRow) => <Text size="sm">₹{r.sgst_amount.toLocaleString()}</Text>,
+    },
+    {
+      key: "igst_amount",
+      label: "IGST",
+      render: (r: HsnSummaryRow) => <Text size="sm">₹{r.igst_amount.toLocaleString()}</Text>,
+    },
+    {
+      key: "total_tax",
+      label: "Total Tax",
+      render: (r: HsnSummaryRow) => (
+        <Text size="sm" fw={600}>
+          ₹{r.total_tax.toLocaleString()}
+        </Text>
+      ),
+    },
   ];
 
   return (
     <Stack>
       <Group>
-        <TextInput label="Period (YYYY-MM)" placeholder="2026-03" value={period} onChange={(e) => setPeriod(e.currentTarget.value)} w={180} />
+        <TextInput
+          label="Period (YYYY-MM)"
+          placeholder="2026-03"
+          value={period}
+          onChange={(e) => setPeriod(e.currentTarget.value)}
+          w={180}
+        />
       </Group>
       {hsnRows && (
-        <DataTable columns={columns} data={hsnRows} loading={isLoading} page={1} totalPages={1} onPageChange={() => {}} rowKey={(r) => r.hsn_code} />
+        <DataTable
+          columns={columns}
+          data={hsnRows}
+          loading={isLoading}
+          page={1}
+          totalPages={1}
+          onPageChange={() => {}}
+          rowKey={(r) => r.hsn_code}
+        />
       )}
     </Stack>
   );
@@ -3246,14 +5187,23 @@ function JournalEntriesTab() {
       close();
       notifications.show({ title: "Created", message: "Journal entry created", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed — ensure debits equal credits", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Failed — ensure debits equal credits",
+        color: "danger",
+      }),
   });
 
   const postMut = useMutation({
     mutationFn: (id: string) => api.postJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
-      notifications.show({ title: "Posted", message: "Journal entry posted to ledger", color: "success" });
+      notifications.show({
+        title: "Posted",
+        message: "Journal entry posted to ledger",
+        color: "success",
+      });
     },
     onError: () => notifications.show({ title: "Error", message: "Post failed", color: "danger" }),
   });
@@ -3262,13 +5212,23 @@ function JournalEntriesTab() {
     mutationFn: (id: string) => api.reverseJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
-      notifications.show({ title: "Reversed", message: "Reversal entry created", color: "success" });
+      notifications.show({
+        title: "Reversed",
+        message: "Reversal entry created",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
   });
 
-  const addLine = () => setForm({ ...form, lines: [...form.lines, { account_id: "", debit_amount: 0, credit_amount: 0 }] });
-  const removeLine = (idx: number) => setForm({ ...form, lines: form.lines.filter((_, i) => i !== idx) });
+  const addLine = () =>
+    setForm({
+      ...form,
+      lines: [...form.lines, { account_id: "", debit_amount: 0, credit_amount: 0 }],
+    });
+  const removeLine = (idx: number) =>
+    setForm({ ...form, lines: form.lines.filter((_, i) => i !== idx) });
   const updateLine = (idx: number, field: keyof JournalLineInput, value: string | number) => {
     const lines: JournalLineInput[] = form.lines.map((l, i) =>
       i === idx ? { ...l, [field]: value } : l,
@@ -3277,38 +5237,99 @@ function JournalEntriesTab() {
   };
 
   const jeStatusColors: Record<string, string> = {
-    draft: "slate", posted: "success", reversed: "danger",
+    draft: "slate",
+    posted: "success",
+    reversed: "danger",
   };
 
   const columns = [
-    { key: "entry_number", label: "JE #", render: (r: JournalEntry) => <Text size="sm" fw={600}>{r.entry_number}</Text> },
-    { key: "entry_date", label: "Date", render: (r: JournalEntry) => <Text size="sm">{new Date(r.entry_date).toLocaleDateString()}</Text> },
-    { key: "entry_type", label: "Type", render: (r: JournalEntry) => <Badge size="sm" variant="light">{r.entry_type.replace(/_/g, " ")}</Badge> },
-    { key: "status", label: "Status", render: (r: JournalEntry) => <Badge size="sm" color={jeStatusColors[r.status] ?? "slate"}>{r.status}</Badge> },
-    { key: "total_debit", label: "Debit", render: (r: JournalEntry) => <Text size="sm">₹{r.total_debit.toLocaleString()}</Text> },
-    { key: "total_credit", label: "Credit", render: (r: JournalEntry) => <Text size="sm">₹{r.total_credit.toLocaleString()}</Text> },
-    { key: "description", label: "Description", render: (r: JournalEntry) => <Text size="sm" lineClamp={1}>{r.description ?? "—"}</Text> },
-    ...(canPost ? [{
-      key: "actions", label: "",
+    {
+      key: "entry_number",
+      label: "JE #",
       render: (r: JournalEntry) => (
-        <Group gap={4}>
-          {r.status === "draft" && (
-            <Tooltip label="Post to ledger">
-              <ActionIcon variant="subtle" color="success" onClick={() => postMut.mutate(r.id)}>
-                <IconCheck size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {r.status === "posted" && (
-            <Tooltip label="Reverse entry">
-              <ActionIcon variant="subtle" color="danger" onClick={() => reverseMut.mutate(r.id)}>
-                <IconX size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
+        <Text size="sm" fw={600}>
+          {r.entry_number}
+        </Text>
       ),
-    }] : []),
+    },
+    {
+      key: "entry_date",
+      label: "Date",
+      render: (r: JournalEntry) => (
+        <Text size="sm">{new Date(r.entry_date).toLocaleDateString()}</Text>
+      ),
+    },
+    {
+      key: "entry_type",
+      label: "Type",
+      render: (r: JournalEntry) => (
+        <Badge size="sm" variant="light">
+          {r.entry_type.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: JournalEntry) => (
+        <Badge size="sm" color={jeStatusColors[r.status] ?? "slate"}>
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "total_debit",
+      label: "Debit",
+      render: (r: JournalEntry) => <Text size="sm">₹{r.total_debit.toLocaleString()}</Text>,
+    },
+    {
+      key: "total_credit",
+      label: "Credit",
+      render: (r: JournalEntry) => <Text size="sm">₹{r.total_credit.toLocaleString()}</Text>,
+    },
+    {
+      key: "description",
+      label: "Description",
+      render: (r: JournalEntry) => (
+        <Text size="sm" lineClamp={1}>
+          {r.description ?? "—"}
+        </Text>
+      ),
+    },
+    ...(canPost
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (r: JournalEntry) => (
+              <Group gap={4}>
+                {r.status === "draft" && (
+                  <Tooltip label="Post to ledger">
+                    <ActionIcon
+                      variant="subtle"
+                      color="success"
+                      onClick={() => postMut.mutate(r.id)}
+                    >
+                      <IconCheck size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+                {r.status === "posted" && (
+                  <Tooltip label="Reverse entry">
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      onClick={() => reverseMut.mutate(r.id)}
+                    >
+                      <IconX size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </Group>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -3322,22 +5343,56 @@ function JournalEntriesTab() {
           clearable
           w={160}
         />
-        {canCreate && <Button leftSection={<IconPlus size={16} />} onClick={open}>New Journal Entry</Button>}
+        {canCreate && (
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            New Journal Entry
+          </Button>
+        )}
       </Group>
-      <DataTable columns={columns} data={jeItems ?? []} loading={isLoading} page={page} totalPages={Math.ceil((jeItems?.length ?? 0) / 20) || 1} onPageChange={setPage} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={jeItems ?? []}
+        loading={isLoading}
+        page={page}
+        totalPages={Math.ceil((jeItems?.length ?? 0) / 20) || 1}
+        onPageChange={setPage}
+        rowKey={(r) => r.id}
+      />
 
-      <Drawer opened={opened} onClose={close} title="Create Journal Entry" position="right" size="lg">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Create Journal Entry"
+        position="right"
+        size="lg"
+      >
         <Stack>
-          <TextInput label="Entry Date" type="date" value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.currentTarget.value })} required />
-          <Textarea label="Description" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.currentTarget.value })} />
+          <TextInput
+            label="Entry Date"
+            type="date"
+            value={form.entry_date}
+            onChange={(e) => setForm({ ...form, entry_date: e.currentTarget.value })}
+            required
+          />
+          <Textarea
+            label="Description"
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+          />
 
           <Group justify="space-between">
             <Text fw={600}>Lines</Text>
-            <Button size="xs" variant="light" onClick={addLine}>Add Line</Button>
+            <Button size="xs" variant="light" onClick={addLine}>
+              Add Line
+            </Button>
           </Group>
 
           {form.lines.map((line, idx) => (
-            <Card key={idx} withBorder p="xs">
+            <Card
+              key={`${line.account_id || "line"}-${line.debit_amount}-${line.credit_amount}`}
+              withBorder
+              p="xs"
+            >
               <Group>
                 <Select
                   placeholder="Account"
@@ -3347,8 +5402,20 @@ function JournalEntriesTab() {
                   searchable
                   style={{ flex: 1 }}
                 />
-                <NumberInput placeholder="Debit" value={line.debit_amount} onChange={(v) => updateLine(idx, "debit_amount", Number(v))} min={0} w={120} />
-                <NumberInput placeholder="Credit" value={line.credit_amount} onChange={(v) => updateLine(idx, "credit_amount", Number(v))} min={0} w={120} />
+                <NumberInput
+                  placeholder="Debit"
+                  value={line.debit_amount}
+                  onChange={(v) => updateLine(idx, "debit_amount", Number(v))}
+                  min={0}
+                  w={120}
+                />
+                <NumberInput
+                  placeholder="Credit"
+                  value={line.credit_amount}
+                  onChange={(v) => updateLine(idx, "credit_amount", Number(v))}
+                  min={0}
+                  w={120}
+                />
                 {form.lines.length > 2 && (
                   <ActionIcon variant="subtle" color="danger" onClick={() => removeLine(idx)}>
                     <IconTrash size={16} />
@@ -3368,7 +5435,11 @@ function JournalEntriesTab() {
             </Alert>
           )}
 
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending} disabled={!balanced}>
+          <Button
+            onClick={() => createMut.mutate()}
+            loading={createMut.isPending}
+            disabled={!balanced}
+          >
             Create Journal Entry
           </Button>
         </Stack>
@@ -3399,7 +5470,11 @@ function BankReconTab() {
   const [importTxns, setImportTxns] = useState<ImportBankTransactionsRequest["transactions"]>([]);
 
   const [manualTxn, setManualTxn] = useState({
-    transaction_date: "", description: "", debit_amount: 0, credit_amount: 0, reference_number: "",
+    transaction_date: "",
+    description: "",
+    debit_amount: 0,
+    credit_amount: 0,
+    reference_number: "",
   });
 
   const importMut = useMutation({
@@ -3407,18 +5482,28 @@ function BankReconTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       closeImport();
-      notifications.show({ title: "Imported", message: "Bank transactions imported", color: "success" });
+      notifications.show({
+        title: "Imported",
+        message: "Bank transactions imported",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Import failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Import failed", color: "danger" }),
   });
 
   const autoReconMut = useMutation({
     mutationFn: () => api.autoReconcile(),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-      notifications.show({ title: "Auto-Reconciled", message: `${res.matched_count ?? 0} transactions matched`, color: "success" });
+      notifications.show({
+        title: "Auto-Reconciled",
+        message: `${res.matched_count ?? 0} transactions matched`,
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Auto-reconcile failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Auto-reconcile failed", color: "danger" }),
   });
 
   // TPA recon (priority #4) — matches unmatched credits to insurance_claims
@@ -3444,31 +5529,89 @@ function BankReconTab() {
   });
 
   const reconStatusColors: Record<string, string> = {
-    unmatched: "orange", matched: "success", discrepancy: "danger", excluded: "slate",
+    unmatched: "orange",
+    matched: "success",
+    discrepancy: "danger",
+    excluded: "slate",
   };
 
   const columns = [
-    { key: "transaction_date", label: "Date", render: (r: BankTransaction) => <Text size="sm">{new Date(r.transaction_date).toLocaleDateString()}</Text> },
-    { key: "bank_name", label: "Bank", render: (r: BankTransaction) => <Text size="sm">{r.bank_name}</Text> },
-    { key: "description", label: "Description", render: (r: BankTransaction) => <Text size="sm" lineClamp={1}>{r.description}</Text> },
-    { key: "debit_amount", label: "Debit", render: (r: BankTransaction) => <Text size="sm">{r.debit_amount ? `₹${r.debit_amount.toLocaleString()}` : "—"}</Text> },
-    { key: "credit_amount", label: "Credit", render: (r: BankTransaction) => <Text size="sm">{r.credit_amount ? `₹${r.credit_amount.toLocaleString()}` : "—"}</Text> },
-    { key: "reference_number", label: "Reference", render: (r: BankTransaction) => <Text size="sm" ff="monospace">{r.reference_number ?? "—"}</Text> },
-    { key: "recon_status", label: "Status", render: (r: BankTransaction) => <Badge size="sm" color={reconStatusColors[r.recon_status] ?? "slate"}>{r.recon_status}</Badge> },
+    {
+      key: "transaction_date",
+      label: "Date",
+      render: (r: BankTransaction) => (
+        <Text size="sm">{new Date(r.transaction_date).toLocaleDateString()}</Text>
+      ),
+    },
+    {
+      key: "bank_name",
+      label: "Bank",
+      render: (r: BankTransaction) => <Text size="sm">{r.bank_name}</Text>,
+    },
+    {
+      key: "description",
+      label: "Description",
+      render: (r: BankTransaction) => (
+        <Text size="sm" lineClamp={1}>
+          {r.description}
+        </Text>
+      ),
+    },
+    {
+      key: "debit_amount",
+      label: "Debit",
+      render: (r: BankTransaction) => (
+        <Text size="sm">{r.debit_amount ? `₹${r.debit_amount.toLocaleString()}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "credit_amount",
+      label: "Credit",
+      render: (r: BankTransaction) => (
+        <Text size="sm">{r.credit_amount ? `₹${r.credit_amount.toLocaleString()}` : "—"}</Text>
+      ),
+    },
+    {
+      key: "reference_number",
+      label: "Reference",
+      render: (r: BankTransaction) => (
+        <Text size="sm" ff="monospace">
+          {r.reference_number ?? "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "recon_status",
+      label: "Status",
+      render: (r: BankTransaction) => (
+        <Badge size="sm" color={reconStatusColors[r.recon_status] ?? "slate"}>
+          {r.recon_status}
+        </Badge>
+      ),
+    },
   ];
 
   const addManualTxn = () => {
     if (!manualTxn.transaction_date || !manualTxn.description || !bankName) return;
-    setImportTxns([...importTxns, {
-      bank_name: bankName,
-      account_number: accountNumber,
-      transaction_date: manualTxn.transaction_date,
-      description: manualTxn.description,
-      debit_amount: manualTxn.debit_amount,
-      credit_amount: manualTxn.credit_amount,
-      reference_number: manualTxn.reference_number,
-    }]);
-    setManualTxn({ transaction_date: "", description: "", debit_amount: 0, credit_amount: 0, reference_number: "" });
+    setImportTxns([
+      ...importTxns,
+      {
+        bank_name: bankName,
+        account_number: accountNumber,
+        transaction_date: manualTxn.transaction_date,
+        description: manualTxn.description,
+        debit_amount: manualTxn.debit_amount,
+        credit_amount: manualTxn.credit_amount,
+        reference_number: manualTxn.reference_number,
+      },
+    ]);
+    setManualTxn({
+      transaction_date: "",
+      description: "",
+      debit_amount: 0,
+      credit_amount: 0,
+      reference_number: "",
+    });
   };
 
   return (
@@ -3477,7 +5620,10 @@ function BankReconTab() {
         <Group>
           <Select
             placeholder="Status"
-            data={["unmatched", "matched", "discrepancy", "excluded"].map((s) => ({ value: s, label: s }))}
+            data={["unmatched", "matched", "discrepancy", "excluded"].map((s) => ({
+              value: s,
+              label: s,
+            }))}
             value={statusFilter}
             onChange={setStatusFilter}
             clearable
@@ -3487,7 +5633,12 @@ function BankReconTab() {
         <Group>
           {canManage && (
             <>
-              <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => autoReconMut.mutate()} loading={autoReconMut.isPending}>
+              <Button
+                variant="light"
+                leftSection={<IconRefresh size={16} />}
+                onClick={() => autoReconMut.mutate()}
+                loading={autoReconMut.isPending}
+              >
                 Auto-Reconcile
               </Button>
               <Button
@@ -3509,7 +5660,9 @@ function BankReconTab() {
 
       {insAging.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="xs">Insurance Receivables Aging (per payer)</Text>
+          <Text fw={600} mb="xs">
+            Insurance Receivables Aging (per payer)
+          </Text>
           <Table>
             <Table.Thead>
               <Table.Tr>
@@ -3543,24 +5696,79 @@ function BankReconTab() {
         </Card>
       )}
 
-      <DataTable columns={columns} data={bankTxns ?? []} loading={isLoading} page={page} totalPages={Math.ceil((bankTxns?.length ?? 0) / 20) || 1} onPageChange={setPage} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={bankTxns ?? []}
+        loading={isLoading}
+        page={page}
+        totalPages={Math.ceil((bankTxns?.length ?? 0) / 20) || 1}
+        onPageChange={setPage}
+        rowKey={(r) => r.id}
+      />
 
-      <Drawer opened={importOpened} onClose={closeImport} title="Import Bank Transactions" position="right" size="lg">
+      <Drawer
+        opened={importOpened}
+        onClose={closeImport}
+        title="Import Bank Transactions"
+        position="right"
+        size="lg"
+      >
         <Stack>
-          <TextInput label="Bank Name" value={bankName} onChange={(e) => setBankName(e.currentTarget.value)} required />
-          <TextInput label="Account Number" value={accountNumber} onChange={(e) => setAccountNumber(e.currentTarget.value)} required />
+          <TextInput
+            label="Bank Name"
+            value={bankName}
+            onChange={(e) => setBankName(e.currentTarget.value)}
+            required
+          />
+          <TextInput
+            label="Account Number"
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(e.currentTarget.value)}
+            required
+          />
 
           <Card withBorder>
-            <Text fw={600} mb="sm">Add Transaction</Text>
+            <Text fw={600} mb="sm">
+              Add Transaction
+            </Text>
             <Stack gap="xs">
-              <TextInput label="Date" type="date" value={manualTxn.transaction_date} onChange={(e) => setManualTxn({ ...manualTxn, transaction_date: e.currentTarget.value })} />
-              <TextInput label="Description" value={manualTxn.description} onChange={(e) => setManualTxn({ ...manualTxn, description: e.currentTarget.value })} />
+              <TextInput
+                label="Date"
+                type="date"
+                value={manualTxn.transaction_date}
+                onChange={(e) =>
+                  setManualTxn({ ...manualTxn, transaction_date: e.currentTarget.value })
+                }
+              />
+              <TextInput
+                label="Description"
+                value={manualTxn.description}
+                onChange={(e) => setManualTxn({ ...manualTxn, description: e.currentTarget.value })}
+              />
               <Group grow>
-                <NumberInput label="Debit" value={manualTxn.debit_amount} onChange={(v) => setManualTxn({ ...manualTxn, debit_amount: Number(v) })} min={0} />
-                <NumberInput label="Credit" value={manualTxn.credit_amount} onChange={(v) => setManualTxn({ ...manualTxn, credit_amount: Number(v) })} min={0} />
+                <NumberInput
+                  label="Debit"
+                  value={manualTxn.debit_amount}
+                  onChange={(v) => setManualTxn({ ...manualTxn, debit_amount: Number(v) })}
+                  min={0}
+                />
+                <NumberInput
+                  label="Credit"
+                  value={manualTxn.credit_amount}
+                  onChange={(v) => setManualTxn({ ...manualTxn, credit_amount: Number(v) })}
+                  min={0}
+                />
               </Group>
-              <TextInput label="Reference #" value={manualTxn.reference_number} onChange={(e) => setManualTxn({ ...manualTxn, reference_number: e.currentTarget.value })} />
-              <Button size="xs" variant="light" onClick={addManualTxn}>Add to Batch</Button>
+              <TextInput
+                label="Reference #"
+                value={manualTxn.reference_number}
+                onChange={(e) =>
+                  setManualTxn({ ...manualTxn, reference_number: e.currentTarget.value })
+                }
+              />
+              <Button size="xs" variant="light" onClick={addManualTxn}>
+                Add to Batch
+              </Button>
             </Stack>
           </Card>
 
@@ -3584,7 +5792,9 @@ function BankReconTab() {
 /* ─── Financial MIS Tab ──────────────────────────────────────────── */
 
 function FinancialMisTab() {
-  const [dateFrom, setDateFrom] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+  );
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
 
   const { data: misData } = useQuery({
@@ -3600,19 +5810,47 @@ function FinancialMisTab() {
   });
 
   const plColumns = [
-    { key: "department_name", label: "Department", render: (r: ProfitLossDeptRow) => <Text size="sm" fw={500}>{r.department_name ?? "Unassigned"}</Text> },
-    { key: "revenue", label: "Revenue", render: (r: ProfitLossDeptRow) => <Text size="sm" c="success">₹{r.revenue.toLocaleString()}</Text> },
-    { key: "expenses", label: "Expenses", render: (r: ProfitLossDeptRow) => <Text size="sm" c="danger">₹{r.expenses.toLocaleString()}</Text> },
     {
-      key: "profit", label: "Profit/Loss",
+      key: "department_name",
+      label: "Department",
       render: (r: ProfitLossDeptRow) => (
-        <Text size="sm" fw={600} c={r.profit >= 0 ? "success" : "danger"}>₹{r.profit.toLocaleString()}</Text>
+        <Text size="sm" fw={500}>
+          {r.department_name ?? "Unassigned"}
+        </Text>
       ),
     },
     {
-      key: "margin", label: "Margin %",
+      key: "revenue",
+      label: "Revenue",
+      render: (r: ProfitLossDeptRow) => (
+        <Text size="sm" c="success">
+          ₹{r.revenue.toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "expenses",
+      label: "Expenses",
+      render: (r: ProfitLossDeptRow) => (
+        <Text size="sm" c="danger">
+          ₹{r.expenses.toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "profit",
+      label: "Profit/Loss",
+      render: (r: ProfitLossDeptRow) => (
+        <Text size="sm" fw={600} c={r.profit >= 0 ? "success" : "danger"}>
+          ₹{r.profit.toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "margin",
+      label: "Margin %",
       render: (r: ProfitLossDeptRow) => {
-        const margin = r.revenue > 0 ? ((r.revenue - r.expenses) / r.revenue * 100) : 0;
+        const margin = r.revenue > 0 ? ((r.revenue - r.expenses) / r.revenue) * 100 : 0;
         return <Text size="sm">{margin.toFixed(1)}%</Text>;
       },
     },
@@ -3621,51 +5859,94 @@ function FinancialMisTab() {
   return (
     <Stack>
       <Group>
-        <TextInput label="From" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.currentTarget.value)} />
-        <TextInput label="To" type="date" value={dateTo} onChange={(e) => setDateTo(e.currentTarget.value)} />
+        <TextInput
+          label="From"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.currentTarget.value)}
+        />
+        <TextInput
+          label="To"
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.currentTarget.value)}
+        />
       </Group>
 
       {misData && (
         <SimpleGrid cols={4}>
           <Card withBorder p="md">
-            <Text size="xs" c="dimmed">Total Revenue</Text>
-            <Text size="xl" fw={700} c="success">₹{misData.total_revenue.toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Total Revenue
+            </Text>
+            <Text size="xl" fw={700} c="success">
+              ₹{misData.total_revenue.toLocaleString()}
+            </Text>
           </Card>
           <Card withBorder p="md">
-            <Text size="xs" c="dimmed">Total Collections</Text>
-            <Text size="xl" fw={700} c="teal">₹{misData.total_collections.toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Total Collections
+            </Text>
+            <Text size="xl" fw={700} c="teal">
+              ₹{misData.total_collections.toLocaleString()}
+            </Text>
           </Card>
           <Card withBorder p="md">
-            <Text size="xs" c="dimmed">Collection Rate</Text>
-            <Text size="xl" fw={700}>{Number(misData.collection_rate).toFixed(1)}%</Text>
-            <Progress value={Number(misData.collection_rate)} size="sm" mt="xs" color={Number(misData.collection_rate) >= 80 ? "success" : "orange"} />
+            <Text size="xs" c="dimmed">
+              Collection Rate
+            </Text>
+            <Text size="xl" fw={700}>
+              {Number(misData.collection_rate).toFixed(1)}%
+            </Text>
+            <Progress
+              value={Number(misData.collection_rate)}
+              size="sm"
+              mt="xs"
+              color={Number(misData.collection_rate) >= 80 ? "success" : "orange"}
+            />
           </Card>
           <Card withBorder p="md">
-            <Text size="xs" c="dimmed">Outstanding</Text>
-            <Text size="xl" fw={700} c="orange">₹{misData.total_outstanding.toLocaleString()}</Text>
+            <Text size="xs" c="dimmed">
+              Outstanding
+            </Text>
+            <Text size="xl" fw={700} c="orange">
+              ₹{misData.total_outstanding.toLocaleString()}
+            </Text>
           </Card>
         </SimpleGrid>
       )}
 
       {misData && (
         <Card withBorder>
-          <Title order={5} mb="sm">Financial Summary</Title>
+          <Title order={5} mb="sm">
+            Financial Summary
+          </Title>
           <SimpleGrid cols={4}>
             <div>
-              <Text size="xs" c="dimmed">Refunds</Text>
+              <Text size="xs" c="dimmed">
+                Refunds
+              </Text>
               <Text fw={600}>₹{misData.total_refunds.toLocaleString()}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed">Write-Offs</Text>
+              <Text size="xs" c="dimmed">
+                Write-Offs
+              </Text>
               <Text fw={600}>₹{misData.total_write_offs.toLocaleString()}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed">Advances</Text>
+              <Text size="xs" c="dimmed">
+                Advances
+              </Text>
               <Text fw={600}>₹{misData.total_advances.toLocaleString()}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed">Period</Text>
-              <Text fw={600}>{misData.period_from} → {misData.period_to}</Text>
+              <Text size="xs" c="dimmed">
+                Period
+              </Text>
+              <Text fw={600}>
+                {misData.period_from} → {misData.period_to}
+              </Text>
             </div>
           </SimpleGrid>
         </Card>
@@ -3691,7 +5972,9 @@ function ErpExportTab() {
   const [form, setForm] = useState<ErpExportRequest>({
     target_system: "tally",
     export_type: "invoices",
-    date_from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    date_from: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .slice(0, 10),
     date_to: new Date().toISOString().slice(0, 10),
   });
   const queryClient = useQueryClient();
@@ -3707,26 +5990,64 @@ function ErpExportTab() {
       void queryClient.invalidateQueries({ queryKey: ["erp-exports"] });
       notifications.show({ title: "Exported", message: "Data exported to ERP", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Export failed", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Export failed", color: "danger" }),
   });
 
   const erpStatusColors: Record<string, string> = {
-    pending: "warning", exported: "success", failed: "danger", acknowledged: "teal",
+    pending: "warning",
+    exported: "success",
+    failed: "danger",
+    acknowledged: "teal",
   };
 
   const columns = [
-    { key: "target_system", label: "System", render: (r: ErpExportLog) => <Badge size="sm">{r.target_system}</Badge> },
-    { key: "export_type", label: "Type", render: (r: ErpExportLog) => <Text size="sm">{r.export_type}</Text> },
-    { key: "status", label: "Status", render: (r: ErpExportLog) => <Badge size="sm" color={erpStatusColors[r.status] ?? "slate"}>{r.status}</Badge> },
-    { key: "record_count", label: "Records", render: (r: ErpExportLog) => <Text size="sm">{r.record_ids?.length ?? 0}</Text> },
-    { key: "created_at", label: "Exported At", render: (r: ErpExportLog) => <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text> },
-    { key: "error_message", label: "Error", render: (r: ErpExportLog) => <Text size="sm" c="danger" lineClamp={1}>{r.error_message ?? "—"}</Text> },
+    {
+      key: "target_system",
+      label: "System",
+      render: (r: ErpExportLog) => <Badge size="sm">{r.target_system}</Badge>,
+    },
+    {
+      key: "export_type",
+      label: "Type",
+      render: (r: ErpExportLog) => <Text size="sm">{r.export_type}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: ErpExportLog) => (
+        <Badge size="sm" color={erpStatusColors[r.status] ?? "slate"}>
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "record_count",
+      label: "Records",
+      render: (r: ErpExportLog) => <Text size="sm">{r.record_ids?.length ?? 0}</Text>,
+    },
+    {
+      key: "created_at",
+      label: "Exported At",
+      render: (r: ErpExportLog) => <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>,
+    },
+    {
+      key: "error_message",
+      label: "Error",
+      render: (r: ErpExportLog) => (
+        <Text size="sm" c="danger" lineClamp={1}>
+          {r.error_message ?? "—"}
+        </Text>
+      ),
+    },
   ];
 
   return (
     <Stack>
       <Card withBorder>
-        <Text fw={600} mb="sm">Export to ERP</Text>
+        <Text fw={600} mb="sm">
+          Export to ERP
+        </Text>
         <Group align="end">
           <Select
             label="Target System"
@@ -3752,16 +6073,40 @@ function ErpExportTab() {
             onChange={(v) => setForm({ ...form, export_type: v ?? "invoices" })}
             w={200}
           />
-          <TextInput label="From" type="date" value={form.date_from ?? ""} onChange={(e) => setForm({ ...form, date_from: e.currentTarget.value })} w={160} />
-          <TextInput label="To" type="date" value={form.date_to ?? ""} onChange={(e) => setForm({ ...form, date_to: e.currentTarget.value })} w={160} />
-          <Button leftSection={<IconDatabase size={16} />} onClick={() => exportMut.mutate()} loading={exportMut.isPending}>
+          <TextInput
+            label="From"
+            type="date"
+            value={form.date_from ?? ""}
+            onChange={(e) => setForm({ ...form, date_from: e.currentTarget.value })}
+            w={160}
+          />
+          <TextInput
+            label="To"
+            type="date"
+            value={form.date_to ?? ""}
+            onChange={(e) => setForm({ ...form, date_to: e.currentTarget.value })}
+            w={160}
+          />
+          <Button
+            leftSection={<IconDatabase size={16} />}
+            onClick={() => exportMut.mutate()}
+            loading={exportMut.isPending}
+          >
             Export
           </Button>
         </Group>
       </Card>
 
       <Title order={5}>Export History</Title>
-      <DataTable columns={columns} data={erpExports ?? []} loading={isLoading} page={1} totalPages={1} onPageChange={() => {}} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={erpExports ?? []}
+        loading={isLoading}
+        page={1}
+        totalPages={1}
+        onPageChange={() => {}}
+        rowKey={(r) => r.id}
+      />
     </Stack>
   );
 }
@@ -3813,31 +6158,106 @@ function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });
-      notifications.show({ title: "Saved", message: "Auto-concession rules updated", color: "success" });
+      notifications.show({
+        title: "Saved",
+        message: "Auto-concession rules updated",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Invalid JSON or save failed", color: "danger" }),
+    onError: () =>
+      notifications.show({
+        title: "Error",
+        message: "Invalid JSON or save failed",
+        color: "danger",
+      }),
   });
 
   const statusColors: Record<string, string> = {
-    pending: "warning", approved: "success", rejected: "danger", auto_applied: "teal",
+    pending: "warning",
+    approved: "success",
+    rejected: "danger",
+    auto_applied: "teal",
   };
 
   const columns = [
-    { key: "concession_type", label: "Type", render: (r: BillingConcession) => <Text size="sm">{r.concession_type}</Text> },
-    { key: "original_amount", label: "Original", render: (r: BillingConcession) => <Text size="sm">{Number(r.original_amount).toFixed(2)}</Text> },
-    { key: "concession_amount", label: "Discount", render: (r: BillingConcession) => <Text size="sm" c="danger">-{Number(r.concession_amount).toFixed(2)}</Text> },
-    { key: "final_amount", label: "Final", render: (r: BillingConcession) => <Text size="sm" fw={600}>{Number(r.final_amount).toFixed(2)}</Text> },
-    { key: "status", label: "Status", render: (r: BillingConcession) => <Badge size="sm" color={statusColors[r.status] ?? "slate"}>{r.status}</Badge> },
-    { key: "reason", label: "Reason", render: (r: BillingConcession) => <Text size="sm" lineClamp={1}>{r.reason ?? r.auto_rule ?? "—"}</Text> },
-    { key: "source_module", label: "Source", render: (r: BillingConcession) => <Text size="sm">{r.source_module ?? "manual"}</Text> },
-    { key: "created_at", label: "Date", render: (r: BillingConcession) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text> },
     {
-      key: "actions", label: "", render: (r: BillingConcession) => r.status === "pending" && canApprove ? (
-        <Group gap={4}>
-          <Tooltip label="Approve"><ActionIcon variant="subtle" color="success" onClick={() => approveMut.mutate(r.id)}><IconCheck size={16} /></ActionIcon></Tooltip>
-          <Tooltip label="Reject"><ActionIcon variant="subtle" color="danger" onClick={() => rejectMut.mutate(r.id)}><IconX size={16} /></ActionIcon></Tooltip>
-        </Group>
-      ) : null,
+      key: "concession_type",
+      label: "Type",
+      render: (r: BillingConcession) => <Text size="sm">{r.concession_type}</Text>,
+    },
+    {
+      key: "original_amount",
+      label: "Original",
+      render: (r: BillingConcession) => (
+        <Text size="sm">{Number(r.original_amount).toFixed(2)}</Text>
+      ),
+    },
+    {
+      key: "concession_amount",
+      label: "Discount",
+      render: (r: BillingConcession) => (
+        <Text size="sm" c="danger">
+          -{Number(r.concession_amount).toFixed(2)}
+        </Text>
+      ),
+    },
+    {
+      key: "final_amount",
+      label: "Final",
+      render: (r: BillingConcession) => (
+        <Text size="sm" fw={600}>
+          {Number(r.final_amount).toFixed(2)}
+        </Text>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: BillingConcession) => (
+        <Badge size="sm" color={statusColors[r.status] ?? "slate"}>
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (r: BillingConcession) => (
+        <Text size="sm" lineClamp={1}>
+          {r.reason ?? r.auto_rule ?? "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "source_module",
+      label: "Source",
+      render: (r: BillingConcession) => <Text size="sm">{r.source_module ?? "manual"}</Text>,
+    },
+    {
+      key: "created_at",
+      label: "Date",
+      render: (r: BillingConcession) => (
+        <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (r: BillingConcession) =>
+        r.status === "pending" && canApprove ? (
+          <Group gap={4}>
+            <Tooltip label="Approve">
+              <ActionIcon variant="subtle" color="success" onClick={() => approveMut.mutate(r.id)}>
+                <IconCheck size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Reject">
+              <ActionIcon variant="subtle" color="danger" onClick={() => rejectMut.mutate(r.id)}>
+                <IconX size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        ) : null,
     },
   ];
 
@@ -3884,7 +6304,9 @@ function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
 
       {view === "rules" && (
         <Card withBorder>
-          <Text fw={600} mb="sm">Auto-Concession Rules</Text>
+          <Text fw={600} mb="sm">
+            Auto-Concession Rules
+          </Text>
           <Text size="sm" c="dimmed" mb="md">
             Define rules as JSON array. Each rule: name, concession_type, percent, reason,
             is_active, applicable_modules[], patient_categories[].

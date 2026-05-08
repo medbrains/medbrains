@@ -1,18 +1,10 @@
-import { useState } from "react";
-import {
-  Button,
-  ColorInput,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Button, ColorInput, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -128,10 +120,7 @@ export function BrandingSettings() {
     mutation.mutate(form);
   };
 
-  const updateField = <K extends keyof BrandingForm>(
-    key: K,
-    value: BrandingForm[K],
-  ) => {
+  const updateField = <K extends keyof BrandingForm>(key: K, value: BrandingForm[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
@@ -218,8 +207,7 @@ export function BrandingSettings() {
           Hospital Name
         </Text>
         <Text size="sm" c="inherit" mt={4}>
-          This is a preview of how your primary and secondary colors look
-          together.
+          This is a preview of how your primary and secondary colors look together.
         </Text>
       </div>
 

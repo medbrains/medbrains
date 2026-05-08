@@ -3,11 +3,11 @@
  * optional badge. Tap-able when `onPress` provided.
  */
 
+import type { IntentTone } from "@medbrains/ui-mobile";
+import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Text } from "react-native-paper";
-import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
-import type { IntentTone } from "@medbrains/ui-mobile";
 
 export interface EntityRowProps {
   title: string;

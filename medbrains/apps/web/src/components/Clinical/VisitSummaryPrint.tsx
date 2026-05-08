@@ -1,6 +1,4 @@
-import { useRef } from "react";
 import { Button, Group, Modal, Stack } from "@mantine/core";
-import { IconPrinter } from "@tabler/icons-react";
 import type {
   Consultation,
   Diagnosis,
@@ -9,6 +7,8 @@ import type {
   PrescriptionWithItems,
   Vital,
 } from "@medbrains/types";
+import { IconPrinter } from "@tabler/icons-react";
+import { useRef } from "react";
 import styles from "./visit-summary-print.module.scss";
 
 interface VisitSummaryPrintProps {
@@ -93,7 +93,7 @@ export function VisitSummaryPrint({
         </head>
         <body>
           ${content.innerHTML}
-          <script>window.onload = function() { window.print(); window.close(); }<\/script>
+          <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
       </html>
     `);
@@ -164,7 +164,9 @@ export function VisitSummaryPrint({
                   {latestVitals.systolic_bp != null && (
                     <div className={styles.vitalItem}>
                       <div className={styles.vitalLabel}>BP</div>
-                      <div className={styles.vitalValue}>{latestVitals.systolic_bp}/{latestVitals.diastolic_bp}</div>
+                      <div className={styles.vitalValue}>
+                        {latestVitals.systolic_bp}/{latestVitals.diastolic_bp}
+                      </div>
                     </div>
                   )}
                   {latestVitals.spo2 != null && (
@@ -319,7 +321,9 @@ export function VisitSummaryPrint({
                 Printed: {new Date().toLocaleDateString("en-IN")}
               </div>
               <div style={{ textAlign: "center" }}>
-                {doctorName && <div style={{ fontWeight: 600, marginBottom: 4 }}>Dr. {doctorName}</div>}
+                {doctorName && (
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Dr. {doctorName}</div>
+                )}
                 <div className={styles.signatureLine}>Signature & Seal</div>
               </div>
             </div>
@@ -327,7 +331,9 @@ export function VisitSummaryPrint({
         </div>
 
         <Group justify="flex-end" className={styles.noPrint}>
-          <Button variant="subtle" onClick={onClose}>Close</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Close
+          </Button>
           <Button leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
             Print Summary
           </Button>

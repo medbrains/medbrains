@@ -28,10 +28,10 @@ export function IntegrationHubPage() {
         title="Pipelines are code, not config"
       >
         Cross-module workflows live in <code>orchestration/default_pipelines.rs</code>. Each
-        subscriber writes to the outbox with a stable idempotency key, so retries and
-        accidental double-fires never produce duplicate side effects. To customise behaviour
-        per tenant, use <strong>Settings → Pipeline Settings</strong> (template ids, recipient
-        lists, thresholds). To disable a subscriber for one tenant, add the event_type to the
+        subscriber writes to the outbox with a stable idempotency key, so retries and accidental
+        double-fires never produce duplicate side effects. To customise behaviour per tenant, use{" "}
+        <strong>Settings → Pipeline Settings</strong> (template ids, recipient lists, thresholds).
+        To disable a subscriber for one tenant, add the event_type to the
         <code>default_pipelines.disabled</code> array in tenant_settings.
       </Alert>
 

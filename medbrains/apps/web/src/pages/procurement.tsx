@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -14,25 +13,12 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconBuildingWarehouse,
-  IconCash,
-  IconChartBar,
-  IconContract,
-  IconEye,
-  IconFileInvoice,
-  IconPackage,
-  IconPlus,
-  IconTruck,
-  IconUsers,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -52,7 +38,21 @@ import type {
   VendorPerformanceRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { DataTable, PageHeader } from "../components";
+import {
+  IconBuildingWarehouse,
+  IconCash,
+  IconChartBar,
+  IconContract,
+  IconEye,
+  IconFileInvoice,
+  IconPackage,
+  IconPlus,
+  IconTruck,
+  IconUsers,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { DataTable, PageHeader, VendorSearchSelect } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Status colors ────────────────────────────────────────────
@@ -91,11 +91,70 @@ const rcStatusColors: Record<string, string> = {
   terminated: "danger",
 };
 
-const poLinkableIndentStatuses = new Set([
-  "approved",
-  "partially_approved",
-  "partially_issued",
-]);
+const poLinkableIndentStatuses = new Set(["approved", "partially_approved", "partially_issued"]);
+
+const createFormRowId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+type CreatePoFormItem = CreatePoItemInput & { rowId: string };
+type CreateGrnFormItem = CreateGrnItemInput & { rowId: string };
+type CreateRcFormItem = CreateRcItemInput & { rowId: string };
+
+const emptyPoItem = (): CreatePoFormItem => ({
+  rowId: createFormRowId(),
+  item_name: "",
+  quantity_ordered: 1,
+  unit_price: 0,
+});
+
+const emptyGrnItem = (): CreateGrnFormItem => ({
+  rowId: createFormRowId(),
+  item_name: "",
+  quantity_received: 1,
+  quantity_accepted: 1,
+  unit_price: 0,
+});
+
+const emptyRcItem = (): CreateRcFormItem => ({
+  rowId: createFormRowId(),
+  catalog_item_id: "",
+  contracted_price: 0,
+});
+
+const toPoItemInput = (item: CreatePoFormItem): CreatePoItemInput => ({
+  catalog_item_id: item.catalog_item_id,
+  item_name: item.item_name,
+  item_code: item.item_code,
+  unit: item.unit,
+  quantity_ordered: item.quantity_ordered,
+  unit_price: item.unit_price,
+  tax_percent: item.tax_percent,
+  discount_percent: item.discount_percent,
+  indent_item_id: item.indent_item_id,
+  notes: item.notes,
+});
+
+const toGrnItemInput = (item: CreateGrnFormItem): CreateGrnItemInput => ({
+  po_item_id: item.po_item_id,
+  catalog_item_id: item.catalog_item_id,
+  item_name: item.item_name,
+  quantity_received: item.quantity_received,
+  quantity_accepted: item.quantity_accepted,
+  quantity_rejected: item.quantity_rejected,
+  batch_number: item.batch_number,
+  expiry_date: item.expiry_date,
+  manufacture_date: item.manufacture_date,
+  unit_price: item.unit_price,
+  rejection_reason: item.rejection_reason,
+  notes: item.notes,
+});
+
+const toRcItemInput = (item: CreateRcFormItem): CreateRcItemInput => ({
+  catalog_item_id: item.catalog_item_id,
+  contracted_price: item.contracted_price,
+  max_quantity: item.max_quantity,
+  notes: item.notes,
+});
 
 function formatLinkedIndentLabel(requisition: IndentRequisition) {
   return `${requisition.indent_number} • ${requisition.status.replace(/_/g, " ")}`;
@@ -129,19 +188,35 @@ export function ProcurementPage() {
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="vendors" leftSection={<IconUsers size={16} />}>Vendors</Tabs.Tab>
-          <Tabs.Tab value="purchase-orders" leftSection={<IconFileInvoice size={16} />}>Purchase Orders</Tabs.Tab>
-          <Tabs.Tab value="grn" leftSection={<IconPackage size={16} />}>GRN</Tabs.Tab>
-          <Tabs.Tab value="rate-contracts" leftSection={<IconContract size={16} />}>Rate Contracts</Tabs.Tab>
-          <Tabs.Tab value="batch-stock" leftSection={<IconBuildingWarehouse size={16} />}>Batch Stock</Tabs.Tab>
+          <Tabs.Tab value="vendors" leftSection={<IconUsers size={16} />}>
+            Vendors
+          </Tabs.Tab>
+          <Tabs.Tab value="purchase-orders" leftSection={<IconFileInvoice size={16} />}>
+            Purchase Orders
+          </Tabs.Tab>
+          <Tabs.Tab value="grn" leftSection={<IconPackage size={16} />}>
+            GRN
+          </Tabs.Tab>
+          <Tabs.Tab value="rate-contracts" leftSection={<IconContract size={16} />}>
+            Rate Contracts
+          </Tabs.Tab>
+          <Tabs.Tab value="batch-stock" leftSection={<IconBuildingWarehouse size={16} />}>
+            Batch Stock
+          </Tabs.Tab>
           {canManageStores && (
-            <Tabs.Tab value="store-locations" leftSection={<IconBuildingWarehouse size={16} />}>Store Locations</Tabs.Tab>
+            <Tabs.Tab value="store-locations" leftSection={<IconBuildingWarehouse size={16} />}>
+              Store Locations
+            </Tabs.Tab>
           )}
           {canViewPerformance && (
-            <Tabs.Tab value="vendor-performance" leftSection={<IconChartBar size={16} />}>Vendor Performance</Tabs.Tab>
+            <Tabs.Tab value="vendor-performance" leftSection={<IconChartBar size={16} />}>
+              Vendor Performance
+            </Tabs.Tab>
           )}
           {canViewPayments && (
-            <Tabs.Tab value="supplier-payments" leftSection={<IconCash size={16} />}>Supplier Payments</Tabs.Tab>
+            <Tabs.Tab value="supplier-payments" leftSection={<IconCash size={16} />}>
+              Supplier Payments
+            </Tabs.Tab>
           )}
         </Tabs.List>
 
@@ -207,7 +282,15 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         </Badge>
       ),
     },
-    { key: "vendor_type", label: "Type", render: (row: Vendor) => <Badge variant="outline" size="sm">{row.vendor_type}</Badge> },
+    {
+      key: "vendor_type",
+      label: "Type",
+      render: (row: Vendor) => (
+        <Badge variant="outline" size="sm">
+          {row.vendor_type}
+        </Badge>
+      ),
+    },
     { key: "contact_person", label: "Contact", render: (row: Vendor) => row.contact_person ?? "-" },
     { key: "phone", label: "Phone", render: (row: Vendor) => row.phone ?? "-" },
     { key: "city", label: "City", render: (row: Vendor) => row.city ?? "-" },
@@ -217,7 +300,14 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: Vendor) => (
         <Tooltip label="View details">
-          <ActionIcon variant="subtle" onClick={() => { setDetailVendor(row); openDetail(); }} aria-label="View details">
+          <ActionIcon
+            variant="subtle"
+            onClick={() => {
+              setDetailVendor(row);
+              openDetail();
+            }}
+            aria-label="View details"
+          >
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -229,7 +319,9 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Add Vendor</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Add Vendor
+          </Button>
         </Group>
       )}
 
@@ -241,7 +333,13 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No vendors found"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Register New Vendor" position="right" size="lg">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Register New Vendor"
+        position="right"
+        size="lg"
+      >
         <VendorForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["vendors"] });
@@ -250,23 +348,43 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         />
       </Drawer>
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Vendor Details" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Vendor Details"
+        position="right"
+        size="lg"
+      >
         {detailVendor && (
           <Stack>
             <Group>
-              <Badge color={vendorStatusColors[detailVendor.status]} variant="filled">{detailVendor.status}</Badge>
+              <Badge color={vendorStatusColors[detailVendor.status]} variant="filled">
+                {detailVendor.status}
+              </Badge>
               <Badge variant="outline">{detailVendor.vendor_type}</Badge>
             </Group>
-            <Text fw={600} size="lg">{detailVendor.name}</Text>
-            {detailVendor.contact_person && <Text size="sm">Contact: {detailVendor.contact_person}</Text>}
+            <Text fw={600} size="lg">
+              {detailVendor.name}
+            </Text>
+            {detailVendor.contact_person && (
+              <Text size="sm">Contact: {detailVendor.contact_person}</Text>
+            )}
             {detailVendor.phone && <Text size="sm">Phone: {detailVendor.phone}</Text>}
             {detailVendor.email && <Text size="sm">Email: {detailVendor.email}</Text>}
             {detailVendor.gst_number && <Text size="sm">GST: {detailVendor.gst_number}</Text>}
             {detailVendor.pan_number && <Text size="sm">PAN: {detailVendor.pan_number}</Text>}
-            {detailVendor.drug_license_number && <Text size="sm">Drug License: {detailVendor.drug_license_number}</Text>}
-            {detailVendor.city && <Text size="sm">Location: {[detailVendor.city, detailVendor.state].filter(Boolean).join(", ")}</Text>}
+            {detailVendor.drug_license_number && (
+              <Text size="sm">Drug License: {detailVendor.drug_license_number}</Text>
+            )}
+            {detailVendor.city && (
+              <Text size="sm">
+                Location: {[detailVendor.city, detailVendor.state].filter(Boolean).join(", ")}
+              </Text>
+            )}
             <Text size="sm">Payment Terms: {detailVendor.payment_terms ?? "N/A"}</Text>
-            <Text size="sm">Credit Limit: ₹{detailVendor.credit_limit} ({detailVendor.credit_days} days)</Text>
+            <Text size="sm">
+              Credit Limit: ₹{detailVendor.credit_limit} ({detailVendor.credit_days} days)
+            </Text>
           </Stack>
         )}
       </Drawer>
@@ -328,8 +446,18 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Stack>
-      <TextInput label="Vendor Code" value={code} onChange={(e) => setCode(e.currentTarget.value)} required />
-      <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+      <TextInput
+        label="Vendor Code"
+        value={code}
+        onChange={(e) => setCode(e.currentTarget.value)}
+        required
+      />
+      <TextInput
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.currentTarget.value)}
+        required
+      />
       <Select
         label="Type"
         data={[
@@ -341,11 +469,19 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         value={vendorType}
         onChange={(v) => setVendorType(v ?? "supplier")}
       />
-      <TextInput label="Contact Person" value={contactPerson} onChange={(e) => setContactPerson(e.currentTarget.value)} />
+      <TextInput
+        label="Contact Person"
+        value={contactPerson}
+        onChange={(e) => setContactPerson(e.currentTarget.value)}
+      />
       <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
       <TextInput label="Email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
       <TextInput label="City" value={city} onChange={(e) => setCity(e.currentTarget.value)} />
-      <TextInput label="GST Number" value={gstNumber} onChange={(e) => setGstNumber(e.currentTarget.value)} />
+      <TextInput
+        label="GST Number"
+        value={gstNumber}
+        onChange={(e) => setGstNumber(e.currentTarget.value)}
+      />
       <Select
         label="Payment Terms"
         data={[
@@ -387,7 +523,11 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         value={productLines}
         onChange={(e) => setProductLines(e.currentTarget.value)}
       />
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!code || !name}>
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!code || !name}
+      >
         Register Vendor
       </Button>
     </Stack>
@@ -414,7 +554,11 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.approvePurchaseOrder(id),
     onSuccess: () => {
-      notifications.show({ title: "Approved", message: "Purchase order approved", color: "success" });
+      notifications.show({
+        title: "Approved",
+        message: "Purchase order approved",
+        color: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
   });
@@ -428,7 +572,11 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
   });
 
   const columns = [
-    { key: "po_number", label: "PO #", render: (row: PurchaseOrder) => <Text fw={600}>{row.po_number}</Text> },
+    {
+      key: "po_number",
+      label: "PO #",
+      render: (row: PurchaseOrder) => <Text fw={600}>{row.po_number}</Text>,
+    },
     {
       key: "status",
       label: "Status",
@@ -438,26 +586,53 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         </Badge>
       ),
     },
-    { key: "total_amount", label: "Amount", render: (row: PurchaseOrder) => `₹${row.total_amount}` },
+    {
+      key: "total_amount",
+      label: "Amount",
+      render: (row: PurchaseOrder) => `₹${row.total_amount}`,
+    },
     { key: "order_date", label: "Date", render: (row: PurchaseOrder) => row.order_date },
-    { key: "expected_delivery", label: "Expected", render: (row: PurchaseOrder) => row.expected_delivery ?? "-" },
+    {
+      key: "expected_delivery",
+      label: "Expected",
+      render: (row: PurchaseOrder) => row.expected_delivery ?? "-",
+    },
     {
       key: "actions",
       label: "",
       render: (row: PurchaseOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }} aria-label="View details">
+            <ActionIcon
+              variant="subtle"
+              onClick={() => {
+                setDetailId(row.id);
+                openDetail();
+              }}
+              aria-label="View details"
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
           {row.status === "draft" && canApprove && (
-            <Button size="compact-xs" variant="light" color="success" loading={approveMutation.isPending} onClick={() => approveMutation.mutate(row.id)}>
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="success"
+              loading={approveMutation.isPending}
+              onClick={() => approveMutation.mutate(row.id)}
+            >
               Approve
             </Button>
           )}
           {row.status === "approved" && (
-            <Button size="compact-xs" variant="light" color="teal" loading={sendMutation.isPending} onClick={() => sendMutation.mutate(row.id)}>
+            <Button
+              size="compact-xs"
+              variant="light"
+              color="teal"
+              loading={sendMutation.isPending}
+              onClick={() => sendMutation.mutate(row.id)}
+            >
               Send
             </Button>
           )}
@@ -470,7 +645,9 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>New PO</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            New PO
+          </Button>
         </Group>
       )}
 
@@ -485,7 +662,13 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No purchase orders"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Create Purchase Order" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Create Purchase Order"
+        position="right"
+        size="xl"
+      >
         <CreatePoForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
@@ -494,7 +677,13 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         />
       </Drawer>
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Purchase Order Details" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Purchase Order Details"
+        position="right"
+        size="lg"
+      >
         {detailId && <PoDetailView id={detailId} />}
       </Drawer>
     </>
@@ -510,7 +699,12 @@ function PoDetailView({ id }: { id: string }) {
   const linkedIndentId = data?.purchase_order.indent_requisition_id ?? null;
   const linkedIndentQuery = useQuery({
     queryKey: ["indent-requisition", "procurement-link", linkedIndentId],
-    queryFn: () => api.getIndentRequisition(linkedIndentId!),
+    queryFn: () => {
+      if (!linkedIndentId) {
+        throw new Error("Missing linked indent");
+      }
+      return api.getIndentRequisition(linkedIndentId);
+    },
     enabled: Boolean(linkedIndentId),
   });
 
@@ -522,8 +716,12 @@ function PoDetailView({ id }: { id: string }) {
   return (
     <Stack>
       <Group>
-        <Badge color={poStatusColors[po.status]} variant="filled">{po.status.replace(/_/g, " ")}</Badge>
-        <Text size="sm" c="dimmed">PO #{po.po_number}</Text>
+        <Badge color={poStatusColors[po.status]} variant="filled">
+          {po.status.replace(/_/g, " ")}
+        </Badge>
+        <Text size="sm" c="dimmed">
+          PO #{po.po_number}
+        </Text>
       </Group>
 
       <Text size="sm">Order Date: {po.order_date}</Text>
@@ -582,12 +780,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
   const [linkedIndentId, setLinkedIndentId] = useState<string | null>(null);
   const [isSyncingIndent, setIsSyncingIndent] = useState(false);
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreatePoItemInput[]>([{ item_name: "", quantity_ordered: 1, unit_price: 0 }]);
-
-  const { data: vendors } = useQuery({
-    queryKey: ["vendors"],
-    queryFn: () => api.listVendors({ status: "active" }),
-  });
+  const [items, setItems] = useState<CreatePoFormItem[]>([emptyPoItem()]);
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
@@ -627,7 +820,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         vendor_id: vendorId,
         indent_requisition_id: linkedIndentId ?? undefined,
         notes: notes || undefined,
-        items,
+        items: items.map(toPoItemInput),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Purchase order created", color: "success" });
@@ -638,8 +831,10 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const addItem = () => setItems([...items, { item_name: "", quantity_ordered: 1, unit_price: 0 }]);
-  const removeItem = (idx: number) => { if (items.length > 1) setItems(items.filter((_, i) => i !== idx)); };
+  const addItem = () => setItems((prev) => [...prev, emptyPoItem()]);
+  const removeItem = (idx: number) => {
+    if (items.length > 1) setItems(items.filter((_, i) => i !== idx));
+  };
   const updateItem = (idx: number, field: string, value: unknown) => {
     setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   };
@@ -656,6 +851,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
       const detail = await api.getIndentRequisition(value);
       const syncedItems = detail.items
         .map((item) => ({
+          rowId: createFormRowId(),
           catalog_item_id: item.catalog_item_id ?? undefined,
           item_name: item.item_name,
           item_code: undefined,
@@ -667,7 +863,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         }))
         .filter((item) => item.quantity_ordered > 0);
 
-      setItems(syncedItems.length > 0 ? syncedItems : [{ item_name: "", quantity_ordered: 1, unit_price: 0 }]);
+      setItems(syncedItems.length > 0 ? syncedItems : [emptyPoItem()]);
       if (!notes.trim()) {
         setNotes(`Linked to indent ${detail.requisition.indent_number}`);
       }
@@ -685,13 +881,11 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Stack>
-      <Select
+      <VendorSearchSelect
         label="Vendor"
         placeholder="Select vendor"
-        data={(vendors ?? []).map((v) => ({ value: v.id, label: `${v.code} - ${v.name}` }))}
         value={vendorId}
-        onChange={(v) => setVendorId(v ?? "")}
-        searchable
+        onChange={setVendorId}
         required
       />
       <Select
@@ -731,15 +925,23 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         </Table.Thead>
         <Table.Tbody>
           {items.map((item, idx) => (
-            <Table.Tr key={idx}>
+            <Table.Tr key={item.rowId}>
               <Table.Td>
-                <TextInput size="xs" value={item.item_name} onChange={(e) => updateItem(idx, "item_name", e.currentTarget.value)} required />
+                <TextInput
+                  size="xs"
+                  value={item.item_name}
+                  onChange={(e) => updateItem(idx, "item_name", e.currentTarget.value)}
+                  required
+                />
               </Table.Td>
               <Table.Td>
                 <Select
                   size="xs"
                   placeholder="From catalog"
-                  data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                  data={(catalog ?? []).map((c) => ({
+                    value: c.id,
+                    label: `${c.code} - ${c.name}`,
+                  }))}
                   value={item.catalog_item_id ?? null}
                   onChange={(v) => {
                     const cat = catalog?.find((c) => c.id === v);
@@ -754,22 +956,54 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
                 />
               </Table.Td>
               <Table.Td>
-                <NumberInput size="xs" w={80} min={1} value={item.quantity_ordered} onChange={(v) => updateItem(idx, "quantity_ordered", Number(v))} />
+                <NumberInput
+                  size="xs"
+                  w={80}
+                  min={1}
+                  value={item.quantity_ordered}
+                  onChange={(v) => updateItem(idx, "quantity_ordered", Number(v))}
+                />
               </Table.Td>
               <Table.Td>
-                <NumberInput size="xs" w={100} min={0} decimalScale={2} value={item.unit_price} onChange={(v) => updateItem(idx, "unit_price", Number(v))} />
+                <NumberInput
+                  size="xs"
+                  w={100}
+                  min={0}
+                  decimalScale={2}
+                  value={item.unit_price}
+                  onChange={(v) => updateItem(idx, "unit_price", Number(v))}
+                />
               </Table.Td>
               <Table.Td>
-                <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeItem(idx)}>×</ActionIcon>
+                <ActionIcon
+                  variant="subtle"
+                  color="danger"
+                  size="sm"
+                  onClick={() => removeItem(idx)}
+                >
+                  ×
+                </ActionIcon>
               </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
 
-      <Button variant="outline" size="xs" leftSection={<IconPlus size={14} />} onClick={addItem} w="fit-content">Add Item</Button>
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={14} />}
+        onClick={addItem}
+        w="fit-content"
+      >
+        Add Item
+      </Button>
 
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!vendorId || items.every((i) => !i.item_name)}>
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!vendorId || items.every((i) => !i.item_name)}
+      >
         Create PO
       </Button>
     </Stack>
@@ -793,7 +1027,11 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
   });
 
   const columns = [
-    { key: "grn_number", label: "GRN #", render: (row: GoodsReceiptNote) => <Text fw={600}>{row.grn_number}</Text> },
+    {
+      key: "grn_number",
+      label: "GRN #",
+      render: (row: GoodsReceiptNote) => <Text fw={600}>{row.grn_number}</Text>,
+    },
     {
       key: "status",
       label: "Status",
@@ -803,16 +1041,34 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         </Badge>
       ),
     },
-    { key: "total_amount", label: "Amount", render: (row: GoodsReceiptNote) => `₹${row.total_amount}` },
-    { key: "receipt_date", label: "Receipt Date", render: (row: GoodsReceiptNote) => row.receipt_date },
-    { key: "invoice_number", label: "Invoice", render: (row: GoodsReceiptNote) => row.invoice_number ?? "-" },
+    {
+      key: "total_amount",
+      label: "Amount",
+      render: (row: GoodsReceiptNote) => `₹${row.total_amount}`,
+    },
+    {
+      key: "receipt_date",
+      label: "Receipt Date",
+      render: (row: GoodsReceiptNote) => row.receipt_date,
+    },
+    {
+      key: "invoice_number",
+      label: "Invoice",
+      render: (row: GoodsReceiptNote) => row.invoice_number ?? "-",
+    },
     {
       key: "actions",
       label: "",
       render: (row: GoodsReceiptNote) => (
         <Tooltip label="View">
-          <ActionIcon variant="subtle" onClick={() => { setDetailId(row.id); openDetail(); }}
-              aria-label="View details">
+          <ActionIcon
+            variant="subtle"
+            onClick={() => {
+              setDetailId(row.id);
+              openDetail();
+            }}
+            aria-label="View details"
+          >
             <IconEye size={16} />
           </ActionIcon>
         </Tooltip>
@@ -824,7 +1080,9 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>New GRN</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            New GRN
+          </Button>
         </Group>
       )}
 
@@ -839,7 +1097,13 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No goods receipt notes"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Create GRN" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Create GRN"
+        position="right"
+        size="xl"
+      >
         <CreateGrnForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["grns"] });
@@ -849,7 +1113,13 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         />
       </Drawer>
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="GRN Details" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="GRN Details"
+        position="right"
+        size="lg"
+      >
         {detailId && <GrnDetailView id={detailId} />}
       </Drawer>
     </>
@@ -867,8 +1137,12 @@ function GrnDetailView({ id }: { id: string }) {
   return (
     <Stack>
       <Group>
-        <Badge color={grnStatusColors[data.grn.status]} variant="filled">{data.grn.status}</Badge>
-        <Text size="sm" c="dimmed">GRN #{data.grn.grn_number}</Text>
+        <Badge color={grnStatusColors[data.grn.status]} variant="filled">
+          {data.grn.status}
+        </Badge>
+        <Text size="sm" c="dimmed">
+          GRN #{data.grn.grn_number}
+        </Text>
       </Group>
       <Text size="sm">Receipt Date: {data.grn.receipt_date}</Text>
       {data.grn.invoice_number && <Text size="sm">Invoice: {data.grn.invoice_number}</Text>}
@@ -889,8 +1163,16 @@ function GrnDetailView({ id }: { id: string }) {
             <Table.Tr key={item.id}>
               <Table.Td>{item.item_name}</Table.Td>
               <Table.Td>{item.quantity_received}</Table.Td>
-              <Table.Td><Text c="success">{item.quantity_accepted}</Text></Table.Td>
-              <Table.Td>{item.quantity_rejected > 0 ? <Text c="danger">{item.quantity_rejected}</Text> : "-"}</Table.Td>
+              <Table.Td>
+                <Text c="success">{item.quantity_accepted}</Text>
+              </Table.Td>
+              <Table.Td>
+                {item.quantity_rejected > 0 ? (
+                  <Text c="danger">{item.quantity_rejected}</Text>
+                ) : (
+                  "-"
+                )}
+              </Table.Td>
               <Table.Td>{item.batch_number ?? "-"}</Table.Td>
               <Table.Td>{item.expiry_date ?? "-"}</Table.Td>
             </Table.Tr>
@@ -907,9 +1189,7 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
   const [poId, setPoId] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreateGrnItemInput[]>([
-    { item_name: "", quantity_received: 1, quantity_accepted: 1, unit_price: 0 },
-  ]);
+  const [items, setItems] = useState<CreateGrnFormItem[]>([emptyGrnItem()]);
 
   const { data: poData } = useQuery({
     queryKey: ["purchase-orders", "receivable"],
@@ -928,10 +1208,14 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
         po_id: poId,
         invoice_number: invoiceNumber || undefined,
         notes: notes || undefined,
-        items,
+        items: items.map(toGrnItemInput),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "GRN created and stock updated", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "GRN created and stock updated",
+        color: "success",
+      });
       onSuccess();
     },
     onError: (err: Error) => {
@@ -949,6 +1233,7 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
     if (v && poDetailQuery.data) {
       setItems(
         poDetailQuery.data.items.map((pi) => ({
+          rowId: createFormRowId(),
           po_item_id: pi.id,
           catalog_item_id: pi.catalog_item_id ?? undefined,
           item_name: pi.item_name,
@@ -965,13 +1250,20 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
       <Select
         label="Purchase Order"
         placeholder="Select PO to receive against"
-        data={(poData?.purchase_orders ?? []).map((po) => ({ value: po.id, label: `${po.po_number} - ₹${po.total_amount}` }))}
+        data={(poData?.purchase_orders ?? []).map((po) => ({
+          value: po.id,
+          label: `${po.po_number} - ₹${po.total_amount}`,
+        }))}
         value={poId}
         onChange={handlePoSelect}
         searchable
         required
       />
-      <TextInput label="Invoice Number" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.currentTarget.value)} />
+      <TextInput
+        label="Invoice Number"
+        value={invoiceNumber}
+        onChange={(e) => setInvoiceNumber(e.currentTarget.value)}
+      />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
 
       <Text fw={600}>Items</Text>
@@ -987,19 +1279,46 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
         </Table.Thead>
         <Table.Tbody>
           {items.map((item, idx) => (
-            <Table.Tr key={idx}>
-              <Table.Td><Text size="sm">{item.item_name || "-"}</Text></Table.Td>
+            <Table.Tr key={item.rowId}>
               <Table.Td>
-                <NumberInput size="xs" w={80} min={0} value={item.quantity_received} onChange={(v) => updateItem(idx, "quantity_received", Number(v))} />
+                <Text size="sm">{item.item_name || "-"}</Text>
               </Table.Td>
               <Table.Td>
-                <NumberInput size="xs" w={80} min={0} max={item.quantity_received} value={item.quantity_accepted} onChange={(v) => updateItem(idx, "quantity_accepted", Number(v))} />
+                <NumberInput
+                  size="xs"
+                  w={80}
+                  min={0}
+                  value={item.quantity_received}
+                  onChange={(v) => updateItem(idx, "quantity_received", Number(v))}
+                />
               </Table.Td>
               <Table.Td>
-                <TextInput size="xs" w={100} placeholder="Batch #" value={item.batch_number ?? ""} onChange={(e) => updateItem(idx, "batch_number", e.currentTarget.value)} />
+                <NumberInput
+                  size="xs"
+                  w={80}
+                  min={0}
+                  max={item.quantity_received}
+                  value={item.quantity_accepted}
+                  onChange={(v) => updateItem(idx, "quantity_accepted", Number(v))}
+                />
               </Table.Td>
               <Table.Td>
-                <TextInput size="xs" w={120} placeholder="YYYY-MM-DD" value={item.expiry_date ?? ""} onChange={(e) => updateItem(idx, "expiry_date", e.currentTarget.value)} />
+                <TextInput
+                  size="xs"
+                  w={100}
+                  placeholder="Batch #"
+                  value={item.batch_number ?? ""}
+                  onChange={(e) => updateItem(idx, "batch_number", e.currentTarget.value)}
+                />
+              </Table.Td>
+              <Table.Td>
+                <TextInput
+                  size="xs"
+                  w={120}
+                  placeholder="YYYY-MM-DD"
+                  value={item.expiry_date ?? ""}
+                  onChange={(e) => updateItem(idx, "expiry_date", e.currentTarget.value)}
+                />
               </Table.Td>
             </Table.Tr>
           ))}
@@ -1027,12 +1346,18 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
   });
 
   const columns = [
-    { key: "contract_number", label: "Contract #", render: (row: RateContract) => <Text fw={600}>{row.contract_number}</Text> },
+    {
+      key: "contract_number",
+      label: "Contract #",
+      render: (row: RateContract) => <Text fw={600}>{row.contract_number}</Text>,
+    },
     {
       key: "status",
       label: "Status",
       render: (row: RateContract) => (
-        <Badge color={rcStatusColors[row.status] ?? "slate"} variant="light" size="sm">{row.status}</Badge>
+        <Badge color={rcStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+          {row.status}
+        </Badge>
       ),
     },
     { key: "start_date", label: "Start", render: (row: RateContract) => row.start_date },
@@ -1044,7 +1369,9 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>New Contract</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            New Contract
+          </Button>
         </Group>
       )}
 
@@ -1056,7 +1383,13 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
         emptyTitle="No rate contracts"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Create Rate Contract" position="right" size="lg">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Create Rate Contract"
+        position="right"
+        size="lg"
+      >
         <CreateRcForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["rate-contracts"] });
@@ -1073,12 +1406,7 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreateRcItemInput[]>([{ catalog_item_id: "", contracted_price: 0 }]);
-
-  const { data: vendors } = useQuery({
-    queryKey: ["vendors"],
-    queryFn: () => api.listVendors({ status: "active" }),
-  });
+  const [items, setItems] = useState<CreateRcFormItem[]>([emptyRcItem()]);
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
@@ -1092,7 +1420,7 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
         start_date: startDate,
         end_date: endDate,
         notes: notes || undefined,
-        items,
+        items: items.map(toRcItemInput),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Rate contract created", color: "success" });
@@ -1105,28 +1433,35 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Stack>
-      <Select
-        label="Vendor"
-        data={(vendors ?? []).map((v) => ({ value: v.id, label: `${v.code} - ${v.name}` }))}
-        value={vendorId}
-        onChange={(v) => setVendorId(v ?? "")}
-        searchable
+      <VendorSearchSelect label="Vendor" value={vendorId} onChange={setVendorId} required />
+      <TextInput
+        label="Start Date"
+        placeholder="YYYY-MM-DD"
+        value={startDate}
+        onChange={(e) => setStartDate(e.currentTarget.value)}
         required
       />
-      <TextInput label="Start Date" placeholder="YYYY-MM-DD" value={startDate} onChange={(e) => setStartDate(e.currentTarget.value)} required />
-      <TextInput label="End Date" placeholder="YYYY-MM-DD" value={endDate} onChange={(e) => setEndDate(e.currentTarget.value)} required />
+      <TextInput
+        label="End Date"
+        placeholder="YYYY-MM-DD"
+        value={endDate}
+        onChange={(e) => setEndDate(e.currentTarget.value)}
+        required
+      />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
 
       <Text fw={600}>Contract Items</Text>
       {items.map((item, idx) => (
-        <Group key={idx}>
+        <Group key={item.rowId}>
           <Select
             size="xs"
             placeholder="Catalog item"
             data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
             value={item.catalog_item_id}
             onChange={(v) => {
-              setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, catalog_item_id: v ?? "" } : it)));
+              setItems((prev) =>
+                prev.map((it, i) => (i === idx ? { ...it, catalog_item_id: v ?? "" } : it)),
+              );
             }}
             searchable
             style={{ flex: 1 }}
@@ -1139,16 +1474,27 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
             decimalScale={2}
             value={item.contracted_price}
             onChange={(v) => {
-              setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, contracted_price: Number(v) } : it)));
+              setItems((prev) =>
+                prev.map((it, i) => (i === idx ? { ...it, contracted_price: Number(v) } : it)),
+              );
             }}
           />
         </Group>
       ))}
-      <Button variant="outline" size="xs" onClick={() => setItems([...items, { catalog_item_id: "", contracted_price: 0 }])} w="fit-content">
+      <Button
+        variant="outline"
+        size="xs"
+        onClick={() => setItems((prev) => [...prev, emptyRcItem()])}
+        w="fit-content"
+      >
         Add Item
       </Button>
 
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!vendorId || !startDate || !endDate}>
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!vendorId || !startDate || !endDate}
+      >
         Create Contract
       </Button>
     </Stack>
@@ -1166,8 +1512,16 @@ function BatchStockPanel() {
   });
 
   const columns = [
-    { key: "batch_number", label: "Batch", render: (row: BatchStock) => <Text fw={600}>{row.batch_number}</Text> },
-    { key: "serial_number", label: "Serial #", render: (row: BatchStock) => row.serial_number ?? "-" },
+    {
+      key: "batch_number",
+      label: "Batch",
+      render: (row: BatchStock) => <Text fw={600}>{row.batch_number}</Text>,
+    },
+    {
+      key: "serial_number",
+      label: "Serial #",
+      render: (row: BatchStock) => row.serial_number ?? "-",
+    },
     { key: "quantity", label: "Qty", render: (row: BatchStock) => row.quantity },
     { key: "unit_cost", label: "Cost", render: (row: BatchStock) => `₹${row.unit_cost}` },
     {
@@ -1175,16 +1529,32 @@ function BatchStockPanel() {
       label: "Expiry",
       render: (row: BatchStock) => {
         if (!row.expiry_date) return "-";
-        const isExpiring = new Date(row.expiry_date) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-        return <Text c={isExpiring ? "danger" : undefined} fw={isExpiring ? 600 : undefined}>{row.expiry_date}</Text>;
+        const isExpiring =
+          new Date(row.expiry_date) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+        return (
+          <Text c={isExpiring ? "danger" : undefined} fw={isExpiring ? 600 : undefined}>
+            {row.expiry_date}
+          </Text>
+        );
       },
     },
     {
       key: "is_consignment",
       label: "Consignment",
-      render: (row: BatchStock) => row.is_consignment ? <Badge color="orange" size="sm">Yes</Badge> : "-",
+      render: (row: BatchStock) =>
+        row.is_consignment ? (
+          <Badge color="orange" size="sm">
+            Yes
+          </Badge>
+        ) : (
+          "-"
+        ),
     },
-    { key: "created_at", label: "Received", render: (row: BatchStock) => new Date(row.created_at).toLocaleDateString() },
+    {
+      key: "created_at",
+      label: "Received",
+      render: (row: BatchStock) => new Date(row.created_at).toLocaleDateString(),
+    },
   ];
 
   return (
@@ -1212,13 +1582,29 @@ function StoreLocationPanel() {
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: StoreLocation) => <Text fw={600}>{row.code}</Text> },
+    {
+      key: "code",
+      label: "Code",
+      render: (row: StoreLocation) => <Text fw={600}>{row.code}</Text>,
+    },
     { key: "name", label: "Name", render: (row: StoreLocation) => row.name },
-    { key: "location_type", label: "Type", render: (row: StoreLocation) => <Badge variant="outline" size="sm">{row.location_type}</Badge> },
+    {
+      key: "location_type",
+      label: "Type",
+      render: (row: StoreLocation) => (
+        <Badge variant="outline" size="sm">
+          {row.location_type}
+        </Badge>
+      ),
+    },
     {
       key: "is_active",
       label: "Active",
-      render: (row: StoreLocation) => <Badge color={row.is_active ? "success" : "slate"} size="sm">{row.is_active ? "Yes" : "No"}</Badge>,
+      render: (row: StoreLocation) => (
+        <Badge color={row.is_active ? "success" : "slate"} size="sm">
+          {row.is_active ? "Yes" : "No"}
+        </Badge>
+      ),
     },
     { key: "address", label: "Address", render: (row: StoreLocation) => row.address ?? "-" },
   ];
@@ -1226,7 +1612,9 @@ function StoreLocationPanel() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Add Location</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          Add Location
+        </Button>
       </Group>
 
       <DataTable
@@ -1237,7 +1625,13 @@ function StoreLocationPanel() {
         emptyTitle="No store locations"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add Store Location" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Add Store Location"
+        position="right"
+        size="xl"
+      >
         <StoreLocationForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["store-locations"] });
@@ -1274,8 +1668,18 @@ function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Stack>
-      <TextInput label="Code" value={code} onChange={(e) => setCode(e.currentTarget.value)} required />
-      <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+      <TextInput
+        label="Code"
+        value={code}
+        onChange={(e) => setCode(e.currentTarget.value)}
+        required
+      />
+      <TextInput
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.currentTarget.value)}
+        required
+      />
       <Select
         label="Type"
         data={[
@@ -1288,8 +1692,16 @@ function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
         value={locationType}
         onChange={(v) => setLocationType(v ?? "main_store")}
       />
-      <Textarea label="Address" value={address} onChange={(e) => setAddress(e.currentTarget.value)} />
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!code || !name}>
+      <Textarea
+        label="Address"
+        value={address}
+        onChange={(e) => setAddress(e.currentTarget.value)}
+      />
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!code || !name}
+      >
         Create Location
       </Button>
     </Stack>
@@ -1369,7 +1781,12 @@ function VendorPerformancePanel() {
         emptyTitle="No vendor performance data"
       />
 
-      <Modal opened={compareOpened} onClose={closeCompare} title="Compare Vendors by Item" size="lg">
+      <Modal
+        opened={compareOpened}
+        onClose={closeCompare}
+        title="Compare Vendors by Item"
+        size="lg"
+      >
         <VendorComparisonView itemId={compareItemId} onItemChange={setCompareItemId} />
       </Modal>
     </>
@@ -1545,7 +1962,13 @@ function SupplierPaymentsPanel() {
         emptyTitle="No supplier payments"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Record Payment" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Record Payment"
+        position="right"
+        size="xl"
+      >
         <CreatePaymentForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
@@ -1566,11 +1989,6 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
-
-  const { data: vendors } = useQuery({
-    queryKey: ["vendors"],
-    queryFn: () => api.listVendors({ status: "active" }),
-  });
 
   const { data: poData } = useQuery({
     queryKey: ["purchase-orders", "for-vendor", vendorId],
@@ -1601,13 +2019,14 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Stack>
-      <Select
+      <VendorSearchSelect
         label="Vendor"
         placeholder="Select vendor"
-        data={(vendors ?? []).map((v) => ({ value: v.id, label: `${v.code} - ${v.name}` }))}
-        value={vendorId || null}
-        onChange={(v) => { setVendorId(v ?? ""); setPoId(""); }}
-        searchable
+        value={vendorId}
+        onChange={(value) => {
+          setVendorId(value);
+          setPoId("");
+        }}
         required
       />
       <Select
@@ -1665,7 +2084,11 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
         onChange={(e) => setReferenceNumber(e.currentTarget.value)}
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!vendorId || invoiceAmount <= 0}>
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!vendorId || invoiceAmount <= 0}
+      >
         Record Payment
       </Button>
     </Stack>

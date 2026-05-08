@@ -1,15 +1,7 @@
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Table,
-  Text,
-  Tooltip,
-} from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Table, Text, Tooltip } from "@mantine/core";
+import type { PrescriptionItemInput } from "@medbrains/types";
 import { IconDeviceFloppy, IconPill, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import type { PrescriptionItemInput } from "@medbrains/types";
 import { instructionsDisplayText } from "../../lib/medication-timing-utils";
 import styles from "./prescription-writer.module.scss";
 
@@ -52,11 +44,15 @@ export function PrescriptionItemsTable({
             return (
               <Table.Tr key={idx}>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{item.drug_name}</Text>
+                  <Text size="sm" fw={500}>
+                    {item.drug_name}
+                  </Text>
                 </Table.Td>
                 <Table.Td>{item.dosage}</Table.Td>
                 <Table.Td>
-                  <Badge size="xs" variant="light">{item.frequency}</Badge>
+                  <Badge size="xs" variant="light">
+                    {item.frequency}
+                  </Badge>
                 </Table.Td>
                 <Table.Td>{item.duration}</Table.Td>
                 <Table.Td>{item.route ?? "—"}</Table.Td>
@@ -68,7 +64,9 @@ export function PrescriptionItemsTable({
                       </Text>
                     </Tooltip>
                   ) : (
-                    <Text size="xs" c="dimmed">—</Text>
+                    <Text size="xs" c="dimmed">
+                      —
+                    </Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -96,12 +94,7 @@ export function PrescriptionItemsTable({
         >
           Save as Template
         </Button>
-        <Button
-          size="sm"
-          onClick={onSave}
-          loading={isSaving}
-          leftSection={<IconPill size={14} />}
-        >
+        <Button size="sm" onClick={onSave} loading={isSaving} leftSection={<IconPill size={14} />}>
           {t("prescription.savePrescription")} ({t("prescription.items", { count: items.length })})
         </Button>
       </Group>

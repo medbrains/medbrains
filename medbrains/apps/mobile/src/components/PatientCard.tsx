@@ -1,4 +1,3 @@
-import React from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { Avatar, Card, Chip, Text } from "react-native-paper";
 

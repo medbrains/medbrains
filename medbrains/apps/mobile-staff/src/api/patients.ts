@@ -3,8 +3,8 @@
  * mirrors `crates/medbrains-server/src/routes/patients.rs`.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface PatientRow {
   id: string;
@@ -33,9 +33,7 @@ export interface ListPatientsParams {
   category?: string;
 }
 
-export async function listPatients(
-  params?: ListPatientsParams,
-): Promise<PatientListResponse> {
+export async function listPatients(params?: ListPatientsParams): Promise<PatientListResponse> {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.per_page) qs.set("per_page", String(params.per_page));
@@ -54,8 +52,6 @@ export interface CreatePatientPayload {
   registration_type?: "self_paid" | "insurance" | "corporate" | "scheme" | "other";
 }
 
-export async function createPatient(
-  payload: CreatePatientPayload,
-): Promise<PatientRow> {
+export async function createPatient(payload: CreatePatientPayload): Promise<PatientRow> {
   return request<PatientRow>(apiConfig, "POST", "/api/patients", payload);
 }

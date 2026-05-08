@@ -1,13 +1,4 @@
-import {
-  Button,
-  Group,
-  Modal,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Textarea,
-} from "@mantine/core";
+import { Button, Group, Modal, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { IconDeviceFloppy } from "@tabler/icons-react";
 
 interface PrescriptionTemplateModalProps {
@@ -65,7 +56,9 @@ export function PrescriptionTemplateModal({
           {itemCount} medication{itemCount !== 1 ? "s" : ""} will be saved
         </Text>
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>Cancel</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             onClick={onSave}
             loading={isSaving}

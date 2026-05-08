@@ -37,7 +37,11 @@ impl CodeableConcept {
         }
     }
 
-    pub fn from_coding(system: impl Into<String>, code: impl Into<String>, display: impl Into<String>) -> Self {
+    pub fn from_coding(
+        system: impl Into<String>,
+        code: impl Into<String>,
+        display: impl Into<String>,
+    ) -> Self {
         let display_str = display.into();
         Self {
             coding: vec![Coding {

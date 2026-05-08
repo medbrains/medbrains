@@ -5,6 +5,9 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
+use medbrains_core::clinical_events::{
+    ClinicalEventEnvelope, ClinicalEventName, ClinicalEventSourceModule,
+};
 use medbrains_core::lab::{
     LabB2bClient, LabB2bRate, LabCalibration, LabCollectionCenter, LabCriticalAlert,
     LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection, LabMolecularReport,
@@ -305,17 +308,13 @@ pub async fn list_orders(
 
     // ── ReBAC scope — only lab orders caller has `view` on ────
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
         Some(
             state
                 .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "lab_order",
-                    medbrains_authz::Relation::Viewer,
-                )
+                .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
                 .await
                 .unwrap_or_default(),
         )
@@ -488,7 +487,12 @@ pub async fn get_order(
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "lab_order", id)
+        .check(
+            &authz_ctx,
+            medbrains_authz::Relation::Viewer,
+            "lab_order",
+            id,
+        )
         .await
         .unwrap_or(false);
     if !allowed {
@@ -545,6 +549,18 @@ pub async fn collect_sample(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
+
+    if order.is_some() {
+        super::billing::reverse_auto_charge_for_source(
+            &mut tx,
+            &claims.tenant_id,
+            "lab",
+            id,
+            claims.sub,
+            "Lab order cancelled",
+        )
+        .await?;
+    }
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -636,6 +652,23 @@ pub async fn complete_order(
                 .await;
             }
         }
+
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::LabOrderCompleted,
+            o.id,
+            claims.sub,
+            serde_json::json!({
+                "order_id": o.id,
+                "patient_id": o.patient_id,
+                "encounter_id": o.encounter_id,
+                "test_id": o.test_id,
+                "priority": format!("{:?}", o.priority).to_lowercase(),
+            }),
+        )
+        .with_patient(o.patient_id)
+        .with_encounter(o.encounter_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -652,18 +685,17 @@ pub async fn complete_order(
         .ok()
         .flatten();
 
-        let (patient_name, uhid) = patient_info
-            .unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
+        let (patient_name, uhid) =
+            patient_info.unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
 
-        let doctor_name = sqlx::query_scalar::<_, String>(
-            "SELECT full_name FROM users WHERE id = $1",
-        )
-        .bind(o.ordered_by)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "Unknown".to_owned());
+        let doctor_name =
+            sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
+                .bind(o.ordered_by)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "Unknown".to_owned());
 
         let tests_count = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM lab_results WHERE order_id = $1 AND tenant_id = $2",
@@ -722,6 +754,26 @@ pub async fn verify_results(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
+
+    if let Some(ref o) = order {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::OrderCancelled,
+            o.id,
+            claims.sub,
+            serde_json::json!({
+                "order_id": o.id,
+                "order_type": "lab",
+                "reason": "Cancelled from lab order queue",
+                "patient_id": o.patient_id,
+                "encounter_id": o.encounter_id,
+            }),
+        )
+        .with_source_module(ClinicalEventSourceModule::Lab)
+        .with_patient(o.patient_id)
+        .with_encounter(o.encounter_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -3793,7 +3845,16 @@ pub async fn get_analyzer_worklist(
     // Department scoping is taken from the encounter, not the lab order
     // (lab_orders has no direct department_id). Optional filter joins
     // through encounters when a department is provided.
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, Option<String>, String, chrono::DateTime<chrono::Utc>)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            Option<String>,
+            String,
+            chrono::DateTime<chrono::Utc>,
+        ),
+    >(
         "SELECT lo.id, lo.patient_id, lo.sample_barcode, \
          COALESCE(p.first_name || ' ' || p.last_name, p.first_name), lo.created_at \
          FROM lab_orders lo \

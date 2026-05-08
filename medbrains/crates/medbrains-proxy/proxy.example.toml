@@ -3,6 +3,87 @@
 
 http_port = 80
 https_port = 443
+body_limit_bytes = 26214400
+block_source_maps = true
+downstream_read_timeout_ms = 30000
+downstream_write_timeout_ms = 30000
+upstream_connect_timeout_ms = 5000
+upstream_total_timeout_ms = 15000
+upstream_read_timeout_ms = 60000
+upstream_idle_timeout_ms = 60000
+drain_timeout_ms = 1000
+
+[[edge_policies]]
+prefix = "/api/sync/"
+class = "outbox"
+body_limit_bytes = 52428800
+upstream_total_timeout_ms = 120000
+upstream_read_timeout_ms = 120000
+require_idempotency_key = true
+retry_after_seconds = 10
+cache_control = "no-store"
+allowed_methods = ["GET", "POST", "PUT", "PATCH", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/api/outbox/"
+class = "outbox"
+body_limit_bytes = 52428800
+upstream_total_timeout_ms = 120000
+upstream_read_timeout_ms = 120000
+require_idempotency_key = true
+retry_after_seconds = 10
+cache_control = "no-store"
+allowed_methods = ["GET", "POST", "PUT", "PATCH", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/api/client-errors"
+class = "telemetry"
+body_limit_bytes = 2097152
+upstream_total_timeout_ms = 15000
+upstream_read_timeout_ms = 30000
+retry_after_seconds = 30
+cache_control = "no-store"
+allowed_methods = ["POST", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/api/"
+class = "api"
+body_limit_bytes = 26214400
+upstream_total_timeout_ms = 15000
+upstream_read_timeout_ms = 60000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/ws"
+class = "websocket"
+upstream = "127.0.0.1:7811"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 3600000
+upstream_read_timeout_ms = 3600000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/assets/"
+class = "assets"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 10000
+upstream_read_timeout_ms = 30000
+cache_control = "public, max-age=31536000, immutable"
+allowed_methods = ["GET", "HEAD", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/"
+class = "spa"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 15000
+upstream_read_timeout_ms = 30000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "HEAD", "OPTIONS"]
 
 [[routes]]
 domain = "medbrains.alagappahospital.com"

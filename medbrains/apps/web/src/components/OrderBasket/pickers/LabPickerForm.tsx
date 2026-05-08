@@ -1,7 +1,6 @@
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
+import type { BasketItem, BasketLabItem, LabTestCatalog } from "@medbrains/types";
 import { useState } from "react";
-import type { BasketItem, BasketLabItem } from "@medbrains/types";
-import type { LabTestCatalog } from "@medbrains/types";
 import { LabTestSearchSelect } from "../../LabTestSearchSelect";
 
 interface LabPickerFormProps {

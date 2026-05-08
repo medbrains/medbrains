@@ -1,60 +1,60 @@
-import { useState } from "react";
+import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Drawer,
   Group,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
+  Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
-  SimpleGrid,
-  Card,
-  Switch,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconDoorEnter,
-  IconQrcode,
-  IconCheck,
-  IconX,
-  IconClock,
-  IconPhone,
-  IconSettings,
-  IconUsers,
-  IconChartBar,
-  IconGauge,
-} from "@tabler/icons-react";
-import { BarChart } from "@mantine/charts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  VisitingHours,
-  VisitorRegistration,
-  VisitorPass,
-  VisitorLog,
-  QueuePriorityRule,
-  QueueDisplayConfig,
-  FrontOfficeEnquiryLog,
-  QueueStatsResponse,
-  UpsertVisitingHoursRequest,
-  CreateVisitorRequest,
-  CreateVisitorPassRequest,
-  UpsertQueuePriorityRequest,
-  UpsertDisplayConfigRequest,
   CreateEnquiryRequest,
-  VisitorAnalytics as VisitorAnalyticsType,
+  CreateVisitorPassRequest,
+  CreateVisitorRequest,
+  FrontOfficeEnquiryLog,
+  QueueDisplayConfig,
   QueueMetrics as QueueMetricsRow,
+  QueuePriorityRule,
+  QueueStatsResponse,
+  UpsertDisplayConfigRequest,
+  UpsertQueuePriorityRequest,
+  UpsertVisitingHoursRequest,
+  VisitingHours,
+  VisitorAnalytics as VisitorAnalyticsType,
+  VisitorLog,
+  VisitorPass,
+  VisitorRegistration,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconChartBar,
+  IconCheck,
+  IconClock,
+  IconDoorEnter,
+  IconGauge,
+  IconPhone,
+  IconPlus,
+  IconQrcode,
+  IconSettings,
+  IconUsers,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -129,23 +129,37 @@ export function FrontOfficePage() {
 
   return (
     <div>
-      <PageHeader title="Front Office" subtitle="Queue dashboard, visitor management & enquiry desk" />
+      <PageHeader
+        title="Front Office"
+        subtitle="Queue dashboard, visitor management & enquiry desk"
+      />
       <Tabs defaultValue="queue">
         <Tabs.List>
-          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>Queue Dashboard</Tabs.Tab>
-          <Tabs.Tab value="visitors" leftSection={<IconDoorEnter size={16} />}>Visitor Management</Tabs.Tab>
-          <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Queue Configuration</Tabs.Tab>
-          <Tabs.Tab value="enquiry" leftSection={<IconPhone size={16} />}>Enquiry Desk</Tabs.Tab>
-          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>Visitor Analytics</Tabs.Tab>
-          <Tabs.Tab value="metrics" leftSection={<IconGauge size={16} />}>Queue Metrics</Tabs.Tab>
+          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>
+            Queue Dashboard
+          </Tabs.Tab>
+          <Tabs.Tab value="visitors" leftSection={<IconDoorEnter size={16} />}>
+            Visitor Management
+          </Tabs.Tab>
+          <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>
+            Queue Configuration
+          </Tabs.Tab>
+          <Tabs.Tab value="enquiry" leftSection={<IconPhone size={16} />}>
+            Enquiry Desk
+          </Tabs.Tab>
+          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+            Visitor Analytics
+          </Tabs.Tab>
+          <Tabs.Tab value="metrics" leftSection={<IconGauge size={16} />}>
+            Queue Metrics
+          </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="queue" pt="md"><QueueDashboardTab /></Tabs.Panel>
+        <Tabs.Panel value="queue" pt="md">
+          <QueueDashboardTab />
+        </Tabs.Panel>
         <Tabs.Panel value="visitors" pt="md">
-          <VisitorManagementTab
-            canCreate={canCreateVisitors}
-            canManagePasses={canManagePasses}
-          />
+          <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
         </Tabs.Panel>
         <Tabs.Panel value="config" pt="md">
           <QueueConfigTab canManage={canManageQueue} canManageVisitors={canManageVisitors} />
@@ -153,8 +167,12 @@ export function FrontOfficePage() {
         <Tabs.Panel value="enquiry" pt="md">
           <EnquiryDeskTab canCreate={canCreateEnquiry} canManage={canManageEnquiry} />
         </Tabs.Panel>
-        <Tabs.Panel value="analytics" pt="md"><VisitorAnalyticsTab /></Tabs.Panel>
-        <Tabs.Panel value="metrics" pt="md"><QueueMetricsTab /></Tabs.Panel>
+        <Tabs.Panel value="analytics" pt="md">
+          <VisitorAnalyticsTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="metrics" pt="md">
+          <QueueMetricsTab />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );
@@ -172,28 +190,40 @@ function QueueDashboardTab() {
 
   return (
     <Stack gap="md">
-      <Text size="sm" c="dimmed">Real-time queue statistics across departments (today)</Text>
+      <Text size="sm" c="dimmed">
+        Real-time queue statistics across departments (today)
+      </Text>
       {isLoading && <Text size="sm">Loading...</Text>}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
         {stats?.map((s) => (
           <Card key={s.department_id ?? "all"} withBorder padding="md">
-            <Text fw={600} size="sm">{s.department_id ?? "All Departments"}</Text>
+            <Text fw={600} size="sm">
+              {s.department_id ?? "All Departments"}
+            </Text>
             <Group mt="xs" gap="lg">
               <div>
-                <Text size="xl" fw={700} c="primary">{s.waiting_count}</Text>
-                <Text size="xs" c="dimmed">Waiting</Text>
+                <Text size="xl" fw={700} c="primary">
+                  {s.waiting_count}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Waiting
+                </Text>
               </div>
               <div>
                 <Text size="xl" fw={700} c="orange">
                   {s.avg_wait_minutes != null ? `${Math.round(s.avg_wait_minutes)} min` : "—"}
                 </Text>
-                <Text size="xs" c="dimmed">Avg Wait</Text>
+                <Text size="xs" c="dimmed">
+                  Avg Wait
+                </Text>
               </div>
             </Group>
           </Card>
         ))}
         {stats?.length === 0 && (
-          <Text size="sm" c="dimmed">No queue data for today</Text>
+          <Text size="sm" c="dimmed">
+            No queue data for today
+          </Text>
         )}
       </SimpleGrid>
     </Stack>
@@ -249,8 +279,13 @@ function VisitorManagementTab({
       void qc.invalidateQueries({ queryKey: ["front-office", "visitors"] });
       visitorDrawerHandlers.close();
       notifications.show({ message: "Visitor registered", color: "success" });
-      setVName(""); setVPhone(""); setVIdType(null); setVIdNumber("");
-      setVRelationship(""); setVCategory("general"); setVPurpose("");
+      setVName("");
+      setVPhone("");
+      setVIdType(null);
+      setVIdNumber("");
+      setVRelationship("");
+      setVCategory("general");
+      setVPurpose("");
     },
   });
 
@@ -291,21 +326,34 @@ function VisitorManagementTab({
     { key: "visitor_name", label: "Name", render: (r: VisitorRegistration) => r.visitor_name },
     { key: "phone", label: "Phone", render: (r: VisitorRegistration) => r.phone ?? "—" },
     {
-      key: "category", label: "Category",
-      render: (r: VisitorRegistration) => <Badge size="sm" variant="light">{r.category}</Badge>,
+      key: "category",
+      label: "Category",
+      render: (r: VisitorRegistration) => (
+        <Badge size="sm" variant="light">
+          {r.category}
+        </Badge>
+      ),
     },
     { key: "id_type", label: "ID Type", render: (r: VisitorRegistration) => r.id_type ?? "—" },
     { key: "purpose", label: "Purpose", render: (r: VisitorRegistration) => r.purpose ?? "—" },
-    { key: "created_at", label: "Registered", render: (r: VisitorRegistration) => new Date(r.created_at).toLocaleString() },
     {
-      key: "actions", label: "",
+      key: "created_at",
+      label: "Registered",
+      render: (r: VisitorRegistration) => new Date(r.created_at).toLocaleString(),
+    },
+    {
+      key: "actions",
+      label: "",
       render: (r: VisitorRegistration) =>
         canManagePasses ? (
           <Tooltip label="Issue Pass">
             <ActionIcon
               variant="light"
               color="primary"
-              onClick={() => { setSelectedRegistration(r.id); passDrawerHandlers.open(); }}
+              onClick={() => {
+                setSelectedRegistration(r.id);
+                passDrawerHandlers.open();
+              }}
               aria-label="QR code"
             >
               <IconQrcode size={16} />
@@ -318,30 +366,57 @@ function VisitorManagementTab({
   const passColumns = [
     { key: "pass_number", label: "Pass #", render: (r: VisitorPass) => r.pass_number },
     {
-      key: "status", label: "Status",
-      render: (r: VisitorPass) => <Badge color={passStatusColors[r.status] ?? "slate"}>{r.status}</Badge>,
+      key: "status",
+      label: "Status",
+      render: (r: VisitorPass) => (
+        <Badge color={passStatusColors[r.status] ?? "slate"}>{r.status}</Badge>
+      ),
     },
-    { key: "valid_from", label: "Valid From", render: (r: VisitorPass) => new Date(r.valid_from).toLocaleString() },
-    { key: "valid_until", label: "Valid Until", render: (r: VisitorPass) => new Date(r.valid_until).toLocaleString() },
+    {
+      key: "valid_from",
+      label: "Valid From",
+      render: (r: VisitorPass) => new Date(r.valid_from).toLocaleString(),
+    },
+    {
+      key: "valid_until",
+      label: "Valid Until",
+      render: (r: VisitorPass) => new Date(r.valid_until).toLocaleString(),
+    },
     { key: "bed_number", label: "Bed", render: (r: VisitorPass) => r.bed_number ?? "—" },
     {
-      key: "actions", label: "",
+      key: "actions",
+      label: "",
       render: (r: VisitorPass) => (
         <Group gap="xs">
           {r.status === "active" && canManagePasses && (
             <>
               <Tooltip label="Check In">
-                <ActionIcon variant="light" color="success" onClick={() => checkIn.mutate(r.id)} aria-label="Confirm">
+                <ActionIcon
+                  variant="light"
+                  color="success"
+                  onClick={() => checkIn.mutate(r.id)}
+                  aria-label="Confirm"
+                >
                   <IconCheck size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Check Out">
-                <ActionIcon variant="light" color="primary" onClick={() => checkOut.mutate(r.id)} aria-label="Time">
+                <ActionIcon
+                  variant="light"
+                  color="primary"
+                  onClick={() => checkOut.mutate(r.id)}
+                  aria-label="Time"
+                >
                   <IconClock size={16} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Revoke">
-                <ActionIcon variant="light" color="danger" onClick={() => revokePass.mutate(r.id)} aria-label="Close">
+                <ActionIcon
+                  variant="light"
+                  color="danger"
+                  onClick={() => revokePass.mutate(r.id)}
+                  aria-label="Close"
+                >
                   <IconX size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -359,7 +434,11 @@ function VisitorManagementTab({
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Visitor Registrations</Text>
           {canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={visitorDrawerHandlers.open}>
+            <Button
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={visitorDrawerHandlers.open}
+            >
               Register Visitor
             </Button>
           )}
@@ -375,7 +454,9 @@ function VisitorManagementTab({
       {/* Active Passes */}
       <div>
         <Group justify="space-between" mb="sm">
-          <Text fw={600}>Visitor Passes ({passes?.filter((p) => p.status === "active").length ?? 0} active)</Text>
+          <Text fw={600}>
+            Visitor Passes ({passes?.filter((p) => p.status === "active").length ?? 0} active)
+          </Text>
         </Group>
         <DataTable
           columns={passColumns}
@@ -393,15 +474,47 @@ function VisitorManagementTab({
       )}
 
       {/* Register Visitor Drawer */}
-      <Drawer opened={visitorDrawer} onClose={visitorDrawerHandlers.close} title="Register Visitor" position="right" size="xl">
+      <Drawer
+        opened={visitorDrawer}
+        onClose={visitorDrawerHandlers.close}
+        title="Register Visitor"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
-          <TextInput label="Visitor Name" required value={vName} onChange={(e) => setVName(e.currentTarget.value)} />
-          <TextInput label="Phone" value={vPhone} onChange={(e) => setVPhone(e.currentTarget.value)} />
+          <TextInput
+            label="Visitor Name"
+            required
+            value={vName}
+            onChange={(e) => setVName(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Phone"
+            value={vPhone}
+            onChange={(e) => setVPhone(e.currentTarget.value)}
+          />
           <Select label="ID Type" data={ID_TYPES} value={vIdType} onChange={setVIdType} clearable />
-          <TextInput label="ID Number" value={vIdNumber} onChange={(e) => setVIdNumber(e.currentTarget.value)} />
-          <TextInput label="Relationship" value={vRelationship} onChange={(e) => setVRelationship(e.currentTarget.value)} />
-          <Select label="Category" data={VISITOR_CATEGORIES} value={vCategory} onChange={setVCategory} />
-          <Textarea label="Purpose" value={vPurpose} onChange={(e) => setVPurpose(e.currentTarget.value)} />
+          <TextInput
+            label="ID Number"
+            value={vIdNumber}
+            onChange={(e) => setVIdNumber(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Relationship"
+            value={vRelationship}
+            onChange={(e) => setVRelationship(e.currentTarget.value)}
+          />
+          <Select
+            label="Category"
+            data={VISITOR_CATEGORIES}
+            value={vCategory}
+            onChange={setVCategory}
+          />
+          <Textarea
+            label="Purpose"
+            value={vPurpose}
+            onChange={(e) => setVPurpose(e.currentTarget.value)}
+          />
           <Button
             onClick={() =>
               createVisitor.mutate({
@@ -423,10 +536,24 @@ function VisitorManagementTab({
       </Drawer>
 
       {/* Issue Pass Drawer */}
-      <Drawer opened={passDrawer} onClose={passDrawerHandlers.close} title="Issue Visitor Pass" position="right" size="sm">
+      <Drawer
+        opened={passDrawer}
+        onClose={passDrawerHandlers.close}
+        title="Issue Visitor Pass"
+        position="right"
+        size="sm"
+      >
         <Stack gap="sm">
-          <Text size="sm" c="dimmed">Issuing pass for registration: {selectedRegistration?.slice(0, 8)}...</Text>
-          <NumberInput label="Valid Hours" value={passHours} onChange={setPassHours} min={1} max={24} />
+          <Text size="sm" c="dimmed">
+            Issuing pass for registration: {selectedRegistration?.slice(0, 8)}...
+          </Text>
+          <NumberInput
+            label="Valid Hours"
+            value={passHours}
+            onChange={setPassHours}
+            min={1}
+            max={24}
+          />
           <Button
             onClick={() => {
               if (selectedRegistration) {
@@ -450,7 +577,13 @@ function VisitorManagementTab({
 //  Tab 3 — Queue Configuration
 // ══════════════════════════════════════════════════════════
 
-function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; canManageVisitors: boolean }) {
+function QueueConfigTab({
+  canManage,
+  canManageVisitors,
+}: {
+  canManage: boolean;
+  canManageVisitors: boolean;
+}) {
   const qc = useQueryClient();
   const [ruleDrawer, ruleDrawerHandlers] = useDisclosure(false);
   const [configDrawer, configDrawerHandlers] = useDisclosure(false);
@@ -518,38 +651,59 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
 
   const ruleColumns = [
     {
-      key: "priority", label: "Priority",
-      render: (r: QueuePriorityRule) => <Badge color={priorityColors[r.priority] ?? "slate"}>{r.priority}</Badge>,
+      key: "priority",
+      label: "Priority",
+      render: (r: QueuePriorityRule) => (
+        <Badge color={priorityColors[r.priority] ?? "slate"}>{r.priority}</Badge>
+      ),
     },
     { key: "weight", label: "Weight", render: (r: QueuePriorityRule) => String(r.weight) },
     {
-      key: "is_active", label: "Active",
-      render: (r: QueuePriorityRule) => r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+      key: "is_active",
+      label: "Active",
+      render: (r: QueuePriorityRule) =>
+        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
     },
   ];
 
   const configColumns = [
     { key: "location_name", label: "Location", render: (r: QueueDisplayConfig) => r.location_name },
     { key: "display_type", label: "Type", render: (r: QueueDisplayConfig) => r.display_type },
-    { key: "doctors_per_screen", label: "Doctors/Screen", render: (r: QueueDisplayConfig) => String(r.doctors_per_screen) },
     {
-      key: "show_wait_time", label: "Show Wait",
-      render: (r: QueueDisplayConfig) => r.show_wait_time ? "Yes" : "No",
+      key: "doctors_per_screen",
+      label: "Doctors/Screen",
+      render: (r: QueueDisplayConfig) => String(r.doctors_per_screen),
     },
     {
-      key: "announcement_enabled", label: "Announce",
-      render: (r: QueueDisplayConfig) => r.announcement_enabled ? "Yes" : "No",
+      key: "show_wait_time",
+      label: "Show Wait",
+      render: (r: QueueDisplayConfig) => (r.show_wait_time ? "Yes" : "No"),
+    },
+    {
+      key: "announcement_enabled",
+      label: "Announce",
+      render: (r: QueueDisplayConfig) => (r.announcement_enabled ? "Yes" : "No"),
     },
   ];
 
   const hoursColumns = [
-    { key: "day_of_week", label: "Day", render: (r: VisitingHours) => DAY_NAMES[r.day_of_week] ?? String(r.day_of_week) },
+    {
+      key: "day_of_week",
+      label: "Day",
+      render: (r: VisitingHours) => DAY_NAMES[r.day_of_week] ?? String(r.day_of_week),
+    },
     { key: "start_time", label: "Start", render: (r: VisitingHours) => r.start_time },
     { key: "end_time", label: "End", render: (r: VisitingHours) => r.end_time },
-    { key: "max_visitors_per_patient", label: "Max Visitors", render: (r: VisitingHours) => String(r.max_visitors_per_patient) },
     {
-      key: "is_active", label: "Active",
-      render: (r: VisitingHours) => r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+      key: "max_visitors_per_patient",
+      label: "Max Visitors",
+      render: (r: VisitingHours) => String(r.max_visitors_per_patient),
+    },
+    {
+      key: "is_active",
+      label: "Active",
+      render: (r: VisitingHours) =>
+        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
     },
   ];
 
@@ -560,12 +714,21 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Visiting Hours</Text>
           {canManageVisitors && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={hoursDrawerHandlers.open}>
+            <Button
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={hoursDrawerHandlers.open}
+            >
               Add Hours
             </Button>
           )}
         </Group>
-        <DataTable columns={hoursColumns} data={hours ?? []} loading={loadingHours} rowKey={(r: VisitingHours) => r.id} />
+        <DataTable
+          columns={hoursColumns}
+          data={hours ?? []}
+          loading={loadingHours}
+          rowKey={(r: VisitingHours) => r.id}
+        />
       </div>
 
       {/* Priority Rules */}
@@ -573,12 +736,21 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Queue Priority Rules</Text>
           {canManage && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={ruleDrawerHandlers.open}>
+            <Button
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={ruleDrawerHandlers.open}
+            >
               Add Rule
             </Button>
           )}
         </Group>
-        <DataTable columns={ruleColumns} data={rules ?? []} loading={loadingRules} rowKey={(r: QueuePriorityRule) => r.id} />
+        <DataTable
+          columns={ruleColumns}
+          data={rules ?? []}
+          loading={loadingRules}
+          rowKey={(r: QueuePriorityRule) => r.id}
+        />
       </div>
 
       {/* Display Config */}
@@ -586,21 +758,52 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Display Configuration</Text>
           {canManage && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={configDrawerHandlers.open}>
+            <Button
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={configDrawerHandlers.open}
+            >
               Add Config
             </Button>
           )}
         </Group>
-        <DataTable columns={configColumns} data={configs ?? []} loading={loadingConfigs} rowKey={(r: QueueDisplayConfig) => r.id} />
+        <DataTable
+          columns={configColumns}
+          data={configs ?? []}
+          loading={loadingConfigs}
+          rowKey={(r: QueueDisplayConfig) => r.id}
+        />
       </div>
 
       {/* Priority Rule Drawer */}
-      <Drawer opened={ruleDrawer} onClose={ruleDrawerHandlers.close} title="Add Priority Rule" position="right" size="sm">
+      <Drawer
+        opened={ruleDrawer}
+        onClose={ruleDrawerHandlers.close}
+        title="Add Priority Rule"
+        position="right"
+        size="sm"
+      >
         <Stack gap="sm">
-          <Select label="Priority" data={QUEUE_PRIORITIES} value={rulePriority} onChange={setRulePriority} />
-          <NumberInput label="Weight (higher = called sooner)" value={ruleWeight} onChange={setRuleWeight} min={1} max={100} />
+          <Select
+            label="Priority"
+            data={QUEUE_PRIORITIES}
+            value={rulePriority}
+            onChange={setRulePriority}
+          />
+          <NumberInput
+            label="Weight (higher = called sooner)"
+            value={ruleWeight}
+            onChange={setRuleWeight}
+            min={1}
+            max={100}
+          />
           <Button
-            onClick={() => createRule.mutate({ priority: rulePriority ?? "normal", weight: typeof ruleWeight === "number" ? ruleWeight : 1 })}
+            onClick={() =>
+              createRule.mutate({
+                priority: rulePriority ?? "normal",
+                weight: typeof ruleWeight === "number" ? ruleWeight : 1,
+              })
+            }
             loading={createRule.isPending}
           >
             Save
@@ -609,14 +812,48 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
       </Drawer>
 
       {/* Display Config Drawer */}
-      <Drawer opened={configDrawer} onClose={configDrawerHandlers.close} title="Add Display Config" position="right" size="xl">
+      <Drawer
+        opened={configDrawer}
+        onClose={configDrawerHandlers.close}
+        title="Add Display Config"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
-          <TextInput label="Location Name" required value={cfgName} onChange={(e) => setCfgName(e.currentTarget.value)} />
-          <Select label="Display Type" data={["waiting_area", "doctor_room", "counter"]} value={cfgType} onChange={setCfgType} />
-          <NumberInput label="Doctors Per Screen" value={cfgDoctors} onChange={setCfgDoctors} min={1} max={20} />
-          <Switch label="Show Patient Name" checked={cfgShowName} onChange={(e) => setCfgShowName(e.currentTarget.checked)} />
-          <Switch label="Show Wait Time" checked={cfgShowWait} onChange={(e) => setCfgShowWait(e.currentTarget.checked)} />
-          <Switch label="Enable Announcements" checked={cfgAnnounce} onChange={(e) => setCfgAnnounce(e.currentTarget.checked)} />
+          <TextInput
+            label="Location Name"
+            required
+            value={cfgName}
+            onChange={(e) => setCfgName(e.currentTarget.value)}
+          />
+          <Select
+            label="Display Type"
+            data={["waiting_area", "doctor_room", "counter"]}
+            value={cfgType}
+            onChange={setCfgType}
+          />
+          <NumberInput
+            label="Doctors Per Screen"
+            value={cfgDoctors}
+            onChange={setCfgDoctors}
+            min={1}
+            max={20}
+          />
+          <Switch
+            label="Show Patient Name"
+            checked={cfgShowName}
+            onChange={(e) => setCfgShowName(e.currentTarget.checked)}
+          />
+          <Switch
+            label="Show Wait Time"
+            checked={cfgShowWait}
+            onChange={(e) => setCfgShowWait(e.currentTarget.checked)}
+          />
+          <Switch
+            label="Enable Announcements"
+            checked={cfgAnnounce}
+            onChange={(e) => setCfgAnnounce(e.currentTarget.checked)}
+          />
           <Button
             onClick={() =>
               createConfig.mutate({
@@ -637,7 +874,13 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
       </Drawer>
 
       {/* Visiting Hours Drawer */}
-      <Drawer opened={hoursDrawer} onClose={hoursDrawerHandlers.close} title="Add Visiting Hours" position="right" size="sm">
+      <Drawer
+        opened={hoursDrawer}
+        onClose={hoursDrawerHandlers.close}
+        title="Add Visiting Hours"
+        position="right"
+        size="sm"
+      >
         <Stack gap="sm">
           <Select
             label="Day of Week"
@@ -645,9 +888,25 @@ function QueueConfigTab({ canManage, canManageVisitors }: { canManage: boolean; 
             value={hDay}
             onChange={setHDay}
           />
-          <TextInput label="Start Time" value={hStart} onChange={(e) => setHStart(e.currentTarget.value)} placeholder="HH:MM" />
-          <TextInput label="End Time" value={hEnd} onChange={(e) => setHEnd(e.currentTarget.value)} placeholder="HH:MM" />
-          <NumberInput label="Max Visitors Per Patient" value={hMax} onChange={setHMax} min={1} max={10} />
+          <TextInput
+            label="Start Time"
+            value={hStart}
+            onChange={(e) => setHStart(e.currentTarget.value)}
+            placeholder="HH:MM"
+          />
+          <TextInput
+            label="End Time"
+            value={hEnd}
+            onChange={(e) => setHEnd(e.currentTarget.value)}
+            placeholder="HH:MM"
+          />
+          <NumberInput
+            label="Max Visitors Per Patient"
+            value={hMax}
+            onChange={setHMax}
+            min={1}
+            max={10}
+          />
           <Button
             onClick={() =>
               createHours.mutate({
@@ -691,7 +950,10 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
       drawerHandlers.close();
       notifications.show({ message: "Enquiry logged", color: "success" });
-      setEName(""); setEPhone(""); setEType("general"); setEResponse("");
+      setEName("");
+      setEPhone("");
+      setEType("general");
+      setEResponse("");
     },
   });
 
@@ -704,24 +966,53 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
   });
 
   const columns = [
-    { key: "caller_name", label: "Caller", render: (r: FrontOfficeEnquiryLog) => r.caller_name ?? "—" },
-    { key: "caller_phone", label: "Phone", render: (r: FrontOfficeEnquiryLog) => r.caller_phone ?? "—" },
     {
-      key: "enquiry_type", label: "Type",
-      render: (r: FrontOfficeEnquiryLog) => <Badge variant="light" size="sm">{r.enquiry_type}</Badge>,
+      key: "caller_name",
+      label: "Caller",
+      render: (r: FrontOfficeEnquiryLog) => r.caller_name ?? "—",
     },
-    { key: "response_text", label: "Response", render: (r: FrontOfficeEnquiryLog) => r.response_text ?? "—" },
     {
-      key: "resolved", label: "Resolved",
-      render: (r: FrontOfficeEnquiryLog) => r.resolved ? <Badge color="success">Yes</Badge> : <Badge color="orange">No</Badge>,
+      key: "caller_phone",
+      label: "Phone",
+      render: (r: FrontOfficeEnquiryLog) => r.caller_phone ?? "—",
     },
-    { key: "created_at", label: "Time", render: (r: FrontOfficeEnquiryLog) => new Date(r.created_at).toLocaleString() },
     {
-      key: "actions", label: "",
+      key: "enquiry_type",
+      label: "Type",
+      render: (r: FrontOfficeEnquiryLog) => (
+        <Badge variant="light" size="sm">
+          {r.enquiry_type}
+        </Badge>
+      ),
+    },
+    {
+      key: "response_text",
+      label: "Response",
+      render: (r: FrontOfficeEnquiryLog) => r.response_text ?? "—",
+    },
+    {
+      key: "resolved",
+      label: "Resolved",
+      render: (r: FrontOfficeEnquiryLog) =>
+        r.resolved ? <Badge color="success">Yes</Badge> : <Badge color="orange">No</Badge>,
+    },
+    {
+      key: "created_at",
+      label: "Time",
+      render: (r: FrontOfficeEnquiryLog) => new Date(r.created_at).toLocaleString(),
+    },
+    {
+      key: "actions",
+      label: "",
       render: (r: FrontOfficeEnquiryLog) =>
         !r.resolved && canManage ? (
           <Tooltip label="Mark Resolved">
-            <ActionIcon variant="light" color="success" onClick={() => resolveEnquiry.mutate(r.id)} aria-label="Confirm">
+            <ActionIcon
+              variant="light"
+              color="success"
+              onClick={() => resolveEnquiry.mutate(r.id)}
+              aria-label="Confirm"
+            >
               <IconCheck size={16} />
             </ActionIcon>
           </Tooltip>
@@ -739,14 +1030,38 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
           </Button>
         )}
       </Group>
-      <DataTable columns={columns} data={enquiries ?? []} loading={isLoading} rowKey={(r: FrontOfficeEnquiryLog) => r.id} />
+      <DataTable
+        columns={columns}
+        data={enquiries ?? []}
+        loading={isLoading}
+        rowKey={(r: FrontOfficeEnquiryLog) => r.id}
+      />
 
-      <Drawer opened={drawer} onClose={drawerHandlers.close} title="Log Enquiry" position="right" size="xl">
+      <Drawer
+        opened={drawer}
+        onClose={drawerHandlers.close}
+        title="Log Enquiry"
+        position="right"
+        size="xl"
+      >
         <Stack gap="sm">
-          <TextInput label="Caller Name" value={eName} onChange={(e) => setEName(e.currentTarget.value)} />
-          <TextInput label="Caller Phone" value={ePhone} onChange={(e) => setEPhone(e.currentTarget.value)} />
+          <TextInput
+            label="Caller Name"
+            value={eName}
+            onChange={(e) => setEName(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Caller Phone"
+            value={ePhone}
+            onChange={(e) => setEPhone(e.currentTarget.value)}
+          />
           <Select label="Enquiry Type" data={ENQUIRY_TYPES} value={eType} onChange={setEType} />
-          <Textarea label="Response" value={eResponse} onChange={(e) => setEResponse(e.currentTarget.value)} rows={3} />
+          <Textarea
+            label="Response"
+            value={eResponse}
+            onChange={(e) => setEResponse(e.currentTarget.value)}
+            rows={3}
+          />
           <Button
             onClick={() =>
               createEnquiry.mutate({
@@ -798,28 +1113,54 @@ function VisitorAnalyticsTab() {
   return (
     <Stack gap="md">
       <Group>
-        <TextInput placeholder="From date" type="date" value={from} onChange={(e) => setFrom(e.currentTarget.value)} w={160} />
-        <TextInput placeholder="To date" type="date" value={to} onChange={(e) => setTo(e.currentTarget.value)} w={160} />
+        <TextInput
+          placeholder="From date"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.currentTarget.value)}
+          w={160}
+        />
+        <TextInput
+          placeholder="To date"
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.currentTarget.value)}
+          w={160}
+        />
       </Group>
 
-      {isLoading && <Text size="sm" c="dimmed">Loading analytics...</Text>}
+      {isLoading && (
+        <Text size="sm" c="dimmed">
+          Loading analytics...
+        </Text>
+      )}
 
       {analytics && (
         <>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Card withBorder p="md">
-              <Text size="xs" c="dimmed">Total Visitors</Text>
-              <Text size="xl" fw={700} c="primary">{analytics.total_visitors}</Text>
+              <Text size="xs" c="dimmed">
+                Total Visitors
+              </Text>
+              <Text size="xl" fw={700} c="primary">
+                {analytics.total_visitors}
+              </Text>
             </Card>
             <Card withBorder p="md">
-              <Text size="xs" c="dimmed">Avg Visit Duration</Text>
-              <Text size="xl" fw={700} c="orange">{Math.round(analytics.avg_visit_duration_minutes)} min</Text>
+              <Text size="xs" c="dimmed">
+                Avg Visit Duration
+              </Text>
+              <Text size="xl" fw={700} c="orange">
+                {Math.round(analytics.avg_visit_duration_minutes)} min
+              </Text>
             </Card>
           </SimpleGrid>
 
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Card withBorder p="sm">
-              <Text fw={600} size="sm" mb="sm">Visitors by Department</Text>
+              <Text fw={600} size="sm" mb="sm">
+                Visitors by Department
+              </Text>
               {byDeptChart.length > 0 ? (
                 <BarChart
                   h={220}
@@ -828,11 +1169,15 @@ function VisitorAnalyticsTab() {
                   series={[{ name: "visitors", color: "primary" }]}
                 />
               ) : (
-                <Text size="sm" c="dimmed">No data</Text>
+                <Text size="sm" c="dimmed">
+                  No data
+                </Text>
               )}
             </Card>
             <Card withBorder p="sm">
-              <Text fw={600} size="sm" mb="sm">Visitors by Hour</Text>
+              <Text fw={600} size="sm" mb="sm">
+                Visitors by Hour
+              </Text>
               {byHourChart.length > 0 ? (
                 <BarChart
                   h={220}
@@ -841,7 +1186,9 @@ function VisitorAnalyticsTab() {
                   series={[{ name: "visitors", color: "teal" }]}
                 />
               ) : (
-                <Text size="sm" c="dimmed">No data</Text>
+                <Text size="sm" c="dimmed">
+                  No data
+                </Text>
               )}
             </Card>
           </SimpleGrid>
@@ -864,16 +1211,52 @@ function QueueMetricsTab() {
   const metrics = (data ?? []) as QueueMetricsRow[];
 
   const cols: Column<QueueMetricsRow>[] = [
-    { key: "department", label: "Department", render: (r) => <Text size="sm" fw={500}>{r.department}</Text> },
-    { key: "current_waiting", label: "Currently Waiting", render: (r) => <Badge color={r.current_waiting > 10 ? "danger" : r.current_waiting > 5 ? "orange" : "success"}>{r.current_waiting}</Badge> },
-    { key: "avg_wait_minutes", label: "Avg Wait (min)", render: (r) => <Text size="sm">{Math.round(r.avg_wait_minutes)}</Text> },
-    { key: "longest_wait_minutes", label: "Longest Wait (min)", render: (r) => <Text size="sm" c={r.longest_wait_minutes > 30 ? "danger" : undefined}>{Math.round(r.longest_wait_minutes)}</Text> },
-    { key: "throughput_per_hour", label: "Throughput/hr", render: (r) => <Text size="sm">{r.throughput_per_hour.toFixed(1)}</Text> },
+    {
+      key: "department",
+      label: "Department",
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.department}
+        </Text>
+      ),
+    },
+    {
+      key: "current_waiting",
+      label: "Currently Waiting",
+      render: (r) => (
+        <Badge
+          color={r.current_waiting > 10 ? "danger" : r.current_waiting > 5 ? "orange" : "success"}
+        >
+          {r.current_waiting}
+        </Badge>
+      ),
+    },
+    {
+      key: "avg_wait_minutes",
+      label: "Avg Wait (min)",
+      render: (r) => <Text size="sm">{Math.round(r.avg_wait_minutes)}</Text>,
+    },
+    {
+      key: "longest_wait_minutes",
+      label: "Longest Wait (min)",
+      render: (r) => (
+        <Text size="sm" c={r.longest_wait_minutes > 30 ? "danger" : undefined}>
+          {Math.round(r.longest_wait_minutes)}
+        </Text>
+      ),
+    },
+    {
+      key: "throughput_per_hour",
+      label: "Throughput/hr",
+      render: (r) => <Text size="sm">{r.throughput_per_hour.toFixed(1)}</Text>,
+    },
   ];
 
   return (
     <Stack gap="md">
-      <Text size="sm" c="dimmed">Real-time queue performance metrics by department</Text>
+      <Text size="sm" c="dimmed">
+        Real-time queue performance metrics by department
+      </Text>
       <DataTable columns={cols} data={metrics} loading={isLoading} rowKey={(r) => r.department} />
     </Stack>
   );

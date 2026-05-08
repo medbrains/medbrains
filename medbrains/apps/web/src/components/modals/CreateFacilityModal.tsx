@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { Facility } from "@medbrains/types";
+import { IconCheck } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const FACILITY_TYPE_OPTIONS = [
   { value: "hospital", label: "Hospital" },
@@ -23,11 +23,7 @@ interface CreateFacilityModalProps {
   onCreated?: (facility: Facility) => void;
 }
 
-export function CreateFacilityModal({
-  opened,
-  onClose,
-  onCreated,
-}: CreateFacilityModalProps) {
+export function CreateFacilityModal({ opened, onClose, onCreated }: CreateFacilityModalProps) {
   const queryClient = useQueryClient();
 
   const [code, setCode] = useState("");

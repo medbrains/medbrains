@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT drug_schedule\n                FROM pharmacy_catalog\n                WHERE id = $1 AND tenant_id = $2\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "drug_schedule",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "1b983d050265106e005ec2cf1574a3d85b6c3af56b8b2c6c949044b6e1c5bb62"
+}

@@ -1,11 +1,4 @@
-import {
-  Alert,
-  Button,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from "@mantine/core";
+import { Alert, Button, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useOnboardingStore } from "@medbrains/stores";
 import type {
@@ -18,9 +11,9 @@ import type {
   OnboardingTaxCategory,
   OnboardingUser,
 } from "@medbrains/types";
+import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -104,20 +97,15 @@ export function ReviewStep({ onBack }: Props) {
   return (
     <Stack gap="lg">
       <div style={{ textAlign: "center" }}>
-        <ThemeIcon
-          variant="light"
-          size={64}
-          radius="xl"
-          color="teal"
-        >
+        <ThemeIcon variant="light" size={64} radius="xl" color="teal">
           <IconRocket size={32} />
         </ThemeIcon>
         <Title order={3} mt="md">
           Review & Launch
         </Title>
         <Text c="dimmed" mt="sm">
-          Review your configuration before going live. Everything will be
-          created in a single transaction.
+          Review your configuration before going live. Everything will be created in a single
+          transaction.
         </Text>
       </div>
 
@@ -152,9 +140,7 @@ export function ReviewStep({ onBack }: Props) {
       )}
 
       <div className={classes.reviewSection}>
-        <div className={classes.reviewLabel}>
-          Facilities ({facilities.length + 1})
-        </div>
+        <div className={classes.reviewLabel}>Facilities ({facilities.length + 1})</div>
         <Text size="sm">Main Hospital (auto-created)</Text>
         {facilities.map((f: OnboardingFacility) => (
           <Text key={f.local_id} size="sm">
@@ -164,11 +150,11 @@ export function ReviewStep({ onBack }: Props) {
       </div>
 
       <div className={classes.reviewSection}>
-        <div className={classes.reviewLabel}>
-          Locations ({locations.length})
-        </div>
+        <div className={classes.reviewLabel}>Locations ({locations.length})</div>
         {locations.length === 0 && (
-          <Text size="sm" c="dimmed">None configured</Text>
+          <Text size="sm" c="dimmed">
+            None configured
+          </Text>
         )}
         {locations.slice(0, 8).map((l) => (
           <Text key={l.local_id} size="sm">
@@ -183,9 +169,7 @@ export function ReviewStep({ onBack }: Props) {
       </div>
 
       <div className={classes.reviewSection}>
-        <div className={classes.reviewLabel}>
-          Departments ({departments.length})
-        </div>
+        <div className={classes.reviewLabel}>Departments ({departments.length})</div>
         {departments.slice(0, 8).map((d: OnboardingDepartment) => (
           <Text key={d.local_id} size="sm">
             {d.name}
@@ -198,14 +182,14 @@ export function ReviewStep({ onBack }: Props) {
           </Text>
         )}
         {departments.length === 0 && (
-          <Text size="sm" c="dimmed">None configured</Text>
+          <Text size="sm" c="dimmed">
+            None configured
+          </Text>
         )}
       </div>
 
       <div className={classes.reviewSection}>
-        <div className={classes.reviewLabel}>
-          Users ({users.length + 1})
-        </div>
+        <div className={classes.reviewLabel}>Users ({users.length + 1})</div>
         <Text size="sm">Super Admin (created in step 1)</Text>
         {users.map((u: OnboardingUser) => (
           <Text key={u.local_id} size="sm">
@@ -216,9 +200,7 @@ export function ReviewStep({ onBack }: Props) {
       </div>
 
       <div className={classes.reviewSection}>
-        <div className={classes.reviewLabel}>
-          Enabled Modules ({enabledModules.length})
-        </div>
+        <div className={classes.reviewLabel}>Enabled Modules ({enabledModules.length})</div>
         {enabledModules.map(([code]) => (
           <Text key={code} size="sm">
             {code}
@@ -235,10 +217,12 @@ export function ReviewStep({ onBack }: Props) {
         <div className={classes.reviewSection}>
           <div className={classes.reviewLabel}>Sequences</div>
           <Text size="sm">
-            UHID: {sequences.uhid_prefix}{"0".repeat(Math.max(0, sequences.uhid_pad_width - 1))}1
+            UHID: {sequences.uhid_prefix}
+            {"0".repeat(Math.max(0, sequences.uhid_pad_width - 1))}1
           </Text>
           <Text size="sm">
-            Invoice: {sequences.invoice_prefix}{"0".repeat(Math.max(0, sequences.invoice_pad_width - 1))}1
+            Invoice: {sequences.invoice_prefix}
+            {"0".repeat(Math.max(0, sequences.invoice_pad_width - 1))}1
           </Text>
           {additionalSequences.length > 0 && (
             <Text size="sm" c="dimmed">
@@ -250,9 +234,7 @@ export function ReviewStep({ onBack }: Props) {
 
       {services.length > 0 && (
         <div className={classes.reviewSection}>
-          <div className={classes.reviewLabel}>
-            Services ({services.length})
-          </div>
+          <div className={classes.reviewLabel}>Services ({services.length})</div>
           {services.map((s: OnboardingService) => (
             <Text key={s.local_id} size="sm">
               {s.name} ({s.service_type})
@@ -263,9 +245,7 @@ export function ReviewStep({ onBack }: Props) {
 
       {bedTypes.length > 0 && (
         <div className={classes.reviewSection}>
-          <div className={classes.reviewLabel}>
-            Bed Types ({bedTypes.length})
-          </div>
+          <div className={classes.reviewLabel}>Bed Types ({bedTypes.length})</div>
           {bedTypes.map((b: OnboardingBedType) => (
             <Text key={b.local_id} size="sm">
               {b.name} — ₹{b.daily_rate}/day
@@ -276,9 +256,7 @@ export function ReviewStep({ onBack }: Props) {
 
       {taxCategories.length > 0 && (
         <div className={classes.reviewSection}>
-          <div className={classes.reviewLabel}>
-            Tax Categories ({taxCategories.length})
-          </div>
+          <div className={classes.reviewLabel}>Tax Categories ({taxCategories.length})</div>
           {taxCategories.map((t: OnboardingTaxCategory) => (
             <Text key={t.local_id} size="sm">
               {t.name} — {t.rate_percent}% ({t.applicability.replace(/_/g, " ")})
@@ -289,9 +267,7 @@ export function ReviewStep({ onBack }: Props) {
 
       {paymentMethods.length > 0 && (
         <div className={classes.reviewSection}>
-          <div className={classes.reviewLabel}>
-            Payment Methods ({paymentMethods.length})
-          </div>
+          <div className={classes.reviewLabel}>Payment Methods ({paymentMethods.length})</div>
           {paymentMethods.map((p: OnboardingPaymentMethod) => (
             <Text key={p.local_id} size="sm">
               {p.name}

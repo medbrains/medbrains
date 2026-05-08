@@ -2,7 +2,7 @@
 //!
 //! Sprint B.4.3 per RFCs/sprints/SPRINT-B-patroni-ha.md §4.
 
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
@@ -40,14 +40,21 @@ pub async fn get_db_topology(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: Option<(String, Option<String>, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>)> =
-        sqlx::query_as( // allow-raw-sql: admin endpoint reads tenant's own topology row
-            "SELECT topology, patroni_writer_url, patroni_reader_url, notes, updated_at \
+    type TopologyRow = (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        chrono::DateTime<chrono::Utc>,
+    );
+    let row: Option<TopologyRow> = sqlx::query_as(
+        // allow-raw-sql: admin endpoint reads tenant's own topology row
+        "SELECT topology, patroni_writer_url, patroni_reader_url, notes, updated_at \
              FROM tenant_db_topology WHERE tenant_id = $1 LIMIT 1",
-        )
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let resp = match row {
@@ -87,8 +94,10 @@ pub async fn update_db_topology(
             valid.join(", ")
         )));
     }
-    if matches!(body.topology.as_str(), "patroni" | "aurora_with_patroni_reads")
-        && (body.patroni_writer_url.is_none() || body.patroni_reader_url.is_none())
+    if matches!(
+        body.topology.as_str(),
+        "patroni" | "aurora_with_patroni_reads"
+    ) && (body.patroni_writer_url.is_none() || body.patroni_reader_url.is_none())
     {
         return Err(AppError::BadRequest(
             "patroni_writer_url and patroni_reader_url required for this topology".to_string(),
@@ -98,9 +107,15 @@ pub async fn update_db_topology(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: (String, Option<String>, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>) =
-        sqlx::query_as( // allow-raw-sql: admin endpoint upserts tenant's topology row
-            "INSERT INTO tenant_db_topology \
+    let row: (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        chrono::DateTime<chrono::Utc>,
+    ) = sqlx::query_as(
+        // allow-raw-sql: admin endpoint upserts tenant's topology row
+        "INSERT INTO tenant_db_topology \
                  (tenant_id, topology, patroni_writer_url, patroni_reader_url, notes, updated_by) \
              VALUES ($1, $2, $3, $4, $5, $6) \
              ON CONFLICT (tenant_id) DO UPDATE \
@@ -111,15 +126,15 @@ pub async fn update_db_topology(
                      updated_by = EXCLUDED.updated_by, \
                      updated_at = now() \
              RETURNING topology, patroni_writer_url, patroni_reader_url, notes, updated_at",
-        )
-        .bind(claims.tenant_id)
-        .bind(&body.topology)
-        .bind(body.patroni_writer_url.as_deref())
-        .bind(body.patroni_reader_url.as_deref())
-        .bind(body.notes.as_deref())
-        .bind(claims.sub)
-        .fetch_one(&mut *tx)
-        .await?;
+    )
+    .bind(claims.tenant_id)
+    .bind(&body.topology)
+    .bind(body.patroni_writer_url.as_deref())
+    .bind(body.patroni_reader_url.as_deref())
+    .bind(body.notes.as_deref())
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     // Sprint B.4.4 — evict the cached pool entry so the next request

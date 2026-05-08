@@ -1,20 +1,11 @@
+import { Badge, Box, Card, Group, NumberInput, Stack, Table, Text } from "@mantine/core";
+import type { PrescriptionItem, TimeOfDay } from "@medbrains/types";
 import { useMemo, useState } from "react";
 import {
-  Badge,
-  Box,
-  Card,
-  Group,
-  NumberInput,
-  Stack,
-  Table,
-  Text,
-} from "@mantine/core";
-import type { PrescriptionItem, TimeOfDay } from "@medbrains/types";
-import {
+  foodTimingLabel,
   frequencyToDefaultSlots,
   instructionsDisplayText,
   parseInstructions,
-  foodTimingLabel,
 } from "../../lib/medication-timing-utils";
 
 // ── Shared types & helpers ─────────────────────────────────────
@@ -25,12 +16,25 @@ export interface FlatItem extends PrescriptionItem {
 }
 
 const FREQ_LABEL: Record<string, string> = {
-  OD: "1x/day", BD: "2x/day", TDS: "3x/day", QID: "4x/day",
-  SOS: "PRN", PRN: "PRN", HS: "Bedtime", STAT: "Once",
+  OD: "1x/day",
+  BD: "2x/day",
+  TDS: "3x/day",
+  QID: "4x/day",
+  SOS: "PRN",
+  PRN: "PRN",
+  HS: "Bedtime",
+  STAT: "Once",
 };
 
 const FREQ_DOSES_PER_DAY: Record<string, number> = {
-  OD: 1, BD: 2, TDS: 3, QID: 4, HS: 1, STAT: 1, SOS: 0, PRN: 0,
+  OD: 1,
+  BD: 2,
+  TDS: 3,
+  QID: 4,
+  HS: 1,
+  STAT: 1,
+  SOS: 0,
+  PRN: 0,
 };
 
 const TIMELINE_HOURS: Array<{ hour: number; label: string; slot: TimeOfDay | null }> = [
@@ -52,7 +56,9 @@ function matchesAllergy(drugName: string, allergies: string[]): string | undefin
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
-    day: "2-digit", month: "short", year: "numeric",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -68,7 +74,10 @@ function timingLabel(item: PrescriptionItem): string {
   const parts: string[] = [];
   if (parsed.time_slots?.length) {
     const labels: Record<string, string> = {
-      morning: "Morning", afternoon: "Afternoon", evening: "Evening", bedtime: "Bedtime",
+      morning: "Morning",
+      afternoon: "Afternoon",
+      evening: "Evening",
+      bedtime: "Bedtime",
     };
     parts.push(parsed.time_slots.map((s) => labels[s] ?? s).join(", "));
   }
@@ -81,16 +90,23 @@ function timingLabel(item: PrescriptionItem): string {
 // ── A. Prose View ──────────────────────────────────────────────
 
 export function ProseView({
-  items, allergies, doctorName,
+  items,
+  allergies,
+  doctorName,
 }: {
-  items: FlatItem[]; allergies: string[]; doctorName?: string;
+  items: FlatItem[];
+  allergies: string[];
+  doctorName?: string;
 }) {
   const grouped = useMemo(() => {
     const map = new Map<number, { date: string; entries: FlatItem[] }>();
     for (const item of items) {
       const existing = map.get(item.rxIndex);
-      if (existing) { existing.entries.push(item); }
-      else { map.set(item.rxIndex, { date: item.rxDate, entries: [item] }); }
+      if (existing) {
+        existing.entries.push(item);
+      } else {
+        map.set(item.rxIndex, { date: item.rxDate, entries: [item] });
+      }
     }
     return Array.from(map.values());
   }, [items]);
@@ -100,9 +116,17 @@ export function ProseView({
       {grouped.map((rx, gi) => (
         <Card key={gi} padding="sm" radius="md" withBorder>
           <Group gap={6} mb="xs">
-            <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">Rx {gi + 1}</Text>
-            <Text size="xs" c="dimmed">{formatDate(rx.date)}</Text>
-            {doctorName && <Text size="xs" c="dimmed" fs="italic">-- Dr. {doctorName}</Text>}
+            <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">
+              Rx {gi + 1}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {formatDate(rx.date)}
+            </Text>
+            {doctorName && (
+              <Text size="xs" c="dimmed" fs="italic">
+                -- Dr. {doctorName}
+              </Text>
+            )}
           </Group>
           <Stack gap={4}>
             {rx.entries.map((item, idx) => {
@@ -113,13 +137,23 @@ export function ProseView({
                   <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" w={20} ta="right">
                     {String(idx + 1).padStart(2, "0")}
                   </Text>
-                  <Text size="sm" fw={500}>{item.drug_name}</Text>
-                  <Text size="sm" c="var(--mantine-color-primary-5)">{item.dosage}</Text>
+                  <Text size="sm" fw={500}>
+                    {item.drug_name}
+                  </Text>
+                  <Text size="sm" c="var(--mantine-color-primary-5)">
+                    {item.dosage}
+                  </Text>
                   <Badge size="xs" variant="light" color="gray" ff="var(--fc-font-mono, monospace)">
                     {FREQ_LABEL[item.frequency.toUpperCase()] ?? item.frequency}
                   </Badge>
-                  <Text size="xs" c="dimmed">x {item.duration}</Text>
-                  {timing && <Text size="xs" c="dimmed" fs="italic">{timing}</Text>}
+                  <Text size="xs" c="dimmed">
+                    x {item.duration}
+                  </Text>
+                  {timing && (
+                    <Text size="xs" c="dimmed" fs="italic">
+                      {timing}
+                    </Text>
+                  )}
                   {allergyMatch && (
                     <Badge size="xs" color="var(--fc-copper, #B8924A)" variant="filled">
                       Allergy: {allergyMatch}
@@ -140,8 +174,12 @@ export function ProseView({
 function SummaryPill({ label, value }: { label: string; value: string }) {
   return (
     <Stack gap={0} align="center">
-      <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" tt="uppercase">{label}</Text>
-      <Text size="lg" fw={600} ff="var(--fc-font-display, serif)">{value}</Text>
+      <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" tt="uppercase">
+        {label}
+      </Text>
+      <Text size="lg" fw={600} ff="var(--fc-font-display, serif)">
+        {value}
+      </Text>
     </Stack>
   );
 }
@@ -166,7 +204,8 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
       }
     }
     return {
-      totalDrugs: items.length, totalDoses,
+      totalDrugs: items.length,
+      totalDoses,
       earliest: earliest !== null ? `${String(earliest).padStart(2, "0")}:00` : "--",
       latest: latest !== null ? `${String(latest).padStart(2, "0")}:00` : "--",
     };
@@ -186,7 +225,9 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
             <Table.Th w={140}>Drug</Table.Th>
             {TIMELINE_HOURS.map((h) => (
               <Table.Th key={h.hour} ta="center" w={40}>
-                <Text size="xs" ff="var(--fc-font-mono, monospace)">{h.label}</Text>
+                <Text size="xs" ff="var(--fc-font-mono, monospace)">
+                  {h.label}
+                </Text>
               </Table.Th>
             ))}
           </Table.Tr>
@@ -194,15 +235,29 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
         <Table.Tbody>
           {drugSlots.map(({ item, slots }) => (
             <Table.Tr key={item.id}>
-              <Table.Td><Text size="xs" fw={500} truncate="end">{item.drug_name}</Text></Table.Td>
+              <Table.Td>
+                <Text size="xs" fw={500} truncate="end">
+                  {item.drug_name}
+                </Text>
+              </Table.Td>
               {TIMELINE_HOURS.map((h) => {
                 const active = h.slot !== null && slots.includes(h.slot);
                 return (
                   <Table.Td key={h.hour} ta="center">
                     {active ? (
-                      <Box w={10} h={10} mx="auto" style={{ borderRadius: "50%", backgroundColor: "var(--mantine-color-primary-5)" }} />
+                      <Box
+                        w={10}
+                        h={10}
+                        mx="auto"
+                        style={{
+                          borderRadius: "50%",
+                          backgroundColor: "var(--mantine-color-primary-5)",
+                        }}
+                      />
                     ) : (
-                      <Text size="xs" c="dimmed">--</Text>
+                      <Text size="xs" c="dimmed">
+                        --
+                      </Text>
                     )}
                   </Table.Td>
                 );
@@ -229,25 +284,37 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
 
   return (
     <Card padding="sm" radius="md" withBorder>
-      <Text size="sm" fw={500} mb={4}>{item.drug_name}</Text>
+      <Text size="sm" fw={500} mb={4}>
+        {item.drug_name}
+      </Text>
       <Text size="xs" c="dimmed" mb="xs">
-        {item.dosage} -- {FREQ_LABEL[item.frequency.toUpperCase()] ?? item.frequency} -- {item.duration}
+        {item.dosage} -- {FREQ_LABEL[item.frequency.toUpperCase()] ?? item.frequency} --{" "}
+        {item.duration}
       </Text>
       {calc ? (
-        <Box p="xs" style={{
-          borderRadius: "var(--mantine-radius-sm)",
-          backgroundColor: "var(--mantine-color-primary-9, #0d2417)",
-          color: "var(--mantine-color-white, #fff)",
-          fontFamily: "var(--fc-font-mono, monospace)",
-          fontSize: "var(--mantine-font-size-xs)",
-          lineHeight: 1.6,
-        }}>
-          <div>{calc.perDose} mg/dose x {dosesPerDay} doses/day = {calc.totalDaily} mg/day</div>
-          <div>{calc.totalDaily} mg/day / {weight} kg = {calc.mgPerKgDay.toFixed(2)} mg/kg/day</div>
+        <Box
+          p="xs"
+          style={{
+            borderRadius: "var(--mantine-radius-sm)",
+            backgroundColor: "var(--mantine-color-primary-9, #0d2417)",
+            color: "var(--mantine-color-white, #fff)",
+            fontFamily: "var(--fc-font-mono, monospace)",
+            fontSize: "var(--mantine-font-size-xs)",
+            lineHeight: 1.6,
+          }}
+        >
+          <div>
+            {calc.perDose} mg/dose x {dosesPerDay} doses/day = {calc.totalDaily} mg/day
+          </div>
+          <div>
+            {calc.totalDaily} mg/day / {weight} kg = {calc.mgPerKgDay.toFixed(2)} mg/kg/day
+          </div>
         </Box>
       ) : (
         <Text size="xs" c="dimmed" fs="italic">
-          {!weight ? "Enter patient weight to calculate" : `No numeric dose found in "${item.dosage}" or drug name`}
+          {!weight
+            ? "Enter patient weight to calculate"
+            : `No numeric dose found in "${item.dosage}" or drug name`}
         </Text>
       )}
     </Card>
@@ -255,23 +322,43 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
 }
 
 export function DoseCalculatorView({
-  items, patientWeight, patientAge,
+  items,
+  patientWeight,
+  patientAge,
 }: {
-  items: FlatItem[]; patientWeight?: number; patientAge?: string;
+  items: FlatItem[];
+  patientWeight?: number;
+  patientAge?: string;
 }) {
   const [weight, setWeight] = useState<number | undefined>(patientWeight);
   return (
     <Stack gap="sm">
       <Group gap="sm" align="flex-end">
         <NumberInput
-          label="Patient weight (kg)" value={weight}
+          label="Patient weight (kg)"
+          value={weight}
           onChange={(v) => setWeight(typeof v === "number" ? v : undefined)}
-          min={0.5} max={300} step={0.5} decimalScale={1} w={160} size="xs"
+          min={0.5}
+          max={300}
+          step={0.5}
+          decimalScale={1}
+          w={160}
+          size="xs"
         />
-        {patientAge && <Text size="xs" c="dimmed" pb={4}>Age: {patientAge}</Text>}
+        {patientAge && (
+          <Text size="xs" c="dimmed" pb={4}>
+            Age: {patientAge}
+          </Text>
+        )}
       </Group>
-      {items.map((item) => <DoseCalcCard key={item.id} item={item} weight={weight} />)}
-      {items.length === 0 && <Text size="sm" c="dimmed" ta="center">No items to calculate.</Text>}
+      {items.map((item) => (
+        <DoseCalcCard key={item.id} item={item} weight={weight} />
+      ))}
+      {items.length === 0 && (
+        <Text size="sm" c="dimmed" ta="center">
+          No items to calculate.
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -284,31 +371,61 @@ function RuleCard({ item }: { item: FlatItem }) {
   const when = timingLabel(item);
   const bandLabelStyle = {
     fontFamily: "var(--fc-font-mono, monospace)",
-    fontSize: 10, color: "var(--mantine-color-dimmed)",
+    fontSize: 10,
+    color: "var(--mantine-color-dimmed)",
     textTransform: "uppercase" as const,
-    letterSpacing: "0.08em", marginBottom: 2,
+    letterSpacing: "0.08em",
+    marginBottom: 2,
   };
 
   return (
     <Card padding={0} radius="md" withBorder>
       <Group gap={0} wrap="nowrap" style={{ overflow: "hidden" }}>
-        <Box p="xs" w="33.33%" style={{ borderRight: "1px solid var(--fc-rule, #e7ebe8)", backgroundColor: "var(--fc-panel, #f7f8f6)" }}>
+        <Box
+          p="xs"
+          w="33.33%"
+          style={{
+            borderRight: "1px solid var(--fc-rule, #e7ebe8)",
+            backgroundColor: "var(--fc-panel, #f7f8f6)",
+          }}
+        >
           <div style={bandLabelStyle}>When</div>
-          <Text size="xs" fw={500}>{when}</Text>
+          <Text size="xs" fw={500}>
+            {when}
+          </Text>
         </Box>
         <Box p="xs" w="33.33%" style={{ borderRight: "1px solid var(--fc-rule, #e7ebe8)" }}>
           <div style={bandLabelStyle}>Trigger</div>
-          <Text size="xs" fw={500}>{isPrn ? "As needed (PRN)" : "Regular schedule"}</Text>
-          <Text size="xs" c="dimmed">{item.dosage} -- {FREQ_LABEL[freqUpper] ?? item.frequency}</Text>
+          <Text size="xs" fw={500}>
+            {isPrn ? "As needed (PRN)" : "Regular schedule"}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {item.dosage} -- {FREQ_LABEL[freqUpper] ?? item.frequency}
+          </Text>
         </Box>
         <Box p="xs" w="33.33%">
           <div style={bandLabelStyle}>For</div>
-          <Text size="xs" fw={500}>{item.duration}</Text>
-          {item.route && <Text size="xs" c="dimmed">via {item.route}</Text>}
+          <Text size="xs" fw={500}>
+            {item.duration}
+          </Text>
+          {item.route && (
+            <Text size="xs" c="dimmed">
+              via {item.route}
+            </Text>
+          )}
         </Box>
       </Group>
-      <Box px="xs" py={4} style={{ borderTop: "1px solid var(--fc-rule, #e7ebe8)", backgroundColor: "var(--fc-panel, #f7f8f6)" }}>
-        <Text size="sm" fw={600}>{item.drug_name}</Text>
+      <Box
+        px="xs"
+        py={4}
+        style={{
+          borderTop: "1px solid var(--fc-rule, #e7ebe8)",
+          backgroundColor: "var(--fc-panel, #f7f8f6)",
+        }}
+      >
+        <Text size="sm" fw={600}>
+          {item.drug_name}
+        </Text>
       </Box>
     </Card>
   );
@@ -317,8 +434,14 @@ function RuleCard({ item }: { item: FlatItem }) {
 export function RuleCardsView({ items }: { items: FlatItem[] }) {
   return (
     <Stack gap="xs">
-      {items.map((item) => <RuleCard key={item.id} item={item} />)}
-      {items.length === 0 && <Text size="sm" c="dimmed" ta="center">No prescription items.</Text>}
+      {items.map((item) => (
+        <RuleCard key={item.id} item={item} />
+      ))}
+      {items.length === 0 && (
+        <Text size="sm" c="dimmed" ta="center">
+          No prescription items.
+        </Text>
+      )}
     </Stack>
   );
 }

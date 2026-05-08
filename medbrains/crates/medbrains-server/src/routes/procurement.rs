@@ -308,7 +308,8 @@ pub async fn list_vendors(
     require_permission(&claims, permissions::procurement::vendors::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let vendors = if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
@@ -348,7 +349,8 @@ pub async fn get_vendor(
     require_permission(&claims, permissions::procurement::vendors::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let vendor =
         sqlx::query_as::<_, Vendor>("SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2")
@@ -370,7 +372,8 @@ pub async fn create_vendor(
     require_permission(&claims, permissions::procurement::vendors::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let categories = body.categories.clone().unwrap_or(serde_json::json!([]));
 
@@ -428,7 +431,8 @@ pub async fn update_vendor(
     require_permission(&claims, permissions::procurement::vendors::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let vendor = sqlx::query_as::<_, Vendor>(
         "UPDATE vendors SET \
@@ -511,7 +515,8 @@ pub async fn list_store_locations(
     require_permission(&claims, permissions::procurement::stores::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let locations = sqlx::query_as::<_, StoreLocation>(
         "SELECT * FROM store_locations WHERE tenant_id = $1 ORDER BY name",
@@ -532,7 +537,8 @@ pub async fn create_store_location(
     require_permission(&claims, permissions::procurement::stores::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let location = sqlx::query_as::<_, StoreLocation>(
         "INSERT INTO store_locations \
@@ -562,7 +568,8 @@ pub async fn update_store_location(
     require_permission(&claims, permissions::procurement::stores::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let location = sqlx::query_as::<_, StoreLocation>(
         "UPDATE store_locations SET \
@@ -607,7 +614,8 @@ pub async fn list_purchase_orders(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx = 2;
@@ -673,7 +681,8 @@ pub async fn get_purchase_order(
     require_permission(&claims, permissions::procurement::purchase_orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let purchase_order = sqlx::query_as::<_, PurchaseOrder>(
         "SELECT * FROM purchase_orders WHERE id = $1 AND tenant_id = $2",
@@ -711,7 +720,8 @@ pub async fn create_purchase_order(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let po_number = generate_number(&mut tx, &claims.tenant_id, "PO", "PO").await?;
 
@@ -822,7 +832,8 @@ pub async fn approve_purchase_order(
     require_permission(&claims, permissions::procurement::purchase_orders::APPROVE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let po = sqlx::query_as::<_, PurchaseOrder>(
         "UPDATE purchase_orders SET \
@@ -849,7 +860,8 @@ pub async fn send_purchase_order(
     require_permission(&claims, permissions::procurement::purchase_orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let po = sqlx::query_as::<_, PurchaseOrder>(
         "UPDATE purchase_orders SET \
@@ -875,7 +887,8 @@ pub async fn cancel_purchase_order(
     require_permission(&claims, permissions::procurement::purchase_orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let po = sqlx::query_as::<_, PurchaseOrder>(
         "UPDATE purchase_orders SET \
@@ -909,7 +922,8 @@ pub async fn list_grns(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let (count_sql, data_sql) = if params.po_id.is_some() {
         (
@@ -970,7 +984,8 @@ pub async fn get_grn(
     require_permission(&claims, permissions::procurement::grn::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let grn = sqlx::query_as::<_, GoodsReceiptNote>(
         "SELECT * FROM goods_receipt_notes WHERE id = $1 AND tenant_id = $2",
@@ -1005,7 +1020,8 @@ pub async fn create_grn(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify PO exists and is receivable
     let po = sqlx::query_as::<_, PurchaseOrder>(
@@ -1270,7 +1286,8 @@ pub async fn complete_grn(
     require_permission(&claims, permissions::procurement::grn::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let grn = sqlx::query_as::<_, GoodsReceiptNote>(
         "UPDATE goods_receipt_notes SET \
@@ -1301,7 +1318,8 @@ pub async fn list_rate_contracts(
     require_permission(&claims, permissions::procurement::rate_contracts::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let contracts = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, RateContract>(
@@ -1332,7 +1350,8 @@ pub async fn get_rate_contract(
     require_permission(&claims, permissions::procurement::rate_contracts::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let contract = sqlx::query_as::<_, RateContract>(
         "SELECT * FROM rate_contracts WHERE id = $1 AND tenant_id = $2",
@@ -1363,7 +1382,8 @@ pub async fn create_rate_contract(
     require_permission(&claims, permissions::procurement::rate_contracts::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let contract_number = generate_number(&mut tx, &claims.tenant_id, "RC", "RC").await?;
 
@@ -1429,7 +1449,8 @@ pub async fn list_batch_stock(
     require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let batches = if let Some(catalog_id) = params.catalog_item_id {
         sqlx::query_as::<_, BatchStock>(
@@ -1473,7 +1494,8 @@ pub async fn vendor_performance(
     require_permission(&claims, permissions::procurement::vendors::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, VendorPerformanceRow>(
         "SELECT v.name AS vendor_name, \
@@ -1515,7 +1537,8 @@ pub async fn vendor_comparison(
     require_permission(&claims, permissions::procurement::vendors::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, VendorComparisonRow>(
         "SELECT v.name AS vendor_name, sc.name AS item_name, \
@@ -1574,7 +1597,8 @@ pub async fn create_emergency_po(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let po_number = generate_number(&mut tx, &claims.tenant_id, "PO", "EPO").await?;
 
@@ -1711,7 +1735,8 @@ pub async fn list_supplier_payments(
     require_permission(&claims, permissions::procurement::payments::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, SupplierPayment>(
@@ -1750,7 +1775,8 @@ pub async fn create_supplier_payment(
     require_permission(&claims, permissions::procurement::payments::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let payment_number = generate_number(&mut tx, &claims.tenant_id, "PAY", "PAY").await?;
     let paid = body.paid_amount.unwrap_or(Decimal::ZERO);
@@ -1812,7 +1838,8 @@ pub async fn update_supplier_payment(
     require_permission(&claims, permissions::procurement::payments::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Fetch existing
     let existing = sqlx::query_as::<_, SupplierPayment>(
@@ -1854,4 +1881,130 @@ pub async fn update_supplier_payment(
 
     tx.commit().await?;
     Ok(Json(payment))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Vendor ledger (Track 0.ter item 9)
+// ══════════════════════════════════════════════════════════
+//
+// Rolls receipts (GRN value), supplier returns (debit), and payments
+// (debit) into a single chronological ledger so finance can close the
+// month per-supplier without joining four tables by hand.
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct VendorLedgerEntry {
+    pub txn_date: chrono::DateTime<chrono::Utc>,
+    pub txn_type: String, // 'grn' | 'payment' | 'return'
+    pub reference_number: Option<String>,
+    pub debit: Decimal,           // money owed BY vendor (returns, overpayments)
+    pub credit: Decimal,          // money owed TO vendor (received goods)
+    pub running_balance: Decimal, // negative = vendor owes us
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VendorLedgerResponse {
+    pub vendor_id: Uuid,
+    pub opening_balance: Decimal,
+    pub closing_balance: Decimal,
+    pub total_purchases: Decimal,
+    pub total_payments: Decimal,
+    pub total_returns: Decimal,
+    pub entries: Vec<VendorLedgerEntry>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct LedgerRow {
+    txn_date: chrono::DateTime<chrono::Utc>,
+    txn_type: String,
+    reference_number: Option<String>,
+    debit: Decimal,
+    credit: Decimal,
+    note: Option<String>,
+}
+
+/// GET /api/procurement/vendors/{id}/ledger
+pub async fn vendor_ledger(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(vendor_id): Path<Uuid>,
+) -> Result<Json<VendorLedgerResponse>, AppError> {
+    require_permission(&claims, permissions::procurement::vendors::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // GRNs = goods received → vendor credit (we owe them)
+    // Payments = money out → vendor debit (paid down)
+    // Returns (supplier_return type credit notes) → debit (vendor owes us)
+    let rows = sqlx::query_as::<_, LedgerRow>(
+        "SELECT received_at AS txn_date, 'grn'::text AS txn_type, \
+                grn_number AS reference_number, \
+                0::numeric(14,2) AS debit, \
+                COALESCE(total_value, 0) AS credit, \
+                notes AS note \
+         FROM goods_receipts \
+         WHERE vendor_id = $1 AND tenant_id = $2 \
+         UNION ALL \
+         SELECT payment_date::timestamptz AS txn_date, 'payment'::text AS txn_type, \
+                payment_number AS reference_number, \
+                paid_amount AS debit, \
+                0::numeric(14,2) AS credit, \
+                notes AS note \
+         FROM supplier_payments \
+         WHERE vendor_id = $1 AND tenant_id = $2 \
+         UNION ALL \
+         SELECT created_at AS txn_date, 'return'::text AS txn_type, \
+                credit_note_number AS reference_number, \
+                COALESCE(total_amount, 0) AS debit, \
+                0::numeric(14,2) AS credit, \
+                reason AS note \
+         FROM pharmacy_credit_notes \
+         WHERE supplier_id = $1 AND tenant_id = $2 \
+           AND note_type = 'supplier_return' \
+         ORDER BY txn_date ASC",
+    )
+    .bind(vendor_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    let mut running = Decimal::ZERO;
+    let mut total_purchases = Decimal::ZERO;
+    let mut total_payments = Decimal::ZERO;
+    let mut total_returns = Decimal::ZERO;
+    let entries: Vec<VendorLedgerEntry> = rows
+        .into_iter()
+        .map(|r| {
+            // Running balance: positive = we owe vendor.
+            running += r.credit - r.debit;
+            match r.txn_type.as_str() {
+                "grn" => total_purchases += r.credit,
+                "payment" => total_payments += r.debit,
+                "return" => total_returns += r.debit,
+                _ => {}
+            }
+            VendorLedgerEntry {
+                txn_date: r.txn_date,
+                txn_type: r.txn_type,
+                reference_number: r.reference_number,
+                debit: r.debit,
+                credit: r.credit,
+                running_balance: running,
+                note: r.note,
+            }
+        })
+        .collect();
+
+    Ok(Json(VendorLedgerResponse {
+        vendor_id,
+        opening_balance: Decimal::ZERO,
+        closing_balance: running,
+        total_purchases,
+        total_payments,
+        total_returns,
+        entries,
+    }))
 }

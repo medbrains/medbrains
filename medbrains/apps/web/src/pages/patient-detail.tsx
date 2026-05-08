@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -8,22 +7,46 @@ import {
   Group,
   Loader,
   Modal,
+  Progress,
+  ScrollArea,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
   Tooltip,
-  SegmentedControl,
-  ScrollArea,
-  Progress,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AllergySeverity,
+  AllergyType,
+  CreateDocumentRequest,
+  CreateFamilyLinkRequest,
+  CreatePatientAllergyRequest,
+  DrugTimelineWithLabsResponse,
+  FamilyLinkRow,
+  MedicationTimelineEvent,
+  MergePatientRequest,
+  Patient,
+  PatientAllergy,
+  PatientAppointmentRow,
+  PatientDocument,
+  PatientInvoiceRow,
+  PatientLabOrderRow,
+  PatientMergeHistory,
+  PatientVisitRow,
+  PrescriptionHistoryItem,
+  TreatmentSummaryResponse,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
@@ -38,46 +61,26 @@ import {
   IconPlus,
   IconPrinter,
   IconReceipt,
+  IconReportMedical,
   IconStethoscope,
   IconTrash,
   IconUser,
-  IconReportMedical,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { PageHeader } from "../components/PageHeader";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PrescriptionViews } from "../components/Clinical";
-import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
-import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
-import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import { NotesPanel } from "../components/crdt/NotesPanel";
-import type {
-  Patient,
-  PrescriptionHistoryItem,
-  PatientVisitRow,
-  PatientLabOrderRow,
-  PatientInvoiceRow,
-  PatientAppointmentRow,
-  PatientAllergy,
-  AllergyType,
-  AllergySeverity,
-  CreatePatientAllergyRequest,
-  FamilyLinkRow,
-  CreateFamilyLinkRequest,
-  PatientDocument,
-  CreateDocumentRequest,
-  PatientMergeHistory,
-  MergePatientRequest,
-  MedicationTimelineEvent,
-  DrugTimelineWithLabsResponse,
-  TreatmentSummaryResponse,
-} from "@medbrains/types";
+import { DrugSearchSelect } from "../components/DrugSearchSelect";
+import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
+import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
+import { PageHeader } from "../components/PageHeader";
+import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { StartOpdVisitModal } from "../components/Patient/StartOpdVisitModal";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -135,9 +138,7 @@ function formatTime(time: string): string {
 
 function age(dob: string | null): string {
   if (!dob) return "-";
-  const years = Math.floor(
-    (Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000),
-  );
+  const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   return `${years}y`;
 }
 
@@ -185,22 +186,10 @@ function OverviewTab({ patient }: { patient: Patient }) {
             Visit Summary
           </Title>
           <Stack gap="xs">
-            <InfoRow
-              label="Total Visits"
-              value={String(patient.total_visits)}
-            />
-            <InfoRow
-              label="Last Visit"
-              value={formatDate(patient.last_visit_date ?? null)}
-            />
-            <InfoRow
-              label="Registration"
-              value={patient.registration_type}
-            />
-            <InfoRow
-              label="Registered"
-              value={formatDate(patient.created_at)}
-            />
+            <InfoRow label="Total Visits" value={String(patient.total_visits)} />
+            <InfoRow label="Last Visit" value={formatDate(patient.last_visit_date ?? null)} />
+            <InfoRow label="Registration" value={patient.registration_type} />
+            <InfoRow label="Registered" value={formatDate(patient.created_at)} />
           </Stack>
         </Card>
 
@@ -325,8 +314,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePatientAllergyRequest) =>
-      api.createPatientAllergy(patient.id, data),
+    mutationFn: (data: CreatePatientAllergyRequest) => api.createPatientAllergy(patient.id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
       notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
@@ -338,8 +326,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (allergyId: string) =>
-      api.deletePatientAllergy(patient.id, allergyId),
+    mutationFn: (allergyId: string) => api.deletePatientAllergy(patient.id, allergyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
       notifications.show({ title: "Removed", message: "Allergy removed", color: "success" });
@@ -404,7 +391,9 @@ function AllergiesTab({ patient }: { patient: Patient }) {
             {allergies.map((a: PatientAllergy) => (
               <Table.Tr key={a.id}>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{a.allergen_name}</Text>
+                  <Text size="sm" fw={500}>
+                    {a.allergen_name}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
                   <Badge variant="light" size="sm">
@@ -413,15 +402,13 @@ function AllergiesTab({ patient }: { patient: Patient }) {
                 </Table.Td>
                 <Table.Td>
                   {a.severity ? (
-                    <Badge
-                      color={SEVERITY_COLORS[a.severity] ?? "gray"}
-                      variant="light"
-                      size="sm"
-                    >
+                    <Badge color={SEVERITY_COLORS[a.severity] ?? "gray"} variant="light" size="sm">
                       {a.severity.replace(/_/g, " ")}
                     </Badge>
                   ) : (
-                    <Text size="sm" c="dimmed">-</Text>
+                    <Text size="sm" c="dimmed">
+                      -
+                    </Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -489,7 +476,9 @@ function AllergiesTab({ patient }: { patient: Patient }) {
             onChange={(e) => setReaction(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
             <Button
               onClick={handleSubmit}
               loading={createMutation.isPending}
@@ -577,11 +566,7 @@ function VisitsTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge
-                color={STATUS_COLORS[v.status] ?? "gray"}
-                variant="light"
-                size="sm"
-              >
+              <Badge color={STATUS_COLORS[v.status] ?? "gray"} variant="light" size="sm">
                 {v.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
@@ -673,17 +658,15 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge
-                color={LAB_STATUS_COLORS[o.status] ?? "gray"}
-                variant="light"
-                size="sm"
-              >
+              <Badge color={LAB_STATUS_COLORS[o.status] ?? "gray"} variant="light" size="sm">
                 {o.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
             <Table.Td>
               <Badge
-                color={o.priority === "stat" ? "danger" : o.priority === "urgent" ? "orange" : "gray"}
+                color={
+                  o.priority === "stat" ? "danger" : o.priority === "urgent" ? "orange" : "gray"
+                }
                 variant="light"
                 size="sm"
               >
@@ -749,7 +732,8 @@ function BillingTab({ patientId }: { patientId: string }) {
             Total Billed
           </Text>
           <Text size="lg" fw={700}>
-            {"\u20B9"}{totals.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            {"\u20B9"}
+            {totals.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </Text>
         </Card>
         <Card withBorder p="sm">
@@ -757,7 +741,8 @@ function BillingTab({ patientId }: { patientId: string }) {
             Paid
           </Text>
           <Text size="lg" fw={700} c="success">
-            {"\u20B9"}{totals.paid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            {"\u20B9"}
+            {totals.paid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </Text>
         </Card>
         <Card withBorder p="sm">
@@ -765,7 +750,8 @@ function BillingTab({ patientId }: { patientId: string }) {
             Balance
           </Text>
           <Text size="lg" fw={700} c={totals.balance > 0 ? "danger" : "success"}>
-            {"\u20B9"}{totals.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            {"\u20B9"}
+            {totals.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </Text>
         </Card>
       </SimpleGrid>
@@ -806,20 +792,24 @@ function BillingTab({ patientId }: { patientId: string }) {
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm">
-                  {"\u20B9"}{parseFloat(inv.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {"\u20B9"}
+                  {parseFloat(inv.total_amount).toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                  })}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm" c="success">
-                  {"\u20B9"}{parseFloat(inv.paid_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {"\u20B9"}
+                  {parseFloat(inv.paid_amount).toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                  })}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
-                <Text
-                  size="sm"
-                  c={parseFloat(inv.balance) > 0 ? "danger" : undefined}
-                >
-                  {"\u20B9"}{parseFloat(inv.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                <Text size="sm" c={parseFloat(inv.balance) > 0 ? "danger" : undefined}>
+                  {"\u20B9"}
+                  {parseFloat(inv.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </Text>
               </Table.Td>
               <Table.Td>
@@ -897,11 +887,7 @@ function AppointmentsTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge
-                color={APPT_STATUS_COLORS[a.status] ?? "gray"}
-                variant="light"
-                size="sm"
-              >
+              <Badge color={APPT_STATUS_COLORS[a.status] ?? "gray"} variant="light" size="sm">
                 {a.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
@@ -941,8 +927,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateFamilyLinkRequest) =>
-      api.createFamilyLink(patientId, data),
+    mutationFn: (data: CreateFamilyLinkRequest) => api.createFamilyLink(patientId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
       notifications.show({ title: "Linked", message: "Family member linked", color: "success" });
@@ -988,7 +973,9 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
       )}
 
       {(links as FamilyLinkRow[]).length === 0 ? (
-        <Text c="dimmed" ta="center" py="xl">No family links</Text>
+        <Text c="dimmed" ta="center" py="xl">
+          No family links
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -1004,14 +991,34 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
           <Table.Tbody>
             {(links as FamilyLinkRow[]).map((l) => (
               <Table.Tr key={l.id}>
-                <Table.Td><Badge size="sm" variant="light">{l.relationship}</Badge></Table.Td>
-                <Table.Td><Text size="sm" fw={500}>{l.related_uhid ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{l.related_name ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{l.related_phone ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{l.related_gender ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Badge size="sm" variant="light">
+                    {l.relationship}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {l.related_uhid ?? "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{l.related_name ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{l.related_phone ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{l.related_gender ?? "—"}</Text>
+                </Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(l.id)} aria-label="Delete">
+                    <ActionIcon
+                      variant="light"
+                      color="danger"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(l.id)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -1025,29 +1032,76 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
       <Modal opened={opened} onClose={handleClose} title="Link Family Member">
         <Stack gap="sm">
           <Group>
-            <TextInput placeholder="Search by UHID, name or phone" value={searchTerm} onChange={(e) => setSearchTerm(e.currentTarget.value)} style={{ flex: 1 }} />
-            <Button size="sm" onClick={handleSearch}>Search</Button>
+            <TextInput
+              placeholder="Search by UHID, name or phone"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            <Button size="sm" onClick={handleSearch}>
+              Search
+            </Button>
           </Group>
           {searchResults.length > 0 && (
             <Table>
               <Table.Tbody>
                 {searchResults.map((p) => (
-                  <Table.Tr key={p.id} style={{ cursor: "pointer", background: selectedRelated?.id === p.id ? "var(--mantine-color-blue-light)" : undefined }} onClick={() => setSelectedRelated(p)}>
-                    <Table.Td><Text size="sm" fw={500}>{p.uhid}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{p.first_name} {p.last_name}</Text></Table.Td>
-                    <Table.Td><Text size="sm" c="dimmed">{p.phone}</Text></Table.Td>
+                  <Table.Tr
+                    key={p.id}
+                    style={{
+                      cursor: "pointer",
+                      background:
+                        selectedRelated?.id === p.id ? "var(--mb-nav-active-bg)" : undefined,
+                    }}
+                    onClick={() => setSelectedRelated(p)}
+                  >
+                    <Table.Td>
+                      <Text size="sm" fw={500}>
+                        {p.uhid}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {p.first_name} {p.last_name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {p.phone}
+                      </Text>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           )}
           {selectedRelated && (
-            <Alert color="primary">Selected: {selectedRelated.uhid} — {selectedRelated.first_name} {selectedRelated.last_name}</Alert>
+            <Alert color="primary">
+              Selected: {selectedRelated.uhid} — {selectedRelated.first_name}{" "}
+              {selectedRelated.last_name}
+            </Alert>
           )}
-          <Select label="Relationship" data={RELATIONSHIP_OPTIONS} value={relationship} onChange={setRelationship} required />
+          <Select
+            label="Relationship"
+            data={RELATIONSHIP_OPTIONS}
+            value={relationship}
+            onChange={setRelationship}
+            required
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={() => { if (selectedRelated && relationship) createMutation.mutate({ related_patient_id: selectedRelated.id, relationship }); }} loading={createMutation.isPending} disabled={!selectedRelated || !relationship}>Link</Button>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedRelated && relationship)
+                  createMutation.mutate({ related_patient_id: selectedRelated.id, relationship });
+              }}
+              loading={createMutation.isPending}
+              disabled={!selectedRelated || !relationship}
+            >
+              Link
+            </Button>
           </Group>
         </Stack>
       </Modal>
@@ -1120,7 +1174,9 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
       )}
 
       {(documents as PatientDocument[]).length === 0 ? (
-        <Text c="dimmed" ta="center" py="xl">No documents uploaded</Text>
+        <Text c="dimmed" ta="center" py="xl">
+          No documents uploaded
+        </Text>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -1135,16 +1191,40 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
           <Table.Tbody>
             {(documents as PatientDocument[]).map((d) => (
               <Table.Tr key={d.id}>
-                <Table.Td><Badge size="sm" variant="light">{d.document_type}</Badge></Table.Td>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{d.document_name}</Text>
-                  {d.notes && <Text size="xs" c="dimmed" lineClamp={1}>{d.notes}</Text>}
+                  <Badge size="sm" variant="light">
+                    {d.document_type}
+                  </Badge>
                 </Table.Td>
-                <Table.Td><Text size="xs" c="dimmed">{d.file_size ? `${Math.round(d.file_size / 1024)} KB` : "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs" c="dimmed">{formatDate(d.created_at)}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {d.document_name}
+                  </Text>
+                  {d.notes && (
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {d.notes}
+                    </Text>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" c="dimmed">
+                    {d.file_size ? `${Math.round(d.file_size / 1024)} KB` : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" c="dimmed">
+                    {formatDate(d.created_at)}
+                  </Text>
+                </Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon variant="light" color="danger" size="sm" onClick={() => deleteMutation.mutate(d.id)} aria-label="Delete">
+                    <ActionIcon
+                      variant="light"
+                      color="danger"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(d.id)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -1157,13 +1237,52 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
 
       <Modal opened={opened} onClose={handleClose} title="Add Document">
         <Stack gap="sm">
-          <Select label="Document Type" data={DOCUMENT_TYPE_OPTIONS} value={docType} onChange={setDocType} required />
-          <TextInput label="Document Name" placeholder="e.g. Aadhaar Card" value={docName} onChange={(e) => setDocName(e.currentTarget.value)} required />
-          <TextInput label="File URL" placeholder="https://..." value={fileUrl} onChange={(e) => setFileUrl(e.currentTarget.value)} required />
-          <Textarea label="Notes" placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+          <Select
+            label="Document Type"
+            data={DOCUMENT_TYPE_OPTIONS}
+            value={docType}
+            onChange={setDocType}
+            required
+          />
+          <TextInput
+            label="Document Name"
+            placeholder="e.g. Aadhaar Card"
+            value={docName}
+            onChange={(e) => setDocName(e.currentTarget.value)}
+            required
+          />
+          <TextInput
+            label="File URL"
+            placeholder="https://..."
+            value={fileUrl}
+            onChange={(e) => setFileUrl(e.currentTarget.value)}
+            required
+          />
+          <Textarea
+            label="Notes"
+            placeholder="Optional notes"
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={() => { if (docType && docName.trim() && fileUrl.trim()) createMutation.mutate({ document_type: docType, document_name: docName.trim(), file_url: fileUrl.trim(), notes: notes.trim() || undefined }); }} loading={createMutation.isPending} disabled={!docType || !docName.trim() || !fileUrl.trim()}>Add</Button>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (docType && docName.trim() && fileUrl.trim())
+                  createMutation.mutate({
+                    document_type: docType,
+                    document_name: docName.trim(),
+                    file_url: fileUrl.trim(),
+                    notes: notes.trim() || undefined,
+                  });
+              }}
+              loading={createMutation.isPending}
+              disabled={!docType || !docName.trim() || !fileUrl.trim()}
+            >
+              Add
+            </Button>
           </Group>
         </Stack>
       </Modal>
@@ -1202,7 +1321,11 @@ function MergeTab({ patient }: { patient: Patient }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      notifications.show({ title: "Unmerged", message: "Patient records separated", color: "success" });
+      notifications.show({
+        title: "Unmerged",
+        message: "Patient records separated",
+        color: "success",
+      });
     },
   });
 
@@ -1218,9 +1341,13 @@ function MergeTab({ patient }: { patient: Patient }) {
 
       {/* Merge History */}
       <Card withBorder>
-        <Title order={5} mb="sm">Merge History</Title>
+        <Title order={5} mb="sm">
+          Merge History
+        </Title>
         {(mergeHistory as PatientMergeHistory[]).length === 0 ? (
-          <Text size="sm" c="dimmed">No merge history</Text>
+          <Text size="sm" c="dimmed">
+            No merge history
+          </Text>
         ) : (
           <Table striped>
             <Table.Thead>
@@ -1236,10 +1363,18 @@ function MergeTab({ patient }: { patient: Patient }) {
             <Table.Tbody>
               {(mergeHistory as PatientMergeHistory[]).map((h) => (
                 <Table.Tr key={h.id}>
-                  <Table.Td><Text size="xs">{formatDate(h.created_at)}</Text></Table.Td>
-                  <Table.Td><Text size="sm" fw={500}>{h.surviving_patient_id.slice(0, 8)}...</Text></Table.Td>
-                  <Table.Td><Text size="sm">{h.merged_patient_id.slice(0, 8)}...</Text></Table.Td>
-                  <Table.Td><Text size="sm">{h.merge_reason}</Text></Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{formatDate(h.created_at)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <PatientNameCell patientId={h.surviving_patient_id} showUhid={false} />
+                  </Table.Td>
+                  <Table.Td>
+                    <PatientNameCell patientId={h.merged_patient_id} showUhid={false} />
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{h.merge_reason}</Text>
+                  </Table.Td>
                   <Table.Td>
                     <Badge size="sm" color={h.unmerged_at ? "gray" : "success"}>
                       {h.unmerged_at ? "Unmerged" : "Active"}
@@ -1248,7 +1383,12 @@ function MergeTab({ patient }: { patient: Patient }) {
                   {canUpdate && (
                     <Table.Td>
                       {!h.unmerged_at && (
-                        <Button size="xs" variant="light" color="orange" onClick={() => unmergeMutation.mutate(h.id)}>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="orange"
+                          onClick={() => unmergeMutation.mutate(h.id)}
+                        >
                           Undo
                         </Button>
                       )}
@@ -1264,15 +1404,24 @@ function MergeTab({ patient }: { patient: Patient }) {
       {/* Merge Another Patient Into This One */}
       {canUpdate && !patient.is_merged && (
         <Card withBorder>
-          <Title order={5} mb="sm">Merge Duplicate Into This Patient</Title>
+          <Title order={5} mb="sm">
+            Merge Duplicate Into This Patient
+          </Title>
           <Text size="sm" c="dimmed" mb="md">
-            Search for a duplicate patient record and merge it into this one. The duplicate will be deactivated.
+            Search for a duplicate patient record and merge it into this one. The duplicate will be
+            deactivated.
           </Text>
           <PatientSearchSelect
             value={selectedTarget?.id ?? ""}
             onChange={(id) => {
-              if (!id) { setSelectedTarget(null); return; }
-              api.getPatient(id).then((p) => setSelectedTarget(p as Patient)).catch(() => setSelectedTarget(null));
+              if (!id) {
+                setSelectedTarget(null);
+                return;
+              }
+              api
+                .getPatient(id)
+                .then((p) => setSelectedTarget(p as Patient))
+                .catch(() => setSelectedTarget(null));
             }}
             label="Search duplicate patient"
             placeholder="Search by UHID, name or phone..."
@@ -1281,38 +1430,135 @@ function MergeTab({ patient }: { patient: Patient }) {
             <Stack gap="sm" mt="md">
               {/* Side-by-side comparison */}
               <Card withBorder bg="var(--fc-panel, #f7f8f6)" p="md">
-                <Text size="xs" fw={700} c="dimmed" mb="sm" tt="uppercase" ff="var(--font-mono, monospace)" style={{ letterSpacing: "0.14em" }}>
+                <Text
+                  size="xs"
+                  fw={700}
+                  c="dimmed"
+                  mb="sm"
+                  tt="uppercase"
+                  ff="var(--font-mono, monospace)"
+                  style={{ letterSpacing: "0.14em" }}
+                >
                   Compare Before Merging
                 </Text>
                 <SimpleGrid cols={2}>
                   <Stack gap={4}>
-                    <Badge color="success" variant="light" size="sm" mb={4}>Surviving Record (this patient)</Badge>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>UHID</Text><Text size="sm" fw={600}>{patient.uhid}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Name</Text><Text size="sm">{patient.first_name} {patient.last_name}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Phone</Text><Text size="sm">{patient.phone ?? "—"}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>DOB</Text><Text size="sm">{patient.date_of_birth ?? "—"}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Gender</Text><Text size="sm">{patient.gender}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Category</Text><Badge size="xs" variant="light">{patient.category}</Badge></Group>
+                    <Badge color="success" variant="light" size="sm" mb={4}>
+                      Surviving Record (this patient)
+                    </Badge>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        UHID
+                      </Text>
+                      <Text size="sm" fw={600}>
+                        {patient.uhid}
+                      </Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Name
+                      </Text>
+                      <Text size="sm">
+                        {patient.first_name} {patient.last_name}
+                      </Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Phone
+                      </Text>
+                      <Text size="sm">{patient.phone ?? "—"}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        DOB
+                      </Text>
+                      <Text size="sm">{patient.date_of_birth ?? "—"}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Gender
+                      </Text>
+                      <Text size="sm">{patient.gender}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Category
+                      </Text>
+                      <Badge size="xs" variant="light">
+                        {patient.category}
+                      </Badge>
+                    </Group>
                   </Stack>
                   <Stack gap={4}>
-                    <Badge color="warning" variant="light" size="sm" mb={4}>Duplicate (will be deactivated)</Badge>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>UHID</Text><Text size="sm" fw={600}>{selectedTarget.uhid}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Name</Text><Text size="sm">{selectedTarget.first_name} {selectedTarget.last_name}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Phone</Text><Text size="sm">{selectedTarget.phone ?? "—"}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>DOB</Text><Text size="sm">{selectedTarget.date_of_birth ?? "—"}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Gender</Text><Text size="sm">{selectedTarget.gender}</Text></Group>
-                    <Group gap="xs"><Text size="xs" c="dimmed" w={60}>Category</Text><Badge size="xs" variant="light">{selectedTarget.category}</Badge></Group>
+                    <Badge color="warning" variant="light" size="sm" mb={4}>
+                      Duplicate (will be deactivated)
+                    </Badge>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        UHID
+                      </Text>
+                      <Text size="sm" fw={600}>
+                        {selectedTarget.uhid}
+                      </Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Name
+                      </Text>
+                      <Text size="sm">
+                        {selectedTarget.first_name} {selectedTarget.last_name}
+                      </Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Phone
+                      </Text>
+                      <Text size="sm">{selectedTarget.phone ?? "—"}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        DOB
+                      </Text>
+                      <Text size="sm">{selectedTarget.date_of_birth ?? "—"}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Gender
+                      </Text>
+                      <Text size="sm">{selectedTarget.gender}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" w={60}>
+                        Category
+                      </Text>
+                      <Badge size="xs" variant="light">
+                        {selectedTarget.category}
+                      </Badge>
+                    </Group>
                   </Stack>
                 </SimpleGrid>
               </Card>
 
               <Alert color="warning" variant="light">
-                All visits, prescriptions, lab orders, and billing records from <b>{selectedTarget.uhid}</b> will be transferred to <b>{patient.uhid}</b>.
+                All visits, prescriptions, lab orders, and billing records from{" "}
+                <b>{selectedTarget.uhid}</b> will be transferred to <b>{patient.uhid}</b>.
               </Alert>
-              <Textarea label="Merge Reason" placeholder="Why are these records being merged?" value={mergeReason} onChange={(e) => setMergeReason(e.currentTarget.value)} required />
+              <Textarea
+                label="Merge Reason"
+                placeholder="Why are these records being merged?"
+                value={mergeReason}
+                onChange={(e) => setMergeReason(e.currentTarget.value)}
+                required
+              />
               <Group justify="flex-end">
-                <Button variant="subtle" onClick={() => setSelectedTarget(null)}>Cancel</Button>
-                <Button color="warning" disabled={!mergeReason.trim()} onClick={confirmHandlers.open}>
+                <Button variant="subtle" onClick={() => setSelectedTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  color="warning"
+                  disabled={!mergeReason.trim()}
+                  onClick={confirmHandlers.open}
+                >
                   Merge Records
                 </Button>
               </Group>
@@ -1324,19 +1570,26 @@ function MergeTab({ patient }: { patient: Patient }) {
       {/* Confirmation Modal */}
       <Modal opened={confirmOpen} onClose={confirmHandlers.close} title="Confirm Merge">
         <Alert color="danger" icon={<IconAlertTriangle size={16} />} mb="md">
-          This will deactivate {selectedTarget?.uhid} and merge its data into {patient.uhid}. This can be undone later.
+          This will deactivate {selectedTarget?.uhid} and merge its data into {patient.uhid}. This
+          can be undone later.
         </Alert>
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={confirmHandlers.close}>Cancel</Button>
-          <Button color="danger" loading={mergeMutation.isPending} onClick={() => {
-            if (selectedTarget) {
-              mergeMutation.mutate({
-                surviving_patient_id: patient.id,
-                merged_patient_id: selectedTarget.id,
-                merge_reason: mergeReason.trim(),
-              });
-            }
-          }}>
+          <Button variant="subtle" onClick={confirmHandlers.close}>
+            Cancel
+          </Button>
+          <Button
+            color="danger"
+            loading={mergeMutation.isPending}
+            onClick={() => {
+              if (selectedTarget) {
+                mergeMutation.mutate({
+                  surviving_patient_id: patient.id,
+                  merged_patient_id: selectedTarget.id,
+                  merge_reason: mergeReason.trim(),
+                });
+              }
+            }}
+          >
             Confirm Merge
           </Button>
         </Group>
@@ -1368,7 +1621,7 @@ function handlePrintPatientCard(patient: Patient) {
       <div class="info">DOB: ${patient.date_of_birth ?? "N/A"}</div>
       <div class="info">Category: ${patient.category}</div>
       ${patient.is_vip ? '<div class="info" style="color:orange;font-weight:bold;">VIP Patient</div>' : ""}
-      ${patient.is_medico_legal ? '<div class="info" style="color:red;font-weight:bold;">MLC #' + (patient.mlc_number ?? "") + "</div>" : ""}
+      ${patient.is_medico_legal ? `<div class="info" style="color:red;font-weight:bold;">MLC #${patient.mlc_number ?? ""}</div>` : ""}
       <div class="footer">MedBrains HMS &mdash; Printed ${new Date().toLocaleDateString()}</div>
     </div>
     <script>window.print();window.close();</script>
@@ -1407,11 +1660,7 @@ const ENROLLMENT_STATUS_COLORS: Record<string, string> = {
   deceased: "dark",
 };
 
-function ChronicCareTab({
-  patientId,
-}: {
-  patientId: string;
-}) {
+function ChronicCareTab({ patientId }: { patientId: string }) {
   const [segment, setSegment] = useState("drugogram");
   const canViewTimeline = useHasPermission(P.CHRONIC.TIMELINE_VIEW);
   const canViewOutcomes = useHasPermission(P.CHRONIC.OUTCOMES_VIEW);
@@ -1429,9 +1678,7 @@ function ChronicCareTab({
         ]}
       />
 
-      {segment === "drugogram" && canViewTimeline && (
-        <DrugOGramSegment patientId={patientId} />
-      )}
+      {segment === "drugogram" && canViewTimeline && <DrugOGramSegment patientId={patientId} />}
       {segment === "outcomes" && canViewOutcomes && <OutcomesSegment patientId={patientId} />}
       {segment === "adherence" && canViewAdherence && <AdherenceSegment patientId={patientId} />}
     </Stack>
@@ -1467,11 +1714,7 @@ function getDateRange(range: string): { from_date?: string; to_date?: string } {
   }
 }
 
-function DrugOGramSegment({
-  patientId,
-}: {
-  patientId: string;
-}) {
+function DrugOGramSegment({ patientId }: { patientId: string }) {
   const [range, setRange] = useState("1y");
   const dateRange = useMemo(() => getDateRange(range), [range]);
 
@@ -1495,12 +1738,7 @@ function DrugOGramSegment({
   return (
     <Stack gap="md">
       <Group justify="space-between">
-        <SegmentedControl
-          value={range}
-          onChange={setRange}
-          data={TIMELINE_RANGES}
-          size="xs"
-        />
+        <SegmentedControl value={range} onChange={setRange} data={TIMELINE_RANGES} size="xs" />
         <Group gap="xs">
           {summary && (
             <Button
@@ -1517,15 +1755,34 @@ function DrugOGramSegment({
 
       {/* Polypharmacy Alerts */}
       {activeAlerts.length > 0 && (
-        <Alert color="danger" title={`${activeAlerts.length} Drug Interaction Alert(s)`} icon={<IconAlertTriangle size={16} />}>
+        <Alert
+          color="danger"
+          title={`${activeAlerts.length} Drug Interaction Alert(s)`}
+          icon={<IconAlertTriangle size={16} />}
+        >
           <Stack gap={4}>
             {activeAlerts.map((a) => (
               <Group key={a.id} gap="xs">
-                <Badge color={a.severity === "contraindicated" ? "danger" : a.severity === "major" ? "orange" : "warning"} size="sm">
+                <Badge
+                  color={
+                    a.severity === "contraindicated"
+                      ? "danger"
+                      : a.severity === "major"
+                        ? "orange"
+                        : "warning"
+                  }
+                  size="sm"
+                >
                   {a.severity}
                 </Badge>
-                <Text size="sm">{a.drug_a_name} + {a.drug_b_name}</Text>
-                {a.description && <Text size="xs" c="dimmed">{a.description}</Text>}
+                <Text size="sm">
+                  {a.drug_a_name} + {a.drug_b_name}
+                </Text>
+                {a.description && (
+                  <Text size="xs" c="dimmed">
+                    {a.description}
+                  </Text>
+                )}
               </Group>
             ))}
           </Stack>
@@ -1547,12 +1804,15 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
   }
 
   // Group events by drug_name
-  const drugEvents = medication_events.reduce<Record<string, MedicationTimelineEvent[]>>((acc, ev) => {
-    const list = acc[ev.drug_name] ?? [];
-    list.push(ev);
-    acc[ev.drug_name] = list;
-    return acc;
-  }, {});
+  const drugEvents = medication_events.reduce<Record<string, MedicationTimelineEvent[]>>(
+    (acc, ev) => {
+      const list = acc[ev.drug_name] ?? [];
+      list.push(ev);
+      acc[ev.drug_name] = list;
+      return acc;
+    },
+    {},
+  );
 
   const drugNames = Object.keys(drugEvents).sort();
 
@@ -1570,11 +1830,19 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
   return (
     <Stack gap="md">
       <Card withBorder padding="md">
-        <Text fw={500} mb="sm">Medication Timeline</Text>
+        <Text fw={500} mb="sm">
+          Medication Timeline
+        </Text>
         <ScrollArea>
           <svg width={LABEL_WIDTH + CHART_WIDTH + 20} height={totalHeight}>
             {/* Header line */}
-            <line x1={LABEL_WIDTH} y1={20} x2={LABEL_WIDTH + CHART_WIDTH} y2={20} stroke="#dee2e6" />
+            <line
+              x1={LABEL_WIDTH}
+              y1={20}
+              x2={LABEL_WIDTH + CHART_WIDTH}
+              y2={20}
+              stroke="#dee2e6"
+            />
             {/* Date labels */}
             {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
               const x = LABEL_WIDTH + frac * CHART_WIDTH;
@@ -1594,23 +1862,50 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
               return (
                 <g key={drug}>
                   {/* Drug label */}
-                  <text x={4} y={y + 14} fontSize={11} fill={isActive ? "#212529" : "#868e96"} fontWeight={isActive ? 600 : 400}>
+                  <text
+                    x={4}
+                    y={y + 14}
+                    fontSize={11}
+                    fill={isActive ? "#212529" : "#868e96"}
+                    fontWeight={isActive ? 600 : 400}
+                  >
                     {drug.length > 22 ? `${drug.slice(0, 20)}...` : drug}
                   </text>
                   {/* Row background */}
-                  <rect x={LABEL_WIDTH} y={y} width={CHART_WIDTH} height={ROW_HEIGHT - 4} fill={idx % 2 === 0 ? "#f8f9fa" : "#fff"} rx={2} />
+                  <rect
+                    x={LABEL_WIDTH}
+                    y={y}
+                    width={CHART_WIDTH}
+                    height={ROW_HEIGHT - 4}
+                    fill={idx % 2 === 0 ? "#f8f9fa" : "#fff"}
+                    rx={2}
+                  />
 
                   {/* Event bars and markers */}
                   {events.map((ev, eidx) => {
-                    const startX = LABEL_WIDTH + ((new Date(ev.effective_date).getTime() - minDate) / rangeMs) * CHART_WIDTH;
-                    const endTs = ev.end_date ? new Date(ev.end_date).getTime() : (ev.event_type === "discontinued" ? new Date(ev.effective_date).getTime() : maxDate);
+                    const startX =
+                      LABEL_WIDTH +
+                      ((new Date(ev.effective_date).getTime() - minDate) / rangeMs) * CHART_WIDTH;
+                    const endTs = ev.end_date
+                      ? new Date(ev.end_date).getTime()
+                      : ev.event_type === "discontinued"
+                        ? new Date(ev.effective_date).getTime()
+                        : maxDate;
                     const endX = LABEL_WIDTH + ((endTs - minDate) / rangeMs) * CHART_WIDTH;
                     const color = EVENT_COLORS[ev.event_type] ?? "#868e96";
 
                     if (ev.event_type === "started" || ev.event_type === "resumed") {
                       return (
                         <g key={eidx}>
-                          <rect x={startX} y={y + 8} width={Math.max(endX - startX, 2)} height={14} fill={color} opacity={0.3} rx={3} />
+                          <rect
+                            x={startX}
+                            y={y + 8}
+                            width={Math.max(endX - startX, 2)}
+                            height={14}
+                            fill={color}
+                            opacity={0.3}
+                            rx={3}
+                          />
                           <circle cx={startX} cy={y + 15} r={4} fill={color}>
                             <title>{`${ev.event_type}: ${ev.dosage ?? ""} ${ev.frequency ?? ""}`}</title>
                           </circle>
@@ -1620,7 +1915,14 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
 
                     return (
                       <g key={eidx}>
-                        <circle cx={startX} cy={y + 15} r={5} fill={color} stroke="#fff" strokeWidth={1}>
+                        <circle
+                          cx={startX}
+                          cy={y + 15}
+                          r={5}
+                          fill={color}
+                          stroke="#fff"
+                          strokeWidth={1}
+                        >
                           <title>{`${ev.event_type}: ${ev.change_reason ?? ev.dosage ?? ""}`}</title>
                         </circle>
                         {ev.event_type === "dose_changed" && (
@@ -1651,7 +1953,9 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
       {/* Active drugs */}
       {active_drugs.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="sm">Currently Active Medications</Text>
+          <Text fw={500} mb="sm">
+            Currently Active Medications
+          </Text>
           <Table>
             <Table.Thead>
               <Table.Tr>
@@ -1666,8 +1970,16 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
             <Table.Tbody>
               {active_drugs.map((d, i) => (
                 <Table.Tr key={i}>
-                  <Table.Td><Text fw={500} size="sm">{d.drug_name}</Text></Table.Td>
-                  <Table.Td><Text size="sm" c="dimmed">{d.generic_name ?? "—"}</Text></Table.Td>
+                  <Table.Td>
+                    <Text fw={500} size="sm">
+                      {d.drug_name}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {d.generic_name ?? "—"}
+                    </Text>
+                  </Table.Td>
                   <Table.Td>{d.dosage ?? "—"}</Table.Td>
                   <Table.Td>{d.frequency ?? "—"}</Table.Td>
                   <Table.Td>{d.route ?? "—"}</Table.Td>
@@ -1682,7 +1994,9 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
       {/* Lab trends */}
       {lab_series.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="sm">Lab Value Trends</Text>
+          <Text fw={500} mb="sm">
+            Lab Value Trends
+          </Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             {lab_series.slice(0, 9).map((series) => {
               const points = series.data_points;
@@ -1695,7 +2009,9 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
               return (
                 <Card key={series.parameter_name} withBorder padding="sm">
                   <Group justify="space-between">
-                    <Text size="sm" fw={500}>{series.parameter_name}</Text>
+                    <Text size="sm" fw={500}>
+                      {series.parameter_name}
+                    </Text>
                     {atTarget !== null && (
                       <Badge color={atTarget ? "success" : "danger"} size="xs">
                         {atTarget ? "At Target" : "Off Target"}
@@ -1706,10 +2022,13 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
                     {latest.value} {series.unit ?? ""}
                   </Text>
                   {series.target_value != null && (
-                    <Text size="xs" c="dimmed">Target: {series.target_value} {series.unit ?? ""}</Text>
+                    <Text size="xs" c="dimmed">
+                      Target: {series.target_value} {series.unit ?? ""}
+                    </Text>
                   )}
                   <Text size="xs" c="dimmed">
-                    {points.length} readings | Last: {new Date(latest.result_date).toLocaleDateString()}
+                    {points.length} readings | Last:{" "}
+                    {new Date(latest.result_date).toLocaleDateString()}
                   </Text>
                 </Card>
               );
@@ -1734,31 +2053,45 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Active Enrollments</Text>
-          <Text fw={700} size="xl">{data.active_enrollments}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Active Enrollments
+          </Text>
+          <Text fw={700} size="xl">
+            {data.active_enrollments}
+          </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Adherence Rate</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Adherence Rate
+          </Text>
           <Text fw={700} size="xl">
             {data.adherence_rate != null ? `${Math.round(Number(data.adherence_rate))}%` : "N/A"}
           </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Duration</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Duration
+          </Text>
           <Text fw={700} size="xl">
-            {data.enrollment_duration_days != null ? `${data.enrollment_duration_days} days` : "N/A"}
+            {data.enrollment_duration_days != null
+              ? `${data.enrollment_duration_days} days`
+              : "N/A"}
           </Text>
         </Card>
       </SimpleGrid>
 
       {data.targets.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="sm">Outcome Targets</Text>
+          <Text fw={500} mb="sm">
+            Outcome Targets
+          </Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             {data.targets.map((t) => (
               <Card key={t.target.id} withBorder padding="sm">
                 <Group justify="space-between">
-                  <Text size="sm" fw={500}>{t.target.parameter_name}</Text>
+                  <Text size="sm" fw={500}>
+                    {t.target.parameter_name}
+                  </Text>
                   {t.at_target !== null && (
                     <Badge color={t.at_target ? "success" : "danger"} size="xs">
                       {t.at_target ? "At Target" : "Off Target"}
@@ -1772,7 +2105,9 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
                   {t.latest_value != null ? `${t.latest_value} ${t.target.unit}` : "No data"}
                 </Text>
                 {t.latest_date && (
-                  <Text size="xs" c="dimmed">Last: {new Date(t.latest_date).toLocaleDateString()}</Text>
+                  <Text size="xs" c="dimmed">
+                    Last: {new Date(t.latest_date).toLocaleDateString()}
+                  </Text>
                 )}
               </Card>
             ))}
@@ -1806,20 +2141,33 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
     <Stack gap="md">
       {/* Enrollment list */}
       <Card withBorder padding="md">
-        <Text fw={500} mb="sm">Enrollments</Text>
+        <Text fw={500} mb="sm">
+          Enrollments
+        </Text>
         <Stack gap="xs">
           {enrollments.map((e) => (
             <Group
               key={e.id}
               justify="space-between"
-              style={{ cursor: "pointer", padding: 8, borderRadius: 4, background: selected === e.id ? "#e7f5ff" : undefined }}
+              style={{
+                cursor: "pointer",
+                padding: 8,
+                borderRadius: 4,
+                background: selected === e.id ? "var(--mb-nav-active-bg)" : undefined,
+              }}
               onClick={() => setSelected(e.id)}
             >
               <div>
-                <Text size="sm" fw={500}>{e.program_name}</Text>
-                <Text size="xs" c="dimmed">Enrolled: {e.enrollment_date}</Text>
+                <Text size="sm" fw={500}>
+                  {e.program_name}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Enrolled: {e.enrollment_date}
+                </Text>
               </div>
-              <Badge color={ENROLLMENT_STATUS_COLORS[e.status] ?? "gray"}>{e.status.replace(/_/g, " ")}</Badge>
+              <Badge color={ENROLLMENT_STATUS_COLORS[e.status] ?? "gray"}>
+                {e.status.replace(/_/g, " ")}
+              </Badge>
             </Group>
           ))}
         </Stack>
@@ -1830,8 +2178,12 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
         <Stack gap="md">
           <SimpleGrid cols={{ base: 1, sm: 3 }}>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">Dose Adherence</Text>
-              <Text fw={700} size="xl">{Math.round(Number(summary.dose_adherence_pct))}%</Text>
+              <Text size="xs" c="dimmed" tt="uppercase">
+                Dose Adherence
+              </Text>
+              <Text fw={700} size="xl">
+                {Math.round(Number(summary.dose_adherence_pct))}%
+              </Text>
               <Progress
                 value={Number(summary.dose_adherence_pct)}
                 color={Number(summary.dose_adherence_pct) >= 80 ? "success" : "danger"}
@@ -1839,33 +2191,57 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
               />
             </Card>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">Doses</Text>
+              <Text size="xs" c="dimmed" tt="uppercase">
+                Doses
+              </Text>
               <Group gap="xs" mt="xs">
-                <Badge color="success" variant="light">{summary.doses_taken} taken</Badge>
-                <Badge color="danger" variant="light">{summary.doses_missed} missed</Badge>
-                <Badge color="warning" variant="light">{summary.doses_late} late</Badge>
+                <Badge color="success" variant="light">
+                  {summary.doses_taken} taken
+                </Badge>
+                <Badge color="danger" variant="light">
+                  {summary.doses_missed} missed
+                </Badge>
+                <Badge color="warning" variant="light">
+                  {summary.doses_late} late
+                </Badge>
               </Group>
             </Card>
             <Card withBorder padding="md">
-              <Text size="xs" c="dimmed" tt="uppercase">Appointments</Text>
+              <Text size="xs" c="dimmed" tt="uppercase">
+                Appointments
+              </Text>
               <Group gap="xs" mt="xs">
-                <Badge color="success" variant="light">{summary.appointments_attended} attended</Badge>
-                <Badge color="danger" variant="light">{summary.appointments_missed} missed</Badge>
+                <Badge color="success" variant="light">
+                  {summary.appointments_attended} attended
+                </Badge>
+                <Badge color="danger" variant="light">
+                  {summary.appointments_missed} missed
+                </Badge>
               </Group>
             </Card>
           </SimpleGrid>
 
           {summary.by_month.length > 0 && (
             <Card withBorder padding="md">
-              <Text fw={500} mb="sm">Monthly Adherence</Text>
+              <Text fw={500} mb="sm">
+                Monthly Adherence
+              </Text>
               {summary.by_month.map((m) => {
                 const total = m.taken + m.missed + m.late;
                 const pct = total > 0 ? Math.round((m.taken / total) * 100) : 0;
                 return (
                   <Group key={m.month} mb="xs">
-                    <Text size="sm" w={80}>{m.month}</Text>
-                    <Progress value={pct} color={pct >= 80 ? "success" : "danger"} style={{ flex: 1 }} />
-                    <Text size="sm" w={40}>{pct}%</Text>
+                    <Text size="sm" w={80}>
+                      {m.month}
+                    </Text>
+                    <Progress
+                      value={pct}
+                      color={pct >= 80 ? "success" : "danger"}
+                      style={{ flex: 1 }}
+                    />
+                    <Text size="sm" w={40}>
+                      {pct}%
+                    </Text>
                   </Group>
                 );
               })}
@@ -1889,7 +2265,10 @@ function printTreatmentSummary(summary: TreatmentSummaryResponse) {
     .join("");
 
   const diagRows = summary.active_diagnoses
-    .map((d) => `<tr><td>${d.diagnosis_name}</td><td>${d.icd_code ?? ""}</td><td>${d.diagnosed_date ?? ""}</td></tr>`)
+    .map(
+      (d) =>
+        `<tr><td>${d.diagnosis_name}</td><td>${d.icd_code ?? ""}</td><td>${d.diagnosed_date ?? ""}</td></tr>`,
+    )
     .join("");
 
   const targetRows = summary.targets
@@ -1938,6 +2317,7 @@ export function PatientDetailPage() {
   const canAdmit = useHasPermission(P.IPD.ADMISSIONS_CREATE);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const [basketOpen, setBasketOpen] = useState(false);
+  const [opdVisitOpen, { open: openOpdVisit, close: closeOpdVisit }] = useDisclosure(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -1951,9 +2331,7 @@ export function PatientDetailPage() {
     queryFn: () => api.listPatientVisits(id!),
     enabled: !!id,
   });
-  const activeEncounter = visits.find(
-    (v) => v.status === "open" || v.status === "in_progress",
-  );
+  const activeEncounter = visits.find((v) => v.status === "open" || v.status === "in_progress");
 
   if (isLoading || !patient) {
     return (
@@ -1988,14 +2366,12 @@ export function PatientDetailPage() {
                 variant="light"
                 size="sm"
                 leftSection={<IconStethoscope size={14} />}
-                onClick={() => navigate(`/opd?action=new&patient_id=${patient.id}`)}
+                onClick={openOpdVisit}
               >
                 New OPD Visit
               </Button>
             )}
-            {canOrder && activeEncounter && (
-              <OrderBasketChip onClick={() => setBasketOpen(true)} />
-            )}
+            {canOrder && activeEncounter && <OrderBasketChip onClick={() => setBasketOpen(true)} />}
             {canOrder && !activeEncounter && (
               <Tooltip label="No active visit — start an OPD visit or admission first">
                 <Button
@@ -2019,13 +2395,19 @@ export function PatientDetailPage() {
               </Button>
             )}
             <Tooltip label="Print patient card">
-              <ActionIcon variant="light" onClick={() => handlePrintPatientCard(patient)} aria-label="Print">
+              <ActionIcon
+                variant="light"
+                onClick={() => handlePrintPatientCard(patient)}
+                aria-label="Print"
+              >
                 <IconPrinter size={18} />
               </ActionIcon>
             </Tooltip>
           </Group>
         }
       />
+
+      <PatientContextBanner patientId={patient.id} />
 
       <Group gap="xs" mb="md">
         <Badge color="primary" variant="light">
@@ -2143,6 +2525,13 @@ export function PatientDetailPage() {
           patientId={patient.id}
         />
       )}
+      <StartOpdVisitModal
+        patientId={patient.id}
+        patientName={`${patient.first_name} ${patient.last_name}`.trim()}
+        opened={opdVisitOpen}
+        onClose={closeOpdVisit}
+        onCreated={(encounterId) => navigate(`/opd/encounters/${encounterId}`)}
+      />
     </div>
   );
 }

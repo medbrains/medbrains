@@ -1,16 +1,9 @@
-import { useMemo } from "react";
-import {
-  Accordion,
-  Badge,
-  Group,
-  Loader,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { IconMapPin } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { Accordion, Badge, Group, Loader, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { LocationRow } from "@medbrains/types";
+import { IconMapPin } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 interface LocationNode extends LocationRow {
   children: LocationNode[];
@@ -81,11 +74,7 @@ function LocationNodeItem({ node, depth }: LocationNodeItemProps) {
         <Badge size="sm" color={LEVEL_COLORS[node.level] || "slate"} variant="light">
           {node.level}
         </Badge>
-        <Badge
-          size="sm"
-          color={node.is_active ? "success" : "slate"}
-          variant="light"
-        >
+        <Badge size="sm" color={node.is_active ? "success" : "slate"} variant="light">
           {node.is_active ? "Active" : "Inactive"}
         </Badge>
       </Group>
@@ -107,11 +96,7 @@ function LocationNodeItem({ node, depth }: LocationNodeItemProps) {
           <Badge size="sm" color={LEVEL_COLORS[node.level] || "slate"} variant="light">
             {node.level}
           </Badge>
-          <Badge
-            size="sm"
-            color={node.is_active ? "success" : "slate"}
-            variant="light"
-          >
+          <Badge size="sm" color={node.is_active ? "success" : "slate"} variant="light">
             {node.is_active ? "Active" : "Inactive"}
           </Badge>
         </Group>
@@ -156,8 +141,7 @@ export function LocationTreeSettings() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load locations:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load locations: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );

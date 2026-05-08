@@ -1,19 +1,19 @@
 import { Tabs } from "@mantine/core";
+import { P } from "@medbrains/types";
 import {
-  IconChartBar,
   IconBed,
+  IconChartBar,
+  IconCurrencyRupee,
   IconFlask,
   IconHeartbeat,
-  IconCurrencyRupee,
 } from "@tabler/icons-react";
-import { P } from "@medbrains/types";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-import { RevenueTab } from "./analytics/RevenueTab";
+import { ClinicalTab } from "./analytics/ClinicalTab";
 import { IpdCensusTab } from "./analytics/IpdCensusTab";
 import { LabTatTab } from "./analytics/LabTatTab";
-import { ClinicalTab } from "./analytics/ClinicalTab";
 import { OpdBedTab } from "./analytics/OpdBedTab";
+import { RevenueTab } from "./analytics/RevenueTab";
 
 export function AnalyticsPage() {
   useRequirePermission(P.ANALYTICS.VIEW);

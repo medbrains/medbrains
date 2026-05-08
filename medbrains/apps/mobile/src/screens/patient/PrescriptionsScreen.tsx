@@ -2,7 +2,7 @@ import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { PrescriptionHistoryItem, PrescriptionItem } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -46,9 +46,10 @@ export function PrescriptionsScreen() {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const filteredPrescriptions = filter === "recent"
-    ? allPrescriptions.filter((rx) => new Date(rx.encounter_date) >= thirtyDaysAgo)
-    : allPrescriptions;
+  const filteredPrescriptions =
+    filter === "recent"
+      ? allPrescriptions.filter((rx) => new Date(rx.encounter_date) >= thirtyDaysAgo)
+      : allPrescriptions;
 
   // Search filter
   const searchedPrescriptions = filteredPrescriptions.filter((rx) => {
@@ -56,9 +57,7 @@ export function PrescriptionsScreen() {
     const searchLower = search.toLowerCase();
     return (
       rx.doctor_name?.toLowerCase().includes(searchLower) ||
-      rx.items.some((item) =>
-        item.drug_name.toLowerCase().includes(searchLower)
-      )
+      rx.items.some((item) => item.drug_name.toLowerCase().includes(searchLower))
     );
   });
 
@@ -100,12 +99,7 @@ export function PrescriptionsScreen() {
           {/* Medication Items */}
           {item.items.map((medication) => (
             <View key={medication.id} style={styles.medicationRow}>
-              <Avatar.Icon
-                size={36}
-                icon="pill"
-                style={styles.drugIcon}
-                color="#228be6"
-              />
+              <Avatar.Icon size={36} icon="pill" style={styles.drugIcon} color="#228be6" />
               <View style={styles.medicationInfo}>
                 <Text variant="titleSmall" style={styles.drugName}>
                   {medication.drug_name}
@@ -116,7 +110,8 @@ export function PrescriptionsScreen() {
                   </Text>
                 </View>
                 <Text variant="bodySmall" style={styles.durationText}>
-                  {medication.route ? `${medication.route} • ` : ""}{medication.duration}
+                  {medication.route ? `${medication.route} • ` : ""}
+                  {medication.duration}
                 </Text>
                 {medication.instructions && (
                   <Text variant="bodySmall" style={styles.instructionsText}>
@@ -125,11 +120,7 @@ export function PrescriptionsScreen() {
                 )}
               </View>
               {isRecent && (
-                <Button
-                  mode="text"
-                  compact
-                  onPress={() => handleRefillRequest(medication)}
-                >
+                <Button mode="text" compact onPress={() => handleRefillRequest(medication)}>
                   Refill
                 </Button>
               )}
@@ -141,10 +132,7 @@ export function PrescriptionsScreen() {
   };
 
   // Count total medications
-  const totalMedications = searchedPrescriptions.reduce(
-    (sum, rx) => sum + rx.items.length,
-    0
-  );
+  const totalMedications = searchedPrescriptions.reduce((sum, rx) => sum + rx.items.length, 0);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -209,7 +197,8 @@ export function PrescriptionsScreen() {
           <View style={styles.bannerInfo}>
             <Text variant="labelMedium">Prescription History</Text>
             <Text variant="bodySmall" style={styles.bannerHint}>
-              {searchedPrescriptions.length} prescription{searchedPrescriptions.length > 1 ? "s" : ""}
+              {searchedPrescriptions.length} prescription
+              {searchedPrescriptions.length > 1 ? "s" : ""}
             </Text>
           </View>
           <Badge size={28} style={styles.countBadge}>
@@ -231,8 +220,8 @@ export function PrescriptionsScreen() {
                 </Text>
                 <Divider style={styles.dialogDivider} />
                 <Text variant="bodyMedium">
-                  A refill request will be sent to your prescribing doctor. You will be
-                  notified when your prescription is ready for pickup.
+                  A refill request will be sent to your prescribing doctor. You will be notified
+                  when your prescription is ready for pickup.
                 </Text>
               </View>
             )}

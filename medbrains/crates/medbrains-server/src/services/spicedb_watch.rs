@@ -42,13 +42,13 @@ pub enum WatchedOperation {
 pub struct WatchedRelationship {
     pub resource: WatchedObject,
     pub relation: String,
-    pub subject:  WatchedSubject,
+    pub subject: WatchedSubject,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct WatchedObject {
     pub object_type: String,
-    pub object_id:   String,
+    pub object_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -79,10 +79,7 @@ pub struct WatchedSubject {
 ///    present (`<tenant_uuid>/<obj_type>:<obj_id>`); otherwise we
 ///    use a configured default tenant. SpiceDB doesn't enforce a
 ///    namespace prefix natively — we use a convention.
-pub fn updates_to_keys(
-    updates: &[WatchedUpdate],
-    default_tenant: Uuid,
-) -> Vec<InvalidationKey> {
+pub fn updates_to_keys(updates: &[WatchedUpdate], default_tenant: Uuid) -> Vec<InvalidationKey> {
     let mut out = Vec::with_capacity(updates.len());
     for upd in updates {
         let Some(user_id) = parse_user_subject(&upd.relationship.subject) else {
@@ -142,14 +139,20 @@ impl std::fmt::Debug for SpiceDbWatchHandler {
 
 impl SpiceDbWatchHandler {
     pub fn new(pusher: BridgePusher, default_tenant: Uuid) -> Self {
-        Self { pusher, default_tenant }
+        Self {
+            pusher,
+            default_tenant,
+        }
     }
 
     pub fn pusher(&self) -> &BridgePusher {
         &self.pusher
     }
 
-    pub async fn process_batch(&self, updates: Vec<WatchedUpdate>) -> super::bridge_pusher::PushOutcome {
+    pub async fn process_batch(
+        &self,
+        updates: Vec<WatchedUpdate>,
+    ) -> super::bridge_pusher::PushOutcome {
         let keys = updates_to_keys(&updates, self.default_tenant);
         self.pusher.push_invalidate(keys).await
     }
@@ -177,7 +180,10 @@ mod tests {
         WatchedUpdate {
             operation: WatchedOperation::Touch,
             relationship: WatchedRelationship {
-                resource: WatchedObject { object_type, object_id: "p1".into() },
+                resource: WatchedObject {
+                    object_type,
+                    object_id: "p1".into(),
+                },
                 relation: action.to_owned(),
                 subject: WatchedSubject {
                     object: WatchedObject {
@@ -219,7 +225,10 @@ mod tests {
         let upd = WatchedUpdate {
             operation: WatchedOperation::Create,
             relationship: WatchedRelationship {
-                resource: WatchedObject { object_type: "patient".into(), object_id: "p1".into() },
+                resource: WatchedObject {
+                    object_type: "patient".into(),
+                    object_id: "p1".into(),
+                },
                 relation: "viewer".into(),
                 subject: WatchedSubject {
                     object: WatchedObject {
@@ -231,7 +240,10 @@ mod tests {
             },
         };
         let keys = updates_to_keys(&[upd], default_tenant);
-        assert!(keys.is_empty(), "non-user subjects must be skipped (covered by TTL aging)");
+        assert!(
+            keys.is_empty(),
+            "non-user subjects must be skipped (covered by TTL aging)"
+        );
     }
 
     #[test]
@@ -241,7 +253,11 @@ mod tests {
         let mut upd = user_update("read", user, None);
         upd.operation = WatchedOperation::Delete;
         let keys = updates_to_keys(&[upd], default_tenant);
-        assert_eq!(keys.len(), 1, "DELETE must still invalidate the cached entry");
+        assert_eq!(
+            keys.len(),
+            1,
+            "DELETE must still invalidate the cached entry"
+        );
     }
 
     #[test]
@@ -262,10 +278,16 @@ mod tests {
         let upd = WatchedUpdate {
             operation: WatchedOperation::Touch,
             relationship: WatchedRelationship {
-                resource: WatchedObject { object_type: "patient".into(), object_id: "p1".into() },
+                resource: WatchedObject {
+                    object_type: "patient".into(),
+                    object_id: "p1".into(),
+                },
                 relation: "read".into(),
                 subject: WatchedSubject {
-                    object: WatchedObject { object_type: "user".into(), object_id: "not-a-uuid".into() },
+                    object: WatchedObject {
+                        object_type: "user".into(),
+                        object_id: "not-a-uuid".into(),
+                    },
                     optional_relation: String::new(),
                 },
             },

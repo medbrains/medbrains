@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -10,28 +9,26 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconBook,
-  IconPlus,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import { useAuthStore, useHasPermission } from "@medbrains/stores";
+import { useAuthStore } from "@medbrains/stores";
 import type {
+  CoSignatureRequest as CoSigType,
   CreatePgLogbookRequest,
   PgLogbookEntry,
-  CoSignatureRequest as CoSigType,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { IconBook, IconCheck, IconPlus } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const ENTRY_TYPES = [
   { value: "case", label: "Case" },
@@ -43,7 +40,7 @@ const ENTRY_TYPES = [
 ];
 
 export function PgLogbookPage() {
-  useHasPermission(P.OPD.QUEUE_LIST);
+  useRequirePermission(P.OPD.QUEUE_LIST);
 
   const userId = useAuthStore((s) => s.user?.id);
   const queryClient = useQueryClient();
@@ -92,7 +89,11 @@ export function PgLogbookPage() {
     mutationFn: (id: string) => api.verifyPgLogbookEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
-      notifications.show({ title: "Verified", message: "Logbook entry verified", color: "success" });
+      notifications.show({
+        title: "Verified",
+        message: "Logbook entry verified",
+        color: "success",
+      });
     },
   });
 
@@ -101,7 +102,11 @@ export function PgLogbookPage() {
       api.updateCoSignature(id, { status }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["co-signatures"] });
-      notifications.show({ title: "Updated", message: "Co-signature decision recorded", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "Co-signature decision recorded",
+        color: "success",
+      });
     },
   });
 
@@ -175,15 +180,54 @@ export function PgLogbookPage() {
 
       <Modal opened={opened} onClose={handleClose} title="New Logbook Entry" size="md">
         <Stack gap="sm">
-          <Select label="Entry Type" data={ENTRY_TYPES} value={entryType} onChange={setEntryType} required />
-          <TextInput label="Title" placeholder="e.g. Appendectomy case #12" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
-          <Textarea label="Description" placeholder="Details of the case/procedure" value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={3} />
-          <TextInput label="Diagnosis Codes" placeholder="Comma-separated ICD-10 codes" value={diagCodes} onChange={(e) => setDiagCodes(e.currentTarget.value)} />
-          <TextInput label="Procedure Codes" placeholder="Comma-separated codes" value={procCodes} onChange={(e) => setProcCodes(e.currentTarget.value)} />
-          <DatePickerInput label="Entry Date" value={entryDate} onChange={(v) => setEntryDate(v as Date | null)} />
+          <Select
+            label="Entry Type"
+            data={ENTRY_TYPES}
+            value={entryType}
+            onChange={setEntryType}
+            required
+          />
+          <TextInput
+            label="Title"
+            placeholder="e.g. Appendectomy case #12"
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            required
+          />
+          <Textarea
+            label="Description"
+            placeholder="Details of the case/procedure"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            autosize
+            minRows={3}
+          />
+          <TextInput
+            label="Diagnosis Codes"
+            placeholder="Comma-separated ICD-10 codes"
+            value={diagCodes}
+            onChange={(e) => setDiagCodes(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Procedure Codes"
+            placeholder="Comma-separated codes"
+            value={procCodes}
+            onChange={(e) => setProcCodes(e.currentTarget.value)}
+          />
+          <DatePickerInput
+            label="Entry Date"
+            value={entryDate}
+            onChange={(v) => setEntryDate(v as Date | null)}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={!entryType || !title.trim()}>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={!entryType || !title.trim()}
+            >
               Save Entry
             </Button>
           </Group>
@@ -225,31 +269,59 @@ function LogbookTable({
       <Table.Tbody>
         {entries.map((e) => (
           <Table.Tr key={e.id}>
-            <Table.Td><Text size="sm">{e.entry_date}</Text></Table.Td>
-            <Table.Td><Badge size="sm" variant="light">{e.entry_type}</Badge></Table.Td>
             <Table.Td>
-              <Text size="sm" fw={500}>{e.title}</Text>
-              {e.description && <Text size="xs" c="dimmed" lineClamp={1}>{e.description}</Text>}
+              <Text size="sm">{e.entry_date}</Text>
+            </Table.Td>
+            <Table.Td>
+              <Badge size="sm" variant="light">
+                {e.entry_type}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm" fw={500}>
+                {e.title}
+              </Text>
+              {e.description && (
+                <Text size="xs" c="dimmed" lineClamp={1}>
+                  {e.description}
+                </Text>
+              )}
             </Table.Td>
             <Table.Td>
               {e.diagnosis_codes.length > 0 ? (
                 <Group gap={2}>
-                  {e.diagnosis_codes.map((c) => <Badge key={c} size="xs" variant="light">{c}</Badge>)}
+                  {e.diagnosis_codes.map((c) => (
+                    <Badge key={c} size="xs" variant="light">
+                      {c}
+                    </Badge>
+                  ))}
                 </Group>
-              ) : "—"}
+              ) : (
+                "—"
+              )}
             </Table.Td>
             <Table.Td>
               {e.supervisor_verified ? (
-                <Badge color="success" size="sm">Verified</Badge>
+                <Badge color="success" size="sm">
+                  Verified
+                </Badge>
               ) : (
-                <Badge color="warning" size="sm">Pending</Badge>
+                <Badge color="warning" size="sm">
+                  Pending
+                </Badge>
               )}
             </Table.Td>
             {showVerify && (
               <Table.Td>
                 {!e.supervisor_verified && onVerify && (
                   <Tooltip label="Verify entry">
-                    <ActionIcon variant="light" color="success" size="sm" onClick={() => onVerify(e.id)} aria-label="Confirm">
+                    <ActionIcon
+                      variant="light"
+                      color="success"
+                      size="sm"
+                      onClick={() => onVerify(e.id)}
+                      aria-label="Confirm"
+                    >
                       <IconCheck size={14} />
                     </ActionIcon>
                   </Tooltip>
@@ -282,9 +354,12 @@ function CoSignatureTable({
 
   const statusColor = (s: string) => {
     switch (s) {
-      case "approved": return "success";
-      case "denied": return "danger";
-      default: return "warning";
+      case "approved":
+        return "success";
+      case "denied":
+        return "danger";
+      default:
+        return "warning";
     }
   };
 
@@ -301,16 +376,38 @@ function CoSignatureTable({
       <Table.Tbody>
         {entries.map((e) => (
           <Table.Tr key={e.id}>
-            <Table.Td><Badge size="sm" variant="light">{e.order_type}</Badge></Table.Td>
-            <Table.Td><Badge color={statusColor(e.status)} size="sm">{e.status}</Badge></Table.Td>
-            <Table.Td><Text size="xs" c="dimmed">{new Date(e.created_at).toLocaleString()}</Text></Table.Td>
+            <Table.Td>
+              <Badge size="sm" variant="light">
+                {e.order_type}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Badge color={statusColor(e.status)} size="sm">
+                {e.status}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text size="xs" c="dimmed">
+                {new Date(e.created_at).toLocaleString()}
+              </Text>
+            </Table.Td>
             <Table.Td>
               {e.status === "pending" && e.approver_id === userId && (
                 <Group gap={4}>
-                  <Button size="xs" color="success" variant="light" onClick={() => onDecision(e.id, "approved")}>
+                  <Button
+                    size="xs"
+                    color="success"
+                    variant="light"
+                    onClick={() => onDecision(e.id, "approved")}
+                  >
                     Approve
                   </Button>
-                  <Button size="xs" color="danger" variant="light" onClick={() => onDecision(e.id, "denied")}>
+                  <Button
+                    size="xs"
+                    color="danger"
+                    variant="light"
+                    onClick={() => onDecision(e.id, "denied")}
+                  >
                     Deny
                   </Button>
                 </Group>

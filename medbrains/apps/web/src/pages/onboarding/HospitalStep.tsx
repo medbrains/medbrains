@@ -1,8 +1,8 @@
-import { Button, Select, Stack, TextInput } from "@mantine/core";
-import { updateTenantSchema } from "@medbrains/schemas";
-import type { UpdateTenantInput } from "@medbrains/schemas";
-import { useOnboardingStore } from "@medbrains/stores";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Button, Select, Stack, TextInput } from "@mantine/core";
+import type { UpdateTenantInput } from "@medbrains/schemas";
+import { updateTenantSchema } from "@medbrains/schemas";
+import { useOnboardingStore } from "@medbrains/stores";
 import { Controller, useForm } from "react-hook-form";
 import classes from "./onboarding.module.scss";
 
@@ -179,9 +179,7 @@ export function HospitalStep({ onNext, onBack }: Props) {
           <Button variant="default" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">
-            Save & Continue
-          </Button>
+          <Button type="submit">Save & Continue</Button>
         </div>
       </Stack>
     </form>

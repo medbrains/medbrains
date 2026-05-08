@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { LineChart } from "@mantine/charts";
 import {
+  Accordion,
   ActionIcon,
   Alert,
   Badge,
@@ -7,6 +8,7 @@ import {
   Card,
   Drawer,
   Group,
+  Loader,
   Modal,
   Select,
   Stack,
@@ -14,19 +16,80 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   ThemeIcon,
   Timeline,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { LineChart } from "@mantine/charts";
+import { api } from "@medbrains/api";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
+import type {
+  AdmitFromOpdRequest,
+  AvailableBed,
+  AvailableSlot,
+  BookAppointmentGroupRequest,
+  BookAppointmentRequest,
+  CertificateType,
+  Consultation,
+  ConsultationTemplate,
+  CreateConsentRequest,
+  CreateConsultationRequest,
+  CreateDiagnosisRequest,
+  CreateEncounterRequest,
+  CreateFeedbackRequest,
+  CreateLabOrderRequest,
+  CreateMedicalCertificateRequest,
+  CreatePreAuthRequest,
+  CreatePrescriptionRequest,
+  CreateProcedureOrderRequest,
+  CreateReferralRequest,
+  CreateReminderRequest,
+  CreateVitalRequest,
+  DepartmentRow,
+  Diagnosis,
+  DoctorDocket,
+  DuplicateOrderInfo,
+  FamilyHistoryEntry,
+  FollowupComplianceRow,
+  LabOrder,
+  LabTestCatalog,
+  MedicalCertificate,
+  PastMedicalEntry,
+  PastSurgicalEntry,
+  Patient,
+  PatientAllergy,
+  PatientDiagnosisRow,
+  PatientFeedback,
+  PatientReminder,
+  PatientVisitRow,
+  PharmacyDispatchStatus as PharmacyDispatchStatusRow,
+  PhysicalExamination,
+  PreAuthorizationRequest as PreAuthReqType,
+  PrescriptionHistoryItem,
+  PrescriptionWithItems,
+  ProcedureCatalog,
+  ProcedureConsent,
+  ProcedureConsentType,
+  ProcedureOrderWithName,
+  QueueEntry,
+  ReferralTrackingRow,
+  ReferralWithNames,
+  ReminderType,
+  ReviewOfSystems as ROSType,
+  SocialHistory,
+  UpdateConsultationRequest,
+  Vital,
+  VitalHistoryPoint,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowRight,
   IconCalendarPlus,
+  IconCalendarStats,
   IconCertificate,
   IconChartLine,
   IconCheck,
@@ -44,84 +107,28 @@ import {
   IconPlayerPlay,
   IconPlus,
   IconPrinter,
+  IconShieldCheck,
   IconStar,
   IconStethoscope,
   IconTimeline,
   IconTransferIn,
-  IconCalendarStats,
+  IconTrash,
   IconUser,
   IconUserOff,
-  IconShieldCheck,
-  IconTrash,
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useAuthStore, useHasPermission } from "@medbrains/stores";
-import type {
-  AdmitFromOpdRequest,
-  AvailableBed,
-  AvailableSlot,
-  BookAppointmentGroupRequest,
-  BookAppointmentRequest,
-  CertificateType,
-  ConsultationTemplate,
-  ProcedureConsentType,
-  Consultation,
-  CreateConsultationRequest,
-  CreateConsentRequest,
-  CreateDiagnosisRequest,
-  CreateEncounterRequest,
-  DepartmentRow,
-  CreateFeedbackRequest,
-  CreateLabOrderRequest,
-  CreateMedicalCertificateRequest,
-  CreatePrescriptionRequest,
-  CreateProcedureOrderRequest,
-  CreateReferralRequest,
-  CreateReminderRequest,
-  CreateVitalRequest,
-  Diagnosis,
-  DoctorDocket,
-  DuplicateOrderInfo,
-  FamilyHistoryEntry,
-  LabOrder,
-  LabTestCatalog,
-  MedicalCertificate,
-  PastMedicalEntry,
-  PastSurgicalEntry,
-  PatientAllergy,
-  PatientDiagnosisRow,
-  PatientFeedback,
-  PatientReminder,
-  PatientVisitRow,
-  PhysicalExamination,
-  PrescriptionHistoryItem,
-  PrescriptionWithItems,
-  ProcedureCatalog,
-  ProcedureConsent,
-  ProcedureOrderWithName,
-  QueueEntry,
-  ReferralWithNames,
-  ReminderType,
-  ReviewOfSystems as ROSType,
-  SocialHistory,
-  UpdateConsultationRequest,
-  Vital,
-  VitalHistoryPoint,
-  PreAuthorizationRequest as PreAuthReqType,
-  CreatePreAuthRequest,
-  PharmacyDispatchStatus as PharmacyDispatchStatusRow,
-  ReferralTrackingRow,
-  FollowupComplianceRow,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useParams } from "react-router";
 import {
   ClinicalEventProvider,
   DataTable,
   DiagnosisPanel,
+  DoctorSearchSelect,
   PageHeader,
+  PatientSearchSelect,
   PhysicalExamPanel,
   PrescriptionPrint,
   PrescriptionViews,
@@ -130,15 +137,13 @@ import {
   SOAPNotes,
   StatusDot,
   StructuredHistory,
+  useClinicalEmit,
   VisitSummaryPrint,
   VitalsRecorder,
-  useClinicalEmit,
-  PatientSearchSelect,
-  DoctorSearchSelect,
 } from "../components";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useVitalsSource } from "../hooks/useVitalsSource";
-import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",
@@ -158,6 +163,92 @@ export function OpdPage() {
   );
 }
 
+export function OpdEncounterPage() {
+  useRequirePermission(P.OPD.QUEUE_VIEW);
+  const { encounterId } = useParams<{ encounterId: string }>();
+  const navigate = useNavigate();
+  const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
+  const requestedEncounterId = encounterId ?? "";
+
+  const { data: encounter, isLoading: encounterLoading } = useQuery({
+    queryKey: ["opd-encounter", requestedEncounterId],
+    queryFn: () => api.getEncounter(requestedEncounterId),
+    enabled: requestedEncounterId.length > 0,
+  });
+  const patientId = encounter?.patient_id ?? "";
+
+  const { data: patient, isLoading: patientLoading } = useQuery({
+    queryKey: ["patient", patientId],
+    queryFn: () => api.getPatient(patientId),
+    enabled: patientId.length > 0,
+  });
+
+  const loading = encounterLoading || patientLoading;
+
+  if (loading) {
+    return (
+      <Stack align="center" py="xl">
+        <Loader size="lg" />
+        <Text c="dimmed">Loading OPD visit...</Text>
+      </Stack>
+    );
+  }
+
+  if (!encounter || !patient) {
+    return (
+      <Stack align="center" py="xl">
+        <Text c="dimmed">OPD visit not found.</Text>
+        <Button variant="light" onClick={() => navigate("/opd")}>
+          Back to OPD queue
+        </Button>
+      </Stack>
+    );
+  }
+
+  const patientName = formatPatientName(patient);
+
+  return (
+    <ClinicalEventProvider moduleCode="opd" contextCode={`opd-encounter-${encounter.id}`}>
+      <Stack gap="sm" h="calc(100vh - 112px)">
+        <Group justify="space-between" align="center">
+          <div>
+            <Text size="lg" fw={700}>
+              OPD Visit - {patientName}
+            </Text>
+            <Text size="sm" c="dimmed">
+              UHID: {patient.uhid} | {encounter.status.replace(/_/g, " ")}
+            </Text>
+          </div>
+          <Button
+            variant="subtle"
+            size="sm"
+            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
+            onClick={() => navigate("/opd")}
+          >
+            Back to Queue
+          </Button>
+        </Group>
+
+        <Card withBorder p={0} style={{ flex: 1, overflow: "hidden" }}>
+          <EncounterDetail
+            encounterId={encounter.id}
+            patientId={patient.id}
+            patientName={patientName}
+            uhid={patient.uhid}
+            doctorId={encounter.doctor_id}
+            departmentId={encounter.department_id ?? ""}
+            canUpdate={canUpdate}
+          />
+        </Card>
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
+function formatPatientName(patient: Patient): string {
+  return `${patient.first_name} ${patient.last_name}`.trim() || patient.uhid;
+}
+
 function OpdPageInner() {
   const { t } = useTranslation("opd");
   const emit = useClinicalEmit();
@@ -172,10 +263,8 @@ function OpdPageInner() {
   const [filterDeptId, setFilterDeptId] = useState<string | null>(null);
   const [myPatientsOnly, setMyPatientsOnly] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
-  const [detailOpened, { open: openDetail, close: closeDetail }] =
-    useDisclosure(false);
-  const [createOpened, { open: openCreate, close: closeCreate }] =
-    useDisclosure(false);
+  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   // Departments for filter dropdown
   const { data: departments = [] } = useQuery({
@@ -217,8 +306,15 @@ function OpdPageInner() {
     mutationFn: (data: CreateEncounterRequest) => api.createEncounter(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
-      notifications.show({ title: "Visit created", message: "Patient added to queue", color: "success" });
-      emit("encounter.created", { patient_id: variables.patient_id, department_id: variables.department_id });
+      notifications.show({
+        title: "Visit created",
+        message: "Patient added to queue",
+        color: "success",
+      });
+      emit("encounter.created", {
+        patient_id: variables.patient_id,
+        department_id: variables.department_id,
+      });
       closeCreate();
       setNewPatientId("");
       setNewDepartmentId("");
@@ -260,15 +356,21 @@ function OpdPageInner() {
     {
       key: "token_number",
       label: "Token",
-      render: (row: QueueEntry) => <Text fw={700}>T{String(row.token_number).padStart(3, "0")}</Text>,
+      render: (row: QueueEntry) => (
+        <Text fw={700}>T{String(row.token_number).padStart(3, "0")}</Text>
+      ),
     },
     {
       key: "patient_name",
       label: "Patient",
       render: (row: QueueEntry) => (
         <Stack gap={0}>
-          <Text size="sm" fw={500}>{row.patient_name}</Text>
-          <Text size="xs" c="dimmed">{row.uhid}</Text>
+          <Text size="sm" fw={500}>
+            {row.patient_name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {row.uhid}
+          </Text>
         </Stack>
       ),
     },
@@ -276,7 +378,10 @@ function OpdPageInner() {
       key: "status",
       label: "Status",
       render: (row: QueueEntry) => (
-        <StatusDot color={statusColors[row.status] ?? "slate"} label={row.status.replace(/_/g, " ")} />
+        <StatusDot
+          color={statusColors[row.status] ?? "slate"}
+          label={row.status.replace(/_/g, " ")}
+        />
       ),
     },
     {
@@ -302,28 +407,44 @@ function OpdPageInner() {
           </Tooltip>
           {canManageToken && row.status === "waiting" && (
             <Tooltip label="Call patient">
-              <ActionIcon variant="subtle" color="warning" onClick={() => callMutation.mutate(row.id)}>
+              <ActionIcon
+                variant="subtle"
+                color="warning"
+                onClick={() => callMutation.mutate(row.id)}
+              >
                 <IconPhone size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {canManageToken && row.status === "called" && (
             <Tooltip label="Start consultation">
-              <ActionIcon variant="subtle" color="orange" onClick={() => startMutation.mutate(row.id)}>
+              <ActionIcon
+                variant="subtle"
+                color="orange"
+                onClick={() => startMutation.mutate(row.id)}
+              >
                 <IconPlayerPlay size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {canManageToken && row.status === "in_consultation" && (
             <Tooltip label="Complete">
-              <ActionIcon variant="subtle" color="success" onClick={() => completeMutation.mutate(row.id)}>
+              <ActionIcon
+                variant="subtle"
+                color="success"
+                onClick={() => completeMutation.mutate(row.id)}
+              >
                 <IconCheck size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {canManageToken && (row.status === "waiting" || row.status === "called") && (
             <Tooltip label="No show">
-              <ActionIcon variant="subtle" color="danger" onClick={() => noShowMutation.mutate(row.id)}>
+              <ActionIcon
+                variant="subtle"
+                color="danger"
+                onClick={() => noShowMutation.mutate(row.id)}
+              >
                 <IconUserOff size={16} />
               </ActionIcon>
             </Tooltip>
@@ -351,9 +472,15 @@ function OpdPageInner() {
 
       <Tabs defaultValue="queue">
         <Tabs.List mb="md">
-          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>{t("queue")}</Tabs.Tab>
-          <Tabs.Tab value="referral-tracking" leftSection={<IconTransferIn size={16} />}>{t("referralTracking")}</Tabs.Tab>
-          <Tabs.Tab value="followup-compliance" leftSection={<IconCalendarStats size={16} />}>{t("followUpCompliance")}</Tabs.Tab>
+          <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>
+            {t("queue")}
+          </Tabs.Tab>
+          <Tabs.Tab value="referral-tracking" leftSection={<IconTransferIn size={16} />}>
+            {t("referralTracking")}
+          </Tabs.Tab>
+          <Tabs.Tab value="followup-compliance" leftSection={<IconCalendarStats size={16} />}>
+            {t("followUpCompliance")}
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="queue">
@@ -393,7 +520,10 @@ function OpdPageInner() {
               checked={myPatientsOnly}
               onChange={(e) => setMyPatientsOnly(e.currentTarget.checked)}
             />
-            <WaitTimeBadge departmentId={filterDeptId ?? undefined} doctorId={myPatientsOnly && currentUser ? currentUser.id : undefined} />
+            <WaitTimeBadge
+              departmentId={filterDeptId ?? undefined}
+              doctorId={myPatientsOnly && currentUser ? currentUser.id : undefined}
+            />
           </Group>
           <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
         </Tabs.Panel>
@@ -408,7 +538,13 @@ function OpdPageInner() {
       </Tabs>
 
       {/* Create encounter drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="New OPD Visit" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="New OPD Visit"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <Select
             label="Visit Type"
@@ -421,11 +557,7 @@ function OpdPageInner() {
             onChange={setNewVisitType}
             required
           />
-          <PatientSearchSelect
-            value={newPatientId}
-            onChange={setNewPatientId}
-            required
-          />
+          <PatientSearchSelect value={newPatientId} onChange={setNewPatientId} required />
           <Select
             label="Department"
             placeholder="Select department"
@@ -435,10 +567,7 @@ function OpdPageInner() {
             searchable
             required
           />
-          <DoctorSearchSelect
-            value={newDoctorId}
-            onChange={setNewDoctorId}
-          />
+          <DoctorSearchSelect value={newDoctorId} onChange={setNewDoctorId} />
           <Textarea
             label="Notes"
             placeholder="Visit notes"
@@ -470,8 +599,24 @@ function OpdPageInner() {
         position="right"
         size="100%"
         withCloseButton
-        title={<Button variant="subtle" size="xs" onClick={closeDetail} leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}>Back to Queue</Button>}
-        styles={{ header: { padding: "6px 12px", minHeight: 36, borderBottom: "1px solid var(--fc-rule, #e7ebe8)" }, body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" } }}
+        title={
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={closeDetail}
+            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
+          >
+            Back to Queue
+          </Button>
+        }
+        styles={{
+          header: {
+            padding: "6px 12px",
+            minHeight: 36,
+            borderBottom: "1px solid var(--fc-rule, #e7ebe8)",
+          },
+          body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" },
+        }}
       >
         {selectedEntry && (
           <EncounterDetail
@@ -599,9 +744,26 @@ function EncounterDetail({
         />
       )}
 
-      <Tabs defaultValue="vitals" orientation="vertical" style={{ display: "flex", height: "100%" }}>
+      <PatientContextBanner patientId={patientId} hideLoadingState />
+
+      <Tabs
+        defaultValue="consultation"
+        orientation="vertical"
+        style={{ display: "flex", height: "100%" }}
+      >
         {/* ── Left Sidebar: Patient + Nav ── */}
-        <div style={{ width: 240, flexShrink: 0, overflowY: "auto", borderRight: "1px solid var(--fc-rule, #e7ebe8)", padding: "12px", background: "var(--fc-panel, #f7f8f6)", display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            width: 240,
+            flexShrink: 0,
+            overflowY: "auto",
+            borderRight: "1px solid var(--fc-rule, #e7ebe8)",
+            padding: "12px",
+            background: "var(--fc-panel, #f7f8f6)",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Patient card */}
           <Card padding="sm" mb="xs" bg="var(--fc-canvas, #fff)" withBorder>
             <Group gap="sm">
@@ -609,22 +771,36 @@ function EncounterDetail({
                 <IconUser size={18} />
               </ThemeIcon>
               <div>
-                <Text size="sm" fw={700}>{patientName}</Text>
-                <Text size="xs" c="dimmed" ff="var(--font-mono, monospace)">{uhid}</Text>
+                <Text size="sm" fw={700}>
+                  {patientName}
+                </Text>
+                <Text size="xs" c="dimmed" ff="var(--font-mono, monospace)">
+                  {uhid}
+                </Text>
               </div>
             </Group>
           </Card>
 
           {/* Allergies */}
           {activeAllergies.length > 0 && (
-            <Card padding="xs" mb="xs" bg="var(--mb-danger-bg, #fff1f2)" withBorder style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}>
+            <Card
+              padding="xs"
+              mb="xs"
+              bg="var(--mb-danger-bg, #fff1f2)"
+              withBorder
+              style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}
+            >
               <Group gap={4} mb={4}>
                 <IconAlertTriangle size={14} color="var(--mb-danger-accent, #f43f5e)" />
-                <Text size="xs" fw={700} c="danger">Allergies</Text>
+                <Text size="xs" fw={700} c="danger">
+                  Allergies
+                </Text>
               </Group>
               <Group gap={4} wrap="wrap">
                 {activeAllergies.map((a) => (
-                  <Badge key={a.id} color="danger" variant="filled" size="xs">{a.allergen_name}</Badge>
+                  <Badge key={a.id} color="danger" variant="filled" size="xs">
+                    {a.allergen_name}
+                  </Badge>
                 ))}
               </Group>
             </Card>
@@ -635,11 +811,15 @@ function EncounterDetail({
             <Card padding="xs" mb="xs" withBorder>
               <Group gap={4} mb={4}>
                 <IconPill size={14} />
-                <Text size="xs" fw={700} c="primary">Medications</Text>
+                <Text size="xs" fw={700} c="primary">
+                  Medications
+                </Text>
               </Group>
               <Stack gap={2}>
                 {currentMeds.slice(0, 6).map((m) => (
-                  <Text key={m.id} size="xs" c="dimmed">{m.drug_name} — {m.dosage}</Text>
+                  <Text key={m.id} size="xs" c="dimmed">
+                    {m.drug_name} — {m.dosage}
+                  </Text>
                 ))}
               </Stack>
             </Card>
@@ -647,7 +827,15 @@ function EncounterDetail({
 
           {/* Quick Actions */}
           <Stack gap={4} mb="xs">
-            <Button variant="light" size="xs" fullWidth leftSection={<IconPrinter size={14} />} onClick={() => setShowSummary(true)}>Print Summary</Button>
+            <Button
+              variant="light"
+              size="xs"
+              fullWidth
+              leftSection={<IconPrinter size={14} />}
+              onClick={() => setShowSummary(true)}
+            >
+              Print Summary
+            </Button>
             <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
             <GroupAppointmentModal patientId={patientId} />
           </Stack>
@@ -657,147 +845,238 @@ function EncounterDetail({
             <Card padding="xs" mb="xs" withBorder>
               <Group gap={4} mb={4}>
                 <IconHeartbeat size={14} />
-                <Text size="xs" fw={700} c="orange">Conditions</Text>
+                <Text size="xs" fw={700} c="orange">
+                  Conditions
+                </Text>
               </Group>
               <Stack gap={2}>
                 {chronicConditions.slice(0, 5).map((d) => (
-                  <Text key={d.id} size="xs" c="dimmed">{d.description}</Text>
+                  <Text key={d.id} size="xs" c="dimmed">
+                    {d.description}
+                  </Text>
                 ))}
               </Stack>
             </Card>
           )}
 
-          {/* Clinical tabs — vertical nav */}
-          <div style={{ borderTop: "1px solid var(--fc-rule, #e7ebe8)", paddingTop: 8, flex: 1, overflowY: "auto" }}>
-          <Tabs.List style={{ border: "none" }}>
-        <Tabs.Tab value="vitals" leftSection={<IconHeartbeat size={14} />}>Vitals</Tabs.Tab>
-        <Tabs.Tab value="consultation" leftSection={<IconNotebook size={14} />}>Consultation</Tabs.Tab>
-        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>History</Tabs.Tab>
-        <Tabs.Tab value="ros" leftSection={<IconClipboardList size={14} />}>ROS</Tabs.Tab>
-        <Tabs.Tab value="physical-exam" leftSection={<IconStethoscope size={14} />}>Physical Exam</Tabs.Tab>
-        <Tabs.Tab value="diagnoses" leftSection={<IconStar size={14} />}>Diagnoses</Tabs.Tab>
-        <Tabs.Tab value="investigations" leftSection={<IconFlask size={14} />}>Investigations</Tabs.Tab>
-        <Tabs.Tab value="procedures" leftSection={<IconMedicalCross size={14} />}>Procedures</Tabs.Tab>
-        <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>Prescriptions</Tabs.Tab>
-        <Tabs.Tab value="referrals" leftSection={<IconArrowRight size={14} />}>
-          Referrals
-        </Tabs.Tab>
-        <Tabs.Tab value="rx-history" leftSection={<IconClipboardList size={14} />}>
-          Rx History
-        </Tabs.Tab>
-        <Tabs.Tab value="charts" leftSection={<IconChartLine size={14} />}>
-          Charts
-        </Tabs.Tab>
-        <Tabs.Tab value="timeline" leftSection={<IconTimeline size={14} />}>
-          Timeline
-        </Tabs.Tab>
-        <Tabs.Tab value="certificates" leftSection={<IconCertificate size={14} />}>
-          Certificates
-        </Tabs.Tab>
-        <Tabs.Tab value="followup" leftSection={<IconCalendarPlus size={14} />}>
-          Follow-up
-        </Tabs.Tab>
-        <Tabs.Tab value="reminders" leftSection={<IconNotebook size={14} />}>
-          Reminders
-        </Tabs.Tab>
-        <Tabs.Tab value="feedback" leftSection={<IconMessage size={14} />}>
-          Feedback
-        </Tabs.Tab>
-        <Tabs.Tab value="consents" leftSection={<IconFileCheck size={14} />}>
-          Consents
-        </Tabs.Tab>
-        <Tabs.Tab value="pre-auth" leftSection={<IconShieldCheck size={14} />}>
-          Pre-Auth
-        </Tabs.Tab>
-        <Tabs.Tab value="docket" leftSection={<IconStar size={14} />}>
-          Docket
-        </Tabs.Tab>
-        <Tabs.Tab value="pharmacy-dispatch" leftSection={<IconPill size={14} />}>
-          Pharmacy Dispatch
-        </Tabs.Tab>
-      </Tabs.List>
+          {/* Clinical tabs — grouped for doctor workflow without hiding HMS modules */}
+          <div
+            style={{
+              borderTop: "1px solid var(--fc-rule, #e7ebe8)",
+              paddingTop: 8,
+              flex: 1,
+              overflowY: "auto",
+            }}
+          >
+            <Accordion multiple defaultValue={["clinical"]} variant="contained">
+              <Accordion.Item value="patient-context">
+                <Accordion.Control>Patient context</Accordion.Control>
+                <Accordion.Panel>
+                  <Tabs.List
+                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <Tabs.Tab value="rx-history" leftSection={<IconClipboardList size={14} />}>
+                      Rx History
+                    </Tabs.Tab>
+                    <Tabs.Tab value="charts" leftSection={<IconChartLine size={14} />}>
+                      Charts
+                    </Tabs.Tab>
+                    <Tabs.Tab value="timeline" leftSection={<IconTimeline size={14} />}>
+                      Timeline
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="clinical">
+                <Accordion.Control>Clinical workup</Accordion.Control>
+                <Accordion.Panel>
+                  <Tabs.List
+                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <Tabs.Tab value="vitals" leftSection={<IconHeartbeat size={14} />}>
+                      Vitals
+                    </Tabs.Tab>
+                    <Tabs.Tab value="consultation" leftSection={<IconNotebook size={14} />}>
+                      Consultation
+                    </Tabs.Tab>
+                    <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
+                      History
+                    </Tabs.Tab>
+                    <Tabs.Tab value="ros" leftSection={<IconClipboardList size={14} />}>
+                      ROS
+                    </Tabs.Tab>
+                    <Tabs.Tab value="physical-exam" leftSection={<IconStethoscope size={14} />}>
+                      Physical Exam
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="orders">
+                <Accordion.Control>Assessment & orders</Accordion.Control>
+                <Accordion.Panel>
+                  <Tabs.List
+                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <Tabs.Tab value="diagnoses" leftSection={<IconStar size={14} />}>
+                      Diagnoses
+                    </Tabs.Tab>
+                    <Tabs.Tab value="investigations" leftSection={<IconFlask size={14} />}>
+                      Investigations
+                    </Tabs.Tab>
+                    <Tabs.Tab value="procedures" leftSection={<IconMedicalCross size={14} />}>
+                      Procedures
+                    </Tabs.Tab>
+                    <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>
+                      Prescriptions
+                    </Tabs.Tab>
+                    <Tabs.Tab value="referrals" leftSection={<IconArrowRight size={14} />}>
+                      Referrals
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="closure">
+                <Accordion.Control>Closure</Accordion.Control>
+                <Accordion.Panel>
+                  <Tabs.List
+                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <Tabs.Tab value="certificates" leftSection={<IconCertificate size={14} />}>
+                      Certificates
+                    </Tabs.Tab>
+                    <Tabs.Tab value="followup" leftSection={<IconCalendarPlus size={14} />}>
+                      Follow-up
+                    </Tabs.Tab>
+                    <Tabs.Tab value="reminders" leftSection={<IconNotebook size={14} />}>
+                      Reminders
+                    </Tabs.Tab>
+                    <Tabs.Tab value="consents" leftSection={<IconFileCheck size={14} />}>
+                      Consents
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="support">
+                <Accordion.Control>Support / admin</Accordion.Control>
+                <Accordion.Panel>
+                  <Tabs.List
+                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <Tabs.Tab value="pre-auth" leftSection={<IconShieldCheck size={14} />}>
+                      Pre-Auth
+                    </Tabs.Tab>
+                    <Tabs.Tab value="docket" leftSection={<IconStar size={14} />}>
+                      Docket
+                    </Tabs.Tab>
+                    <Tabs.Tab value="pharmacy-dispatch" leftSection={<IconPill size={14} />}>
+                      Pharmacy Dispatch
+                    </Tabs.Tab>
+                    <Tabs.Tab value="feedback" leftSection={<IconMessage size={14} />}>
+                      Feedback
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
           </div>
         </div>
 
         {/* ── Right: Content panels ── */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
-      <Tabs.Panel value="vitals">
-        <VitalsTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="consultation">
-        <ConsultationTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="history">
-        <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="ros">
-        <ROSTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="physical-exam">
-        <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="diagnoses">
-        <DiagnosesTab encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="investigations">
-        <InvestigationsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="procedures">
-        <ProceduresTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="prescriptions">
-        <PrescriptionsTab
-          encounterId={encounterId}
-          patientId={patientId}
-          patientName={patientName}
-          uhid={uhid}
-          canUpdate={canUpdate}
-          allergies={activeAllergies.map((a) => a.allergen_name)}
-        />
-      </Tabs.Panel>
-      <Tabs.Panel value="referrals">
-        <ReferralsTab patientId={patientId} encounterId={encounterId} departmentId={departmentId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="rx-history">
-        <RxHistoryTab patientId={patientId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="charts">
-        <ChartsTab patientId={patientId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="timeline">
-        <TimelineTab patientId={patientId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="certificates">
-        <CertificatesTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="followup">
-        <FollowUpTab
-          patientId={patientId}
-          doctorId={doctorId}
-          departmentId={departmentId}
-          canUpdate={canUpdate}
-        />
-      </Tabs.Panel>
-      <Tabs.Panel value="reminders">
-        <RemindersTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="feedback">
-        <FeedbackTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="consents">
-        <ConsentsTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="pre-auth">
-        <PreAuthTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
-      </Tabs.Panel>
-      <Tabs.Panel value="docket">
-        <DocketTab />
-      </Tabs.Panel>
-      <Tabs.Panel value="pharmacy-dispatch">
-        <PharmacyDispatchTab encounterId={encounterId} />
-      </Tabs.Panel>
-      </div>
-    </Tabs>
+          <Tabs.Panel value="vitals">
+            <VitalsTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="consultation">
+            <ConsultationTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="history">
+            <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="ros">
+            <ROSTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="physical-exam">
+            <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="diagnoses">
+            <DiagnosesTab encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="investigations">
+            <InvestigationsTab
+              encounterId={encounterId}
+              patientId={patientId}
+              canUpdate={canUpdate}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="procedures">
+            <ProceduresTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="prescriptions">
+            <PrescriptionsTab
+              encounterId={encounterId}
+              patientId={patientId}
+              patientName={patientName}
+              uhid={uhid}
+              canUpdate={canUpdate}
+              allergies={activeAllergies.map((a) => a.allergen_name)}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="referrals">
+            <ReferralsTab
+              patientId={patientId}
+              encounterId={encounterId}
+              departmentId={departmentId}
+              canUpdate={canUpdate}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="rx-history">
+            <RxHistoryTab patientId={patientId} />
+          </Tabs.Panel>
+          <Tabs.Panel value="charts">
+            <ChartsTab patientId={patientId} />
+          </Tabs.Panel>
+          <Tabs.Panel value="timeline">
+            <TimelineTab patientId={patientId} />
+          </Tabs.Panel>
+          <Tabs.Panel value="certificates">
+            <CertificatesTab
+              patientId={patientId}
+              encounterId={encounterId}
+              canUpdate={canUpdate}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="followup">
+            <FollowUpTab
+              patientId={patientId}
+              doctorId={doctorId}
+              departmentId={departmentId}
+              canUpdate={canUpdate}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="reminders">
+            <RemindersTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="feedback">
+            <FeedbackTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="consents">
+            <ConsentsTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="pre-auth">
+            <PreAuthTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+          </Tabs.Panel>
+          <Tabs.Panel value="docket">
+            <DocketTab />
+          </Tabs.Panel>
+          <Tabs.Panel value="pharmacy-dispatch">
+            <PharmacyDispatchTab encounterId={encounterId} />
+          </Tabs.Panel>
+        </div>
+      </Tabs>
     </>
   );
 }
@@ -821,7 +1100,11 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
     {
       key: "drug_name",
       label: "Drug",
-      render: (row: PharmacyDispatchStatusRow) => <Text size="sm" fw={500}>{row.drug_name}</Text>,
+      render: (row: PharmacyDispatchStatusRow) => (
+        <Text size="sm" fw={500}>
+          {row.drug_name}
+        </Text>
+      ),
     },
     {
       key: "quantity_ordered",
@@ -846,7 +1129,9 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
 
   return (
     <Stack>
-      <Text fw={600} size="sm">Pharmacy dispatch status for this visit</Text>
+      <Text fw={600} size="sm">
+        Pharmacy dispatch status for this visit
+      </Text>
       <DataTable
         columns={columns}
         data={dispatch}
@@ -854,7 +1139,9 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
         rowKey={(row) => `${row.prescription_id}-${row.drug_name}`}
       />
       {!isLoading && dispatch.length === 0 && (
-        <Text size="sm" c="dimmed">No prescriptions dispatched for this visit.</Text>
+        <Text size="sm" c="dimmed">
+          No prescriptions dispatched for this visit.
+        </Text>
       )}
     </Stack>
   );
@@ -869,11 +1156,7 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
   // Mode (REST vs CRDT) is read from <TenantConfigProvider>. Flips
   // automatically when a tenant turns on tenant_settings.clinical.
   // offline_mode + provides an edge_url. No code change here.
-  const {
-    records: vitals,
-    append,
-    unsyncedOps,
-  } = useVitalsSource({ encounterId });
+  const { records: vitals, append, unsyncedOps } = useVitalsSource({ encounterId });
 
   const handleSubmit = (data: CreateVitalRequest) => {
     append(data);
@@ -898,7 +1181,13 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
         />
       )}
       {vitals.length > 0 && (
-        <Timeline active={0} bulletSize={32} lineWidth={2} color="primary" styles={{ item: { marginBottom: 8 } }}>
+        <Timeline
+          active={0}
+          bulletSize={32}
+          lineWidth={2}
+          color="primary"
+          styles={{ item: { marginBottom: 8 } }}
+        >
           {vitals.map((v: Vital, idx: number) => {
             const prev = vitals[idx + 1] as Vital | undefined;
             const trend = (curr: number | null, prevVal: number | null) => {
@@ -913,29 +1202,68 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
                 bullet={<IconHeartbeat size={16} />}
                 title={
                   <Group gap="xs">
-                    <Text size="sm" fw={600}>{new Date(v.created_at).toLocaleString()}</Text>
-                    {idx === 0 && <Badge size="sm" color="success" variant="light">Latest</Badge>}
+                    <Text size="sm" fw={600}>
+                      {new Date(v.created_at).toLocaleString()}
+                    </Text>
+                    {idx === 0 && (
+                      <Badge size="sm" color="success" variant="light">
+                        Latest
+                      </Badge>
+                    )}
                   </Group>
                 }
               >
                 <Group gap="md" mt={4} wrap="wrap">
                   {v.temperature != null && (
-                    <Badge variant="light" color={Number(v.temperature) > 37.5 ? "danger" : "primary"} size="md">
-                      🌡 {v.temperature}°C{trend(Number(v.temperature), prev?.temperature ? Number(prev.temperature) : null)}
+                    <Badge
+                      variant="light"
+                      color={Number(v.temperature) > 37.5 ? "danger" : "primary"}
+                      size="md"
+                    >
+                      🌡 {v.temperature}°C
+                      {trend(
+                        Number(v.temperature),
+                        prev?.temperature ? Number(prev.temperature) : null,
+                      )}
                     </Badge>
                   )}
                   {v.pulse != null && (
-                    <Badge variant="light" color={Number(v.pulse) > 100 ? "danger" : Number(v.pulse) < 60 ? "warning" : "primary"} size="md">
-                      ❤ {v.pulse} bpm{trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
+                    <Badge
+                      variant="light"
+                      color={
+                        Number(v.pulse) > 100
+                          ? "danger"
+                          : Number(v.pulse) < 60
+                            ? "warning"
+                            : "primary"
+                      }
+                      size="md"
+                    >
+                      ❤ {v.pulse} bpm
+                      {trend(Number(v.pulse), prev?.pulse ? Number(prev.pulse) : null)}
                     </Badge>
                   )}
                   {v.systolic_bp != null && v.diastolic_bp != null && (
-                    <Badge variant="light" color={Number(v.systolic_bp) > 140 ? "danger" : Number(v.systolic_bp) < 90 ? "warning" : "primary"} size="md">
+                    <Badge
+                      variant="light"
+                      color={
+                        Number(v.systolic_bp) > 140
+                          ? "danger"
+                          : Number(v.systolic_bp) < 90
+                            ? "warning"
+                            : "primary"
+                      }
+                      size="md"
+                    >
                       🩸 {v.systolic_bp}/{v.diastolic_bp} mmHg
                     </Badge>
                   )}
                   {v.spo2 != null && (
-                    <Badge variant="light" color={Number(v.spo2) < 94 ? "danger" : "primary"} size="md">
+                    <Badge
+                      variant="light"
+                      color={Number(v.spo2) < 94 ? "danger" : "primary"}
+                      size="md"
+                    >
                       💨 SpO₂ {v.spo2}%
                     </Badge>
                   )}
@@ -945,14 +1273,20 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
                     </Badge>
                   )}
                   {v.weight_kg != null && (
-                    <Badge variant="outline" size="md">⚖ {v.weight_kg} kg</Badge>
+                    <Badge variant="outline" size="md">
+                      ⚖ {v.weight_kg} kg
+                    </Badge>
                   )}
                   {v.bmi != null && (
-                    <Badge variant="outline" size="md">BMI {v.bmi}</Badge>
+                    <Badge variant="outline" size="md">
+                      BMI {v.bmi}
+                    </Badge>
                   )}
                 </Group>
                 {v.notes && (
-                  <Text size="sm" c="dimmed" fs="italic" mt={6} pr="lg">{v.notes}</Text>
+                  <Text size="sm" c="dimmed" fs="italic" mt={6} pr="lg">
+                    {v.notes}
+                  </Text>
                 )}
               </Timeline.Item>
             );
@@ -1025,7 +1359,11 @@ function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canU
   };
 
   if (!canUpdate && !consultation) {
-    return <Text c="dimmed" size="sm">No consultation recorded yet.</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No consultation recorded yet.
+      </Text>
+    );
   }
 
   return (
@@ -1066,13 +1404,15 @@ function HistoryTab({ encounterId, canUpdate }: { encounterId: string; canUpdate
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const handleUpdate = (data: Partial<UpdateConsultationRequest>) => {
@@ -1115,7 +1455,9 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
   const serverRos = (c?.review_of_systems as ROSType | null) ?? {};
 
   // Initialize local state from server (only when not dirty)
-  useState(() => { if (!dirty) setLocalRos(serverRos); });
+  useState(() => {
+    if (!dirty) setLocalRos(serverRos);
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
@@ -1124,7 +1466,8 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
       setDirty(false);
       notifications.show({ title: "Saved", message: "Review of Systems saved", color: "success" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to save ROS", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to save ROS", color: "danger" }),
   });
 
   const updateMutation = useMutation({
@@ -1133,9 +1476,14 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       setDirty(false);
-      notifications.show({ title: "Saved", message: "Review of Systems updated", color: "success" });
+      notifications.show({
+        title: "Saved",
+        message: "Review of Systems updated",
+        color: "success",
+      });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed to update ROS", color: "danger" }),
+    onError: () =>
+      notifications.show({ title: "Error", message: "Failed to update ROS", color: "danger" }),
   });
 
   const handleChange = (ros: ROSType) => {
@@ -1185,13 +1533,15 @@ function PhysicalExamTab({ encounterId, canUpdate }: { encounterId: string; canU
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
       api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const handleUpdate = (exam: PhysicalExamination, generalAppearance?: string) => {
@@ -1306,7 +1656,11 @@ function InvestigationsTab({
     mutationFn: (data: CreateLabOrderRequest) => api.createLabOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      notifications.show({ title: "Investigation ordered", message: "Lab order placed successfully", color: "success" });
+      notifications.show({
+        title: "Investigation ordered",
+        message: "Lab order placed successfully",
+        color: "success",
+      });
       emit("lab.ordered", { encounter_id: encounterId, patient_id: patientId });
       setSelectedTestId(null);
       setPriority("routine");
@@ -1323,7 +1677,11 @@ function InvestigationsTab({
     mutationFn: (id: string) => api.cancelLabOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      notifications.show({ title: "Order cancelled", message: "Lab order has been cancelled", color: "warning" });
+      notifications.show({
+        title: "Order cancelled",
+        message: "Lab order has been cancelled",
+        color: "warning",
+      });
     },
   });
 
@@ -1366,9 +1724,14 @@ function InvestigationsTab({
                 setLabDupeWarning([]);
                 if (testId) {
                   try {
-                    const dupes = await api.checkDuplicateOrders({ patient_id: patientId, test_id: testId });
+                    const dupes = await api.checkDuplicateOrders({
+                      patient_id: patientId,
+                      test_id: testId,
+                    });
                     if (dupes.length > 0) setLabDupeWarning(dupes);
-                  } catch { /* ignore */ }
+                  } catch {
+                    /* ignore */
+                  }
                 }
               }}
               searchable
@@ -1376,10 +1739,15 @@ function InvestigationsTab({
               required
             />
             {labDupeWarning.length > 0 && (
-              <Alert icon={<IconAlertTriangle size={14} />} color="warning" variant="light" title="Duplicate Warning">
+              <Alert
+                icon={<IconAlertTriangle size={14} />}
+                color="warning"
+                variant="light"
+                title="Duplicate Warning"
+              >
                 <Text size="xs">
-                  This test was already ordered {labDupeWarning.length} time(s) in the last 24 hours.
-                  ({labDupeWarning.map((d) => d.status).join(", ")})
+                  This test was already ordered {labDupeWarning.length} time(s) in the last 24
+                  hours. ({labDupeWarning.map((d) => d.status).join(", ")})
                 </Text>
               </Alert>
             )}
@@ -1445,9 +1813,13 @@ function InvestigationsTab({
             {orders.map((order: LabOrder) => (
               <Table.Tr key={order.id}>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{getTestName(order.test_id)}</Text>
+                  <Text size="sm" fw={500}>
+                    {getTestName(order.test_id)}
+                  </Text>
                   {order.notes && (
-                    <Text size="xs" c="dimmed">{order.notes}</Text>
+                    <Text size="xs" c="dimmed">
+                      {order.notes}
+                    </Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -1456,27 +1828,34 @@ function InvestigationsTab({
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" variant="light" color={LAB_STATUS_COLORS[order.status] ?? "slate"}>
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color={LAB_STATUS_COLORS[order.status] ?? "slate"}
+                  >
                     {order.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="xs" c="dimmed">{new Date(order.created_at).toLocaleString()}</Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(order.created_at).toLocaleString()}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
-                  {canUpdate && (order.status === "ordered" || order.status === "sample_collected") && (
-                    <Tooltip label="Cancel order">
-                      <ActionIcon
-                        variant="subtle"
-                        color="danger"
-                        size="xs"
-                        onClick={() => cancelMutation.mutate(order.id)}
-                        loading={cancelMutation.isPending}
-                      >
-                        <IconX size={12} />
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
+                  {canUpdate &&
+                    (order.status === "ordered" || order.status === "sample_collected") && (
+                      <Tooltip label="Cancel order">
+                        <ActionIcon
+                          variant="subtle"
+                          color="danger"
+                          size="xs"
+                          onClick={() => cancelMutation.mutate(order.id)}
+                          loading={cancelMutation.isPending}
+                        >
+                          <IconX size={12} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -1576,7 +1955,9 @@ function FollowUpTab({
       <Card padding="md" radius="md" withBorder>
         <Stack align="center" gap="sm" py="md">
           <IconCheck size={40} color="var(--mantine-color-green-6)" />
-          <Text fw={600} size="lg">Follow-up Scheduled</Text>
+          <Text fw={600} size="lg">
+            Follow-up Scheduled
+          </Text>
           <Text size="sm" c="dimmed">
             Appointment booked for {selectedDate}
           </Text>
@@ -1593,7 +1974,9 @@ function FollowUpTab({
       {canUpdate ? (
         <Card padding="sm" radius="md" withBorder>
           <Stack gap="sm">
-            <Text size="sm" fw={600}>Schedule Follow-up Appointment</Text>
+            <Text size="sm" fw={600}>
+              Schedule Follow-up Appointment
+            </Text>
             <TextInput
               label="Follow-up Date"
               type="date"
@@ -1605,9 +1988,11 @@ function FollowUpTab({
               min={minDate}
               required
             />
-            {selectedDate && (
-              loadingSlots ? (
-                <Text size="sm" c="dimmed">Loading available slots...</Text>
+            {selectedDate &&
+              (loadingSlots ? (
+                <Text size="sm" c="dimmed">
+                  Loading available slots...
+                </Text>
               ) : slotOptions.length > 0 ? (
                 <Select
                   label="Available Slot"
@@ -1621,8 +2006,7 @@ function FollowUpTab({
                 <Text size="sm" c="orange">
                   No available slots on this date. Try a different date.
                 </Text>
-              )
-            )}
+              ))}
             <Textarea
               label="Reason for Follow-up"
               placeholder="Post-op review, lab result review, medication adjustment..."
@@ -1695,7 +2079,10 @@ function PrescriptionsTab({
     mutationFn: (data: CreatePrescriptionRequest) => api.createPrescription(encounterId, data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
-      emit("prescription.created", { encounter_id: encounterId, item_count: variables.items.length });
+      emit("prescription.created", {
+        encounter_id: encounterId,
+        item_count: variables.items.length,
+      });
     },
   });
 
@@ -1754,7 +2141,11 @@ function RxHistoryTab({ patientId }: { patientId: string }) {
   });
 
   if (isLoading) {
-    return <Text size="sm" c="dimmed">Loading prescription history...</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading prescription history...
+      </Text>
+    );
   }
 
   if (history.length === 0) {
@@ -1774,10 +2165,14 @@ function RxHistoryTab({ patientId }: { patientId: string }) {
               {new Date(h.encounter_date).toLocaleDateString()}
             </Badge>
             {h.doctor_name && (
-              <Text size="xs" c="dimmed">Dr. {h.doctor_name}</Text>
+              <Text size="xs" c="dimmed">
+                Dr. {h.doctor_name}
+              </Text>
             )}
             {h.prescription.notes && (
-              <Text size="xs" c="dimmed" fs="italic">— {h.prescription.notes}</Text>
+              <Text size="xs" c="dimmed" fs="italic">
+                — {h.prescription.notes}
+              </Text>
             )}
           </Group>
           <Table striped>
@@ -1793,9 +2188,17 @@ function RxHistoryTab({ patientId }: { patientId: string }) {
             <Table.Tbody>
               {h.items.map((item) => (
                 <Table.Tr key={item.id}>
-                  <Table.Td><Text size="sm" fw={500}>{item.drug_name}</Text></Table.Td>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {item.drug_name}
+                    </Text>
+                  </Table.Td>
                   <Table.Td>{item.dosage}</Table.Td>
-                  <Table.Td><Badge size="xs" variant="light">{item.frequency}</Badge></Table.Td>
+                  <Table.Td>
+                    <Badge size="xs" variant="light">
+                      {item.frequency}
+                    </Badge>
+                  </Table.Td>
                   <Table.Td>{item.duration}</Table.Td>
                   <Table.Td>{item.route ?? "—"}</Table.Td>
                 </Table.Tr>
@@ -1847,12 +2250,20 @@ function CertificatesTab({
     mutationFn: (data: CreateMedicalCertificateRequest) => api.createCertificate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
-      notifications.show({ title: "Certificate created", message: "Medical certificate generated", color: "success" });
+      notifications.show({
+        title: "Certificate created",
+        message: "Medical certificate generated",
+        color: "success",
+      });
       closeCreate();
       resetForm();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create certificate", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to create certificate",
+        color: "danger",
+      });
     },
   });
 
@@ -1881,7 +2292,11 @@ function CertificatesTab({
   };
 
   if (isLoading) {
-    return <Text size="sm" c="dimmed">Loading certificates...</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading certificates...
+      </Text>
+    );
   }
 
   return (
@@ -1903,12 +2318,23 @@ function CertificatesTab({
                 {cert.certificate_type.replace(/_/g, " ")}
               </Badge>
               {cert.certificate_number && (
-                <Text size="xs" c="dimmed" ff="monospace">{cert.certificate_number}</Text>
+                <Text size="xs" c="dimmed" ff="monospace">
+                  {cert.certificate_number}
+                </Text>
               )}
             </Group>
-            <Text size="xs" c="dimmed">{new Date(cert.issued_date).toLocaleDateString()}</Text>
+            <Text size="xs" c="dimmed">
+              {new Date(cert.issued_date).toLocaleDateString()}
+            </Text>
           </Group>
-          {cert.diagnosis && <Text size="sm"><Text span fw={500}>Diagnosis:</Text> {cert.diagnosis}</Text>}
+          {cert.diagnosis && (
+            <Text size="sm">
+              <Text span fw={500}>
+                Diagnosis:
+              </Text>{" "}
+              {cert.diagnosis}
+            </Text>
+          )}
           {(cert.valid_from || cert.valid_to) && (
             <Text size="xs" c="dimmed">
               {cert.valid_from ? `From: ${new Date(cert.valid_from).toLocaleDateString()}` : ""}
@@ -1916,7 +2342,11 @@ function CertificatesTab({
               {cert.valid_to ? `To: ${new Date(cert.valid_to).toLocaleDateString()}` : ""}
             </Text>
           )}
-          {cert.remarks && <Text size="xs" c="dimmed" fs="italic" mt={4}>{cert.remarks}</Text>}
+          {cert.remarks && (
+            <Text size="xs" c="dimmed" fs="italic" mt={4}>
+              {cert.remarks}
+            </Text>
+          )}
         </Card>
       ))}
 
@@ -1974,7 +2404,9 @@ function CertificatesTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCreate}>Cancel</Button>
+            <Button variant="subtle" onClick={closeCreate}>
+              Cancel
+            </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
@@ -2003,19 +2435,23 @@ function ChartsTab({ patientId }: { patientId: string }) {
   const chartData = useMemo(() => {
     return (history as VitalHistoryPoint[]).map((p) => ({
       date: new Date(p.recorded_at).toLocaleDateString(),
-      "Systolic": p.systolic_bp,
-      "Diastolic": p.diastolic_bp,
-      "Pulse": p.pulse,
-      "Temp": p.temperature ? Number(p.temperature) : null,
-      "SpO2": p.spo2,
-      "RR": p.respiratory_rate,
-      "Weight": p.weight_kg ? Number(p.weight_kg) : null,
-      "BMI": p.bmi ? Number(p.bmi) : null,
+      Systolic: p.systolic_bp,
+      Diastolic: p.diastolic_bp,
+      Pulse: p.pulse,
+      Temp: p.temperature ? Number(p.temperature) : null,
+      SpO2: p.spo2,
+      RR: p.respiratory_rate,
+      Weight: p.weight_kg ? Number(p.weight_kg) : null,
+      BMI: p.bmi ? Number(p.bmi) : null,
     }));
   }, [history]);
 
   if (isLoading) {
-    return <Text size="sm" c="dimmed">Loading vitals history...</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading vitals history...
+      </Text>
+    );
   }
 
   if (chartData.length === 0) {
@@ -2103,14 +2539,24 @@ function TimelineTab({ patientId }: { patientId: string }) {
 
   // Merge into unified timeline
   const timelineItems = useMemo(() => {
-    const items: { date: string; type: string; title: string; detail: string; color: string; icon: React.ReactNode; counts?: string }[] = [];
+    const items: {
+      date: string;
+      type: string;
+      title: string;
+      detail: string;
+      color: string;
+      icon: React.ReactNode;
+      counts?: string;
+    }[] = [];
 
     for (const v of visits as PatientVisitRow[]) {
       const counts = [
         v.diagnosis_count ? `${v.diagnosis_count} dx` : null,
         v.prescription_count ? `${v.prescription_count} rx` : null,
         v.lab_order_count ? `${v.lab_order_count} labs` : null,
-      ].filter(Boolean).join(", ");
+      ]
+        .filter(Boolean)
+        .join(", ");
       items.push({
         date: v.encounter_date ?? v.created_at,
         type: "visit",
@@ -2119,7 +2565,9 @@ function TimelineTab({ patientId }: { patientId: string }) {
           v.department_name,
           v.doctor_name ? `Dr. ${v.doctor_name}` : null,
           v.chief_complaint,
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         counts: counts || undefined,
         color: "primary",
         icon: <IconStethoscope size={12} />,
@@ -2164,12 +2612,20 @@ function TimelineTab({ patientId }: { patientId: string }) {
   }, [visits, rxHistory, labOrders, certificates]);
 
   const filteredItems = useMemo(
-    () => (typeFilter ? timelineItems.filter((i) => i.type === typeFilter) : timelineItems).slice(0, 50),
+    () =>
+      (typeFilter ? timelineItems.filter((i) => i.type === typeFilter) : timelineItems).slice(
+        0,
+        50,
+      ),
     [timelineItems, typeFilter],
   );
 
   if (loadingVisits) {
-    return <Text size="sm" c="dimmed">Loading timeline...</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading timeline...
+      </Text>
+    );
   }
 
   if (timelineItems.length === 0) {
@@ -2209,16 +2665,24 @@ function TimelineTab({ patientId }: { patientId: string }) {
             color={item.color}
             title={
               <Group gap={8}>
-                <Text size="sm" fw={500}>{item.title}</Text>
-                <Text size="xs" c="dimmed">{new Date(item.date).toLocaleDateString()}</Text>
+                <Text size="sm" fw={500}>
+                  {item.title}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {new Date(item.date).toLocaleDateString()}
+                </Text>
               </Group>
             }
           >
-            <Text size="xs" c="dimmed">{item.detail}</Text>
+            <Text size="xs" c="dimmed">
+              {item.detail}
+            </Text>
             {item.counts && (
               <Group gap={4} mt={2}>
                 {item.counts.split(", ").map((c) => (
-                  <Badge key={c} size="xs" variant="dot" color="primary">{c}</Badge>
+                  <Badge key={c} size="xs" variant="dot" color="primary">
+                    {c}
+                  </Badge>
                 ))}
               </Group>
             )}
@@ -2267,11 +2731,10 @@ function ProceduresTab({
     queryFn: () => api.listProcedureOrders(encounterId),
   });
 
-  const procOptions = (catalog as ProcedureCatalog[])
-    .map((p) => ({
-      value: p.id,
-      label: `${p.code} — ${p.name}${p.category ? ` (${p.category})` : ""}`,
-    }));
+  const procOptions = (catalog as ProcedureCatalog[]).map((p) => ({
+    value: p.id,
+    label: `${p.code} — ${p.name}${p.category ? ` (${p.category})` : ""}`,
+  }));
 
   // Duplicate check on procedure selection
   const handleProcSelect = async (procId: string | null) => {
@@ -2279,9 +2742,14 @@ function ProceduresTab({
     setDupeWarning([]);
     if (procId) {
       try {
-        const dupes = await api.checkDuplicateOrders({ patient_id: patientId, procedure_id: procId });
+        const dupes = await api.checkDuplicateOrders({
+          patient_id: patientId,
+          procedure_id: procId,
+        });
         if (dupes.length > 0) setDupeWarning(dupes);
-      } catch { /* ignore check failure */ }
+      } catch {
+        /* ignore check failure */
+      }
     }
   };
 
@@ -2289,7 +2757,11 @@ function ProceduresTab({
     mutationFn: (data: CreateProcedureOrderRequest) => api.createProcedureOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
-      notifications.show({ title: "Procedure ordered", message: "Procedure order placed", color: "success" });
+      notifications.show({
+        title: "Procedure ordered",
+        message: "Procedure order placed",
+        color: "success",
+      });
       emit("procedure.ordered", { encounter_id: encounterId, patient_id: patientId });
       setSelectedProcId(null);
       setPriority("routine");
@@ -2306,7 +2778,11 @@ function ProceduresTab({
     mutationFn: (id: string) => api.cancelProcedureOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
-      notifications.show({ title: "Cancelled", message: "Procedure order cancelled", color: "warning" });
+      notifications.show({
+        title: "Cancelled",
+        message: "Procedure order cancelled",
+        color: "warning",
+      });
     },
   });
 
@@ -2345,10 +2821,15 @@ function ProceduresTab({
               required
             />
             {dupeWarning.length > 0 && (
-              <Alert icon={<IconAlertTriangle size={14} />} color="warning" variant="light" title="Duplicate Warning">
+              <Alert
+                icon={<IconAlertTriangle size={14} />}
+                color="warning"
+                variant="light"
+                title="Duplicate Warning"
+              >
                 <Text size="xs">
-                  This procedure was already ordered {dupeWarning.length} time(s) in the last 24 hours.
-                  ({dupeWarning.map((d) => d.status).join(", ")})
+                  This procedure was already ordered {dupeWarning.length} time(s) in the last 24
+                  hours. ({dupeWarning.map((d) => d.status).join(", ")})
                 </Text>
               </Alert>
             )}
@@ -2371,7 +2852,14 @@ function ProceduresTab({
               minRows={2}
             />
             <Group justify="flex-end" gap="xs">
-              <Button variant="subtle" size="sm" onClick={() => { setShowForm(false); setDupeWarning([]); }}>
+              <Button
+                variant="subtle"
+                size="sm"
+                onClick={() => {
+                  setShowForm(false);
+                  setDupeWarning([]);
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -2403,8 +2891,14 @@ function ProceduresTab({
             {(orders as ProcedureOrderWithName[]).map((order) => (
               <Table.Tr key={order.id}>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{order.procedure_name ?? order.procedure_code}</Text>
-                  {order.notes && <Text size="xs" c="dimmed">{order.notes}</Text>}
+                  <Text size="sm" fw={500}>
+                    {order.procedure_name ?? order.procedure_code}
+                  </Text>
+                  {order.notes && (
+                    <Text size="xs" c="dimmed">
+                      {order.notes}
+                    </Text>
+                  )}
                 </Table.Td>
                 <Table.Td>
                   <Badge size="xs" color={LAB_PRIORITY_COLORS[order.priority] ?? "slate"}>
@@ -2412,17 +2906,28 @@ function ProceduresTab({
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" variant="light" color={PROC_STATUS_COLORS[order.status] ?? "slate"}>
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color={PROC_STATUS_COLORS[order.status] ?? "slate"}
+                  >
                     {order.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="xs" c="dimmed">{new Date(order.created_at).toLocaleString()}</Text>
+                  <Text size="xs" c="dimmed">
+                    {new Date(order.created_at).toLocaleString()}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
                   {canUpdate && (order.status === "ordered" || order.status === "scheduled") && (
                     <Tooltip label="Cancel">
-                      <ActionIcon variant="subtle" color="danger" size="xs" onClick={() => cancelMutation.mutate(order.id)}>
+                      <ActionIcon
+                        variant="subtle"
+                        color="danger"
+                        size="xs"
+                        onClick={() => cancelMutation.mutate(order.id)}
+                      >
                         <IconX size={12} />
                       </ActionIcon>
                     </Tooltip>
@@ -2489,14 +2994,22 @@ function ReferralsTab({
   });
 
   const deptOptions = (departments as DepartmentRow[])
-    .filter((d) => d.id !== departmentId && (d.department_type === "clinical" || d.department_type === "para_clinical"))
+    .filter(
+      (d) =>
+        d.id !== departmentId &&
+        (d.department_type === "clinical" || d.department_type === "para_clinical"),
+    )
     .map((d) => ({ value: d.id, label: d.name }));
 
   const createMutation = useMutation({
     mutationFn: (data: CreateReferralRequest) => api.createReferral(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-referrals", patientId] });
-      notifications.show({ title: "Referral created", message: "Patient referred successfully", color: "success" });
+      notifications.show({
+        title: "Referral created",
+        message: "Patient referred successfully",
+        color: "success",
+      });
       closeCreate();
       setToDeptId(null);
       setUrgency("routine");
@@ -2521,7 +3034,11 @@ function ReferralsTab({
   };
 
   if (isLoading) {
-    return <Text size="sm" c="dimmed">Loading referrals...</Text>;
+    return (
+      <Text size="sm" c="dimmed">
+        Loading referrals...
+      </Text>
+    );
   }
 
   return (
@@ -2545,16 +3062,39 @@ function ReferralsTab({
               <Badge size="xs" color={URGENCY_COLORS[ref.urgency] ?? "slate"}>
                 {ref.urgency}
               </Badge>
-              <Badge size="xs" variant="light" color={REFERRAL_STATUS_COLORS[ref.status] ?? "slate"}>
+              <Badge
+                size="xs"
+                variant="light"
+                color={REFERRAL_STATUS_COLORS[ref.status] ?? "slate"}
+              >
                 {ref.status}
               </Badge>
             </Group>
-            <Text size="xs" c="dimmed">{new Date(ref.created_at).toLocaleDateString()}</Text>
+            <Text size="xs" c="dimmed">
+              {new Date(ref.created_at).toLocaleDateString()}
+            </Text>
           </Group>
-          <Text size="sm"><Text span fw={500}>Reason:</Text> {ref.reason}</Text>
-          {ref.from_doctor_name && <Text size="xs" c="dimmed">From: Dr. {ref.from_doctor_name}</Text>}
-          {ref.to_doctor_name && <Text size="xs" c="dimmed">To: Dr. {ref.to_doctor_name}</Text>}
-          {ref.clinical_notes && <Text size="xs" c="dimmed" mt={4}>{ref.clinical_notes}</Text>}
+          <Text size="sm">
+            <Text span fw={500}>
+              Reason:
+            </Text>{" "}
+            {ref.reason}
+          </Text>
+          {ref.from_doctor_name && (
+            <Text size="xs" c="dimmed">
+              From: Dr. {ref.from_doctor_name}
+            </Text>
+          )}
+          {ref.to_doctor_name && (
+            <Text size="xs" c="dimmed">
+              To: Dr. {ref.to_doctor_name}
+            </Text>
+          )}
+          {ref.clinical_notes && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {ref.clinical_notes}
+            </Text>
+          )}
           {ref.response_notes && (
             <Alert color="success" variant="light" mt="xs" title="Response">
               <Text size="xs">{ref.response_notes}</Text>
@@ -2609,7 +3149,9 @@ function ReferralsTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCreate}>Cancel</Button>
+            <Button variant="subtle" onClick={closeCreate}>
+              Cancel
+            </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
@@ -2723,7 +3265,9 @@ function RemindersTab({
       )}
 
       {(reminders as PatientReminder[]).length === 0 ? (
-        <Text size="sm" c="dimmed" ta="center" py="md">No reminders yet.</Text>
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          No reminders yet.
+        </Text>
       ) : (
         <Table striped withTableBorder>
           <Table.Thead>
@@ -2740,10 +3284,22 @@ function RemindersTab({
             {(reminders as PatientReminder[]).map((r) => (
               <Table.Tr key={r.id}>
                 <Table.Td>{r.title}</Table.Td>
-                <Table.Td><Badge variant="light" size="sm">{r.reminder_type.replace(/_/g, " ")}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {r.reminder_type.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>{r.reminder_date}</Table.Td>
-                <Table.Td><Badge color={priorityColors[r.priority] ?? "primary"} size="sm">{r.priority}</Badge></Table.Td>
-                <Table.Td><Badge color={statusColors[r.status] ?? "slate"} size="sm">{r.status}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge color={priorityColors[r.priority] ?? "primary"} size="sm">
+                    {r.priority}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={statusColors[r.status] ?? "slate"} size="sm">
+                    {r.status}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>
                   {r.status === "pending" && canUpdate && (
                     <Group gap={4}>
@@ -2778,7 +3334,12 @@ function RemindersTab({
 
       <Modal opened={showForm} onClose={() => setShowForm(false)} title="New Reminder" size="md">
         <Stack gap="sm">
-          <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
+          <TextInput
+            label="Title"
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            required
+          />
           <Select
             label="Type"
             data={REMINDER_TYPES}
@@ -2812,7 +3373,9 @@ function RemindersTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="subtle" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
@@ -2864,7 +3427,11 @@ function FeedbackTab({
     mutationFn: (data: CreateFeedbackRequest) => api.createFeedback(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["feedback", patientId] });
-      notifications.show({ title: "Feedback recorded", message: "Thank you for the feedback", color: "success" });
+      notifications.show({
+        title: "Feedback recorded",
+        message: "Thank you for the feedback",
+        color: "success",
+      });
       setShowForm(false);
       setRating(null);
       setWaitTimeRating(null);
@@ -2909,18 +3476,30 @@ function FeedbackTab({
       )}
 
       {(feedback as PatientFeedback[]).length === 0 ? (
-        <Text size="sm" c="dimmed" ta="center" py="md">No feedback collected yet.</Text>
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          No feedback collected yet.
+        </Text>
       ) : (
         <Stack gap="sm">
           {(feedback as PatientFeedback[]).map((fb) => (
             <Card key={fb.id} padding="sm" radius="md" withBorder>
               <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">{new Date(fb.submitted_at).toLocaleDateString()}</Text>
-                {fb.is_anonymous && <Badge size="xs" variant="light">Anonymous</Badge>}
+                <Text size="sm" c="dimmed">
+                  {new Date(fb.submitted_at).toLocaleDateString()}
+                </Text>
+                {fb.is_anonymous && (
+                  <Badge size="xs" variant="light">
+                    Anonymous
+                  </Badge>
+                )}
               </Group>
               <Group gap="md" mb="xs">
                 {fb.rating != null && (
-                  <Badge color={ratingColor(fb.rating)} size="sm" leftSection={<IconStar size={10} />}>
+                  <Badge
+                    color={ratingColor(fb.rating)}
+                    size="sm"
+                    leftSection={<IconStar size={10} />}
+                  >
                     Overall: {fb.rating}/5
                   </Badge>
                 )}
@@ -2941,18 +3520,42 @@ function FeedbackTab({
                 )}
               </Group>
               {fb.overall_experience && <Text size="sm">{fb.overall_experience}</Text>}
-              {fb.suggestions && <Text size="sm" c="dimmed" fs="italic">Suggestion: {fb.suggestions}</Text>}
+              {fb.suggestions && (
+                <Text size="sm" c="dimmed" fs="italic">
+                  Suggestion: {fb.suggestions}
+                </Text>
+              )}
             </Card>
           ))}
         </Stack>
       )}
 
-      <Modal opened={showForm} onClose={() => setShowForm(false)} title="Collect Patient Feedback" size="md">
+      <Modal
+        opened={showForm}
+        onClose={() => setShowForm(false)}
+        title="Collect Patient Feedback"
+        size="md"
+      >
         <Stack gap="sm">
           <Select label="Overall Rating" data={ratingOptions} value={rating} onChange={setRating} />
-          <Select label="Wait Time" data={ratingOptions} value={waitTimeRating} onChange={setWaitTimeRating} />
-          <Select label="Staff Courtesy" data={ratingOptions} value={staffRating} onChange={setStaffRating} />
-          <Select label="Cleanliness" data={ratingOptions} value={cleanlinessRating} onChange={setCleanlinessRating} />
+          <Select
+            label="Wait Time"
+            data={ratingOptions}
+            value={waitTimeRating}
+            onChange={setWaitTimeRating}
+          />
+          <Select
+            label="Staff Courtesy"
+            data={ratingOptions}
+            value={staffRating}
+            onChange={setStaffRating}
+          />
+          <Select
+            label="Cleanliness"
+            data={ratingOptions}
+            value={cleanlinessRating}
+            onChange={setCleanlinessRating}
+          />
           <Textarea
             label="Overall Experience"
             value={experience}
@@ -2968,7 +3571,9 @@ function FeedbackTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="subtle" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleCreate} loading={createMutation.isPending}>
               Submit Feedback
             </Button>
@@ -3038,7 +3643,11 @@ function ConsentsTab({
     mutationFn: (id: string) => api.signProcedureConsent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
-      notifications.show({ title: "Consent signed", message: "Consent has been signed", color: "success" });
+      notifications.show({
+        title: "Consent signed",
+        message: "Consent has been signed",
+        color: "success",
+      });
     },
   });
 
@@ -3077,7 +3686,9 @@ function ConsentsTab({
       )}
 
       {(consents as ProcedureConsent[]).length === 0 ? (
-        <Text size="sm" c="dimmed" ta="center" py="md">No consents recorded.</Text>
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          No consents recorded.
+        </Text>
       ) : (
         <Table striped withTableBorder>
           <Table.Thead>
@@ -3094,7 +3705,11 @@ function ConsentsTab({
             {(consents as ProcedureConsent[]).map((c) => (
               <Table.Tr key={c.id}>
                 <Table.Td>{c.procedure_name}</Table.Td>
-                <Table.Td><Badge variant="light" size="sm">{c.consent_type.replace(/_/g, " ")}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {c.consent_type.replace(/_/g, " ")}
+                  </Badge>
+                </Table.Td>
                 <Table.Td>
                   <Badge color={consentStatusColors[c.status] ?? "slate"} size="sm">
                     {c.status}
@@ -3122,7 +3737,12 @@ function ConsentsTab({
         </Table>
       )}
 
-      <Modal opened={showForm} onClose={() => setShowForm(false)} title="New Procedure Consent" size="lg">
+      <Modal
+        opened={showForm}
+        onClose={() => setShowForm(false)}
+        title="New Procedure Consent"
+        size="lg"
+      >
         <Stack gap="sm">
           <TextInput
             label="Procedure Name"
@@ -3175,7 +3795,9 @@ function ConsentsTab({
             onChange={(e) => setWitnessName(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="subtle" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
@@ -3195,7 +3817,9 @@ function ConsentsTab({
 
 function DocketTab() {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  const [selectedDate, setSelectedDate] = useState(
+    () => new Date().toISOString().split("T")[0] ?? "",
+  );
 
   const { data: docket, isLoading } = useQuery({
     queryKey: ["docket", selectedDate],
@@ -3207,7 +3831,11 @@ function DocketTab() {
     mutationFn: (date?: string) => api.generateDoctorDocket(date),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["docket", selectedDate] });
-      notifications.show({ title: "Docket generated", message: `Summary for ${selectedDate}`, color: "success" });
+      notifications.show({
+        title: "Docket generated",
+        message: `Summary for ${selectedDate}`,
+        color: "success",
+      });
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to generate docket", color: "danger" });
@@ -3238,7 +3866,9 @@ function DocketTab() {
       </Group>
 
       {isLoading ? (
-        <Text size="sm" c="dimmed">Loading...</Text>
+        <Text size="sm" c="dimmed">
+          Loading...
+        </Text>
       ) : d ? (
         <Card padding="md" radius="md" withBorder>
           <Text size="lg" fw={600} mb="sm">
@@ -3248,23 +3878,41 @@ function DocketTab() {
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td fw={500}>Total Patients</Table.Td>
-                <Table.Td><Badge size="lg">{d.total_patients}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge size="lg">{d.total_patients}</Badge>
+                </Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td fw={500}>New Patients</Table.Td>
-                <Table.Td><Badge color="primary" size="lg">{d.new_patients}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge color="primary" size="lg">
+                    {d.new_patients}
+                  </Badge>
+                </Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td fw={500}>Follow-ups</Table.Td>
-                <Table.Td><Badge color="teal" size="lg">{d.follow_ups}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge color="teal" size="lg">
+                    {d.follow_ups}
+                  </Badge>
+                </Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td fw={500}>Referrals Made</Table.Td>
-                <Table.Td><Badge color="orange" size="lg">{d.referrals_made}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge color="orange" size="lg">
+                    {d.referrals_made}
+                  </Badge>
+                </Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td fw={500}>Procedures Done</Table.Td>
-                <Table.Td><Badge color="violet" size="lg">{d.procedures_done}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge color="violet" size="lg">
+                    {d.procedures_done}
+                  </Badge>
+                </Table.Td>
               </Table.Tr>
             </Table.Tbody>
           </Table>
@@ -3310,7 +3958,11 @@ function PreAuthTab({
     mutationFn: (data: CreatePreAuthRequest) => api.createPreAuthRequest(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pre-auth", patientId] });
-      notifications.show({ title: "Submitted", message: "Pre-authorization request submitted", color: "success" });
+      notifications.show({
+        title: "Submitted",
+        message: "Pre-authorization request submitted",
+        color: "success",
+      });
       close();
       setInsurer("");
       setPolicyNo("");
@@ -3337,11 +3989,16 @@ function PreAuthTab({
 
   const statusColor = (s: string) => {
     switch (s) {
-      case "approved": return "success";
-      case "denied": return "danger";
-      case "submitted": return "primary";
-      case "expired": return "gray";
-      default: return "warning";
+      case "approved":
+        return "success";
+      case "denied":
+        return "danger";
+      case "submitted":
+        return "primary";
+      case "expired":
+        return "gray";
+      default:
+        return "warning";
     }
   };
 
@@ -3371,13 +4028,33 @@ function PreAuthTab({
           <Table.Tbody>
             {(requests as PreAuthReqType[]).map((r) => (
               <Table.Tr key={r.id}>
-                <Table.Td><Text size="sm" fw={500}>{r.insurance_provider}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.policy_number ?? "—"}</Text></Table.Td>
-                <Table.Td><Badge color={statusColor(r.status)} size="sm">{r.status}</Badge></Table.Td>
-                <Table.Td><Text size="sm">{r.auth_number ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.approved_amount ? `₹${r.approved_amount}` : "—"}</Text></Table.Td>
-                <Table.Td><Text size="sm">{r.valid_until ?? "—"}</Text></Table.Td>
-                <Table.Td><Text size="xs" c="dimmed">{new Date(r.created_at).toLocaleDateString()}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {r.insurance_provider}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.policy_number ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={statusColor(r.status)} size="sm">
+                    {r.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.auth_number ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.approved_amount ? `₹${r.approved_amount}` : "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.valid_until ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" c="dimmed">
+                    {new Date(r.created_at).toLocaleDateString()}
+                  </Text>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -3390,15 +4067,53 @@ function PreAuthTab({
 
       <Modal opened={opened} onClose={close} title="New Pre-Authorization Request" size="md">
         <Stack gap="sm">
-          <TextInput label="Insurance Provider" placeholder="e.g. Star Health" value={insurer} onChange={(e) => setInsurer(e.currentTarget.value)} required />
-          <TextInput label="Policy Number" placeholder="Optional" value={policyNo} onChange={(e) => setPolicyNo(e.currentTarget.value)} />
-          <TextInput label="Procedure Codes" placeholder="Comma-separated" value={procCodes} onChange={(e) => setProcCodes(e.currentTarget.value)} />
-          <TextInput label="Diagnosis Codes" placeholder="Comma-separated ICD-10 codes" value={diagCodes} onChange={(e) => setDiagCodes(e.currentTarget.value)} />
-          <TextInput label="Estimated Cost (₹)" placeholder="Optional" value={estCost} onChange={(e) => setEstCost(e.currentTarget.value)} />
-          <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} autosize minRows={2} />
+          <TextInput
+            label="Insurance Provider"
+            placeholder="e.g. Star Health"
+            value={insurer}
+            onChange={(e) => setInsurer(e.currentTarget.value)}
+            required
+          />
+          <TextInput
+            label="Policy Number"
+            placeholder="Optional"
+            value={policyNo}
+            onChange={(e) => setPolicyNo(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Procedure Codes"
+            placeholder="Comma-separated"
+            value={procCodes}
+            onChange={(e) => setProcCodes(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Diagnosis Codes"
+            placeholder="Comma-separated ICD-10 codes"
+            value={diagCodes}
+            onChange={(e) => setDiagCodes(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Estimated Cost (₹)"
+            placeholder="Optional"
+            value={estCost}
+            onChange={(e) => setEstCost(e.currentTarget.value)}
+          />
+          <Textarea
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={close}>Cancel</Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={!insurer.trim()}>
+            <Button variant="subtle" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={!insurer.trim()}
+            >
               Submit Request
             </Button>
           </Group>
@@ -3434,7 +4149,11 @@ function ReferralTrackingTab() {
     {
       key: "patient_name",
       label: "Patient",
-      render: (row: ReferralTrackingRow) => <Text size="sm" fw={500}>{row.patient_name}</Text>,
+      render: (row: ReferralTrackingRow) => (
+        <Text size="sm" fw={500}>
+          {row.patient_name}
+        </Text>
+      ),
     },
     {
       key: "from_department",
@@ -3449,7 +4168,9 @@ function ReferralTrackingTab() {
     {
       key: "referral_date",
       label: "Date",
-      render: (row: ReferralTrackingRow) => <Text size="sm">{new Date(row.referral_date).toLocaleDateString()}</Text>,
+      render: (row: ReferralTrackingRow) => (
+        <Text size="sm">{new Date(row.referral_date).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "status",
@@ -3464,14 +4185,18 @@ function ReferralTrackingTab() {
       key: "acknowledged_at",
       label: "Acknowledged",
       render: (row: ReferralTrackingRow) => (
-        <Text size="sm">{row.acknowledged_at ? new Date(row.acknowledged_at).toLocaleString() : "---"}</Text>
+        <Text size="sm">
+          {row.acknowledged_at ? new Date(row.acknowledged_at).toLocaleString() : "---"}
+        </Text>
       ),
     },
     {
       key: "completed_at",
       label: "Completed",
       render: (row: ReferralTrackingRow) => (
-        <Text size="sm">{row.completed_at ? new Date(row.completed_at).toLocaleString() : "---"}</Text>
+        <Text size="sm">
+          {row.completed_at ? new Date(row.completed_at).toLocaleString() : "---"}
+        </Text>
       ),
     },
   ];
@@ -3516,7 +4241,11 @@ function FollowupComplianceTab() {
     {
       key: "patient_name",
       label: "Patient",
-      render: (row: FollowupComplianceRow) => <Text size="sm" fw={500}>{row.patient_name}</Text>,
+      render: (row: FollowupComplianceRow) => (
+        <Text size="sm" fw={500}>
+          {row.patient_name}
+        </Text>
+      ),
     },
     {
       key: "department",
@@ -3526,18 +4255,26 @@ function FollowupComplianceTab() {
     {
       key: "last_visit_date",
       label: "Last Visit",
-      render: (row: FollowupComplianceRow) => <Text size="sm">{new Date(row.last_visit_date).toLocaleDateString()}</Text>,
+      render: (row: FollowupComplianceRow) => (
+        <Text size="sm">{new Date(row.last_visit_date).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "follow_up_date",
       label: "Scheduled Follow-up",
-      render: (row: FollowupComplianceRow) => <Text size="sm">{new Date(row.follow_up_date).toLocaleDateString()}</Text>,
+      render: (row: FollowupComplianceRow) => (
+        <Text size="sm">{new Date(row.follow_up_date).toLocaleDateString()}</Text>
+      ),
     },
     {
       key: "days_overdue",
       label: "Days Overdue",
       render: (row: FollowupComplianceRow) => (
-        <Badge color={row.days_overdue > 14 ? "danger" : row.days_overdue > 7 ? "orange" : "warning"} variant="filled" size="sm">
+        <Badge
+          color={row.days_overdue > 14 ? "danger" : row.days_overdue > 7 ? "orange" : "warning"}
+          variant="filled"
+          size="sm"
+        >
           {row.days_overdue} days
         </Badge>
       ),
@@ -3546,7 +4283,9 @@ function FollowupComplianceTab() {
 
   return (
     <Stack>
-      <Text size="sm" c="dimmed">Patients with overdue follow-up appointments</Text>
+      <Text size="sm" c="dimmed">
+        Patients with overdue follow-up appointments
+      </Text>
       <DataTable
         columns={columns}
         data={rows}
@@ -3577,7 +4316,13 @@ function WaitTimeBadge({ departmentId, doctorId }: { departmentId?: string; doct
 //  Admit to IPD Modal
 // ══════════════════════════════════════════════════════════
 
-function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; patientName: string }) {
+function AdmitToIpdButton({
+  encounterId,
+  patientName,
+}: {
+  encounterId: string;
+  patientName: string;
+}) {
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
   const [deptId, setDeptId] = useState<string | null>(null);
@@ -3603,7 +4348,10 @@ function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; p
   });
 
   const deptOptions = departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }));
-  const wardOptions = (wards as Array<{ id: string; name: string }>).map((w) => ({ value: w.id, label: w.name }));
+  const wardOptions = (wards as Array<{ id: string; name: string }>).map((w) => ({
+    value: w.id,
+    label: w.name,
+  }));
   const bedOptions = (beds as AvailableBed[]).map((b) => ({
     value: b.bed_id,
     label: `${b.bed_number}${b.ward_name ? ` (${b.ward_name})` : ""}${b.is_isolation ? " [Isolation]" : ""}`,
@@ -3637,7 +4385,13 @@ function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; p
 
   return (
     <>
-      <Button variant="light" color="teal" size="xs" leftSection={<IconMedicalCross size={14} />} onClick={open}>
+      <Button
+        variant="light"
+        color="teal"
+        size="xs"
+        leftSection={<IconMedicalCross size={14} />}
+        onClick={open}
+      >
         Admit to IPD
       </Button>
       <Modal opened={opened} onClose={close} title={`Admit ${patientName} to IPD`} size="md">
@@ -3656,7 +4410,10 @@ function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; p
             placeholder="Select ward (optional)"
             data={wardOptions}
             value={wardId}
-            onChange={(val) => { setWardId(val); setBedId(null); }}
+            onChange={(val) => {
+              setWardId(val);
+              setBedId(null);
+            }}
             searchable
             clearable
           />
@@ -3679,8 +4436,15 @@ function AdmitToIpdButton({ encounterId, patientName }: { encounterId: string; p
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={close}>Cancel</Button>
-            <Button color="teal" onClick={handleAdmit} loading={admitMutation.isPending} disabled={!deptId}>
+            <Button variant="subtle" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              color="teal"
+              onClick={handleAdmit}
+              loading={admitMutation.isPending}
+              disabled={!deptId}
+            >
               Admit Patient
             </Button>
           </Group>
@@ -3722,7 +4486,10 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
 
   const doctorOptions = useMemo(
     () =>
-      allDoctors.map((u) => ({ value: u.id, label: `${u.full_name}${u.specialization ? ` (${u.specialization})` : ""}` })),
+      allDoctors.map((u) => ({
+        value: u.id,
+        label: `${u.full_name}${u.specialization ? ` (${u.specialization})` : ""}`,
+      })),
     [allDoctors],
   );
 
@@ -3736,7 +4503,10 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
   };
 
   const addRow = () => {
-    setRows((prev) => [...prev, { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" }]);
+    setRows((prev) => [
+      ...prev,
+      { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
+    ]);
   };
 
   const removeRow = (idx: number) => {
@@ -3761,11 +4531,17 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
       ]);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to book group appointment", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to book group appointment",
+        color: "danger",
+      });
     },
   });
 
-  const canSubmit = rows.every((r) => r.doctorId && r.departmentId && r.date && r.slotStart && r.slotEnd);
+  const canSubmit = rows.every(
+    (r) => r.doctorId && r.departmentId && r.date && r.slotStart && r.slotEnd,
+  );
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -3795,7 +4571,8 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
       <Modal opened={opened} onClose={close} title="Book Multi-Doctor Appointment" size="lg">
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
-            Book appointments with multiple doctors in a single group. The patient will see all listed doctors.
+            Book appointments with multiple doctors in a single group. The patient will see all
+            listed doctors.
           </Text>
           {rows.map((row, idx) => (
             <Card key={idx} padding="xs" radius="sm" withBorder>
@@ -3854,7 +4631,13 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
                   size="xs"
                 />
                 {rows.length > 2 && (
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeRow(idx)} mt={18}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => removeRow(idx)}
+                    mt={18}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 )}
@@ -3865,8 +4648,14 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
             Add Another Doctor
           </Button>
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={close}>Cancel</Button>
-            <Button onClick={handleSubmit} loading={bookGroupMutation.isPending} disabled={!canSubmit}>
+            <Button variant="subtle" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              loading={bookGroupMutation.isPending}
+              disabled={!canSubmit}
+            >
               Book {rows.length} Appointments
             </Button>
           </Group>

@@ -10,10 +10,10 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { ModuleConfig } from "@medbrains/types";
+import { IconCheck } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Core modules that cannot be disabled by the user.
 // These are fundamental to the system and must always remain enabled.
@@ -37,13 +37,8 @@ export function ModulesSettings() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({
-      code,
-      status,
-    }: {
-      code: string;
-      status: string;
-    }) => api.updateModule(code, { status }),
+    mutationFn: ({ code, status }: { code: string; status: string }) =>
+      api.updateModule(code, { status }),
     onSuccess: (updated: ModuleConfig) => {
       void queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
       const label = updated.status === "enabled" ? "enabled" : "disabled";
@@ -83,8 +78,7 @@ export function ModulesSettings() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load modules:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load modules: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );
@@ -105,8 +99,7 @@ export function ModulesSettings() {
           Modules
         </Text>
         <Text size="sm" c="dimmed">
-          Enable or disable modules based on your hospital's needs. Core modules
-          cannot be disabled.
+          Enable or disable modules based on your hospital's needs. Core modules cannot be disabled.
         </Text>
       </div>
 
@@ -114,9 +107,7 @@ export function ModulesSettings() {
         {modules.map((mod) => {
           const isEnabled = mod.status === "enabled";
           const isCore = isCoreModule(mod);
-          const isPending =
-            toggleMutation.isPending &&
-            toggleMutation.variables?.code === mod.code;
+          const isPending = toggleMutation.isPending && toggleMutation.variables?.code === mod.code;
 
           return (
             <Card key={mod.code} withBorder padding="md" radius="md">
@@ -125,11 +116,7 @@ export function ModulesSettings() {
                   <Text fw={600} size="sm" lineClamp={1}>
                     {mod.name}
                   </Text>
-                  <Badge
-                    color={isEnabled ? "success" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={isEnabled ? "success" : "slate"} variant="light" size="sm">
                     {isEnabled ? "Enabled" : "Disabled"}
                   </Badge>
                 </Group>
@@ -144,20 +131,13 @@ export function ModulesSettings() {
                   {isCore ? (
                     <Tooltip label="Core module — cannot be disabled" withArrow>
                       <div>
-                        <Switch
-                          checked={isEnabled}
-                          disabled
-                          label="Core"
-                          size="sm"
-                        />
+                        <Switch checked={isEnabled} disabled label="Core" size="sm" />
                       </div>
                     </Tooltip>
                   ) : (
                     <Switch
                       checked={isEnabled}
-                      onChange={(e) =>
-                        handleToggle(mod, e.currentTarget.checked)
-                      }
+                      onChange={(e) => handleToggle(mod, e.currentTarget.checked)}
                       disabled={isPending}
                       label={isEnabled ? "On" : "Off"}
                       size="sm"

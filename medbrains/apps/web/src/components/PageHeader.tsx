@@ -1,5 +1,7 @@
 import { Anchor, Breadcrumbs, Card, Group, Text, ThemeIcon, Title } from "@mantine/core";
+import { Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
+import { AnimatedIcon } from "./AnimatedIcon";
 import styles from "./page-header.module.scss";
 
 interface BreadcrumbItem {
@@ -29,6 +31,7 @@ export function PageHeader({
   return (
     <div className={styles.wrapper}>
       <Card className={styles.card} padding={0} radius="md" shadow="xs">
+        <div className={styles.headerGlow} />
         {color ? (
           <div
             className={styles.accentBarColored}
@@ -61,12 +64,24 @@ export function PageHeader({
             <div className={styles.titleGroup}>
               {icon && (
                 <ThemeIcon
+                  className={styles.iconTile}
                   variant="light"
                   color={color ?? "primary"}
                   size={40}
                   radius="lg"
                 >
-                  {icon}
+                  <span className={styles.iconMotion}>{icon}</span>
+                </ThemeIcon>
+              )}
+              {!icon && (
+                <ThemeIcon
+                  className={styles.iconTile}
+                  variant="light"
+                  color={color ?? "primary"}
+                  size={40}
+                  radius="lg"
+                >
+                  <AnimatedIcon icon={Sparkles} size={19} motion="spark" />
                 </ThemeIcon>
               )}
               <div className={styles.textBlock}>
@@ -85,7 +100,11 @@ export function PageHeader({
                 )}
               </div>
             </div>
-            {actions && <Group gap="xs">{actions}</Group>}
+            {actions && (
+              <Group gap="xs" className={styles.actions}>
+                {actions}
+              </Group>
+            )}
           </div>
         </div>
       </Card>

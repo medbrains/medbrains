@@ -1,0 +1,459 @@
+# `lab.tsx` walkthrough
+
+_Source: [`apps/web/src/pages/lab.tsx`](../../../apps/web/src/pages/lab.tsx) (4312 lines). Guard: `P.LAB.ORDERS_LIST`. API methods: 60. useForm: 0. Tables: 19. Modals: 2._
+
+Tick each box that **works as expected** when you walk the page in a browser. Anything you can't tick → file in `../issues.md` with the line number, then fix and come back to tick it. Severity rubric: **P0** blocks core flow, **P1** broken UX with workaround, **P2** cosmetic.
+
+## Page-level
+
+- [ ] Page renders without `console.error`
+- [ ] Network tab shows no 4xx/5xx on initial load
+- [ ] Desktop viewport has no overlapping text, clipped buttons, or broken table layout
+- [ ] Mobile/tablet viewport has no overlapping text, clipped buttons, or unusable controls
+- [ ] Permission guard `P.LAB.ORDERS_LIST` redirects unauthorised user to /dashboard
+- [ ] Loading skeleton / spinner shown while data loads
+- [ ] Empty state visible when there are zero rows
+- [ ] Page title in browser tab is correct
+- [ ] Breadcrumb / nav highlights this page
+
+## Tabs
+
+- [ ] Tab **Reagent Lots** (`reagent-lots`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Reagent Lots** (`reagent-lots`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Reagent Lots** (`reagent-lots`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **QC Results** (`qc-results`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **QC Results** (`qc-results`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **QC Results** (`qc-results`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Calibrations** (`calibrations`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Calibrations** (`calibrations`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Calibrations** (`calibrations`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **EQAS** (`eqas`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **EQAS** (`eqas`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **EQAS** (`eqas`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Proficiency Testing** (`proficiency`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Proficiency Testing** (`proficiency`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Proficiency Testing** (`proficiency`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **NABL Documents** (`nabl`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **NABL Documents** (`nabl`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **NABL Documents** (`nabl`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Reagent Consumption** (`consumption`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Reagent Consumption** (`consumption`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Reagent Consumption** (`consumption`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **}>
+            TAT Analytics** (`tat-analytics`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **}>
+            TAT Analytics** (`tat-analytics`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **}>
+            TAT Analytics** (`tat-analytics`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Home Collections** (`home-collections`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Home Collections** (`home-collections`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Home Collections** (`home-collections`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Collection Centers** (`collection-centers`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Collection Centers** (`collection-centers`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Collection Centers** (`collection-centers`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Sample Archive** (`sample-archive`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Sample Archive** (`sample-archive`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Sample Archive** (`sample-archive`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Histopathology** (`histopath`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Histopathology** (`histopath`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Histopathology** (`histopath`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Cytology** (`cytology`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Cytology** (`cytology`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Cytology** (`cytology`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Molecular / PCR** (`molecular`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Molecular / PCR** (`molecular`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Molecular / PCR** (`molecular`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Clients** (`clients`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Clients** (`clients`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Clients** (`clients`) — leaving and returning preserves or intentionally resets state
+- [ ] Tab **Rate Management** (`rates`) — clicking activates the panel + loads its data without console error
+- [ ] Tab **Rate Management** (`rates`) — all visible filters/actions inside the tab produce a visible result
+- [ ] Tab **Rate Management** (`rates`) — leaving and returning preserves or intentionally resets state
+
+## Tables / lists
+
+### DataTable columns (118)
+- [ ] Column **Patient** (`patient_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Test** (`test_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Priority** (`priority`) renders without `undefined` / `[object Object]`
+- [ ] Column **Status** (`status`) renders without `undefined` / `[object Object]`
+- [ ] Column **Report** (`report_status`) renders without `undefined` / `[object Object]`
+- [ ] Column **Ordered** (`created_at`) renders without `undefined` / `[object Object]`
+- [ ] Column **Actions** (`actions`) renders without `undefined` / `[object Object]`
+- [ ] Column **Code** (`code`) renders without `undefined` / `[object Object]`
+- [ ] Column **Name** (`name`) renders without `undefined` / `[object Object]`
+- [ ] Column **Sample** (`sample_type`) renders without `undefined` / `[object Object]`
+- [ ] Column **LOINC** (`loinc_code`) renders without `undefined` / `[object Object]`
+- [ ] Column **Price** (`price`) renders without `undefined` / `[object Object]`
+- [ ] Column **TAT** (`tat_hours`) renders without `undefined` / `[object Object]`
+- [ ] Column **Critical Range** (`critical`) renders without `undefined` / `[object Object]`
+- [ ] Column **Active** (`is_active`) renders without `undefined` / `[object Object]`
+- [ ] Column **Code** (`code`) renders without `undefined` / `[object Object]`
+- [ ] Column **Name** (`name`) renders without `undefined` / `[object Object]`
+- [ ] Column **Description** (`description`) renders without `undefined` / `[object Object]`
+- [ ] Column **Price** (`price`) renders without `undefined` / `[object Object]`
+- [ ] Column **Active** (`is_active`) renders without `undefined` / `[object Object]`
+- [ ] Column **Actions** (`actions`) renders without `undefined` / `[object Object]`
+- [ ] Column **Patient** (`patient_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Order** (`order_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Priority** (`priority`) renders without `undefined` / `[object Object]`
+- [ ] Column **Status** (`status`) renders without `undefined` / `[object Object]`
+- [ ] Column **Queued** (`queued_at`) renders without `undefined` / `[object Object]`
+- [ ] Column **Actions** (`actions`) renders without `undefined` / `[object Object]`
+- [ ] Column **Reagent** (`reagent_name`) renders without `undefined` / `[object Object]`
+- [ ] Column **Lot #** (`lot_number`) renders without `undefined` / `[object Object]`
+- [ ] Column **Manufacturer** (`manufacturer`) renders without `undefined` / `[object Object]`
+- [ ] Column **Expiry** (`expiry_date`) renders without `undefined` / `[object Object]`
+- [ ] Column **Qty** (`quantity`) renders without `undefined` / `[object Object]`
+- [ ] Column **Active** (`is_active`) renders without `undefined` / `[object Object]`
+- [ ] Column **Test** (`test_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Level** (`level`) renders without `undefined` / `[object Object]`
+- [ ] Column **Observed** (`observed_value`) renders without `undefined` / `[object Object]`
+- [ ] Column **SD Index** (`sd_index`) renders without `undefined` / `[object Object]`
+- [ ] Column **Status** (`status`) renders without `undefined` / `[object Object]`
+- [ ] Column **Westgard** (`westgard`) renders without `undefined` / `[object Object]`
+- [ ] Column **Run Date** (`run_date`) renders without `undefined` / `[object Object]`
+- [ ] Column **Test** (`test_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **Instrument** (`instrument_name`) renders without `undefined` / `[object Object]`
+- [ ] Column **Calibrator Lot** (`calibrator_lot`) renders without `undefined` / `[object Object]`
+- [ ] Column **Date** (`calibration_date`) renders without `undefined` / `[object Object]`
+- [ ] Column **Next** (`next_calibration_date`) renders without `undefined` / `[object Object]`
+- [ ] Column **Passed** (`is_passed`) renders without `undefined` / `[object Object]`
+- [ ] Column **Order** (`order_id`) renders without `undefined` / `[object Object]`
+- [ ] Column **External Lab** (`external_lab_name`) renders without `undefined` / `[object Object]`
+- [ ] Column **Status** (`status`) renders without `undefined` / `[object Object]`
+- [ ] Column **Sent** (`sent_date`) renders without `undefined` / `[object Object]`
+- [ ] _… 68 more columns — review remaining_
+
+### `<Table>` @ line 953
+  - [ ] Header **Parameter** column shows correct value for at least one row
+  - [ ] Header **Value** column shows correct value for at least one row
+  - [ ] Header **Unit** column shows correct value for at least one row
+  - [ ] Header **Range** column shows correct value for at least one row
+  - [ ] Header **Flag** column shows correct value for at least one row
+  - [ ] Header **Delta** column shows correct value for at least one row
+  - [ ] Header **Auto-Validate** column shows correct value for at least one row
+  - [ ] Header **Amend** column shows correct value for at least one row
+  - [ ] Sortable column actually sorts (if interactive)
+  - [ ] Pagination / load-more works (if applicable)
+
+## Modals / Drawers
+
+### Drawer — _<drawer @ line 481>_ @ [line 481](../../../apps/web/src/pages/lab.tsx#L481)
+- [ ] Opens on trigger
+- [ ] All inner tabs activate without error
+- [ ] Submit returns 2xx and toast confirms
+- [ ] Closes via Esc + Cancel + ✕
+
+### Drawer — _<drawer @ line 589>_ @ [line 589](../../../apps/web/src/pages/lab.tsx#L589)
+- [ ] Opens on trigger
+- [ ] All inner tabs activate without error
+- [ ] Submit returns 2xx and toast confirms
+- [ ] Closes via Esc + Cancel + ✕
+
+## Form inputs (130)
+
+- [ ] **<Select @ line 395>** (`Select`, [line 395](../../../apps/web/src/pages/lab.tsx#L395)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 410>** (`Select`, [line 410](../../../apps/web/src/pages/lab.tsx#L410)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 605>** (`Select`, [line 605](../../../apps/web/src/pages/lab.tsx#L605)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 615>** (`TextInput`, [line 615](../../../apps/web/src/pages/lab.tsx#L615)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 892>** (`TextInput`, [line 892](../../../apps/web/src/pages/lab.tsx#L892)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1040>** (`TextInput`, [line 1040](../../../apps/web/src/pages/lab.tsx#L1040)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1046>** (`TextInput`, [line 1046](../../../apps/web/src/pages/lab.tsx#L1046)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1093>** (`TextInput`, [line 1093](../../../apps/web/src/pages/lab.tsx#L1093)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1102>** (`TextInput`, [line 1102](../../../apps/web/src/pages/lab.tsx#L1102)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1111>** (`TextInput`, [line 1111](../../../apps/web/src/pages/lab.tsx#L1111)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 1119>** (`Select`, [line 1119](../../../apps/web/src/pages/lab.tsx#L1119)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1175>** (`TextInput`, [line 1175](../../../apps/web/src/pages/lab.tsx#L1175)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1296>** (`TextInput`, [line 1296](../../../apps/web/src/pages/lab.tsx#L1296)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1301>** (`TextInput`, [line 1301](../../../apps/web/src/pages/lab.tsx#L1301)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 1308>** (`Select`, [line 1308](../../../apps/web/src/pages/lab.tsx#L1308)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1315>** (`TextInput`, [line 1315](../../../apps/web/src/pages/lab.tsx#L1315)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1324>** (`TextInput`, [line 1324](../../../apps/web/src/pages/lab.tsx#L1324)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1329>** (`NumberInput`, [line 1329](../../../apps/web/src/pages/lab.tsx#L1329)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1336>** (`NumberInput`, [line 1336](../../../apps/web/src/pages/lab.tsx#L1336)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1343>** (`TextInput`, [line 1343](../../../apps/web/src/pages/lab.tsx#L1343)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 1348>** (`Select`, [line 1348](../../../apps/web/src/pages/lab.tsx#L1348)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1355>** (`TextInput`, [line 1355](../../../apps/web/src/pages/lab.tsx#L1355)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1364>** (`NumberInput`, [line 1364](../../../apps/web/src/pages/lab.tsx#L1364)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1369>** (`NumberInput`, [line 1369](../../../apps/web/src/pages/lab.tsx#L1369)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1374>** (`NumberInput`, [line 1374](../../../apps/web/src/pages/lab.tsx#L1374)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1492>** (`TextInput`, [line 1492](../../../apps/web/src/pages/lab.tsx#L1492)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1498>** (`TextInput`, [line 1498](../../../apps/web/src/pages/lab.tsx#L1498)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1506>** (`TextInput`, [line 1506](../../../apps/web/src/pages/lab.tsx#L1506)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1512>** (`NumberInput`, [line 1512](../../../apps/web/src/pages/lab.tsx#L1512)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1818>** (`TextInput`, [line 1818](../../../apps/web/src/pages/lab.tsx#L1818)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1823>** (`TextInput`, [line 1823](../../../apps/web/src/pages/lab.tsx#L1823)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1830>** (`TextInput`, [line 1830](../../../apps/web/src/pages/lab.tsx#L1830)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1842>** (`TextInput`, [line 1842](../../../apps/web/src/pages/lab.tsx#L1842)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1849>** (`NumberInput`, [line 1849](../../../apps/web/src/pages/lab.tsx#L1849)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1855>** (`TextInput`, [line 1855](../../../apps/web/src/pages/lab.tsx#L1855)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1979>** (`TextInput`, [line 1979](../../../apps/web/src/pages/lab.tsx#L1979)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 1984>** (`TextInput`, [line 1984](../../../apps/web/src/pages/lab.tsx#L1984)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1992>** (`NumberInput`, [line 1992](../../../apps/web/src/pages/lab.tsx#L1992)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 1997>** (`NumberInput`, [line 1997](../../../apps/web/src/pages/lab.tsx#L1997)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 2002>** (`NumberInput`, [line 2002](../../../apps/web/src/pages/lab.tsx#L2002)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2008>** (`TextInput`, [line 2008](../../../apps/web/src/pages/lab.tsx#L2008)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 2101>** (`Select`, [line 2101](../../../apps/web/src/pages/lab.tsx#L2101)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2240>** (`TextInput`, [line 2240](../../../apps/web/src/pages/lab.tsx#L2240)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2246>** (`TextInput`, [line 2246](../../../apps/web/src/pages/lab.tsx#L2246)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2254>** (`TextInput`, [line 2254](../../../apps/web/src/pages/lab.tsx#L2254)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2261>** (`TextInput`, [line 2261](../../../apps/web/src/pages/lab.tsx#L2261)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2406>** (`TextInput`, [line 2406](../../../apps/web/src/pages/lab.tsx#L2406)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2411>** (`TextInput`, [line 2411](../../../apps/web/src/pages/lab.tsx#L2411)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2418>** (`TextInput`, [line 2418](../../../apps/web/src/pages/lab.tsx#L2418)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2424>** (`TextInput`, [line 2424](../../../apps/web/src/pages/lab.tsx#L2424)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2429>** (`TextInput`, [line 2429](../../../apps/web/src/pages/lab.tsx#L2429)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 2437>** (`NumberInput`, [line 2437](../../../apps/web/src/pages/lab.tsx#L2437)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2603>** (`TextInput`, [line 2603](../../../apps/web/src/pages/lab.tsx#L2603)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2609>** (`TextInput`, [line 2609](../../../apps/web/src/pages/lab.tsx#L2609)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2618>** (`TextInput`, [line 2618](../../../apps/web/src/pages/lab.tsx#L2618)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2624>** (`TextInput`, [line 2624](../../../apps/web/src/pages/lab.tsx#L2624)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2628>** (`TextInput`, [line 2628](../../../apps/web/src/pages/lab.tsx#L2628)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2633>** (`TextInput`, [line 2633](../../../apps/web/src/pages/lab.tsx#L2633)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2738>** (`TextInput`, [line 2738](../../../apps/web/src/pages/lab.tsx#L2738)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2743>** (`TextInput`, [line 2743](../../../apps/web/src/pages/lab.tsx#L2743)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 2748>** (`Select`, [line 2748](../../../apps/web/src/pages/lab.tsx#L2748)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2758>** (`TextInput`, [line 2758](../../../apps/web/src/pages/lab.tsx#L2758)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2762>** (`TextInput`, [line 2762](../../../apps/web/src/pages/lab.tsx#L2762)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2766>** (`TextInput`, [line 2766](../../../apps/web/src/pages/lab.tsx#L2766)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2879>** (`TextInput`, [line 2879](../../../apps/web/src/pages/lab.tsx#L2879)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 2889>** (`TextInput`, [line 2889](../../../apps/web/src/pages/lab.tsx#L2889)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3007>** (`TextInput`, [line 3007](../../../apps/web/src/pages/lab.tsx#L3007)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3012>** (`TextInput`, [line 3012](../../../apps/web/src/pages/lab.tsx#L3012)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3016>** (`TextInput`, [line 3016](../../../apps/web/src/pages/lab.tsx#L3016)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3022>** (`NumberInput`, [line 3022](../../../apps/web/src/pages/lab.tsx#L3022)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3027>** (`NumberInput`, [line 3027](../../../apps/web/src/pages/lab.tsx#L3027)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3032>** (`Select`, [line 3032](../../../apps/web/src/pages/lab.tsx#L3032)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3041>** (`NumberInput`, [line 3041](../../../apps/web/src/pages/lab.tsx#L3041)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3046>** (`NumberInput`, [line 3046](../../../apps/web/src/pages/lab.tsx#L3046)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3051>** (`TextInput`, [line 3051](../../../apps/web/src/pages/lab.tsx#L3051)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3163>** (`TextInput`, [line 3163](../../../apps/web/src/pages/lab.tsx#L3163)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3168>** (`TextInput`, [line 3168](../../../apps/web/src/pages/lab.tsx#L3168)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3174>** (`TextInput`, [line 3174](../../../apps/web/src/pages/lab.tsx#L3174)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3180>** (`NumberInput`, [line 3180](../../../apps/web/src/pages/lab.tsx#L3180)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3185>** (`NumberInput`, [line 3185](../../../apps/web/src/pages/lab.tsx#L3185)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3192>** (`NumberInput`, [line 3192](../../../apps/web/src/pages/lab.tsx#L3192)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3197>** (`NumberInput`, [line 3197](../../../apps/web/src/pages/lab.tsx#L3197)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3301>** (`TextInput`, [line 3301](../../../apps/web/src/pages/lab.tsx#L3301)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3306>** (`TextInput`, [line 3306](../../../apps/web/src/pages/lab.tsx#L3306)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3311>** (`Select`, [line 3311](../../../apps/web/src/pages/lab.tsx#L3311)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3320>** (`TextInput`, [line 3320](../../../apps/web/src/pages/lab.tsx#L3320)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3324>** (`TextInput`, [line 3324](../../../apps/web/src/pages/lab.tsx#L3324)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3331>** (`TextInput`, [line 3331](../../../apps/web/src/pages/lab.tsx#L3331)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3577>** (`TextInput`, [line 3577](../../../apps/web/src/pages/lab.tsx#L3577)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3628>** (`TextInput`, [line 3628](../../../apps/web/src/pages/lab.tsx#L3628)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3638>** (`Select`, [line 3638](../../../apps/web/src/pages/lab.tsx#L3638)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Textarea @ line 3646>** (`Textarea`, [line 3646](../../../apps/web/src/pages/lab.tsx#L3646)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Textarea @ line 3654>** (`Textarea`, [line 3654](../../../apps/web/src/pages/lab.tsx#L3654)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Textarea @ line 3662>** (`Textarea`, [line 3662](../../../apps/web/src/pages/lab.tsx#L3662)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3671>** (`TextInput`, [line 3671](../../../apps/web/src/pages/lab.tsx#L3671)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3675>** (`TextInput`, [line 3675](../../../apps/web/src/pages/lab.tsx#L3675)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3679>** (`NumberInput`, [line 3679](../../../apps/web/src/pages/lab.tsx#L3679)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3729>** (`TextInput`, [line 3729](../../../apps/web/src/pages/lab.tsx#L3729)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3776>** (`TextInput`, [line 3776](../../../apps/web/src/pages/lab.tsx#L3776)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3786>** (`Select`, [line 3786](../../../apps/web/src/pages/lab.tsx#L3786)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3794>** (`TextInput`, [line 3794](../../../apps/web/src/pages/lab.tsx#L3794)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3801>** (`TextInput`, [line 3801](../../../apps/web/src/pages/lab.tsx#L3801)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3805>** (`Select`, [line 3805](../../../apps/web/src/pages/lab.tsx#L3805)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Textarea @ line 3821>** (`Textarea`, [line 3821](../../../apps/web/src/pages/lab.tsx#L3821)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3830>** (`TextInput`, [line 3830](../../../apps/web/src/pages/lab.tsx#L3830)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3834>** (`TextInput`, [line 3834](../../../apps/web/src/pages/lab.tsx#L3834)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3883>** (`TextInput`, [line 3883](../../../apps/web/src/pages/lab.tsx#L3883)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3930>** (`TextInput`, [line 3930](../../../apps/web/src/pages/lab.tsx#L3930)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3940>** (`Select`, [line 3940](../../../apps/web/src/pages/lab.tsx#L3940)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3950>** (`TextInput`, [line 3950](../../../apps/web/src/pages/lab.tsx#L3950)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3956>** (`NumberInput`, [line 3956](../../../apps/web/src/pages/lab.tsx#L3956)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 3961>** (`Select`, [line 3961](../../../apps/web/src/pages/lab.tsx#L3961)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3969>** (`TextInput`, [line 3969](../../../apps/web/src/pages/lab.tsx#L3969)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3973>** (`TextInput`, [line 3973](../../../apps/web/src/pages/lab.tsx#L3973)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 3977>** (`NumberInput`, [line 3977](../../../apps/web/src/pages/lab.tsx#L3977)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 3982>** (`TextInput`, [line 3982](../../../apps/web/src/pages/lab.tsx#L3982)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4109>** (`TextInput`, [line 4109](../../../apps/web/src/pages/lab.tsx#L4109)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4114>** (`TextInput`, [line 4114](../../../apps/web/src/pages/lab.tsx#L4114)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 4119>** (`Select`, [line 4119](../../../apps/web/src/pages/lab.tsx#L4119)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4128>** (`TextInput`, [line 4128](../../../apps/web/src/pages/lab.tsx#L4128)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4132>** (`TextInput`, [line 4132](../../../apps/web/src/pages/lab.tsx#L4132)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4136>** (`TextInput`, [line 4136](../../../apps/web/src/pages/lab.tsx#L4136)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4140>** (`TextInput`, [line 4140](../../../apps/web/src/pages/lab.tsx#L4140)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 4148>** (`NumberInput`, [line 4148](../../../apps/web/src/pages/lab.tsx#L4148)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 4154>** (`NumberInput`, [line 4154](../../../apps/web/src/pages/lab.tsx#L4154)) — accepts input, default value sensible, persists after refresh
+- [ ] **<Select @ line 4237>** (`Select`, [line 4237](../../../apps/web/src/pages/lab.tsx#L4237)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 4267>** (`NumberInput`, [line 4267](../../../apps/web/src/pages/lab.tsx#L4267)) — accepts input, default value sensible, persists after refresh
+- [ ] **<NumberInput @ line 4273>** (`NumberInput`, [line 4273](../../../apps/web/src/pages/lab.tsx#L4273)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4282>** (`TextInput`, [line 4282](../../../apps/web/src/pages/lab.tsx#L4282)) — accepts input, default value sensible, persists after refresh
+- [ ] **<TextInput @ line 4289>** (`TextInput`, [line 4289](../../../apps/web/src/pages/lab.tsx#L4289)) — accepts input, default value sensible, persists after refresh
+
+## Buttons / actions (`<Button>`: 59, `<ActionIcon>`: 5, `<Menu.Item>`: 0)
+
+- [ ] **<button @ line 345>** ([line 345](../../../apps/web/src/pages/lab.tsx#L345)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 345>** ([line 345](../../../apps/web/src/pages/lab.tsx#L345)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 620>** ([line 620](../../../apps/web/src/pages/lab.tsx#L620)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 620>** ([line 620](../../../apps/web/src/pages/lab.tsx#L620)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 843>** ([line 843](../../../apps/web/src/pages/lab.tsx#L843)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 843>** ([line 843](../../../apps/web/src/pages/lab.tsx#L843)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 866>** ([line 866](../../../apps/web/src/pages/lab.tsx#L866)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 866>** ([line 866](../../../apps/web/src/pages/lab.tsx#L866)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 871>** ([line 871](../../../apps/web/src/pages/lab.tsx#L871)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 871>** ([line 871](../../../apps/web/src/pages/lab.tsx#L871)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 876>** ([line 876](../../../apps/web/src/pages/lab.tsx#L876)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 876>** ([line 876](../../../apps/web/src/pages/lab.tsx#L876)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 881>** ([line 881](../../../apps/web/src/pages/lab.tsx#L881)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 881>** ([line 881](../../../apps/web/src/pages/lab.tsx#L881)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 899>** ([line 899](../../../apps/web/src/pages/lab.tsx#L899)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 899>** ([line 899](../../../apps/web/src/pages/lab.tsx#L899)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 913>** ([line 913](../../../apps/web/src/pages/lab.tsx#L913)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 913>** ([line 913](../../../apps/web/src/pages/lab.tsx#L913)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 923>** ([line 923](../../../apps/web/src/pages/lab.tsx#L923)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 923>** ([line 923](../../../apps/web/src/pages/lab.tsx#L923)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 930>** ([line 930](../../../apps/web/src/pages/lab.tsx#L930)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 930>** ([line 930](../../../apps/web/src/pages/lab.tsx#L930)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 938>** ([line 938](../../../apps/web/src/pages/lab.tsx#L938)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 938>** ([line 938](../../../apps/web/src/pages/lab.tsx#L938)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1053>** ([line 1053](../../../apps/web/src/pages/lab.tsx#L1053)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1053>** ([line 1053](../../../apps/web/src/pages/lab.tsx#L1053)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **setAmendData(null)}>               Cancel** ([line 1067](../../../apps/web/src/pages/lab.tsx#L1067)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **setAmendData(null)}>               Cancel** ([line 1067](../../../apps/web/src/pages/lab.tsx#L1067)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1078>** ([line 1078](../../../apps/web/src/pages/lab.tsx#L1078)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1078>** ([line 1078](../../../apps/web/src/pages/lab.tsx#L1078)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1132>** ([line 1132](../../../apps/web/src/pages/lab.tsx#L1132)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1132>** ([line 1132](../../../apps/web/src/pages/lab.tsx#L1132)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1141>** ([line 1141](../../../apps/web/src/pages/lab.tsx#L1141)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1141>** ([line 1141](../../../apps/web/src/pages/lab.tsx#L1141)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1182>** ([line 1182](../../../apps/web/src/pages/lab.tsx#L1182)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1182>** ([line 1182](../../../apps/web/src/pages/lab.tsx#L1182)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1284>** ([line 1284](../../../apps/web/src/pages/lab.tsx#L1284)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1284>** ([line 1284](../../../apps/web/src/pages/lab.tsx#L1284)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1381>** ([line 1381](../../../apps/web/src/pages/lab.tsx#L1381)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1381>** ([line 1381](../../../apps/web/src/pages/lab.tsx#L1381)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1480>** ([line 1480](../../../apps/web/src/pages/lab.tsx#L1480)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1480>** ([line 1480](../../../apps/web/src/pages/lab.tsx#L1480)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **Add** ([line 1526](../../../apps/web/src/pages/lab.tsx#L1526)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **Add** ([line 1526](../../../apps/web/src/pages/lab.tsx#L1526)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1557>** ([line 1557](../../../apps/web/src/pages/lab.tsx#L1557)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1557>** ([line 1557](../../../apps/web/src/pages/lab.tsx#L1557)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1637>** ([line 1637](../../../apps/web/src/pages/lab.tsx#L1637)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1637>** ([line 1637](../../../apps/web/src/pages/lab.tsx#L1637)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1646>** ([line 1646](../../../apps/web/src/pages/lab.tsx#L1646)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1646>** ([line 1646](../../../apps/web/src/pages/lab.tsx#L1646)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1656>** ([line 1656](../../../apps/web/src/pages/lab.tsx#L1656)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1656>** ([line 1656](../../../apps/web/src/pages/lab.tsx#L1656)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1806>** ([line 1806](../../../apps/web/src/pages/lab.tsx#L1806)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1806>** ([line 1806](../../../apps/web/src/pages/lab.tsx#L1806)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1862>** ([line 1862](../../../apps/web/src/pages/lab.tsx#L1862)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1862>** ([line 1862](../../../apps/web/src/pages/lab.tsx#L1862)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 1962>** ([line 1962](../../../apps/web/src/pages/lab.tsx#L1962)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 1962>** ([line 1962](../../../apps/web/src/pages/lab.tsx#L1962)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2014>** ([line 2014](../../../apps/web/src/pages/lab.tsx#L2014)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2014>** ([line 2014](../../../apps/web/src/pages/lab.tsx#L2014)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2223>** ([line 2223](../../../apps/web/src/pages/lab.tsx#L2223)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2223>** ([line 2223](../../../apps/web/src/pages/lab.tsx#L2223)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2269>** ([line 2269](../../../apps/web/src/pages/lab.tsx#L2269)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2269>** ([line 2269](../../../apps/web/src/pages/lab.tsx#L2269)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2363>** ([line 2363](../../../apps/web/src/pages/lab.tsx#L2363)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2363>** ([line 2363](../../../apps/web/src/pages/lab.tsx#L2363)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2372>** ([line 2372](../../../apps/web/src/pages/lab.tsx#L2372)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2372>** ([line 2372](../../../apps/web/src/pages/lab.tsx#L2372)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2394>** ([line 2394](../../../apps/web/src/pages/lab.tsx#L2394)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2394>** ([line 2394](../../../apps/web/src/pages/lab.tsx#L2394)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2444>** ([line 2444](../../../apps/web/src/pages/lab.tsx#L2444)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2444>** ([line 2444](../../../apps/web/src/pages/lab.tsx#L2444)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2586>** ([line 2586](../../../apps/web/src/pages/lab.tsx#L2586)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2586>** ([line 2586](../../../apps/web/src/pages/lab.tsx#L2586)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2640>** ([line 2640](../../../apps/web/src/pages/lab.tsx#L2640)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2640>** ([line 2640](../../../apps/web/src/pages/lab.tsx#L2640)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2726>** ([line 2726](../../../apps/web/src/pages/lab.tsx#L2726)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2726>** ([line 2726](../../../apps/web/src/pages/lab.tsx#L2726)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2773>** ([line 2773](../../../apps/web/src/pages/lab.tsx#L2773)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2773>** ([line 2773](../../../apps/web/src/pages/lab.tsx#L2773)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2852>** ([line 2852](../../../apps/web/src/pages/lab.tsx#L2852)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2852>** ([line 2852](../../../apps/web/src/pages/lab.tsx#L2852)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2867>** ([line 2867](../../../apps/web/src/pages/lab.tsx#L2867)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2867>** ([line 2867](../../../apps/web/src/pages/lab.tsx#L2867)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2896>** ([line 2896](../../../apps/web/src/pages/lab.tsx#L2896)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2896>** ([line 2896](../../../apps/web/src/pages/lab.tsx#L2896)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 2995>** ([line 2995](../../../apps/web/src/pages/lab.tsx#L2995)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 2995>** ([line 2995](../../../apps/web/src/pages/lab.tsx#L2995)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3059>** ([line 3059](../../../apps/web/src/pages/lab.tsx#L3059)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3059>** ([line 3059](../../../apps/web/src/pages/lab.tsx#L3059)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3151>** ([line 3151](../../../apps/web/src/pages/lab.tsx#L3151)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3151>** ([line 3151](../../../apps/web/src/pages/lab.tsx#L3151)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3203>** ([line 3203](../../../apps/web/src/pages/lab.tsx#L3203)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3203>** ([line 3203](../../../apps/web/src/pages/lab.tsx#L3203)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3289>** ([line 3289](../../../apps/web/src/pages/lab.tsx#L3289)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3289>** ([line 3289](../../../apps/web/src/pages/lab.tsx#L3289)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3339>** ([line 3339](../../../apps/web/src/pages/lab.tsx#L3339)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3339>** ([line 3339](../../../apps/web/src/pages/lab.tsx#L3339)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3616>** ([line 3616](../../../apps/web/src/pages/lab.tsx#L3616)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3616>** ([line 3616](../../../apps/web/src/pages/lab.tsx#L3616)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3685>** ([line 3685](../../../apps/web/src/pages/lab.tsx#L3685)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3685>** ([line 3685](../../../apps/web/src/pages/lab.tsx#L3685)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3764>** ([line 3764](../../../apps/web/src/pages/lab.tsx#L3764)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3764>** ([line 3764](../../../apps/web/src/pages/lab.tsx#L3764)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3839>** ([line 3839](../../../apps/web/src/pages/lab.tsx#L3839)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3839>** ([line 3839](../../../apps/web/src/pages/lab.tsx#L3839)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3918>** ([line 3918](../../../apps/web/src/pages/lab.tsx#L3918)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3918>** ([line 3918](../../../apps/web/src/pages/lab.tsx#L3918)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 3989>** ([line 3989](../../../apps/web/src/pages/lab.tsx#L3989)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 3989>** ([line 3989](../../../apps/web/src/pages/lab.tsx#L3989)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 4097>** ([line 4097](../../../apps/web/src/pages/lab.tsx#L4097)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 4097>** ([line 4097](../../../apps/web/src/pages/lab.tsx#L4097)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 4161>** ([line 4161](../../../apps/web/src/pages/lab.tsx#L4161)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 4161>** ([line 4161](../../../apps/web/src/pages/lab.tsx#L4161)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 4250>** ([line 4250](../../../apps/web/src/pages/lab.tsx#L4250)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 4250>** ([line 4250](../../../apps/web/src/pages/lab.tsx#L4250)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] **<button @ line 4297>** ([line 4297](../../../apps/web/src/pages/lab.tsx#L4297)) — click path works: disabled state correct, expected API/nav/modal/toast fires, and final row/status/value visibly changes
+- [ ] **<button @ line 4297>** ([line 4297](../../../apps/web/src/pages/lab.tsx#L4297)) — failure path works: validation/server error is shown clearly and does not leave stale loading state
+- [ ] Action icon **<action icon @ line 311>** ([line 311](../../../apps/web/src/pages/lab.tsx#L311)) — expected row action works, confirmation appears for destructive action, result is visible after refetch
+- [ ] Action icon **<action icon @ line 999>** ([line 999](../../../apps/web/src/pages/lab.tsx#L999)) — expected row action works, confirmation appears for destructive action, result is visible after refetch
+- [ ] Action icon **<action icon @ line 1015>** ([line 1015](../../../apps/web/src/pages/lab.tsx#L1015)) — expected row action works, confirmation appears for destructive action, result is visible after refetch
+- [ ] Action icon **<action icon @ line 1464>** ([line 1464](../../../apps/web/src/pages/lab.tsx#L1464)) — expected row action works, confirmation appears for destructive action, result is visible after refetch
+- [ ] Action icon **<action icon @ line 1537>** ([line 1537](../../../apps/web/src/pages/lab.tsx#L1537)) — expected row action works, confirmation appears for destructive action, result is visible after refetch
+
+## API methods used (60)
+
+- [ ] `api.acknowledgeCriticalAlert` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.addLabResults` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.addOnLabTest` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.amendLabResult` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.autoValidateResult` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.cancelLabOrder` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.collectSample` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.completeLabOrder` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createB2bClient` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createB2bRate` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createCalibration` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createCollectionCenter` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createCytologyReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createEqasResult` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createHistopathReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createHomeCollection` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createLabCatalogEntry` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createLabOrder` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createLabPanel` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createMolecularReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createNablDocument` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createOutsourcedOrder` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createProficiencyTest` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createQcResult` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createReagentLot` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.createSampleArchive` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.deleteLabPanel` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getCytologyReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getHistopathReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getHomeCollectionStats` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getLabOrder` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getLabTatAnalytics` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getMolecularReport` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getOrderCrossmatch` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.getReagentConsumption` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.listB2bClients` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.listB2bRates` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.listCalibrations` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.listCollectionCenters` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] `api.listCriticalAlerts` — request goes out, 2xx response, no schema mismatch in browser console
+- [ ] _… 20 more methods_
+
+---
+
+_Generated by `scripts/gen_screen_checklist.py`. Re-run after any change to the page to refresh — checkboxes are NOT preserved across regenerations, so commit your ticks before regenerating._

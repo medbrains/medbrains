@@ -32,12 +32,12 @@ provider "aws" {
   region = "ap-south-1"
   default_tags {
     tags = {
-      Project          = "medbrains"
-      Environment      = "test-ephemeral"
-      ManagedBy        = "terraform"
-      Sprint           = "B.7"
+      Project           = "medbrains"
+      Environment       = "test-ephemeral"
+      ManagedBy         = "terraform"
+      Sprint            = "B.7"
       DestroyAfterHours = "2"
-      CostCode         = "engineering-test"
+      CostCode          = "engineering-test"
     }
   }
 }
@@ -120,18 +120,23 @@ resource "aws_s3_bucket_public_access_block" "wal" {
 module "patroni" {
   source = "../../terraform/modules/patroni-cluster"
 
-  region              = data.aws_region.current.name
-  environment         = "test"
-  vpc_id              = data.aws_vpc.default.id
-  private_subnet_ids  = slice(data.aws_subnets.default.ids, 0, 3)
-  kms_key_arn         = aws_kms_key.wal.arn
-  wal_archive_bucket  = aws_s3_bucket.wal.arn
-  instance_type       = "t4g.micro"  # smallest viable for PG+Patroni (~$0.0084/hr × 3); nano OOMs
-  etcd_instance_type  = "t4g.nano"   # smallest possible (~$0.0042/hr × 3)
-  pg_version          = "16"
-  patroni_version     = "3.3"
-  etcd_version        = "3.5"
-  synchronous_replication = true
+  region                    = data.aws_region.current.name
+  environment               = "test"
+  vpc_id                    = data.aws_vpc.default.id
+  private_subnet_ids        = slice(data.aws_subnets.default.ids, 0, 3)
+  kms_key_arn               = aws_kms_key.wal.arn
+  wal_archive_bucket        = aws_s3_bucket.wal.arn
+  instance_type             = "t4g.micro" # smallest viable for PG+Patroni (~$0.0084/hr × 3); nano OOMs
+  etcd_instance_type        = "t4g.nano"  # smallest possible (~$0.0042/hr × 3)
+  pg_version                = "16"
+  patroni_version           = "3.3"
+  etcd_version              = "3.5"
+  cost_profile              = "test"
+  pg_data_volume_size_gb    = 20
+  pg_data_volume_iops       = 3000
+  pg_data_volume_throughput = 125
+  preserve_pg_data_volumes  = false
+  synchronous_replication   = true
 }
 
 # ── Outputs ───────────────────────────────────────────────────────────

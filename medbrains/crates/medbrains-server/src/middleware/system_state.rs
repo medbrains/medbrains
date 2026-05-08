@@ -5,11 +5,11 @@
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §7.
 
 use axum::{
+    Json,
     extract::{Request, State},
     http::{Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -152,7 +152,7 @@ struct SystemStateBlocked {
 }
 
 async fn resolve_mode(state: &AppState, claims: &Claims) -> CachedState {
-    let cache = state.system_state_cache.clone();
+    let cache = Arc::clone(&state.system_state_cache);
     if let Some(c) = cache.read_cached(claims.tenant_id) {
         return c;
     }
@@ -182,13 +182,12 @@ async fn fetch_mode(state: &AppState, tenant_id: Uuid) -> CachedState {
         .execute(&mut *tx)
         .await;
 
-    let row: Option<(String, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
-        "SELECT mode, since, reason FROM system_state WHERE tenant_id = $1 LIMIT 1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .unwrap_or(None);
+    let row: Option<(String, chrono::DateTime<chrono::Utc>, Option<String>)> =
+        sqlx::query_as("SELECT mode, since, reason FROM system_state WHERE tenant_id = $1 LIMIT 1")
+            .bind(tenant_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .unwrap_or(None);
 
     let _ = tx.commit().await;
 

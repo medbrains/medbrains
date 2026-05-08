@@ -45,7 +45,7 @@ pub fn require_department_access(claims: &Claims, department_id: &Uuid) -> Resul
     if is_bypass_role(claims) {
         return Ok(());
     }
-    if claims.department_ids.is_empty() || claims.department_ids.contains(department_id) {
+    if claims.department_ids.contains(department_id) {
         return Ok(());
     }
     Err(AppError::Forbidden)
@@ -55,7 +55,7 @@ pub fn require_department_access(claims: &Claims, department_id: &Uuid) -> Resul
 /// Returns `None` for bypass roles (no filtering needed).
 /// Returns `Some(department_ids)` for scoped users.
 pub fn scoped_department_ids(claims: &Claims) -> Option<&[Uuid]> {
-    if is_bypass_role(claims) || claims.department_ids.is_empty() {
+    if is_bypass_role(claims) {
         return None;
     }
     Some(&claims.department_ids)
@@ -112,4 +112,53 @@ pub fn is_owner_or_assigned(
         return true;
     }
     created_by == Some(claims.sub) || assigned_id == Some(claims.sub)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn claims(role: &str, department_ids: Vec<Uuid>) -> Claims {
+        Claims {
+            sub: Uuid::new_v4(),
+            tenant_id: Uuid::new_v4(),
+            role: role.to_owned(),
+            permissions: Vec::new(),
+            department_ids,
+            perm_version: 1,
+            exp: 4_102_444_800,
+        }
+    }
+
+    #[test]
+    fn department_access_requires_explicit_department_for_non_bypass_roles() {
+        let dept = Uuid::new_v4();
+        let claims = claims("doctor", Vec::new());
+
+        assert!(require_department_access(&claims, &dept).is_err());
+    }
+
+    #[test]
+    fn department_access_allows_matching_department() {
+        let dept = Uuid::new_v4();
+        let claims = claims("doctor", vec![dept]);
+
+        assert!(require_department_access(&claims, &dept).is_ok());
+    }
+
+    #[test]
+    fn department_access_bypass_roles_remain_unscoped() {
+        let dept = Uuid::new_v4();
+        let claims = claims("hospital_admin", Vec::new());
+
+        assert!(require_department_access(&claims, &dept).is_ok());
+        assert!(scoped_department_ids(&claims).is_none());
+    }
+
+    #[test]
+    fn scoped_department_ids_returns_empty_slice_for_unassigned_non_bypass_user() {
+        let claims = claims("nurse", Vec::new());
+
+        assert_eq!(scoped_department_ids(&claims), Some(&[] as &[Uuid]));
+    }
 }

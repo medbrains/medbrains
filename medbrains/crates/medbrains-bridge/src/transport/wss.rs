@@ -10,7 +10,7 @@
 //! flow keeps working through the ingress proxy.
 
 use super::Transport;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use std::time::Duration;
 use tracing::{debug, info};

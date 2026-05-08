@@ -9,8 +9,8 @@
  * Saves on debounce + on blur; explicit "Save" button is unnecessary.
  */
 
-import { useEffect, useRef, useState } from "react";
 import { Badge, Group, Stack, Text, Textarea } from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
 import { useNotesSource } from "../../hooks/useNotesSource";
 
 interface NotesPanelProps {
@@ -23,7 +23,8 @@ interface NotesPanelProps {
 const SAVE_DEBOUNCE_MS = 600;
 
 export function NotesPanel({ patientId, canEdit = true, label = "Notes" }: NotesPanelProps) {
-  const { text, setText, lastAuthor, lastEditedAt, status, ready, unsyncedOps } = useNotesSource(patientId);
+  const { text, setText, lastAuthor, lastEditedAt, status, ready, unsyncedOps } =
+    useNotesSource(patientId);
   const [draft, setDraft] = useState(text);
   const lastRemote = useRef(text);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,9 +65,13 @@ export function NotesPanel({ patientId, canEdit = true, label = "Notes" }: Notes
       <Group justify="space-between">
         <Text fw={600}>{label}</Text>
         <Group gap="xs">
-          <Badge variant="light" size="sm" color={statusColor(status)}>{status}</Badge>
+          <Badge variant="light" size="sm" color={statusColor(status)}>
+            {status}
+          </Badge>
           {unsyncedOps > 0 && (
-            <Badge variant="filled" size="sm" color="orange">saving…</Badge>
+            <Badge variant="filled" size="sm" color="orange">
+              saving…
+            </Badge>
           )}
           {lastAuthor && lastEditedAt && (
             <Text size="xs" c="dimmed">

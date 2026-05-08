@@ -1,0 +1,75 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "MedBrains HMS",
+  "version": "0.1.0",
+  "identifier": "in.amh.hims.medbrains",
+  "build": {
+    "beforeDevCommand": "cd ../../web && pnpm dev",
+    "beforeBuildCommand": "cd ../../web && pnpm build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: tauri:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.razorpay.com https://hims.amh.org.in wss: ipc: http://ipc.localhost; frame-src https://*.razorpay.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "capabilities": ["main-capability"],
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Medical",
+    "shortDescription": "Hospital Management System",
+    "longDescription": "MedBrains HMS — secure, NABH-compliant hospital management system. Multi-module, multi-tenant, offline-capable.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "hims.amh.org.in",
+      "signingIdentity": null,
+      "entitlements": null,
+      "providerShortName": null
+    },
+    "windows": {
+      "wix": {
+        "language": ["en-IN", "ta-IN", "hi-IN"]
+      },
+      "nsis": null,
+      "certificateThumbprint": null,
+      "digestAlgorithm": null,
+      "timestampUrl": null
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://hims.amh.org.in/.well-known/medbrains-desktop-updates/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": false,
+      "pubkey": "REPLACE_WITH_BASE64_ED25519_PUBLIC_KEY"
+    },
+    "deep-link": {
+      "schemes": ["medbrains"]
+    }
+  }
+}

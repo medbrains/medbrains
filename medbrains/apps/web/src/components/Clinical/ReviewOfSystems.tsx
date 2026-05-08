@@ -1,14 +1,7 @@
-import {
-  Checkbox,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { Checkbox, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { ReviewOfSystems as ROSType, TenantSettingsRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 
 interface ReviewOfSystemsProps {
   data: ROSType;
@@ -69,14 +62,18 @@ export function ReviewOfSystems({ data, canUpdate, onUpdate }: ReviewOfSystemsPr
     });
   };
 
-  const abnormalCount = ROS_SYSTEMS.filter((s) => (data[s.key])?.abnormal).length;
+  const abnormalCount = ROS_SYSTEMS.filter((s) => data[s.key]?.abnormal).length;
 
   return (
     <Stack gap="sm">
       <Group justify="space-between">
-        <Text size="sm" fw={600}>Review of Systems</Text>
+        <Text size="sm" fw={600}>
+          Review of Systems
+        </Text>
         {abnormalCount > 0 && (
-          <Text size="xs" c="danger">{abnormalCount} abnormal</Text>
+          <Text size="xs" c="danger">
+            {abnormalCount} abnormal
+          </Text>
         )}
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">

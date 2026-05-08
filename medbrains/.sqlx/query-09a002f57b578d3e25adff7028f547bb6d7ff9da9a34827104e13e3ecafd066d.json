@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_equipment_downtime_log (tenant_id, equipment_id, equipment_name, equipment_serial, equipment_category, location, downtime_start, downtime_end, reason, impact_level, impact_summary, reported_to_bme, reported_to_bme_at, workorder_ref, vendor_engaged, resolved_by, resolution_summary, parts_replaced, cost, notes, source_module, source_record_id) SELECT g.tenant_id, NULL, initcap(replace(g.gas_type::text, '_', ' ')) || ' ' || replace(g.source_type::text, '_', ' ') || ' alarm', NULL, 'medical_gas', g.location_id::text, g.reading_at, NULL, 'utility_alarm', CASE WHEN g.gas_type::text IN ('oxygen', 'medical_air', 'vacuum') THEN 'critical' ELSE 'high' END, COALESCE(g.alarm_reason, g.notes, 'Medical gas alarm'), true, g.reading_at, g.id::text, false, NULL, NULL, NULL, NULL, g.notes, $3, g.id FROM fms_gas_readings g WHERE g.id = $1 AND g.tenant_id = $2 AND g.is_alarm = true ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET equipment_name = EXCLUDED.equipment_name, equipment_category = EXCLUDED.equipment_category, location = EXCLUDED.location, downtime_start = EXCLUDED.downtime_start, impact_level = EXCLUDED.impact_level, impact_summary = EXCLUDED.impact_summary, reported_to_bme = EXCLUDED.reported_to_bme, reported_to_bme_at = EXCLUDED.reported_to_bme_at, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "09a002f57b578d3e25adff7028f547bb6d7ff9da9a34827104e13e3ecafd066d"
+}

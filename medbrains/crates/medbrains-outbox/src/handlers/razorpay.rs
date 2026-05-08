@@ -60,11 +60,7 @@ impl Handler for CreateOrderHandler {
         "payment.create_order"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         // Required payload fields
         let txn_id_str = payload["internal_payment_id"]
             .as_str()
@@ -99,7 +95,7 @@ impl Handler for CreateOrderHandler {
             }))
             .send()
             .await
-            .map_err(classify_reqwest_err)?;
+            .map_err(|e| classify_reqwest_err(&e))?;
 
         let status = resp.status();
         if status.is_success() {
@@ -173,11 +169,7 @@ impl Handler for RefundHandler {
         "payment.refund"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         let payment_id = payload["razorpay_payment_id"]
             .as_str()
             .ok_or_else(|| HandlerError::Permanent("missing razorpay_payment_id".into()))?;
@@ -205,7 +197,7 @@ impl Handler for RefundHandler {
             }))
             .send()
             .await
-            .map_err(classify_reqwest_err)?;
+            .map_err(|e| classify_reqwest_err(&e))?;
 
         let status = resp.status();
         if status.is_success() {
@@ -246,7 +238,7 @@ async fn resolve_secret(ctx: &HandlerCtx, name: &str) -> Result<String, HandlerE
         .map_err(|e| HandlerError::Transient(format!("secret {name}: {e}")))
 }
 
-fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
+fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
     if e.is_timeout() || e.is_connect() {
         HandlerError::Transient(format!("network: {e}"))
     } else if e.is_builder() {

@@ -1,0 +1,155 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, invoice_id, charge_code, description, source::text AS \"source!\",\n                  source_id, quantity, unit_price, tax_percent, total_price,\n                  gst_rate, gst_type::text AS \"gst_type!\", cgst_amount, sgst_amount,\n                  igst_amount, hsn_sac_code, ordering_doctor_id, department_id,\n                  pharmacy_order_id, pharmacy_batch_id, batch_number, expiry_date,\n                  source_module\n           FROM invoice_items\n           WHERE id = $1\n             AND tenant_id = $2\n             AND reversal_of_id IS NULL\n             AND total_price > 0\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "invoice_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "charge_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "source!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "quantity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "unit_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "tax_percent",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "total_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "gst_rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 11,
+        "name": "gst_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "cgst_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "sgst_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "igst_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "hsn_sac_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "ordering_doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "department_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 18,
+        "name": "pharmacy_order_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 19,
+        "name": "pharmacy_batch_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 20,
+        "name": "batch_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "expiry_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 22,
+        "name": "source_module",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0d359e63c11286850e1e2ff02410e0ee44c4dc16bfb300d005b6ccd92a7ceeef"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO bed_states (tenant_id, location_id) VALUES ($1, $2) ON CONFLICT (tenant_id, location_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f611374f040575064299b950b1177561dad620b529a2c58eed4cabef4317f6d"
+}

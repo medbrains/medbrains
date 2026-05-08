@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+systemctl start medbrains-proxy.service 2>/dev/null || true

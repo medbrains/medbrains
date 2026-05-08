@@ -1,0 +1,26 @@
+[Unit]
+Description=MedBrains Loro CRDT edge sync server
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=medbrains
+Group=medbrains
+Environment=RUST_LOG=medbrains_edge=info,medbrains_edge_app=info
+ExecStart=/usr/local/bin/medbrains-edge --config /etc/medbrains/edge.toml
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/medbrains-edge /var/log/medbrains
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

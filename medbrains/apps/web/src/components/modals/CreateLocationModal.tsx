@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { LocationRow } from "@medbrains/types";
+import { IconCheck } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const LEVEL_OPTIONS = [
   { value: "campus", label: "Campus" },
@@ -22,11 +22,7 @@ interface CreateLocationModalProps {
   onCreated?: (location: LocationRow) => void;
 }
 
-export function CreateLocationModal({
-  opened,
-  onClose,
-  onCreated,
-}: CreateLocationModalProps) {
+export function CreateLocationModal({ opened, onClose, onCreated }: CreateLocationModalProps) {
   const queryClient = useQueryClient();
 
   const [code, setCode] = useState("");
@@ -40,8 +36,7 @@ export function CreateLocationModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; level: string }) =>
-      api.createLocation(data),
+    mutationFn: (data: { code: string; name: string; level: string }) => api.createLocation(data),
     onSuccess: (created: LocationRow) => {
       notifications.show({
         title: "Location created",

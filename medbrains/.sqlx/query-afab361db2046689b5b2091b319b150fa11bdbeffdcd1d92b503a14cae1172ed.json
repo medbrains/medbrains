@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE nabh_code_blue_activations n SET outcome = CASE e.outcome WHEN 'rosc' THEN 'survived_intact' WHEN 'stable' THEN 'survived_intact' WHEN 'transferred' THEN 'transferred_icu' WHEN 'expired' THEN 'death_at_event' ELSE n.outcome END, transferred_to = CASE WHEN e.outcome = 'transferred' THEN 'ICU / higher care' ELSE n.transferred_to END, drugs_administered = e.medications, defibrillation_count = jsonb_array_length(e.shocks), cpr_duration_minutes = CASE WHEN e.ended_at IS NULL THEN n.cpr_duration_minutes ELSE EXTRACT(EPOCH FROM (e.ended_at - e.started_at))::int / 60 END, initial_rhythm = COALESCE( (SELECT elem->>'rhythm' FROM jsonb_array_elements(e.ecg_rhythm_log) elem LIMIT 1), n.initial_rhythm ), notes = COALESCE(e.notes, n.notes), updated_at = now() FROM code_blue_events e WHERE n.tenant_id = $2 AND n.source_module = $3 AND n.source_record_id = e.id AND e.id = $1 AND e.tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "afab361db2046689b5b2091b319b150fa11bdbeffdcd1d92b503a14cae1172ed"
+}

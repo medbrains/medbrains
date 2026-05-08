@@ -1,4 +1,4 @@
-use axum::{Json, Extension, extract::State};
+use axum::{Extension, Json, extract::State};
 use serde::Serialize;
 
 use crate::middleware::auth::Claims;

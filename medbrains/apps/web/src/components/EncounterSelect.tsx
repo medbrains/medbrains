@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Combobox, Badge, Group, InputBase, Text, useCombobox } from "@mantine/core";
+import { Badge, Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { IconStethoscope } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { PatientVisitRow } from "@medbrains/types";
+import { IconStethoscope } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface EncounterSelectProps {
   value: string;
@@ -115,23 +115,39 @@ export function EncounterSelect({
                 <Group gap={8} wrap="nowrap" justify="space-between">
                   <div style={{ flex: 1 }}>
                     <Group gap={6}>
-                      <Text size="sm" fw={500}>{formatDate(e.encounter_date)}</Text>
-                      <Badge size="xs" variant="light" color={ENCOUNTER_COLORS[e.encounter_type] ?? "gray"}>
+                      <Text size="sm" fw={500}>
+                        {formatDate(e.encounter_date)}
+                      </Text>
+                      <Badge
+                        size="xs"
+                        variant="light"
+                        color={ENCOUNTER_COLORS[e.encounter_type] ?? "gray"}
+                      >
                         {e.encounter_type.toUpperCase()}
                       </Badge>
-                      <Badge size="xs" variant="dot" color={e.status === "completed" ? "green" : "blue"}>
+                      <Badge
+                        size="xs"
+                        variant="dot"
+                        color={e.status === "completed" ? "green" : "blue"}
+                      >
                         {e.status}
                       </Badge>
                     </Group>
                     <Group gap={6}>
                       {e.department_name && (
-                        <Text size="xs" c="dimmed">{e.department_name}</Text>
+                        <Text size="xs" c="dimmed">
+                          {e.department_name}
+                        </Text>
                       )}
                       {e.doctor_name && (
-                        <Text size="xs" c="dimmed">{"\u2022"} {e.doctor_name}</Text>
+                        <Text size="xs" c="dimmed">
+                          {"\u2022"} {e.doctor_name}
+                        </Text>
                       )}
                       {e.chief_complaint && (
-                        <Text size="xs" c="dimmed" lineClamp={1}>{"\u2022"} {e.chief_complaint}</Text>
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                          {"\u2022"} {e.chief_complaint}
+                        </Text>
                       )}
                     </Group>
                   </div>

@@ -9,6 +9,7 @@ use medbrains_core::bme::{
     BmeBreakdown, BmeCalibration, BmeContract, BmeEquipment, BmePmSchedule, BmeVendorEvaluation,
     BmeWorkOrder,
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,34 @@ use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+
+async fn queue_bme_downtime_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    row: &BmeBreakdown,
+) -> Result<(), AppError> {
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BmeEquipmentDowntimeRecorded,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "downtime_id": row.id,
+            "equipment_id": row.equipment_id,
+            "status": row.status,
+            "priority": row.priority,
+            "department_id": row.department_id,
+            "downtime_start": row.downtime_start,
+            "downtime_end": row.downtime_end,
+        }),
+    );
+    if let Some(department_id) = row.department_id {
+        event = event.with_department(department_id);
+    }
+    crate::events::queue_clinical_event_in_tx(tx, &event)
+        .await
+        .map(|_| ())
+}
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -746,6 +775,11 @@ pub async fn create_work_order(
     .fetch_one(&mut *tx)
     .await?;
 
+    if let Some(breakdown_id) = row.breakdown_id {
+        crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
+            .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -1187,6 +1221,9 @@ pub async fn create_breakdown(
     .fetch_one(&mut *tx)
     .await?;
 
+    crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    queue_bme_downtime_event(&mut tx, &claims, &row).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -1240,6 +1277,9 @@ pub async fn update_breakdown_status(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    queue_bme_downtime_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
     Ok(Json(row))

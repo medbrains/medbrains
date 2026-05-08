@@ -3,6 +3,12 @@
 **Owner:** Platform Engineering
 **When to read this:** you want to verify the CRDT-backed offline path works in your local browser, OR you're onboarding a hospital pilot and need to demonstrate the fail-tolerance behavior.
 
+For camp field launches, also read
+[`camp-mode-launch.md`](./camp-mode-launch.md). Camp Mode uses the
+Camp module as the offline workflow boundary while Patient Registration
+remains the source of truth for UHID, MPI, ABHA, consent, and patient
+master data.
+
 ## What "offline mode" means
 
 When `tenant_settings.clinical.offline_mode = true` and

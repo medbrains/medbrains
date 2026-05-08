@@ -42,6 +42,35 @@ variable "synchronous_replication" {
   type    = bool
   default = true
 }
+variable "cost_profile" {
+  type        = string
+  default     = "production"
+  description = "Cost profile for guardrails. Non-production profiles cannot provision paid gp3 performance disks that survive termination."
+  validation {
+    condition     = contains(["test", "demo", "starter", "production"], var.cost_profile)
+    error_message = "cost_profile must be one of: test, demo, starter, production."
+  }
+}
+variable "pg_data_volume_size_gb" {
+  type        = number
+  default     = 200
+  description = "Dedicated PostgreSQL data volume size in GiB."
+}
+variable "pg_data_volume_iops" {
+  type        = number
+  default     = 12000
+  description = "Provisioned gp3 IOPS for each PostgreSQL data volume. Use 3000 for baseline gp3."
+}
+variable "pg_data_volume_throughput" {
+  type        = number
+  default     = 250
+  description = "Provisioned gp3 throughput in MiB/s for each PostgreSQL data volume. Use 125 for baseline gp3."
+}
+variable "preserve_pg_data_volumes" {
+  type        = bool
+  default     = false
+  description = "Set true only for production HA clusters where data disks must survive instance termination."
+}
 
 locals {
   cluster_id = "medbrains-${var.environment}-${var.region}-pg"
@@ -243,16 +272,28 @@ resource "aws_instance" "pg" {
   ebs_block_device {
     device_name           = "/dev/xvdf"
     volume_type           = "gp3"
-    volume_size           = 200
-    iops                  = 12000
-    throughput            = 250
+    volume_size           = var.pg_data_volume_size_gb
+    iops                  = var.pg_data_volume_iops
+    throughput            = var.pg_data_volume_throughput
     encrypted             = true
     kms_key_id            = var.kms_key_arn
-    delete_on_termination = false
+    delete_on_termination = !var.preserve_pg_data_volumes
   }
 
   lifecycle {
     ignore_changes = [ami] # AMI bumps go through rolling switchover, not Terraform
+    precondition {
+      condition = (
+        var.cost_profile == "production" ||
+        (
+          var.pg_data_volume_size_gb <= 50 &&
+          var.pg_data_volume_iops <= 3000 &&
+          var.pg_data_volume_throughput <= 125 &&
+          var.preserve_pg_data_volumes == false
+        )
+      )
+      error_message = "Non-production Patroni profiles must use baseline gp3 (<=50GB, <=3000 IOPS, <=125 MiB/s) and must not preserve data volumes."
+    }
   }
 }
 

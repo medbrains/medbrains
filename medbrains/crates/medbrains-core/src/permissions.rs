@@ -276,6 +276,7 @@ pub mod ipd {
         pub const LIST: &str = "ipd.admissions.list";
         pub const VIEW: &str = "ipd.admissions.view";
         pub const CREATE: &str = "ipd.admissions.create";
+        pub const UPDATE: &str = "ipd.admissions.update";
     }
 
     pub mod discharge {
@@ -897,6 +898,55 @@ pub mod quality {
     pub mod audits {
         pub const LIST: &str = "quality.audits.list";
         pub const CREATE: &str = "quality.audits.create";
+    }
+
+    // ── NABH Phase 2 data captures (migration 0110) ──
+    pub mod falls {
+        pub const LIST: &str = "quality.falls.list";
+        pub const CREATE: &str = "quality.falls.create";
+        pub const UPDATE: &str = "quality.falls.update";
+    }
+
+    pub mod pressure_ulcer {
+        pub const LIST: &str = "quality.pressure_ulcer.list";
+        pub const CREATE: &str = "quality.pressure_ulcer.create";
+        pub const UPDATE: &str = "quality.pressure_ulcer.update";
+    }
+
+    pub mod sentinel_events {
+        pub const LIST: &str = "quality.sentinel_events.list";
+        pub const CREATE: &str = "quality.sentinel_events.create";
+        pub const UPDATE: &str = "quality.sentinel_events.update";
+    }
+
+    pub mod transfusion_reactions {
+        pub const LIST: &str = "quality.transfusion_reactions.list";
+        pub const CREATE: &str = "quality.transfusion_reactions.create";
+        pub const UPDATE: &str = "quality.transfusion_reactions.update";
+    }
+
+    pub mod code_blue {
+        pub const LIST: &str = "quality.code_blue.list";
+        pub const CREATE: &str = "quality.code_blue.create";
+        pub const UPDATE: &str = "quality.code_blue.update";
+    }
+
+    pub mod equipment_downtime {
+        pub const LIST: &str = "quality.equipment_downtime.list";
+        pub const CREATE: &str = "quality.equipment_downtime.create";
+        pub const UPDATE: &str = "quality.equipment_downtime.update";
+    }
+
+    pub mod fire_drills {
+        pub const LIST: &str = "quality.fire_drills.list";
+        pub const CREATE: &str = "quality.fire_drills.create";
+        pub const UPDATE: &str = "quality.fire_drills.update";
+    }
+
+    pub mod bmw_disposal {
+        pub const LIST: &str = "quality.bmw_disposal.list";
+        pub const CREATE: &str = "quality.bmw_disposal.create";
+        pub const UPDATE: &str = "quality.bmw_disposal.update";
     }
 }
 

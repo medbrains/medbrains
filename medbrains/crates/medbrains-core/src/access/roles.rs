@@ -6,6 +6,7 @@
 
 use crate::permissions;
 
+#[derive(Debug)]
 pub struct BuiltInRole {
     pub code: &'static str,
     pub name: &'static str,

@@ -1,5 +1,3 @@
-import { useState, useMemo } from "react";
-import { toDateString, nextOccurrence } from "../../lib/date-utils";
 import {
   ActionIcon,
   Badge,
@@ -17,15 +15,23 @@ import {
   Switch,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { WeekView } from "@mantine/schedule";
 import type { ScheduleEventData } from "@mantine/schedule";
-import dayjs from "dayjs";
+import { WeekView } from "@mantine/schedule";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  DepartmentRow,
+  DoctorSchedule,
+  DoctorScheduleException,
+  SetupUser,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCalendarOff,
   IconCheck,
@@ -36,17 +42,11 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
+import dayjs from "dayjs";
+import { useMemo, useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
-import type {
-  DoctorSchedule,
-  DoctorScheduleException,
-  SetupUser,
-  DepartmentRow,
-} from "@medbrains/types";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { nextOccurrence, toDateString } from "../../lib/date-utils";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -92,23 +92,15 @@ function ScheduleFormModal({
   const queryClient = useQueryClient();
   const editDayOfWeek = editSchedule ? String(editSchedule.day_of_week) : null;
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState<string | null>(
-    editSchedule?.start_time ?? null,
-  );
-  const [endTime, setEndTime] = useState<string | null>(
-    editSchedule?.end_time ?? null,
-  );
-  const [slotDuration, setSlotDuration] = useState<number>(
-    editSchedule?.slot_duration_mins ?? 15,
-  );
-  const [maxPatients, setMaxPatients] = useState<number>(
-    editSchedule?.max_patients ?? 1,
-  );
+  const [startTime, setStartTime] = useState<string | null>(editSchedule?.start_time ?? null);
+  const [endTime, setEndTime] = useState<string | null>(editSchedule?.end_time ?? null);
+  const [slotDuration, setSlotDuration] = useState<number>(editSchedule?.slot_duration_mins ?? 15);
+  const [maxPatients, setMaxPatients] = useState<number>(editSchedule?.max_patients ?? 1);
   const [isActive, setIsActive] = useState(editSchedule?.is_active ?? true);
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const days = selectedDays.length > 0 ? selectedDays : (editDayOfWeek ? [editDayOfWeek] : []);
+      const days = selectedDays.length > 0 ? selectedDays : editDayOfWeek ? [editDayOfWeek] : [];
       for (const day of days) {
         await api.createSchedule({
           doctor_id: doctorId,
@@ -138,7 +130,7 @@ function ScheduleFormModal({
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      api.updateSchedule(editSchedule!.id, {
+      api.updateSchedule(editSchedule?.id, {
         start_time: startTime ?? undefined,
         end_time: endTime ?? undefined,
         slot_duration_mins: slotDuration,
@@ -160,7 +152,8 @@ function ScheduleFormModal({
     },
   });
 
-  const canSubmit = (selectedDays.length > 0 || editDayOfWeek !== null || editSchedule) && startTime && endTime;
+  const canSubmit =
+    (selectedDays.length > 0 || editDayOfWeek !== null || editSchedule) && startTime && endTime;
 
   return (
     <Modal
@@ -172,11 +165,27 @@ function ScheduleFormModal({
       <Stack gap="sm">
         {!editSchedule && (
           <div>
-            <Text size="sm" fw={500} mb={4}>Days</Text>
+            <Text size="sm" fw={500} mb={4}>
+              Days
+            </Text>
             <Group gap={4} mb={4}>
-              <Button size="compact-xs" variant="light" onClick={() => setSelectedDays(["1","2","3","4","5"])}>Mon–Fri</Button>
-              <Button size="compact-xs" variant="light" onClick={() => setSelectedDays(["0","1","2","3","4","5","6"])}>All Days</Button>
-              <Button size="compact-xs" variant="subtle" onClick={() => setSelectedDays([])}>Clear</Button>
+              <Button
+                size="compact-xs"
+                variant="light"
+                onClick={() => setSelectedDays(["1", "2", "3", "4", "5"])}
+              >
+                Mon–Fri
+              </Button>
+              <Button
+                size="compact-xs"
+                variant="light"
+                onClick={() => setSelectedDays(["0", "1", "2", "3", "4", "5", "6"])}
+              >
+                All Days
+              </Button>
+              <Button size="compact-xs" variant="subtle" onClick={() => setSelectedDays([])}>
+                Clear
+              </Button>
             </Group>
             <Checkbox.Group value={selectedDays} onChange={setSelectedDays}>
               <Group gap="xs">
@@ -245,9 +254,7 @@ function ScheduleFormModal({
             Cancel
           </Button>
           <Button
-            onClick={() =>
-              editSchedule ? updateMutation.mutate() : createMutation.mutate()
-            }
+            onClick={() => (editSchedule ? updateMutation.mutate() : createMutation.mutate())}
             disabled={!canSubmit}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -309,20 +316,84 @@ function ExceptionFormModal({
       <Stack gap="sm">
         {/* Quick presets */}
         <div>
-          <Text size="xs" fw={600} c="dimmed" mb={6}>Quick Presets</Text>
+          <Text size="xs" fw={600} c="dimmed" mb={6}>
+            Quick Presets
+          </Text>
           <Group gap={4} wrap="wrap">
             {[
-              { label: "Tomorrow", fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setExceptionDate(d); setReason("Day off"); } },
-              { label: "This Saturday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
-              { label: "This Sunday", fn: () => { const d = new Date(); d.setDate(d.getDate() + (7 - d.getDay())); setExceptionDate(d); setReason("Weekend"); } },
-              { label: "Republic Day (Jan 26)", fn: () => { setExceptionDate(nextOccurrence(0, 26)); setReason("Republic Day"); } },
-              { label: "Independence Day (Aug 15)", fn: () => { setExceptionDate(nextOccurrence(7, 15)); setReason("Independence Day"); } },
-              { label: "Gandhi Jayanti (Oct 2)", fn: () => { setExceptionDate(nextOccurrence(9, 2)); setReason("Gandhi Jayanti"); } },
-              { label: "Diwali", fn: () => { setExceptionDate(nextOccurrence(9, 20)); setReason("Diwali"); } },
-              { label: "Christmas (Dec 25)", fn: () => { setExceptionDate(nextOccurrence(11, 25)); setReason("Christmas"); } },
-              { label: "Pongal (Jan 14)", fn: () => { setExceptionDate(nextOccurrence(0, 14)); setReason("Pongal"); } },
+              {
+                label: "Tomorrow",
+                fn: () => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 1);
+                  setExceptionDate(d);
+                  setReason("Day off");
+                },
+              },
+              {
+                label: "This Saturday",
+                fn: () => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + (6 - d.getDay()));
+                  setExceptionDate(d);
+                  setReason("Weekend");
+                },
+              },
+              {
+                label: "This Sunday",
+                fn: () => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + (7 - d.getDay()));
+                  setExceptionDate(d);
+                  setReason("Weekend");
+                },
+              },
+              {
+                label: "Republic Day (Jan 26)",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(0, 26));
+                  setReason("Republic Day");
+                },
+              },
+              {
+                label: "Independence Day (Aug 15)",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(7, 15));
+                  setReason("Independence Day");
+                },
+              },
+              {
+                label: "Gandhi Jayanti (Oct 2)",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(9, 2));
+                  setReason("Gandhi Jayanti");
+                },
+              },
+              {
+                label: "Diwali",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(9, 20));
+                  setReason("Diwali");
+                },
+              },
+              {
+                label: "Christmas (Dec 25)",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(11, 25));
+                  setReason("Christmas");
+                },
+              },
+              {
+                label: "Pongal (Jan 14)",
+                fn: () => {
+                  setExceptionDate(nextOccurrence(0, 14));
+                  setReason("Pongal");
+                },
+              },
             ].map((p) => (
-              <Button key={p.label} size="compact-xs" variant="light" onClick={p.fn}>{p.label}</Button>
+              <Button key={p.label} size="compact-xs" variant="light" onClick={p.fn}>
+                {p.label}
+              </Button>
             ))}
           </Group>
         </div>
@@ -330,7 +401,9 @@ function ExceptionFormModal({
           label="Date"
           placeholder="Pick date"
           value={exceptionDate}
-          onChange={(d: Date | string | null) => setExceptionDate(d instanceof Date ? d : d ? new Date(d) : null)}
+          onChange={(d: Date | string | null) =>
+            setExceptionDate(d instanceof Date ? d : d ? new Date(d) : null)
+          }
           minDate={new Date()}
           required
         />
@@ -412,9 +485,7 @@ export function DoctorSchedulesPage() {
   const doctors = useMemo(() => {
     if (!users) return [];
     if (!search) return users;
-    return users.filter((u: SetupUser) =>
-      u.full_name.toLowerCase().includes(search.toLowerCase()),
-    );
+    return users.filter((u: SetupUser) => u.full_name.toLowerCase().includes(search.toLowerCase()));
   }, [users, search]);
 
   const deptMap = useMemo(() => {
@@ -437,15 +508,14 @@ export function DoctorSchedulesPage() {
   // Load schedules for selected doctor
   const { data: schedules, isLoading: schedulesLoading } = useQuery({
     queryKey: ["doctor-schedules", selectedDoctor?.id],
-    queryFn: () => api.listSchedules({ doctor_id: selectedDoctor!.id }),
+    queryFn: () => api.listSchedules({ doctor_id: selectedDoctor?.id }),
     enabled: !!selectedDoctor,
   });
 
   // Load exceptions for selected doctor
   const { data: exceptions } = useQuery({
     queryKey: ["doctor-exceptions", selectedDoctor?.id],
-    queryFn: () =>
-      api.listScheduleExceptions({ doctor_id: selectedDoctor!.id }),
+    queryFn: () => api.listScheduleExceptions({ doctor_id: selectedDoctor?.id }),
     enabled: !!selectedDoctor,
   });
 
@@ -578,11 +648,7 @@ export function DoctorSchedulesPage() {
               >
                 <Group justify="space-between" mb="xs">
                   <Text fw={600}>{doc.full_name}</Text>
-                  <Badge
-                    color={doc.is_active ? "success" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={doc.is_active ? "success" : "slate"} variant="light" size="sm">
                     {doc.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Group>
@@ -607,9 +673,7 @@ export function DoctorSchedulesPage() {
                 )}
               </Card>
             ))}
-            {doctors.length === 0 && (
-              <Text c="dimmed">No doctors found.</Text>
-            )}
+            {doctors.length === 0 && <Text c="dimmed">No doctors found.</Text>}
           </SimpleGrid>
         )}
       </div>
@@ -636,9 +700,7 @@ export function DoctorSchedulesPage() {
         <Select
           label="Department"
           placeholder="Filter by department"
-          data={deptOptions.filter((d) =>
-            selectedDoctor.department_ids.includes(d.value),
-          )}
+          data={deptOptions.filter((d) => selectedDoctor.department_ids.includes(d.value))}
           value={selectedDeptId}
           onChange={setSelectedDeptId}
           clearable
@@ -690,7 +752,9 @@ export function DoctorSchedulesPage() {
       {viewMode === "calendar" && (
         <Card withBorder mb="xl" p={0} style={{ overflow: "hidden" }}>
           {schedulesLoading ? (
-            <Stack align="center" py="xl"><Loader size="sm" /></Stack>
+            <Stack align="center" py="xl">
+              <Loader size="sm" />
+            </Stack>
           ) : (
             <WeekView
               date={calDate}
@@ -710,10 +774,14 @@ export function DoctorSchedulesPage() {
                   setScheduleModal(true);
                 }
               }}
-              onTimeSlotClick={canManage ? () => {
-                setEditSchedule(null);
-                setScheduleModal(true);
-              } : undefined}
+              onTimeSlotClick={
+                canManage
+                  ? () => {
+                      setEditSchedule(null);
+                      setScheduleModal(true);
+                    }
+                  : undefined
+              }
               mode={canManage ? undefined : "static"}
             />
           )}
@@ -743,9 +811,7 @@ export function DoctorSchedulesPage() {
               .sort(([a], [b]) => a - b)
               .flatMap(([, daySchedules]) =>
                 daySchedules
-                  .filter(
-                    (s) => !selectedDeptId || s.department_id === selectedDeptId,
-                  )
+                  .filter((s) => !selectedDeptId || s.department_id === selectedDeptId)
                   .map((s) => (
                     <Table.Tr key={s.id}>
                       <Table.Td>
@@ -754,9 +820,7 @@ export function DoctorSchedulesPage() {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm">
-                          {deptMap.get(s.department_id) ?? "-"}
-                        </Text>
+                        <Text size="sm">{deptMap.get(s.department_id) ?? "-"}</Text>
                       </Table.Td>
                       <Table.Td>
                         <Group gap={4}>
@@ -773,11 +837,7 @@ export function DoctorSchedulesPage() {
                         <Text size="sm">{s.max_patients}</Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge
-                          color={s.is_active ? "success" : "slate"}
-                          variant="light"
-                          size="sm"
-                        >
+                        <Badge color={s.is_active ? "success" : "slate"} variant="light" size="sm">
                           {s.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </Table.Td>
@@ -823,9 +883,9 @@ export function DoctorSchedulesPage() {
 
       {/* Schedule Exceptions Section (table view only — calendar shows them inline) */}
       {viewMode === "table" && (
-      <Group justify="space-between" mb="sm">
-        <Title order={4}>Schedule Exceptions</Title>
-      </Group>
+        <Group justify="space-between" mb="sm">
+          <Title order={4}>Schedule Exceptions</Title>
+        </Group>
       )}
 
       {viewMode === "table" && exceptions && exceptions.length > 0 ? (
@@ -848,11 +908,7 @@ export function DoctorSchedulesPage() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={ex.is_available ? "primary" : "danger"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={ex.is_available ? "primary" : "danger"} variant="light" size="sm">
                     {ex.is_available ? "Custom Hours" : "Unavailable"}
                   </Badge>
                 </Table.Td>
@@ -902,11 +958,7 @@ export function DoctorSchedulesPage() {
             setEditSchedule(null);
           }}
           doctorId={selectedDoctor.id}
-          departmentId={
-            selectedDeptId ??
-            selectedDoctor.department_ids[0] ??
-            ""
-          }
+          departmentId={selectedDeptId ?? selectedDoctor.department_ids[0] ?? ""}
           editSchedule={editSchedule}
         />
       )}

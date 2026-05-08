@@ -12,11 +12,11 @@
 //! to the routes that mutate authz state.
 
 use axum::{
+    Json,
     extract::Request,
     http::{Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 
@@ -66,7 +66,10 @@ fn is_guarded_path(path: &str) -> bool {
 }
 
 fn is_mutation(method: &Method) -> bool {
-    matches!(*method, Method::POST | Method::PUT | Method::PATCH | Method::DELETE)
+    matches!(
+        *method,
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    )
 }
 
 fn is_offline_origin(req: &Request) -> bool {
@@ -89,19 +92,28 @@ fn deny_offline_mutation() -> Response {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use axum::Router;
     use axum::body::Body;
     use axum::http::HeaderValue;
     use axum::http::Request as HttpRequest;
     use axum::middleware::from_fn;
     use axum::routing::{get, post};
-    use axum::Router;
     use tower::ServiceExt;
 
     fn app() -> Router {
         Router::new()
-            .route("/api/admin/roles", post(|| async { "ok" }).get(|| async { "list" }))
-            .route("/api/admin/roles/{id}", axum::routing::put(|| async { "ok" }))
-            .route("/api/clinical/patient-notes/{id}", axum::routing::put(|| async { "ok" }))
+            .route(
+                "/api/admin/roles",
+                post(|| async { "ok" }).get(|| async { "list" }),
+            )
+            .route(
+                "/api/admin/roles/{id}",
+                axum::routing::put(|| async { "ok" }),
+            )
+            .route(
+                "/api/clinical/patient-notes/{id}",
+                axum::routing::put(|| async { "ok" }),
+            )
             .layer(from_fn(authz_write_guard))
     }
 

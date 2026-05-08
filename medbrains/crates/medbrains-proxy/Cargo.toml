@@ -10,11 +10,11 @@ name = "medbrains-proxy"
 path = "src/main.rs"
 
 [dependencies]
-pingora = { version = "0.5", features = ["lb", "proxy", "rustls"] }
-pingora-proxy = "0.5"
-pingora-http = "0.5"
-pingora-core = "0.5"
-pingora-load-balancing = "0.5"
+pingora = { version = "0.8", features = ["lb", "proxy", "rustls"] }
+pingora-proxy = "0.8"
+pingora-http = "0.8"
+pingora-core = "0.8"
+pingora-load-balancing = "0.8"
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
@@ -25,3 +25,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 async-trait = "0.1"
 anyhow = "1"
+bytes = "1"

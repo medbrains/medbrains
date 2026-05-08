@@ -1,24 +1,17 @@
-import { useEffect } from "react";
+import { Chip, Group, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import type { FoodTiming, TimeOfDay } from "@medbrains/types";
 import {
-  Chip,
-  Group,
-  SegmentedControl,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import {
+  IconArrowDown,
+  IconArrowUp,
+  IconCoffee,
+  IconMinus,
   IconMoon,
   IconSun,
   IconSunrise,
   IconSunset,
   IconToolsKitchen2,
-  IconCoffee,
-  IconArrowUp,
-  IconArrowDown,
-  IconMinus,
 } from "@tabler/icons-react";
-import type { FoodTiming, TimeOfDay } from "@medbrains/types";
+import { useEffect } from "react";
 import { frequencyToDefaultSlots } from "../../lib/medication-timing-utils";
 import classes from "./medication-timing.module.scss";
 
@@ -40,12 +33,13 @@ const FOOD_OPTIONS: Array<{ value: FoodTiming; label: string; icon: React.ReactN
   { value: "any", label: "Any time", icon: <IconMinus size={14} /> },
 ];
 
-const TIME_CHIPS: Array<{ value: TimeOfDay; label: string; icon: React.ReactNode; hint: string }> = [
-  { value: "morning", label: "Morning", icon: <IconCoffee size={14} />, hint: "6–8 AM" },
-  { value: "afternoon", label: "Afternoon", icon: <IconSun size={14} />, hint: "12–2 PM" },
-  { value: "evening", label: "Evening", icon: <IconSunset size={14} />, hint: "6–8 PM" },
-  { value: "bedtime", label: "Bedtime", icon: <IconMoon size={14} />, hint: "9–10 PM" },
-];
+const TIME_CHIPS: Array<{ value: TimeOfDay; label: string; icon: React.ReactNode; hint: string }> =
+  [
+    { value: "morning", label: "Morning", icon: <IconCoffee size={14} />, hint: "6–8 AM" },
+    { value: "afternoon", label: "Afternoon", icon: <IconSun size={14} />, hint: "12–2 PM" },
+    { value: "evening", label: "Evening", icon: <IconSunset size={14} />, hint: "6–8 PM" },
+    { value: "bedtime", label: "Bedtime", icon: <IconMoon size={14} />, hint: "9–10 PM" },
+  ];
 
 export function MedicationTimingPicker({
   foodTiming,
@@ -63,7 +57,7 @@ export function MedicationTimingPicker({
     if (suggested.length > 0) {
       onTimeSlotsChange(suggested);
     }
-  }, [frequency]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [frequency, onTimeSlotsChange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={classes.timingPicker}>

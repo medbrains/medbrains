@@ -18,6 +18,7 @@ use crate::{
     middleware::{
         auth::{Claims, encode_jwt},
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
+        field_access,
     },
     state::AppState,
 };
@@ -54,6 +55,22 @@ fn generate_csrf_token() -> Result<String, AppError> {
     getrandom::fill(&mut buf)
         .map_err(|e| AppError::Internal(format!("CSRF token generation failed: {e}")))?;
     Ok(hex::encode(buf))
+}
+
+fn field_access_to_wire(
+    field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel>,
+) -> HashMap<String, String> {
+    field_access_map
+        .into_iter()
+        .map(|(k, v)| {
+            let s = match v {
+                medbrains_core::form::FieldAccessLevel::Edit => "edit",
+                medbrains_core::form::FieldAccessLevel::View => "view",
+                medbrains_core::form::FieldAccessLevel::Hidden => "hidden",
+            };
+            (k, s.to_owned())
+        })
+        .collect()
 }
 
 #[allow(clippy::too_many_lines)]
@@ -93,19 +110,10 @@ pub async fn login(
     let department_ids =
         resolve_department_ids(&state.db, row.tenant_id, row.id, &row.role).await?;
 
-    // Resolve field access levels
-    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
-    let field_access: HashMap<String, String> = field_access_map
-        .into_iter()
-        .map(|(k, v)| {
-            let s = match v {
-                medbrains_core::form::FieldAccessLevel::Edit => "edit",
-                medbrains_core::form::FieldAccessLevel::View => "view",
-                medbrains_core::form::FieldAccessLevel::Hidden => "hidden",
-            };
-            (k, s.to_owned())
-        })
-        .collect();
+    let field_access = field_access_to_wire(
+        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
+            .await?,
+    );
 
     // Issue access token (15 min)
     let now = Utc::now();
@@ -429,19 +437,10 @@ pub async fn refresh_token(
     let department_ids =
         resolve_department_ids(&state.db, row.tenant_id, row.user_id, &row.role).await?;
 
-    // Resolve field access levels
-    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
-    let field_access: HashMap<String, String> = field_access_map
-        .into_iter()
-        .map(|(k, v)| {
-            let s = match v {
-                medbrains_core::form::FieldAccessLevel::Edit => "edit",
-                medbrains_core::form::FieldAccessLevel::View => "view",
-                medbrains_core::form::FieldAccessLevel::Hidden => "hidden",
-            };
-            (k, s.to_owned())
-        })
-        .collect();
+    let field_access = field_access_to_wire(
+        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.user_id, &row.role)
+            .await?,
+    );
 
     // Issue new access token
     let access_claims = Claims {
@@ -505,7 +504,8 @@ pub async fn logout(
         .or_else(|| body.and_then(|b| b.refresh_token.clone()));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     if let Some(ref raw) = refresh_raw {
         let mut hasher = Sha256::new();
@@ -560,8 +560,8 @@ pub async fn logout_all(
 
     // Admin path: force-logout someone else.
     if target_user != claims.sub {
-        let perms = resolve_permissions(&state.db, claims.tenant_id, claims.sub, &claims.role)
-            .await?;
+        let perms =
+            resolve_permissions(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
         let is_bypass = claims.role == "super_admin" || claims.role == "hospital_admin";
         if !is_bypass && !perms.iter().any(|p| p == "admin.users.force_logout") {
             return Err(AppError::Forbidden);
@@ -569,7 +569,8 @@ pub async fn logout_all(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \
@@ -633,7 +634,8 @@ pub async fn me(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MeResponse>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query!(
         "SELECT id, tenant_id, username, email, full_name, role::text AS \"role!\" \
@@ -651,19 +653,10 @@ pub async fn me(
 
     let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
 
-    // Resolve field access levels
-    let field_access_map: HashMap<String, medbrains_core::form::FieldAccessLevel> = HashMap::new();
-    let field_access: HashMap<String, String> = field_access_map
-        .into_iter()
-        .map(|(k, v)| {
-            let s = match v {
-                medbrains_core::form::FieldAccessLevel::Edit => "edit",
-                medbrains_core::form::FieldAccessLevel::View => "view",
-                medbrains_core::form::FieldAccessLevel::Hidden => "hidden",
-            };
-            (k, s.to_owned())
-        })
-        .collect();
+    let field_access = field_access_to_wire(
+        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
+            .await?,
+    );
 
     Ok(Json(MeResponse {
         user: UserInfo {
@@ -699,7 +692,8 @@ pub async fn change_password(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Get current hash
     let current_hash =
@@ -917,7 +911,7 @@ async fn resolve_department_ids(
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RevocationRow {
     pub user_id: Uuid,
-    pub deactivated_at: chrono::DateTime<chrono::Utc>,
+    pub deactivated_at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]
@@ -926,7 +920,7 @@ pub struct RevocationsResponse {
     /// Echo back the cursor the caller should use next time. Equal
     /// to the max `deactivated_at` in the result set, or the input
     /// `since` if nothing changed.
-    pub next_since: chrono::DateTime<chrono::Utc>,
+    pub next_since: chrono::DateTime<Utc>,
     /// True if more rows exist past the cap; caller should pull
     /// again immediately.
     pub has_more: bool,
@@ -936,19 +930,19 @@ pub struct RevocationsResponse {
 pub struct RevocationsQuery {
     /// RFC3339 timestamp. Server returns rows with
     /// `deactivated_at > since`. Default = epoch (full backfill).
-    pub since: Option<chrono::DateTime<chrono::Utc>>,
+    pub since: Option<chrono::DateTime<Utc>>,
 }
 
 const REVOCATIONS_PAGE_SIZE: i64 = 500;
 
 pub async fn list_revocations(
-    State(state): State<crate::state::AppState>,
-    Extension(claims): Extension<crate::middleware::auth::Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(q): axum::extract::Query<RevocationsQuery>,
-) -> Result<Json<RevocationsResponse>, crate::error::AppError> {
+) -> Result<Json<RevocationsResponse>, AppError> {
     let since = q
         .since
-        .unwrap_or_else(|| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap_or_default());
+        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_default());
 
     let rows: Vec<RevocationRow> = sqlx::query_as(
         "SELECT id AS user_id, deactivated_at \
@@ -967,11 +961,11 @@ pub async fn list_revocations(
     .await?;
 
     let has_more = rows.len() as i64 > REVOCATIONS_PAGE_SIZE;
-    let trimmed: Vec<RevocationRow> = rows.into_iter().take(REVOCATIONS_PAGE_SIZE as usize).collect();
-    let next_since = trimmed
-        .last()
-        .map(|r| r.deactivated_at)
-        .unwrap_or(since);
+    let trimmed: Vec<RevocationRow> = rows
+        .into_iter()
+        .take(REVOCATIONS_PAGE_SIZE as usize)
+        .collect();
+    let next_since = trimmed.last().map(|r| r.deactivated_at).unwrap_or(since);
 
     Ok(Json(RevocationsResponse {
         revocations: trimmed,

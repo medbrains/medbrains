@@ -144,6 +144,9 @@ pub trait AuthzBackend: Send + Sync {
     }
 
     /// Write a new explicit tuple. Source = `explicit`.
+    /// Mirrors the SpiceDB / Postgres tuple shape; bundling into a struct
+    /// would split the call site of every backend impl with no readability win.
+    #[allow(clippy::too_many_arguments)]
     async fn write_tuple(
         &self,
         ctx: &AuthzContext,
@@ -156,11 +159,7 @@ pub trait AuthzBackend: Send + Sync {
     ) -> Result<Uuid, AuthzError>;
 
     /// Revoke a tuple by id (soft delete: status='revoked', audit-friendly).
-    async fn revoke_tuple(
-        &self,
-        ctx: &AuthzContext,
-        tuple_id: Uuid,
-    ) -> Result<(), AuthzError>;
+    async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError>;
 
     /// Revoke a tuple by its (object, relation, subject) coordinates —
     /// SpiceDB doesn't expose tuple IDs over the wire so this is the

@@ -1,18 +1,9 @@
-import { useState } from "react";
-import {
-  Alert,
-  Badge,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { IconMapPin, IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { Alert, Badge, Group, Loader, Stack, Table, Text, TextInput } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { PincodeResult } from "@medbrains/types";
+import { IconMapPin, IconSearch } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface PinCodeInputProps {
   /** Called when the user selects a result row. */
@@ -24,7 +15,11 @@ export function PinCodeInput({ onSelect }: PinCodeInputProps) {
   const trimmed = pincode.trim();
   const enabled = trimmed.length >= 4;
 
-  const { data: results, isLoading, isError } = useQuery({
+  const {
+    data: results,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["geo-pincode", trimmed],
     queryFn: () => api.searchPincode(trimmed),
     enabled,
@@ -45,7 +40,9 @@ export function PinCodeInput({ onSelect }: PinCodeInputProps) {
       {isLoading && enabled && (
         <Group gap="xs">
           <Loader size="xs" />
-          <Text size="sm" c="dimmed">Searching...</Text>
+          <Text size="sm" c="dimmed">
+            Searching...
+          </Text>
         </Group>
       )}
 
@@ -95,7 +92,9 @@ export function PinCodeInput({ onSelect }: PinCodeInputProps) {
                   <Text size="sm">{r.state_name}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" size="sm">{r.country_name}</Badge>
+                  <Badge variant="light" size="sm">
+                    {r.country_name}
+                  </Badge>
                 </Table.Td>
               </Table.Tr>
             ))}

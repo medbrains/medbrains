@@ -1,0 +1,59 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Default capability for the main window — narrowly scoped, deny-by-default.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:event:default",
+    "core:path:default",
+    "core:app:default",
+
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$APPDATA/medbrains/**" },
+        { "path": "$APPCONFIG/medbrains/**" },
+        { "path": "$DOWNLOAD/MedBrains-export-*" },
+        { "path": "$DOCUMENT/MedBrains/**" }
+      ]
+    },
+
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+
+    "shell:default",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://hims.amh.org.in/**" },
+        { "url": "https://medbrains.dev/**" },
+        { "url": "https://*.razorpay.com/**" }
+      ]
+    },
+
+    "notification:default",
+    "notification:allow-notify",
+
+    "updater:default",
+    "process:default",
+    "os:default",
+    "deep-link:default",
+
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://hims.amh.org.in/**" },
+        { "url": "https://*.razorpay.com/**" }
+      ]
+    }
+  ]
+}

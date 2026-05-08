@@ -28,6 +28,7 @@ pub const HL7_ACT_CODE: &str = "http://terminology.hl7.org/CodeSystem/v3-ActCode
 /// Minimal patient projection used by the mapper. The full
 /// `medbrains_core::Patient` has 60+ fields; we only need ~10. Callers
 /// build this from a SQL query that joins exactly what's needed.
+#[derive(Debug)]
 pub struct PatientView {
     pub id: Uuid,
     pub uhid: String,
@@ -51,11 +52,14 @@ pub fn patient_to_fhir(p: &PatientView) -> Patient {
         }
     }
 
-    let given = [p.first_name.as_str(), p.middle_name.as_deref().unwrap_or("")]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+    let given = [
+        p.first_name.as_str(),
+        p.middle_name.as_deref().unwrap_or(""),
+    ]
+    .into_iter()
+    .filter(|s| !s.is_empty())
+    .map(str::to_owned)
+    .collect::<Vec<_>>();
     let prefix_vec: Vec<String> = p.prefix.iter().cloned().collect();
     let display = [
         p.prefix.as_deref().unwrap_or(""),
@@ -119,6 +123,7 @@ fn map_gender(g: &str) -> String {
 }
 
 /// Minimal projection of an internal `Encounter` row.
+#[derive(Debug)]
 pub struct EncounterView {
     pub id: Uuid,
     pub patient_id: Uuid,
@@ -137,9 +142,8 @@ pub fn encounter_to_fhir(e: &EncounterView) -> Encounter {
         status: map_encounter_status(&e.status),
         class: encounter_class_for(&e.encounter_type),
         kind: vec![CodeableConcept::from_text(e.encounter_type.clone())],
-        subject: Reference::to("Patient", e.patient_id).with_display(
-            e.patient_display.clone().unwrap_or_default(),
-        ),
+        subject: Reference::to("Patient", e.patient_id)
+            .with_display(e.patient_display.clone().unwrap_or_default()),
         participant: e
             .doctor_id
             .map(|did| {
@@ -149,9 +153,8 @@ pub fn encounter_to_fhir(e: &EncounterView) -> Encounter {
                         "PPRF",
                         "primary performer",
                     )],
-                    individual: Reference::to("Practitioner", did).with_display(
-                        e.doctor_display.clone().unwrap_or_default(),
-                    ),
+                    individual: Reference::to("Practitioner", did)
+                        .with_display(e.doctor_display.clone().unwrap_or_default()),
                 }]
             })
             .unwrap_or_default(),
@@ -190,6 +193,7 @@ fn encounter_class_for(encounter_type: &str) -> Coding {
 }
 
 /// Minimal projection of a vital-sign or lab-result row.
+#[derive(Debug)]
 pub struct ObservationView {
     pub id: Uuid,
     pub patient_id: Uuid,
@@ -202,7 +206,7 @@ pub struct ObservationView {
     pub value_numeric: Option<f64>,
     pub unit: Option<String>,
     pub value_string: Option<String>,
-    pub status: String, // final | preliminary | amended | cancelled
+    pub status: String,                // final | preliminary | amended | cancelled
     pub abnormal_flag: Option<String>, // "H" | "L" | "HH" | "LL" | None
 }
 
@@ -226,9 +230,7 @@ pub fn observation_to_fhir(o: &ObservationView) -> Observation {
 
     let category = vec![CodeableConcept {
         coding: vec![Coding {
-            system: Some(
-                "http://terminology.hl7.org/CodeSystem/observation-category".to_owned(),
-            ),
+            system: Some("http://terminology.hl7.org/CodeSystem/observation-category".to_owned()),
             code: o.category.clone(),
             display: None,
         }],

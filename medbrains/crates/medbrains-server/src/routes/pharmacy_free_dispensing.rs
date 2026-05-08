@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── pharmacy_free_dispensings ───────────────────────────────────────
@@ -142,10 +142,7 @@ pub async fn create_cashier_override(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateOverrideRequest>,
 ) -> Result<Json<CashierOverride>, AppError> {
-    require_permission(
-        &claims,
-        permissions::pharmacy_finance::cashier_audit::VIEW,
-    )?;
+    require_permission(&claims, permissions::pharmacy_finance::cashier_audit::VIEW)?;
     if body.reason.trim().is_empty() {
         return Err(AppError::BadRequest("reason required".to_owned()));
     }

@@ -6,13 +6,10 @@
  * difference from consumers).
  */
 
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import {
-  useAppendOnlyCrdtList,
-  type CrdtConnectionStatus,
-} from "@medbrains/crdt";
+import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
 
 export interface TriageEntry extends Record<string, unknown> {
@@ -49,10 +46,7 @@ export function useTriageSource(visitId: string): TriageSourceResult {
 // catch makes the path resilient until backend ships them).
 type EmergencyTriageApi = {
   listTriageEntries?: (visitId: string) => Promise<TriageEntry[]>;
-  createTriageEntry?: (
-    visitId: string,
-    entry: TriageEntryInput,
-  ) => Promise<TriageEntry>;
+  createTriageEntry?: (visitId: string, entry: TriageEntryInput) => Promise<TriageEntry>;
 };
 const emergencyApi = api as unknown as EmergencyTriageApi;
 
@@ -75,10 +69,7 @@ function useTriageRest(visitId: string, _authorName: string): TriageSourceResult
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["triage", visitId] }),
   });
-  const append = useCallback(
-    (e: TriageEntryInput) => mutation.mutate(e),
-    [mutation],
-  );
+  const append = useCallback((e: TriageEntryInput) => mutation.mutate(e), [mutation]);
   return {
     entries: (query.data ?? []).slice().sort((a, b) => b.ts - a.ts),
     append,

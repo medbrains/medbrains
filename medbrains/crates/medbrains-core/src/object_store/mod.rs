@@ -9,9 +9,7 @@ pub mod local;
 pub mod tiering;
 
 pub use cold_local::ColdLocalObjectStore;
-pub use tiering::{
-    transition_hash, ObjectStoragePolicy, StorageTier, StorageTierTransition,
-};
+pub use tiering::{ObjectStoragePolicy, StorageTier, StorageTierTransition, transition_hash};
 
 use async_trait::async_trait;
 use std::fmt;
@@ -37,7 +35,12 @@ impl std::error::Error for ObjectStoreError {}
 
 #[async_trait]
 pub trait ObjectStore: Send + Sync + fmt::Debug {
-    async fn put(&self, key: &str, bytes: Vec<u8>, content_type: Option<&str>) -> Result<(), ObjectStoreError>;
+    async fn put(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+        content_type: Option<&str>,
+    ) -> Result<(), ObjectStoreError>;
     async fn get(&self, key: &str) -> Result<Vec<u8>, ObjectStoreError>;
     async fn delete(&self, key: &str) -> Result<(), ObjectStoreError>;
     async fn exists(&self, key: &str) -> Result<bool, ObjectStoreError>;

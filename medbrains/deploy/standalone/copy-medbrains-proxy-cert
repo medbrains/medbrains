@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LINEAGE="${RENEWED_LINEAGE:-${1:-}}"
+if [[ -z "$LINEAGE" ]]; then
+    echo "No certificate lineage supplied; skipping MedBrains proxy cert copy."
+    exit 0
+fi
+
+install -d -o root -g medbrains -m 0750 /etc/medbrains/tls
+install -o root -g medbrains -m 0640 "$LINEAGE/fullchain.pem" /etc/medbrains/tls/fullchain.pem
+install -o root -g medbrains -m 0640 "$LINEAGE/privkey.pem" /etc/medbrains/tls/privkey.pem
+
+systemctl restart medbrains-proxy.service 2>/dev/null || true

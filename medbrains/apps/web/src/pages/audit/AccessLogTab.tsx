@@ -1,19 +1,11 @@
-import { useState } from "react";
-import {
-  Button,
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { AccessLogEntry, AccessLogQuery } from "@medbrains/types";
+import { IconSearch } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -87,9 +79,7 @@ export function AccessLogTab() {
     {
       key: "created_at",
       label: "Time",
-      render: (r) => (
-        <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>
-      ),
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>,
     },
     {
       key: "user_name",
@@ -132,7 +122,9 @@ export function AccessLogTab() {
             {r.patient_name ?? r.patient_id.substring(0, 8)}
           </Text>
         ) : (
-          <Text size="sm" c="dimmed">-</Text>
+          <Text size="sm" c="dimmed">
+            -
+          </Text>
         ),
     },
     {
@@ -156,9 +148,7 @@ export function AccessLogTab() {
     {
       key: "created_at",
       label: "Time",
-      render: (r) => (
-        <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>
-      ),
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>,
     },
     {
       key: "user_name",

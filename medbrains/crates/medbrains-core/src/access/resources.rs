@@ -36,12 +36,30 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "patient",
         label: "Patient",
         relations: &[
-            RebacRelation { name: "owner", subject_types: USER },
-            RebacRelation { name: "attending", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "owner",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "attending",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "delete", "share"],
     },
@@ -49,12 +67,30 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "encounter",
         label: "Encounter / OPD Visit",
         relations: &[
-            RebacRelation { name: "owner", subject_types: USER },
-            RebacRelation { name: "attending", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "owner",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "attending",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "delete", "share"],
     },
@@ -62,12 +98,30 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "admission",
         label: "Admission / IPD",
         relations: &[
-            RebacRelation { name: "attending", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "ward_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "attending",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "ward_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "discharge", "share"],
     },
@@ -75,11 +129,26 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "lab_order",
         label: "Lab Order",
         relations: &[
-            RebacRelation { name: "ordering_provider", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "ordering_provider",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "cancel", "add_results", "share"],
     },
@@ -87,11 +156,26 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "pharmacy_order",
         label: "Pharmacy Order",
         relations: &[
-            RebacRelation { name: "prescriber", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "prescriber",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "dispense", "cancel", "share"],
     },
@@ -99,11 +183,26 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "radiology_order",
         label: "Radiology Order",
         relations: &[
-            RebacRelation { name: "ordering_provider", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "ordering_provider",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "share"],
     },
@@ -111,10 +210,22 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "invoice",
         label: "Billing Invoice",
         relations: &[
-            RebacRelation { name: "owner", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "owner",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "record_payment", "cancel", "share"],
     },
@@ -122,9 +233,18 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "opd_queue_entry",
         label: "OPD Queue Token",
         relations: &[
-            RebacRelation { name: "doctor", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "group_member", subject_types: USER_OR_GROUP },
+            RebacRelation {
+                name: "doctor",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "group_member",
+                subject_types: USER_OR_GROUP,
+            },
         ],
         permissions: &["view", "call_next"],
     },
@@ -132,11 +252,26 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "clinical_document",
         label: "Clinical Document",
         relations: &[
-            RebacRelation { name: "owner", subject_types: USER },
-            RebacRelation { name: "patient_attending", subject_types: USER },
-            RebacRelation { name: "dept_member", subject_types: USER_OR_DEPT },
-            RebacRelation { name: "viewer", subject_types: USER },
-            RebacRelation { name: "editor", subject_types: USER },
+            RebacRelation {
+                name: "owner",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "patient_attending",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "dept_member",
+                subject_types: USER_OR_DEPT,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "editor",
+                subject_types: USER,
+            },
         ],
         permissions: &["view", "edit", "sign", "delete"],
     },
@@ -144,9 +279,18 @@ pub const REBAC_RESOURCES: &[ResourceDef] = &[
         object_type: "pipeline",
         label: "Integration Pipeline",
         relations: &[
-            RebacRelation { name: "creator", subject_types: USER },
-            RebacRelation { name: "runner", subject_types: USER_OR_GROUP },
-            RebacRelation { name: "viewer", subject_types: USER_OR_GROUP },
+            RebacRelation {
+                name: "creator",
+                subject_types: USER,
+            },
+            RebacRelation {
+                name: "runner",
+                subject_types: USER_OR_GROUP,
+            },
+            RebacRelation {
+                name: "viewer",
+                subject_types: USER_OR_GROUP,
+            },
         ],
         permissions: &["view", "edit", "run", "delete"],
     },

@@ -18,24 +18,26 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { api } from "@medbrains/api";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import {
-  IconBell,
-  IconChevronRight,
-  IconLanguage,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconLogout,
-  IconSearch,
-  IconSettings,
-  IconUser,
-} from "@tabler/icons-react";
+  Bell,
+  ChevronRight,
+  Languages,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Settings,
+  User,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Outlet, useLocation, useNavigate } from "react-router";
+import { AnimatedIcon } from "../components/AnimatedIcon";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { NAV_GROUPS, resolveIcon, buildPathLabels, type NavItemConfig } from "../config/navigation";
+import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "../config/navigation";
 import classes from "./AppLayout.module.scss";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
@@ -43,7 +45,7 @@ import classes from "./AppLayout.module.scss";
 interface ResolvedNavItem {
   label: string;
   path: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   requiredPermission?: string;
   children?: ResolvedNavItem[];
 }
@@ -75,10 +77,13 @@ export function AppLayout() {
     navigate("/login");
   };
 
-  const handleNavigate = useCallback((path: string) => {
-    navigate(path);
-    closeMobile();
-  }, [navigate, closeMobile]);
+  const handleNavigate = useCallback(
+    (path: string) => {
+      navigate(path);
+      closeMobile();
+    },
+    [navigate, closeMobile],
+  );
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((p) => {
@@ -89,21 +94,26 @@ export function AppLayout() {
   const userInitial = user?.full_name?.charAt(0)?.toUpperCase() ?? "U";
 
   // Resolve config items to renderable items with translated labels
-  const resolveItem = useCallback((cfg: NavItemConfig, childSize = false): ResolvedNavItem => ({
-    label: t(cfg.i18nKey),
-    path: cfg.path,
-    icon: resolveIcon(cfg.icon, childSize ? 16 : 20, 1.5),
-    requiredPermission: cfg.requiredPermission,
-    children: cfg.children?.map((c) => resolveItem(c, true)),
-  }), [t]);
+  const resolveItem = useCallback(
+    (cfg: NavItemConfig, childSize = false): ResolvedNavItem => ({
+      label: t(cfg.i18nKey),
+      path: cfg.path,
+      icon: resolveIcon(cfg.icon, childSize ? 16 : 20, 1.5),
+      requiredPermission: cfg.requiredPermission,
+      children: cfg.children?.map((c) => resolveItem(c, true)),
+    }),
+    [t],
+  );
 
   // Build nav groups from static config
-  const navGroups = useMemo(() =>
-    NAV_GROUPS.map((group) => ({
-      key: group.key,
-      items: group.items.map((item) => resolveItem(item)),
-    })),
-  [resolveItem]);
+  const navGroups = useMemo(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        key: group.key,
+        items: group.items.map((item) => resolveItem(item)),
+      })),
+    [resolveItem],
+  );
 
   // Breadcrumbs
   const pathLabelMap = useMemo(() => buildPathLabels(NAV_GROUPS, t), [t]);
@@ -111,9 +121,8 @@ export function AppLayout() {
   const breadcrumbItems = pathSegments.map((_, index) => {
     const href = `/${pathSegments.slice(0, index + 1).join("/")}`;
     const segment = pathSegments[index] ?? "";
-    const title = pathLabelMap[href] ?? segment
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    const title =
+      pathLabelMap[href] ?? segment.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     return { title, href };
   });
 
@@ -131,7 +140,7 @@ export function AppLayout() {
         className={`${classes.railItem} ${active ? classes.railItemActive : ""}`}
         onClick={() => handleNavigate(item.path)}
       >
-        {item.icon}
+        <span className={classes.navIcon}>{item.icon}</span>
       </UnstyledButton>
     </Tooltip>
   );
@@ -146,7 +155,7 @@ export function AppLayout() {
         <div key={item.path}>
           <NavLink
             label={item.label}
-            leftSection={item.icon}
+            leftSection={<span className={classes.navIcon}>{item.icon}</span>}
             active={isAdminActive}
             defaultOpened={isAdminActive}
             className={isAdminActive ? classes.expandedItemActive : classes.expandedItem}
@@ -155,10 +164,12 @@ export function AppLayout() {
               <NavLink
                 key={child.path}
                 label={child.label}
-                leftSection={child.icon}
+                leftSection={<span className={classes.navIcon}>{child.icon}</span>}
                 active={isActive(child.path)}
                 onClick={() => handleNavigate(child.path)}
-                className={isActive(child.path) ? classes.expandedChildActive : classes.expandedChild}
+                className={
+                  isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
+                }
               />
             ))}
           </NavLink>
@@ -171,7 +182,7 @@ export function AppLayout() {
       <NavLink
         key={item.path}
         label={item.label}
-        leftSection={item.icon}
+        leftSection={<span className={classes.navIcon}>{item.icon}</span>}
         active={active}
         onClick={() => handleNavigate(item.path)}
         className={active ? classes.expandedItemActive : classes.expandedItem}
@@ -226,13 +237,20 @@ export function AppLayout() {
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
-            <Group
-              gap={8}
-              className={classes.logoArea}
-              onClick={() => navigate("/dashboard")}
-            >
-              <img src="/logo/medbrains-mark.svg" alt="" width={30} height={30} style={{ borderRadius: 8 }} />
-              <Text size="sm" fw={700} c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
+            <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
+              <img
+                src="/logo/medbrains-mark.svg"
+                alt=""
+                width={30}
+                height={30}
+                style={{ borderRadius: 8 }}
+              />
+              <Text
+                size="sm"
+                fw={700}
+                c="var(--mb-text-primary)"
+                style={{ letterSpacing: "-0.02em" }}
+              >
                 MedBrains
               </Text>
               <Text size="xs" c="var(--mb-text-muted)" fw={500} visibleFrom="md">
@@ -243,20 +261,33 @@ export function AppLayout() {
 
           <Group gap="sm">
             {/* Spotlight trigger */}
-            <UnstyledButton onClick={spotlight.open} className={classes.searchTrigger} visibleFrom="sm">
+            <UnstyledButton
+              onClick={spotlight.open}
+              className={classes.searchTrigger}
+              visibleFrom="sm"
+            >
               <Group gap={6}>
-                <IconSearch size={14} stroke={1.5} />
-                <Text size="xs" c="dimmed">Search...</Text>
+                <AnimatedIcon icon={Search} size={14} motion="float" />
+                <Text size="xs" c="dimmed">
+                  Search...
+                </Text>
                 <Kbd size="xs">⌘K</Kbd>
               </Group>
             </UnstyledButton>
-            <ActionIcon size="md" color="slate" variant="subtle" hiddenFrom="sm" onClick={spotlight.open} aria-label="Search">
-              <IconSearch size={18} stroke={1.5} />
+            <ActionIcon
+              size="md"
+              color="slate"
+              variant="subtle"
+              hiddenFrom="sm"
+              onClick={spotlight.open}
+              aria-label="Search"
+            >
+              <AnimatedIcon icon={Search} size={18} motion="float" />
             </ActionIcon>
 
             <Indicator size={6} color="danger" offset={3} processing>
               <ActionIcon size="md" color="slate" variant="subtle" aria-label="Notifications">
-                <IconBell size={18} stroke={1.5} />
+                <AnimatedIcon icon={Bell} size={18} motion="pulse" />
               </ActionIcon>
             </Indicator>
 
@@ -264,13 +295,19 @@ export function AppLayout() {
               <Menu.Target>
                 <Tooltip label="Language" withArrow>
                   <ActionIcon size="md" color="slate" variant="subtle" aria-label="Language">
-                    <IconLanguage size={18} stroke={1.5} />
+                    <AnimatedIcon icon={Languages} size={18} motion="float" />
                   </ActionIcon>
                 </Tooltip>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>Language</Menu.Label>
-                <Menu.Item leftSection={<Text size="xs" fw={600}>EN</Text>}>
+                <Menu.Item
+                  leftSection={
+                    <Text size="xs" fw={600}>
+                      EN
+                    </Text>
+                  }
+                >
                   English
                 </Menu.Item>
               </Menu.Dropdown>
@@ -300,11 +337,9 @@ export function AppLayout() {
                 </Group>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item leftSection={<IconUser size={14} stroke={1.5} />}>
-                  Profile
-                </Menu.Item>
+                <Menu.Item leftSection={<AnimatedIcon icon={User} size={14} />}>Profile</Menu.Item>
                 <Menu.Item
-                  leftSection={<IconSettings size={14} stroke={1.5} />}
+                  leftSection={<AnimatedIcon icon={Settings} size={14} motion="float" />}
                   onClick={() => navigate("/admin/settings")}
                 >
                   Settings
@@ -312,7 +347,7 @@ export function AppLayout() {
                 <Menu.Divider />
                 <Menu.Item
                   color="danger"
-                  leftSection={<IconLogout size={14} stroke={1.5} />}
+                  leftSection={<AnimatedIcon icon={LogOut} size={14} motion="bounce" />}
                   onClick={handleLogout}
                 >
                   Logout
@@ -339,14 +374,16 @@ export function AppLayout() {
           {/* Collapse / Expand toggle */}
           <Box visibleFrom="sm" className={classes.footerAction}>
             {isExpanded ? (
-              <UnstyledButton className={classes.expandedItem} onClick={toggleSidebar} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8 }}>
-                <IconLayoutSidebarLeftCollapse size={18} stroke={1.5} />
-                <Text size="xs" c="var(--mb-text-muted)">{t("collapse")}</Text>
+              <UnstyledButton className={classes.sidebarToggleExpanded} onClick={toggleSidebar}>
+                <AnimatedIcon icon={PanelLeftClose} size={18} motion="float" />
+                <Text size="xs" c="var(--mb-text-muted)">
+                  {t("collapse")}
+                </Text>
               </UnstyledButton>
             ) : (
               <Tooltip label={t("expand")} position="right" withArrow>
                 <UnstyledButton className={classes.railItem} onClick={toggleSidebar}>
-                  <IconLayoutSidebarLeftExpand size={20} stroke={1.5} />
+                  <AnimatedIcon icon={PanelLeftOpen} size={20} motion="float" />
                 </UnstyledButton>
               </Tooltip>
             )}
@@ -366,21 +403,21 @@ export function AppLayout() {
         {breadcrumbItems.length > 0 && (
           <Breadcrumbs
             mb="md"
-            separator={<IconChevronRight size={12} color="var(--mb-text-muted)" />}
+            separator={<ChevronRight size={12} color="var(--mb-text-muted)" />}
             className={classes.breadcrumbs}
           >
             {breadcrumbItems.map((item, index) => (
               <Text
                 key={item.href}
                 size="xs"
-                c={index === breadcrumbItems.length - 1 ? "var(--mb-text-primary)" : "var(--mb-text-secondary)"}
+                c={
+                  index === breadcrumbItems.length - 1
+                    ? "var(--mb-text-primary)"
+                    : "var(--mb-text-secondary)"
+                }
                 fw={index === breadcrumbItems.length - 1 ? 600 : 400}
                 className={index < breadcrumbItems.length - 1 ? classes.breadcrumbLink : undefined}
-                onClick={
-                  index < breadcrumbItems.length - 1
-                    ? () => navigate(item.href)
-                    : undefined
-                }
+                onClick={index < breadcrumbItems.length - 1 ? () => navigate(item.href) : undefined}
               >
                 {item.title}
               </Text>

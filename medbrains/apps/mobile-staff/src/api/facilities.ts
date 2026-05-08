@@ -2,8 +2,8 @@
  * Facilities API methods — work orders + compliance.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface WorkOrderRow {
   id: string;

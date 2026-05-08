@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.id, b.user_id, u.full_name AS user_name, b.patient_id,\n         (p.first_name || ' ' || p.last_name) AS patient_name,\n         b.reason, b.scope_type, b.scope_id,\n         b.requested_modules AS \"requested_modules!\",\n         b.start_time, b.end_time, b.expires_at,\n         (b.is_active AND b.expires_at > now()) AS \"is_active!\",\n         b.phi_access_count, b.last_phi_accessed_at,\n         b.reviewed_at, b.created_at\n         FROM break_glass_events b\n         LEFT JOIN users u ON u.id = b.user_id\n         LEFT JOIN patients p ON p.id = b.patient_id\n         WHERE b.tenant_id = $9\n         AND ($1::uuid IS NULL OR b.user_id = $1)\n         AND ($2::uuid IS NULL OR b.patient_id = $2)\n         AND ($3::boolean IS NULL OR (b.is_active AND b.expires_at > now()) = $3)\n         AND ($4::boolean IS NULL OR (CASE WHEN $4 THEN b.reviewed_at IS NOT NULL ELSE b.reviewed_at IS NULL END))\n         AND ($5::text IS NULL OR b.created_at >= ($5::text)::timestamptz)\n         AND ($6::text IS NULL OR b.created_at <= ($6::text)::timestamptz)\n         ORDER BY b.created_at DESC\n         LIMIT $7 OFFSET $8\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "patient_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "scope_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "requested_modules!",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "start_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "end_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "is_active!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "phi_access_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "last_phi_accessed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Bool",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      null,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "1661c222159baaa9fec2d471c86af62bb790e71dae30e4d9350a55a84666ff63"
+}

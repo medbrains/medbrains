@@ -1,6 +1,6 @@
 import { Button, Group } from "@mantine/core";
-import { IconPrinter, IconDownload } from "@tabler/icons-react";
-import { useRef, useMemo } from "react";
+import { IconDownload, IconPrinter } from "@tabler/icons-react";
+import { useMemo, useRef } from "react";
 import classes from "./document-renderer.module.scss";
 
 // ── Types ───────────────────────────────────────────────
@@ -37,10 +37,25 @@ interface SectionDef {
   caption?: string;
 }
 
-interface FieldDef { label: string; key: string }
-interface ColumnDef { header: string; key: string; flag_key?: string }
-interface SummaryItemDef { label: string; key: string; is_total?: boolean }
-interface SignatureBlockDef { label: string; designation?: string; key?: string }
+interface FieldDef {
+  label: string;
+  key: string;
+}
+interface ColumnDef {
+  header: string;
+  key: string;
+  flag_key?: string;
+}
+interface SummaryItemDef {
+  label: string;
+  key: string;
+  is_total?: boolean;
+}
+interface SignatureBlockDef {
+  label: string;
+  designation?: string;
+  key?: string;
+}
 
 export interface HospitalInfo {
   name: string;
@@ -124,10 +139,18 @@ function HospitalHeader({ info, t }: { info?: HospitalInfo; t: TemplateLayout })
   );
 }
 
-function PatientInfoSection({ section, ctx }: { section: SectionDef; ctx: Record<string, unknown> }) {
+function PatientInfoSection({
+  section,
+  ctx,
+}: {
+  section: SectionDef;
+  ctx: Record<string, unknown>;
+}) {
   return (
     <div className={classes.patientInfo}>
-      {(section.fields ?? []).map((f) => <FieldRow key={f.key} f={f} ctx={ctx} />)}
+      {(section.fields ?? []).map((f) => (
+        <FieldRow key={f.key} f={f} ctx={ctx} />
+      ))}
     </div>
   );
 }
@@ -137,7 +160,9 @@ function KeyValueSection({ section, ctx }: { section: SectionDef; ctx: Record<st
     <div className={classes.keyValueSection}>
       {section.title && <div className={classes.kvTitle}>{section.title}</div>}
       <div className={classes.kvGrid}>
-        {(section.fields ?? []).map((f) => <FieldRow key={f.key} f={f} ctx={ctx} />)}
+        {(section.fields ?? []).map((f) => (
+          <FieldRow key={f.key} f={f} ctx={ctx} />
+        ))}
       </div>
     </div>
   );
@@ -153,7 +178,9 @@ function TableSection({ section, ctx }: { section: SectionDef; ctx: Record<strin
         <thead>
           <tr>
             <th>#</th>
-            {cols.map((c) => <th key={c.key}>{c.header}</th>)}
+            {cols.map((c) => (
+              <th key={c.key}>{c.header}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -161,14 +188,21 @@ function TableSection({ section, ctx }: { section: SectionDef; ctx: Record<strin
             <tr key={i}>
               <td>{i + 1}</td>
               {cols.map((c) => (
-                <td key={c.key} className={c.flag_key ? flagCls(row[c.flag_key] as string) : undefined}>
+                <td
+                  key={c.key}
+                  className={c.flag_key ? flagCls(row[c.flag_key] as string) : undefined}
+                >
                   {fmtVal(row[c.key])}
                 </td>
               ))}
             </tr>
           ))}
           {rows.length === 0 && (
-            <tr><td colSpan={cols.length + 1} style={{ textAlign: "center" }}>No data</td></tr>
+            <tr>
+              <td colSpan={cols.length + 1} style={{ textAlign: "center" }}>
+                No data
+              </td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -182,7 +216,10 @@ function SummarySection({ section, ctx }: { section: SectionDef; ctx: Record<str
       {section.title && <div className={classes.kvTitle}>{section.title}</div>}
       <div className={classes.summaryGrid}>
         {(section.items ?? []).map((item) => (
-          <div key={item.key} className={`${classes.summaryRow} ${item.is_total ? classes.total : ""}`}>
+          <div
+            key={item.key}
+            className={`${classes.summaryRow} ${item.is_total ? classes.total : ""}`}
+          >
             <span>{item.label}</span>
             <span>{fmtVal(getNestedValue(ctx, item.key))}</span>
           </div>
@@ -206,12 +243,20 @@ function TextSection({ section, ctx }: { section: SectionDef; ctx: Record<string
   );
 }
 
-function SignaturesSection({ blocks, ctx }: { blocks: SignatureBlockDef[]; ctx: Record<string, unknown> }) {
+function SignaturesSection({
+  blocks,
+  ctx,
+}: {
+  blocks: SignatureBlockDef[];
+  ctx: Record<string, unknown>;
+}) {
   return (
     <div className={classes.signaturesRow}>
       {blocks.map((blk, i) => (
         <div key={i} className={classes.signatureBlock}>
-          <div className={classes.sigLine}>{blk.key ? fmtVal(getNestedValue(ctx, blk.key)) : ""}</div>
+          <div className={classes.sigLine}>
+            {blk.key ? fmtVal(getNestedValue(ctx, blk.key)) : ""}
+          </div>
           <div className={classes.sigLabel}>{blk.label}</div>
           {blk.designation && <div className={classes.sigDesignation}>{blk.designation}</div>}
         </div>
@@ -223,7 +268,10 @@ function SignaturesSection({ blocks, ctx }: { blocks: SignatureBlockDef[]; ctx: 
 // ── Section Router ──────────────────────────────────────
 
 function RenderSection({
-  section, ctx, hospitalInfo, template,
+  section,
+  ctx,
+  hospitalInfo,
+  template,
 }: {
   section: SectionDef;
   ctx: Record<string, unknown>;
@@ -296,7 +344,12 @@ export function DocumentRenderer({ template, context, hospitalInfo }: DocumentRe
     <div>
       <div className={classes.screenOnly}>
         <Group gap="xs">
-          <Button leftSection={<IconPrinter size={16} />} variant="light" size="xs" onClick={() => window.print()}>
+          <Button
+            leftSection={<IconPrinter size={16} />}
+            variant="light"
+            size="xs"
+            onClick={() => window.print()}
+          >
             Print
           </Button>
           <Button leftSection={<IconDownload size={16} />} variant="light" size="xs" disabled>

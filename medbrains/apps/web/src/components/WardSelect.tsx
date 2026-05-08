@@ -1,8 +1,8 @@
-import { useMemo } from "react";
 import { Select } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { WardListRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 interface WardSelectProps {
   value: string;

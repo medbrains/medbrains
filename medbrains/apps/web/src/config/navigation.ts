@@ -218,6 +218,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "pharmacy.prescriptions.list",
       },
       {
+        i18nKey: "pharmacyFinance",
+        path: "/pharmacy/finance",
+        icon: "IconReceipt",
+        requiredPermission: "pharmacy_finance.cash_drawer.view",
+      },
+      {
         i18nKey: "bloodBank",
         path: "/blood-bank",
         icon: "IconDroplet",
@@ -240,6 +246,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/icu",
         icon: "IconHeartRateMonitor",
         requiredPermission: "icu.flowsheets.list",
+      },
+      {
+        i18nKey: "nurseActivities",
+        path: "/nurse",
+        icon: "IconClipboardCheck",
+        requiredPermission: "nurse.dashboard.view",
       },
       { i18nKey: "ot", path: "/ot", icon: "IconScissors", requiredPermission: "ot.bookings.list" },
       {
@@ -496,6 +508,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/groups",
             icon: "IconUsersGroup",
             requiredPermission: "admin.users.list",
+          },
+          {
+            i18nKey: "nabhIndicators",
+            path: "/admin/nabh-indicators",
+            icon: "IconChartBar",
+            requiredPermission: "quality.indicators.list",
           },
           {
             i18nKey: "settings",

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -13,22 +12,12 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCalendar,
-  IconChartBar,
-  IconEye,
-  IconPlus,
-  IconRadar,
-  IconX,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -39,7 +28,26 @@ import type {
   RadiologyTatRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import {
+  IconCalendar,
+  IconChartBar,
+  IconEye,
+  IconPlus,
+  IconRadar,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  PageHeader,
+  StatusDot,
+  useClinicalEmit,
+} from "../components";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const statusColors: Record<string, string> = {
@@ -69,10 +77,16 @@ export function RadiologyPage() {
     <ClinicalEventProvider moduleCode="radiology" contextCode="radiology-orders">
       <Tabs defaultValue="orders">
         <Tabs.List>
-          <Tabs.Tab value="orders" leftSection={<IconRadar size={16} />}>Orders</Tabs.Tab>
+          <Tabs.Tab value="orders" leftSection={<IconRadar size={16} />}>
+            Orders
+          </Tabs.Tab>
           <Tabs.Tab value="modalities">Modalities</Tabs.Tab>
-          <Tabs.Tab value="appointments" leftSection={<IconCalendar size={16} />}>Appointments</Tabs.Tab>
-          <Tabs.Tab value="tat" leftSection={<IconChartBar size={16} />}>TAT Analytics</Tabs.Tab>
+          <Tabs.Tab value="appointments" leftSection={<IconCalendar size={16} />}>
+            Appointments
+          </Tabs.Tab>
+          <Tabs.Tab value="tat" leftSection={<IconChartBar size={16} />}>
+            TAT Analytics
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="orders" pt="md">
@@ -137,28 +151,52 @@ function RadiologyOrdersTab() {
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 1;
 
   const columns = [
-    { key: "patient_id" as const, label: "Patient", render: (o: RadiologyOrder) => o.patient_id.slice(0, 8) },
+    {
+      key: "patient_id" as const,
+      label: "Patient",
+      render: (o: RadiologyOrder) => <PatientNameCell patientId={o.patient_id} showUhid={false} />,
+    },
     {
       key: "priority" as const,
       label: "Priority",
       render: (o: RadiologyOrder) => (
-        <Badge size="xs" color={priorityColors[o.priority] ?? "slate"}>{o.priority}</Badge>
+        <Badge size="xs" color={priorityColors[o.priority] ?? "slate"}>
+          {o.priority}
+        </Badge>
       ),
     },
     {
       key: "status" as const,
       label: "Status",
-      render: (o: RadiologyOrder) => <StatusDot label={o.status} color={statusColors[o.status] ?? "slate"} />,
+      render: (o: RadiologyOrder) => (
+        <StatusDot label={o.status} color={statusColors[o.status] ?? "slate"} />
+      ),
     },
-    { key: "body_part" as const, label: "Body Part", render: (o: RadiologyOrder) => o.body_part ?? "—" },
+    {
+      key: "body_part" as const,
+      label: "Body Part",
+      render: (o: RadiologyOrder) => o.body_part ?? "—",
+    },
     {
       key: "flags" as const,
       label: "Flags",
       render: (o: RadiologyOrder) => (
         <Group gap={4}>
-          {o.contrast_required && <Badge size="xs" color="warning">Contrast</Badge>}
-          {o.allergy_flagged && <Badge size="xs" color="danger">Allergy</Badge>}
-          {o.pregnancy_checked && <Badge size="xs" color="danger">Preg-Chk</Badge>}
+          {o.contrast_required && (
+            <Badge size="xs" color="warning">
+              Contrast
+            </Badge>
+          )}
+          {o.allergy_flagged && (
+            <Badge size="xs" color="danger">
+              Allergy
+            </Badge>
+          )}
+          {o.pregnancy_checked && (
+            <Badge size="xs" color="danger">
+              Preg-Chk
+            </Badge>
+          )}
         </Group>
       ),
     },
@@ -173,24 +211,42 @@ function RadiologyOrdersTab() {
       render: (o: RadiologyOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon variant="subtle" onClick={() => setDetailId(o.id)} aria-label="View details">
+            <ActionIcon
+              variant="subtle"
+              onClick={() => setDetailId(o.id)}
+              aria-label="View details"
+            >
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
           {o.status === "ordered" && canCancel && (
             <Tooltip label="Cancel">
-              <ActionIcon variant="subtle" color="danger" onClick={() => cancelMutation.mutate(o.id)} aria-label="Close">
+              <ActionIcon
+                variant="subtle"
+                color="danger"
+                onClick={() => cancelMutation.mutate(o.id)}
+                aria-label="Close"
+              >
                 <IconX size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {o.status === "ordered" && (
-            <Button size="xs" variant="light" onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "in_progress" })}>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "in_progress" })}
+            >
               Start
             </Button>
           )}
           {o.status === "in_progress" && (
-            <Button size="xs" variant="light" color="orange" onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "completed" })}>
+            <Button
+              size="xs"
+              variant="light"
+              color="orange"
+              onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "completed" })}
+            >
               Complete
             </Button>
           )}
@@ -211,7 +267,15 @@ function RadiologyOrdersTab() {
               clearable
               size="xs"
               w={160}
-              data={["ordered", "scheduled", "in_progress", "completed", "reported", "verified", "cancelled"]}
+              data={[
+                "ordered",
+                "scheduled",
+                "in_progress",
+                "completed",
+                "reported",
+                "verified",
+                "cancelled",
+              ]}
               value={statusFilter}
               onChange={setStatusFilter}
             />
@@ -285,9 +349,20 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
     .map((m: RadiologyModality) => ({ value: m.id, label: `${m.code} — ${m.name}` }));
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Radiology Order" position="right" size="xl">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="New Radiology Order"
+      position="right"
+      size="xl"
+    >
       <Stack>
-        <PatientSearchSelect value={form.patient_id ?? ""} onChange={(v) => setForm({ ...form, patient_id: v })} required />
+        <PatientSearchSelect
+          value={form.patient_id ?? ""}
+          onChange={(v) => setForm({ ...form, patient_id: v })}
+          required
+        />
+        <PatientContextBanner patientId={form.patient_id} hideLoadingState />
         <Select
           label="Modality"
           required
@@ -316,9 +391,21 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
           value={form.priority ?? "routine"}
           onChange={(v) => setForm({ ...form, priority: v ?? "routine" })}
         />
-        <Switch label="Contrast Required" checked={contrast} onChange={(e) => setContrast(e.currentTarget.checked)} />
-        <Checkbox label="Pregnancy Verified" checked={pregnancyChecked} onChange={(e) => setPregnancyChecked(e.currentTarget.checked)} />
-        <Checkbox label="Allergy Flagged" checked={allergyFlagged} onChange={(e) => setAllergyFlagged(e.currentTarget.checked)} />
+        <Switch
+          label="Contrast Required"
+          checked={contrast}
+          onChange={(e) => setContrast(e.currentTarget.checked)}
+        />
+        <Checkbox
+          label="Pregnancy Verified"
+          checked={pregnancyChecked}
+          onChange={(e) => setPregnancyChecked(e.currentTarget.checked)}
+        />
+        <Checkbox
+          label="Allergy Flagged"
+          checked={allergyFlagged}
+          onChange={(e) => setAllergyFlagged(e.currentTarget.checked)}
+        />
         <Textarea
           label="Notes"
           value={form.notes ?? ""}
@@ -415,6 +502,7 @@ function OrderDetailDrawer({
     <Drawer opened onClose={onClose} title="Order Detail" position="right" size="lg">
       {order && (
         <Stack>
+          <PatientContextBanner patientId={order.patient_id} hideLoadingState />
           <Group>
             <Text fw={600}>Status:</Text>
             <Badge color={statusColors[order.status] ?? "slate"}>{order.status}</Badge>
@@ -422,9 +510,13 @@ function OrderDetailDrawer({
             <Badge color={priorityColors[order.priority] ?? "slate"}>{order.priority}</Badge>
           </Group>
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
-          {order.clinical_indication && <Text size="sm">Indication: {order.clinical_indication}</Text>}
+          {order.clinical_indication && (
+            <Text size="sm">Indication: {order.clinical_indication}</Text>
+          )}
           {order.cancellation_reason && (
-            <Badge color="danger" variant="light">Cancelled: {order.cancellation_reason}</Badge>
+            <Badge color="danger" variant="light">
+              Cancelled: {order.cancellation_reason}
+            </Badge>
           )}
 
           <Tabs value={reportTab} onChange={setReportTab}>
@@ -437,9 +529,21 @@ function OrderDetailDrawer({
             <Tabs.Panel value="details" pt="sm">
               <Stack gap="xs">
                 <Group gap={8}>
-                  {order.contrast_required && <Badge size="sm" color="warning">Contrast Required</Badge>}
-                  {order.pregnancy_checked && <Badge size="sm" color="danger">Pregnancy Verified</Badge>}
-                  {order.allergy_flagged && <Badge size="sm" color="danger">Allergy Flagged</Badge>}
+                  {order.contrast_required && (
+                    <Badge size="sm" color="warning">
+                      Contrast Required
+                    </Badge>
+                  )}
+                  {order.pregnancy_checked && (
+                    <Badge size="sm" color="danger">
+                      Pregnancy Verified
+                    </Badge>
+                  )}
+                  {order.allergy_flagged && (
+                    <Badge size="sm" color="danger">
+                      Allergy Flagged
+                    </Badge>
+                  )}
                 </Group>
                 {order.notes && <Text size="sm">Notes: {order.notes}</Text>}
                 {order.scheduled_at && (
@@ -455,11 +559,15 @@ function OrderDetailDrawer({
               {report ? (
                 <Stack>
                   <Group>
-                    <Badge color={report.status === "final" ? "success" : "warning"}>{report.status}</Badge>
+                    <Badge color={report.status === "final" ? "success" : "warning"}>
+                      {report.status}
+                    </Badge>
                     {report.is_critical && <Badge color="danger">CRITICAL</Badge>}
                   </Group>
                   <Text fw={600}>Findings:</Text>
-                  <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{report.findings}</Text>
+                  <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    {report.findings}
+                  </Text>
                   {report.impression && (
                     <>
                       <Text fw={600}>Impression:</Text>
@@ -484,16 +592,40 @@ function OrderDetailDrawer({
                 </Stack>
               ) : canReport && ["completed", "in_progress"].includes(order.status) ? (
                 <Stack>
-                  <Textarea label="Findings" required value={findings} onChange={(e) => setFindings(e.currentTarget.value)} minRows={4} />
-                  <Textarea label="Impression" value={impression} onChange={(e) => setImpression(e.currentTarget.value)} />
-                  <Textarea label="Recommendations" value={recommendations} onChange={(e) => setRecommendations(e.currentTarget.value)} />
-                  <Switch label="Critical Finding" checked={isCritical} onChange={(e) => setIsCritical(e.currentTarget.checked)} />
-                  <Button onClick={() => reportMutation.mutate()} loading={reportMutation.isPending} disabled={!findings}>
+                  <Textarea
+                    label="Findings"
+                    required
+                    value={findings}
+                    onChange={(e) => setFindings(e.currentTarget.value)}
+                    minRows={4}
+                  />
+                  <Textarea
+                    label="Impression"
+                    value={impression}
+                    onChange={(e) => setImpression(e.currentTarget.value)}
+                  />
+                  <Textarea
+                    label="Recommendations"
+                    value={recommendations}
+                    onChange={(e) => setRecommendations(e.currentTarget.value)}
+                  />
+                  <Switch
+                    label="Critical Finding"
+                    checked={isCritical}
+                    onChange={(e) => setIsCritical(e.currentTarget.checked)}
+                  />
+                  <Button
+                    onClick={() => reportMutation.mutate()}
+                    loading={reportMutation.isPending}
+                    disabled={!findings}
+                  >
                     Submit Report
                   </Button>
                 </Stack>
               ) : (
-                <Text c="dimmed" size="sm">No report available yet.</Text>
+                <Text c="dimmed" size="sm">
+                  No report available yet.
+                </Text>
               )}
             </Tabs.Panel>
 
@@ -524,7 +656,9 @@ function OrderDetailDrawer({
                   </Table.Tbody>
                 </Table>
               ) : (
-                <Text c="dimmed" size="sm">No dose records.</Text>
+                <Text c="dimmed" size="sm">
+                  No dose records.
+                </Text>
               )}
             </Tabs.Panel>
           </Tabs>
@@ -552,7 +686,8 @@ function ModalitiesTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.createRadiologyModality({ code, name, description: description || undefined }),
+    mutationFn: () =>
+      api.createRadiologyModality({ code, name, description: description || undefined }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
       notifications.show({ title: "Modality created", message: "", color: "success" });
@@ -578,7 +713,11 @@ function ModalitiesTab() {
         subtitle="Master list of imaging types"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} size="xs" onClick={() => setShowForm(true)}>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              size="xs"
+              onClick={() => setShowForm(true)}
+            >
               Add Modality
             </Button>
           ) : undefined
@@ -586,17 +725,43 @@ function ModalitiesTab() {
       />
 
       {showForm && (
-        <Stack mb="md" p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+        <Stack
+          mb="md"
+          p="md"
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+        >
           <Group grow>
-            <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} placeholder="XRAY" />
-            <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder="X-Ray" />
+            <TextInput
+              label="Code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+              placeholder="XRAY"
+            />
+            <TextInput
+              label="Name"
+              required
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              placeholder="X-Ray"
+            />
           </Group>
-          <TextInput label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+          <TextInput
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+          />
           <Group>
-            <Button onClick={() => createMutation.mutate()} loading={createMutation.isPending} disabled={!code || !name}>
+            <Button
+              onClick={() => createMutation.mutate()}
+              loading={createMutation.isPending}
+              disabled={!code || !name}
+            >
               Save
             </Button>
-            <Button variant="subtle" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="subtle" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
           </Group>
         </Stack>
       )}
@@ -614,23 +779,42 @@ function ModalitiesTab() {
         <Table.Tbody>
           {isLoading ? (
             <Table.Tr>
-              <Table.Td colSpan={5}><Text c="dimmed">Loading...</Text></Table.Td>
+              <Table.Td colSpan={5}>
+                <Text c="dimmed">Loading...</Text>
+              </Table.Td>
             </Table.Tr>
-          ) : (modalities ?? []).map((m: RadiologyModality) => (
-            <Table.Tr key={m.id}>
-              <Table.Td fw={600}>{m.code}</Table.Td>
-              <Table.Td>{m.name}</Table.Td>
-              <Table.Td>{m.description ?? "—"}</Table.Td>
-              <Table.Td>{m.is_active ? <Badge color="success" size="xs">Active</Badge> : <Badge color="slate" size="xs">Inactive</Badge>}</Table.Td>
-              {canManage && (
+          ) : (
+            (modalities ?? []).map((m: RadiologyModality) => (
+              <Table.Tr key={m.id}>
+                <Table.Td fw={600}>{m.code}</Table.Td>
+                <Table.Td>{m.name}</Table.Td>
+                <Table.Td>{m.description ?? "—"}</Table.Td>
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(m.id)} aria-label="Close">
-                    <IconX size={16} />
-                  </ActionIcon>
+                  {m.is_active ? (
+                    <Badge color="success" size="xs">
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge color="slate" size="xs">
+                      Inactive
+                    </Badge>
+                  )}
                 </Table.Td>
-              )}
-            </Table.Tr>
-          ))}
+                {canManage && (
+                  <Table.Td>
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      onClick={() => deleteMutation.mutate(m.id)}
+                      aria-label="Close"
+                    >
+                      <IconX size={16} />
+                    </ActionIcon>
+                  </Table.Td>
+                )}
+              </Table.Tr>
+            ))
+          )}
         </Table.Tbody>
       </Table>
     </>
@@ -676,7 +860,12 @@ function AppointmentsTab() {
     {
       key: "patient_id" as const,
       label: "Patient",
-      render: (r: Record<string, unknown>) => String(r.patient_id ?? "").slice(0, 8),
+      render: (r: Record<string, unknown>) => (
+        <PatientNameCell
+          patientId={typeof r.patient_id === "string" ? r.patient_id : null}
+          showUhid={false}
+        />
+      ),
     },
     {
       key: "modality_id" as const,
@@ -696,7 +885,11 @@ function AppointmentsTab() {
       label: "Priority",
       render: (r: Record<string, unknown>) => {
         const p = String(r.priority ?? "routine");
-        return <Badge size="xs" color={priorityColors[p] ?? "slate"}>{p}</Badge>;
+        return (
+          <Badge size="xs" color={priorityColors[p] ?? "slate"}>
+            {p}
+          </Badge>
+        );
       },
     },
     {
@@ -733,9 +926,18 @@ function AppointmentsTab() {
         loading={isLoading}
       />
 
-      <Modal opened={createOpen} onClose={createHandlers.close} title="Create Radiology Appointment" size="md">
+      <Modal
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Create Radiology Appointment"
+        size="md"
+      >
         <Stack>
-          <PatientSearchSelect value={form.patient_id ?? ""} onChange={(v) => setForm({ ...form, patient_id: v })} required />
+          <PatientSearchSelect
+            value={form.patient_id ?? ""}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
           <Select
             label="Modality"
             required
@@ -824,7 +1026,9 @@ function TatAnalyticsTab() {
             {r.avg_tat_hours.toFixed(1)}h
           </Badge>
         ) : (
-          <Text size="sm" c="dimmed">N/A</Text>
+          <Text size="sm" c="dimmed">
+            N/A
+          </Text>
         ),
     },
   ];

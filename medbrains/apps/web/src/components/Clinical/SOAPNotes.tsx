@@ -1,17 +1,12 @@
 import { Button, Group, Stack, Text, Textarea, ThemeIcon } from "@mantine/core";
-import {
-  IconBrain,
-  IconClipboardList,
-  IconEye,
-  IconMessage,
-} from "@tabler/icons-react";
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import type {
   Consultation,
   CreateConsultationRequest,
   UpdateConsultationRequest,
 } from "@medbrains/types";
+import { IconBrain, IconClipboardList, IconEye, IconMessage } from "@tabler/icons-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./soap-notes.module.scss";
 
 interface SoapSection {
@@ -72,12 +67,7 @@ interface SOAPNotesProps {
 
 type SoapValues = Record<string, string>;
 
-export function SOAPNotes({
-  onSubmit,
-  defaultValues,
-  isSubmitting,
-  submitLabel,
-}: SOAPNotesProps) {
+export function SOAPNotes({ onSubmit, defaultValues, isSubmitting, submitLabel }: SOAPNotesProps) {
   const { t } = useTranslation("clinical");
   const [values, setValues] = useState<SoapValues>(() => {
     const initial: SoapValues = {};
@@ -114,19 +104,18 @@ export function SOAPNotes({
           }}
         >
           <Group gap={8} mb={6}>
-            <ThemeIcon
-              variant="filled"
-              color={section.color}
-              size={24}
-              radius="xl"
-            >
+            <ThemeIcon variant="filled" color={section.color} size={24} radius="xl">
               <Text size="xs" fw={800} c="white" lh={1}>
                 {section.letter}
               </Text>
             </ThemeIcon>
             <div>
-              <Text size="sm" fw={600} lh={1.2}>{t(section.labelKey)}</Text>
-              <Text size="xs" c="dimmed" lh={1}>{t(section.fullLabelKey)}</Text>
+              <Text size="sm" fw={600} lh={1.2}>
+                {t(section.labelKey)}
+              </Text>
+              <Text size="xs" c="dimmed" lh={1}>
+                {t(section.fullLabelKey)}
+              </Text>
             </div>
           </Group>
           <Textarea

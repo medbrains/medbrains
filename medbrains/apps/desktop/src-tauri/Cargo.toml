@@ -1,0 +1,49 @@
+[package]
+name = "medbrains-desktop"
+version = "0.1.0"
+description = "MedBrains HMS — desktop shell"
+authors = ["MedBrains"]
+edition = "2024"
+rust-version.workspace = true
+
+# Tauri's build script generates the binary. The shell crate has no
+# library target — only the bin defined below.
+[[bin]]
+name = "medbrains-desktop"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset",
+    "tray-icon",
+    "image-png",
+] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-os = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[features]
+# By default we ship a full-featured desktop. The "thin" feature
+# disables hardware/USB access for kiosk-style deployments where
+# additional capabilities increase attack surface.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+thin = []

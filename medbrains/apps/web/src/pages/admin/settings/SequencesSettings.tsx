@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -12,15 +11,11 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { SequenceRow } from "@medbrains/types";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -335,7 +330,10 @@ export function SequencesSettings() {
 
           {form.prefix && (
             <Text size="sm" c="dimmed">
-              Preview: <Text span ff="monospace" c="primary">{formatPreview(form.prefix, form.pad_width, 1)}</Text>
+              Preview:{" "}
+              <Text span ff="monospace" c="primary">
+                {formatPreview(form.prefix, form.pad_width, 1)}
+              </Text>
             </Text>
           )}
 

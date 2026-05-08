@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import {
   Badge,
   Box,
@@ -10,16 +11,11 @@ import {
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
+import type { AvailableField, MappingFieldType, OperationDescriptor } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
-import { useDraggable } from "@dnd-kit/core";
-import type { AvailableField, OperationDescriptor } from "@medbrains/types";
 import { useMemo, useState } from "react";
-import {
-  OPERATION_CATEGORIES,
-  OPERATION_DESCRIPTORS,
-} from "./operationRegistry";
-import { TYPE_LABELS, TYPE_COLORS } from "./typeInference";
-import type { MappingFieldType } from "@medbrains/types";
+import { OPERATION_CATEGORIES, OPERATION_DESCRIPTORS } from "./operationRegistry";
+import { TYPE_COLORS, TYPE_LABELS } from "./typeInference";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -72,12 +68,8 @@ function DraggableSourceField({
         borderRadius: 4,
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
-        background: isMapped
-          ? "var(--mantine-color-green-0)"
-          : "transparent",
-        borderLeft: isMapped
-          ? "3px solid var(--mantine-color-green-5)"
-          : "3px solid transparent",
+        background: isMapped ? "var(--mantine-color-green-0)" : "transparent",
+        borderLeft: isMapped ? "3px solid var(--mantine-color-green-5)" : "3px solid transparent",
         width: "100%",
         transition: "all 150ms ease",
       }}
@@ -86,7 +78,12 @@ function DraggableSourceField({
         {field.path}
       </Text>
       {field.type && field.type !== "unknown" && (
-        <Badge size="xs" variant="light" color={TYPE_COLORS[field.type as MappingFieldType] ?? "slate"} style={{ flexShrink: 0 }}>
+        <Badge
+          size="xs"
+          variant="light"
+          color={TYPE_COLORS[field.type as MappingFieldType] ?? "slate"}
+          style={{ flexShrink: 0 }}
+        >
           {TYPE_LABELS[field.type as MappingFieldType] ?? field.type}
         </Badge>
       )}
@@ -185,11 +182,7 @@ function DraggableOperation({
 
 // ── Main Panel ────────────────────────────────────────────
 
-export function SourcePanel({
-  availableFields,
-  mappedSourcePaths,
-  viewMode,
-}: SourcePanelProps) {
+export function SourcePanel({ availableFields, mappedSourcePaths, viewMode }: SourcePanelProps) {
   const [fieldSearch, setFieldSearch] = useState("");
   const [opSearch, setOpSearch] = useState("");
   const [opCategory, setOpCategory] = useState("all");
@@ -322,11 +315,7 @@ export function SourcePanel({
       <ScrollArea.Autosize style={{ flex: 1 }} p="xs">
         <Stack gap={2}>
           {filteredOps.map((op) => (
-            <DraggableOperation
-              key={op.type}
-              op={op}
-              viewMode={viewMode}
-            />
+            <DraggableOperation key={op.type} op={op} viewMode={viewMode} />
           ))}
           {filteredOps.length === 0 && (
             <Text size="xs" c="dimmed" ta="center" py="md">

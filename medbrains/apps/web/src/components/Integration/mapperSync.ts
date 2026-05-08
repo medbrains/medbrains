@@ -1,10 +1,5 @@
-import type {
-  FieldMapping,
-  MappingSource,
-  TransformStep,
-  CombineMode,
-} from "@medbrains/types";
-import type { Node, Edge } from "@xyflow/react";
+import type { CombineMode, FieldMapping, MappingSource, TransformStep } from "@medbrains/types";
+import type { Edge, Node } from "@xyflow/react";
 
 // ── Node data types for freeform canvas ────────────────────
 
@@ -62,9 +57,10 @@ function syncId(prefix: string): string {
 
 // ── mappingsToFreeform: FieldMapping[] → { nodes, edges } ──
 
-export function mappingsToFreeform(
-  mappings: FieldMapping[],
-): { nodes: MapperNode[]; edges: Edge[] } {
+export function mappingsToFreeform(mappings: FieldMapping[]): {
+  nodes: MapperNode[];
+  edges: Edge[];
+} {
   const nodes: MapperNode[] = [];
   const edges: Edge[] = [];
 
@@ -78,16 +74,9 @@ export function mappingsToFreeform(
     const rowY = mIdx * ROW_HEIGHT * 1.5;
 
     const isGrouped =
-      m.combineMode &&
-      m.combineMode !== "single" &&
-      m.sources &&
-      m.sources.length > 1;
+      m.combineMode && m.combineMode !== "single" && m.sources && m.sources.length > 1;
 
-    const sourcePaths = isGrouped
-      ? (m.sources ?? []).map((s) => s.path)
-      : m.from
-        ? [m.from]
-        : [];
+    const sourcePaths = isGrouped ? (m.sources ?? []).map((s) => s.path) : m.from ? [m.from] : [];
 
     // Create source nodes
     const sourceNodeIds: string[] = [];
@@ -203,10 +192,7 @@ export function mappingsToFreeform(
 
 // ── freeformToMappings: (nodes, edges) → FieldMapping[] ──
 
-export function freeformToMappings(
-  nodes: MapperNode[],
-  edges: Edge[],
-): FieldMapping[] {
+export function freeformToMappings(nodes: MapperNode[], edges: Edge[]): FieldMapping[] {
   const mappings: FieldMapping[] = [];
 
   // Find all destination nodes
@@ -235,11 +221,7 @@ interface NodePath {
   sourceNodes: MapperNode[];
 }
 
-function walkBackward(
-  destId: string,
-  nodes: MapperNode[],
-  edges: Edge[],
-): NodePath | null {
+function walkBackward(destId: string, nodes: MapperNode[], edges: Edge[]): NodePath | null {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const destNode = nodeMap.get(destId);
   if (!destNode || destNode.type !== "destField") return null;
@@ -266,9 +248,7 @@ function walkBackward(
     } else if (prevNode.type === "combiner") {
       combinerNode = prevNode;
       // Find all sources connected to this combiner
-      const combinerInputEdges = edges.filter(
-        (e) => e.target === prevNode.id,
-      );
+      const combinerInputEdges = edges.filter((e) => e.target === prevNode.id);
       for (const ce of combinerInputEdges) {
         const srcNode = nodeMap.get(ce.source);
         if (srcNode && srcNode.type === "sourceField") {
@@ -291,10 +271,7 @@ function walkBackward(
 
 let _mapSeq = 0;
 
-function pathToMapping(
-  path: NodePath,
-  _nodes: MapperNode[],
-): FieldMapping | null {
+function pathToMapping(path: NodePath, _nodes: MapperNode[]): FieldMapping | null {
   _mapSeq += 1;
   const destData = path.destNode.data as DestFieldNodeData;
 
@@ -337,9 +314,7 @@ function pathToMapping(
 
   // Single source
   const sourceData =
-    path.sourceNodes.length > 0
-      ? (path.sourceNodes[0]?.data as SourceFieldNodeData)
-      : null;
+    path.sourceNodes.length > 0 ? (path.sourceNodes[0]?.data as SourceFieldNodeData) : null;
 
   return {
     id: `freeform_${_mapSeq}`,

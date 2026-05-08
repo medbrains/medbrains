@@ -33,8 +33,7 @@ export function JobsTab() {
 
   const { data: jobsData, isLoading } = useQuery({
     queryKey: ["orchestration", "jobs", statusFilter],
-    queryFn: () =>
-      api.listJobs(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () => api.listJobs(statusFilter ? { status: statusFilter } : undefined),
     refetchInterval: 10_000,
   });
 
@@ -54,11 +53,7 @@ export function JobsTab() {
       key: "status",
       label: "Status",
       render: (row: JobQueueRow) => (
-        <Badge
-          color={STATUS_COLORS[row.status] ?? "gray"}
-          variant="light"
-          size="sm"
-        >
+        <Badge color={STATUS_COLORS[row.status] ?? "gray"} variant="light" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),

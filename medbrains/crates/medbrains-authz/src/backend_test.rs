@@ -1,4 +1,9 @@
 //! In-memory `AuthzBackend` for unit tests. No SQL, no transactions.
+//!
+//! `Mutex::lock().expect("…poisoned")` is acceptable here: this backend is
+//! test-only, lock poisoning means a prior test thread panicked, and the
+//! correct response is to fail the next test loudly.
+#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use std::sync::Mutex;
@@ -24,6 +29,9 @@ impl InMemoryBackend {
             return false;
         }
         if t.status != TupleStatus::Active {
+            return false;
+        }
+        if t.caveat.is_some() {
             return false;
         }
         if let Some(exp) = t.expires_at {
@@ -66,7 +74,10 @@ impl AuthzBackend for InMemoryBackend {
             });
         }
         let candidates: Vec<Relation> = relation.implied_by();
-        let tuples = self.tuples.lock().expect("authz test backend lock poisoned");
+        let tuples = self
+            .tuples
+            .lock()
+            .expect("authz test backend lock poisoned");
         Ok(tuples.iter().any(|t| {
             t.object_type == object_type
                 && t.object_id == object_id
@@ -80,7 +91,10 @@ impl AuthzBackend for InMemoryBackend {
         object_type: &str,
         object_id: Uuid,
     ) -> Result<Vec<RelationTuple>, AuthzError> {
-        let tuples = self.tuples.lock().expect("authz test backend lock poisoned");
+        let tuples = self
+            .tuples
+            .lock()
+            .expect("authz test backend lock poisoned");
         Ok(tuples
             .iter()
             .filter(|t| {
@@ -102,7 +116,10 @@ impl AuthzBackend for InMemoryBackend {
             return Ok(Vec::new());
         }
         let candidates: Vec<Relation> = relation.implied_by();
-        let tuples = self.tuples.lock().expect("authz test backend lock poisoned");
+        let tuples = self
+            .tuples
+            .lock()
+            .expect("authz test backend lock poisoned");
         let mut ids: Vec<Uuid> = tuples
             .iter()
             .filter(|t| t.object_type == object_type && Self::matches(t, ctx, &candidates))
@@ -126,9 +143,7 @@ impl AuthzBackend for InMemoryBackend {
         let spec = registry::lookup(object_type)
             .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
         if spec.bypass_only {
-            return Err(AuthzError::Other(format!(
-                "{object_type} is bypass_only"
-            )));
+            return Err(AuthzError::Other(format!("{object_type} is bypass_only")));
         }
         if !spec.allowed_relations.contains(&relation) {
             return Err(AuthzError::InvalidRelation {
@@ -161,9 +176,14 @@ impl AuthzBackend for InMemoryBackend {
     }
 
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
-        let mut tuples = self.tuples.lock().expect("authz test backend lock poisoned");
+        let mut tuples = self
+            .tuples
+            .lock()
+            .expect("authz test backend lock poisoned");
         if let Some(t) = tuples.iter_mut().find(|t| {
-            t.tuple_id == tuple_id && t.tenant_id == ctx.tenant_id && t.status == TupleStatus::Active
+            t.tuple_id == tuple_id
+                && t.tenant_id == ctx.tenant_id
+                && t.status == TupleStatus::Active
         }) {
             t.status = TupleStatus::Revoked;
         }

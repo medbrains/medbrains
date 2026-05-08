@@ -207,8 +207,8 @@ pub async fn get_daily_schedule(
            FROM nursing_tasks WHERE admission_id = $1 \
                 AND scheduled_at::date = CURRENT_DATE \
            UNION ALL \
-           SELECT 'meal' AS event_type, meal_time AS scheduled_at, \
-                  COALESCE(meal_type, 'Meal') AS description, \
+           SELECT 'meal' AS event_type, start_date::timestamptz AS scheduled_at, \
+                  ('Diet: ' || diet_type::text) AS description, \
                   status::text AS status \
            FROM diet_orders WHERE admission_id = $1 \
                 AND status = 'active' \
@@ -373,7 +373,8 @@ pub async fn get_diet_order(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, DietOrderItem>(
-        "SELECT id, diet_type, meal_type, instructions, status::text AS status \
+        "SELECT id, diet_type::text AS diet_type, NULL::text AS meal_type, \
+                special_instructions AS instructions, status::text AS status \
          FROM diet_orders WHERE admission_id = $1 AND status = 'active' \
          ORDER BY created_at DESC LIMIT 10",
     )

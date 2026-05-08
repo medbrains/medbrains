@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invoices SET subtotal = COALESCE((SELECT SUM(unit_price * quantity) FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2), 0), tax_amount = COALESCE((SELECT SUM(unit_price * quantity * tax_percent / 100) FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2), 0), total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2), 0), updated_at = now() WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c27ffaad32821b028f694227658c70c46dc9fe872a5c5b3d94912eb7543b06aa"
+}

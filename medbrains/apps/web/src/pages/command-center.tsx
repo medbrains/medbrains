@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -20,6 +19,21 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AlertThresholdRow,
+  BedTurnaroundRow,
+  CreateAlertThresholdRequest,
+  DepartmentAlertRow,
+  DepartmentLoadRow,
+  KpiTile,
+  PatientFlowSnapshot,
+  PendingDischargeRow,
+  TransportRequestRow,
+  UpdateAlertThresholdRequest,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconActivity,
   IconAlertTriangle,
@@ -39,24 +53,10 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  PatientFlowSnapshot,
-  DepartmentLoadRow,
-  DepartmentAlertRow,
-  AlertThresholdRow,
-  CreateAlertThresholdRequest,
-  UpdateAlertThresholdRequest,
-  PendingDischargeRow,
-  BedTurnaroundRow,
-  TransportRequestRow,
-  KpiTile,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { useState } from "react";
 import { DataTable, PageHeader, StatCard } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -105,41 +105,61 @@ function occupancyColor(pct: number): string {
 
 function bedStatusColor(s: string): string {
   switch (s) {
-    case "vacant_clean": return "success";
-    case "occupied": return "primary";
-    case "cleaning": return "orange";
-    case "vacant_dirty": return "danger";
-    case "maintenance": return "gray";
-    default: return "gray";
+    case "vacant_clean":
+      return "success";
+    case "occupied":
+      return "primary";
+    case "cleaning":
+      return "orange";
+    case "vacant_dirty":
+      return "danger";
+    case "maintenance":
+      return "gray";
+    default:
+      return "gray";
   }
 }
 
 function transportModeColor(m: string): string {
   switch (m) {
-    case "ambulance": return "danger";
-    case "stretcher": return "orange";
-    case "wheelchair": return "primary";
-    case "bed": return "violet";
-    default: return "gray";
+    case "ambulance":
+      return "danger";
+    case "stretcher":
+      return "orange";
+    case "wheelchair":
+      return "primary";
+    case "bed":
+      return "violet";
+    default:
+      return "gray";
   }
 }
 
 function transportPriorityColor(p: string): string {
   switch (p) {
-    case "emergency": return "danger";
-    case "urgent": return "orange";
-    default: return "gray";
+    case "emergency":
+      return "danger";
+    case "urgent":
+      return "orange";
+    default:
+      return "gray";
   }
 }
 
 function transportStatusColor(s: string): string {
   switch (s) {
-    case "requested": return "primary";
-    case "assigned": return "cyan";
-    case "in_transit": return "warning";
-    case "completed": return "success";
-    case "cancelled": return "gray";
-    default: return "gray";
+    case "requested":
+      return "primary";
+    case "assigned":
+      return "cyan";
+    case "in_transit":
+      return "warning";
+    case "completed":
+      return "success";
+    case "cancelled":
+      return "gray";
+    default:
+      return "gray";
   }
 }
 
@@ -190,11 +210,21 @@ export function CommandCenterPage() {
           </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="overview" pt="md"><OverviewTab /></Tabs.Panel>
-        <Tabs.Panel value="beds" pt="md"><BedManagementTab /></Tabs.Panel>
-        <Tabs.Panel value="discharge" pt="md"><DischargeCoordinatorTab /></Tabs.Panel>
-        <Tabs.Panel value="transport" pt="md"><TransportTab /></Tabs.Panel>
-        <Tabs.Panel value="alerts" pt="md"><AlertsThresholdsTab /></Tabs.Panel>
+        <Tabs.Panel value="overview" pt="md">
+          <OverviewTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="beds" pt="md">
+          <BedManagementTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="discharge" pt="md">
+          <DischargeCoordinatorTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="transport" pt="md">
+          <TransportTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="alerts" pt="md">
+          <AlertsThresholdsTab />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );
@@ -244,17 +274,45 @@ function OverviewTab() {
   const kpi = (code: string): KpiTile | undefined => kpis?.find((k) => k.code === code);
 
   const kpiTiles: { code: string; label: string; icon: React.ReactNode; color: string }[] = [
-    { code: "total_inpatients", label: "Inpatients", icon: <IconBed size={18} />, color: "primary" },
+    {
+      code: "total_inpatients",
+      label: "Inpatients",
+      icon: <IconBed size={18} />,
+      color: "primary",
+    },
     { code: "opd_today", label: "OPD Today", icon: <IconStethoscope size={18} />, color: "teal" },
     { code: "bed_occupancy", label: "Bed Occupancy", icon: <IconBed size={18} />, color: "orange" },
-    { code: "pending_discharges", label: "Pending Discharges", icon: <IconDoorExit size={18} />, color: "violet" },
-    { code: "active_alerts", label: "Active Alerts", icon: <IconAlertTriangle size={18} />, color: "danger" },
-    { code: "avg_wait_mins", label: "Avg Wait (min)", icon: <IconClock size={18} />, color: "info" },
+    {
+      code: "pending_discharges",
+      label: "Pending Discharges",
+      icon: <IconDoorExit size={18} />,
+      color: "violet",
+    },
+    {
+      code: "active_alerts",
+      label: "Active Alerts",
+      icon: <IconAlertTriangle size={18} />,
+      color: "danger",
+    },
+    {
+      code: "avg_wait_mins",
+      label: "Avg Wait (min)",
+      icon: <IconClock size={18} />,
+      color: "info",
+    },
   ];
 
   // Department load columns
   const deptCols: Column<DepartmentLoadRow>[] = [
-    { key: "department", label: "Department", render: (r) => <Text size="sm" fw={500}>{r.department_name}</Text> },
+    {
+      key: "department",
+      label: "Department",
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.department_name}
+        </Text>
+      ),
+    },
     {
       key: "beds",
       label: "Beds",
@@ -285,7 +343,11 @@ function OverviewTab() {
       key: "queue",
       label: "Queue",
       render: (r) => (
-        <Badge variant="light" color={r.queue_depth > 10 ? "danger" : r.queue_depth > 5 ? "warning" : "success"} size="sm">
+        <Badge
+          variant="light"
+          color={r.queue_depth > 10 ? "danger" : r.queue_depth > 5 ? "warning" : "success"}
+          size="sm"
+        >
           {r.queue_depth}
         </Badge>
       ),
@@ -314,7 +376,15 @@ function OverviewTab() {
     },
     { key: "dept", label: "Department", render: (r) => <Text size="sm">{r.department_name}</Text> },
     { key: "message", label: "Message", render: (r) => <Text size="sm">{r.message}</Text> },
-    { key: "time", label: "Time", render: (r) => <Text size="xs" c="dimmed">{fmtDate(r.created_at)}</Text> },
+    {
+      key: "time",
+      label: "Time",
+      render: (r) => (
+        <Text size="xs" c="dimmed">
+          {fmtDate(r.created_at)}
+        </Text>
+      ),
+    },
     {
       key: "actions",
       label: "Actions",
@@ -333,7 +403,9 @@ function OverviewTab() {
             </ActionIcon>
           </Tooltip>
         ) : r.acknowledged_by ? (
-          <Badge size="xs" variant="light" color="success">ACK</Badge>
+          <Badge size="xs" variant="light" color="success">
+            ACK
+          </Badge>
         ) : null,
     },
   ];
@@ -359,12 +431,16 @@ function OverviewTab() {
 
       {/* Patient Flow Pipeline */}
       <Paper p="md" withBorder>
-        <Text size="sm" fw={600} mb="sm">Patient Flow Pipeline</Text>
+        <Text size="sm" fw={600} mb="sm">
+          Patient Flow Pipeline
+        </Text>
         <PatientFlowPipeline flow={flow ?? null} />
       </Paper>
 
       {/* Department Load */}
-      <Text size="sm" fw={600}>Department Load</Text>
+      <Text size="sm" fw={600}>
+        Department Load
+      </Text>
       <DataTable<DepartmentLoadRow>
         columns={deptCols}
         data={deptLoad ?? []}
@@ -375,7 +451,9 @@ function OverviewTab() {
       />
 
       {/* Active Alerts (compact) */}
-      <Text size="sm" fw={600}>Active Alerts</Text>
+      <Text size="sm" fw={600}>
+        Active Alerts
+      </Text>
       <DataTable<DepartmentAlertRow>
         columns={alertCols}
         data={(alerts ?? []).filter((a) => !a.acknowledged_by).slice(0, 5)}
@@ -457,7 +535,9 @@ function PatientFlowPipeline({ flow }: { flow: PatientFlowSnapshot | null }) {
             <Text fz={22} fw={700} lh={1.1} c={`var(--mantine-color-${stage.color}-7)`}>
               {stage.value}
             </Text>
-            <Text size="xs" c="dimmed" mt={2}>{stage.label}</Text>
+            <Text size="xs" c="dimmed" mt={2}>
+              {stage.label}
+            </Text>
           </Paper>
           {idx < stages.length - 1 && (
             <IconChevronRight
@@ -508,14 +588,30 @@ function BedManagementTab() {
         </Badge>
       ),
     },
-    { key: "discharge_at", label: "Discharge Time", render: (r) => <Text size="xs">{fmtDate(r.discharge_at)}</Text> },
-    { key: "cleaning_started", label: "Cleaning Started", render: (r) => <Text size="xs">{fmtDate(r.cleaning_started_at)}</Text> },
-    { key: "cleaning_completed", label: "Completed", render: (r) => <Text size="xs">{fmtDate(r.cleaning_completed_at)}</Text> },
+    {
+      key: "discharge_at",
+      label: "Discharge Time",
+      render: (r) => <Text size="xs">{fmtDate(r.discharge_at)}</Text>,
+    },
+    {
+      key: "cleaning_started",
+      label: "Cleaning Started",
+      render: (r) => <Text size="xs">{fmtDate(r.cleaning_started_at)}</Text>,
+    },
+    {
+      key: "cleaning_completed",
+      label: "Completed",
+      render: (r) => <Text size="xs">{fmtDate(r.cleaning_completed_at)}</Text>,
+    },
     {
       key: "turnaround",
       label: "Turnaround (min)",
       render: (r) => (
-        <Text size="sm" fw={500} c={r.turnaround_minutes != null && r.turnaround_minutes > 60 ? "danger" : undefined}>
+        <Text
+          size="sm"
+          fw={500}
+          c={r.turnaround_minutes != null && r.turnaround_minutes > 60 ? "danger" : undefined}
+        >
           {r.turnaround_minutes != null ? r.turnaround_minutes : "-"}
         </Text>
       ),
@@ -524,15 +620,32 @@ function BedManagementTab() {
 
   // Discharge pipeline columns (compact view)
   const dischargeCols: Column<PendingDischargeRow>[] = [
-    { key: "patient", label: "Patient", render: (r) => <Text size="sm" fw={500}>{r.patient_name}</Text> },
-    { key: "uhid", label: "UHID", render: (r) => <Text size="xs" c="dimmed">{r.uhid}</Text> },
+    {
+      key: "patient",
+      label: "Patient",
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.patient_name}
+        </Text>
+      ),
+    },
+    {
+      key: "uhid",
+      label: "UHID",
+      render: (r) => (
+        <Text size="xs" c="dimmed">
+          {r.uhid}
+        </Text>
+      ),
+    },
     { key: "ward", label: "Ward", render: (r) => <Text size="sm">{r.ward_name}</Text> },
     { key: "bed", label: "Bed", render: (r) => <Text size="sm">{r.bed_code}</Text> },
     {
       key: "expected",
       label: "Expected Discharge",
       render: (r) => {
-        const isOverdue = r.expected_discharge_date && new Date(r.expected_discharge_date) < new Date();
+        const isOverdue =
+          r.expected_discharge_date && new Date(r.expected_discharge_date) < new Date();
         return (
           <Text size="sm" c={isOverdue ? "danger" : undefined} fw={isOverdue ? 600 : undefined}>
             {fmtShortDate(r.expected_discharge_date)}
@@ -546,28 +659,44 @@ function BedManagementTab() {
   return (
     <Stack gap="md">
       {/* Turnaround Stats Cards */}
-      <Text size="sm" fw={600}>Ward Turnaround Statistics</Text>
+      <Text size="sm" fw={600}>
+        Ward Turnaround Statistics
+      </Text>
       <SimpleGrid cols={4}>
         {(stats ?? []).map((s) => (
           <Card key={s.ward_name} p="md" withBorder>
-            <Text size="sm" fw={600} mb="xs">{s.ward_name}</Text>
+            <Text size="sm" fw={600} mb="xs">
+              {s.ward_name}
+            </Text>
             <SimpleGrid cols={2} spacing="xs">
               <div>
-                <Text size="xs" c="dimmed">Avg Turnaround</Text>
-                <Text size="lg" fw={700}>{s.avg_turnaround_mins.toFixed(0)} min</Text>
+                <Text size="xs" c="dimmed">
+                  Avg Turnaround
+                </Text>
+                <Text size="lg" fw={700}>
+                  {s.avg_turnaround_mins.toFixed(0)} min
+                </Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Max Turnaround</Text>
-                <Text size="lg" fw={700}>{s.max_turnaround_mins.toFixed(0)} min</Text>
+                <Text size="xs" c="dimmed">
+                  Max Turnaround
+                </Text>
+                <Text size="lg" fw={700}>
+                  {s.max_turnaround_mins.toFixed(0)} min
+                </Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Awaiting Cleaning</Text>
+                <Text size="xs" c="dimmed">
+                  Awaiting Cleaning
+                </Text>
                 <Text size="lg" fw={700} c={s.beds_awaiting_cleaning > 0 ? "orange" : undefined}>
                   {s.beds_awaiting_cleaning}
                 </Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Being Cleaned</Text>
+                <Text size="xs" c="dimmed">
+                  Being Cleaned
+                </Text>
                 <Text size="lg" fw={700} c={s.beds_being_cleaned > 0 ? "primary" : undefined}>
                   {s.beds_being_cleaned}
                 </Text>
@@ -576,12 +705,16 @@ function BedManagementTab() {
           </Card>
         ))}
         {!statsLoading && (stats ?? []).length === 0 && (
-          <Text size="sm" c="dimmed">No turnaround stats available</Text>
+          <Text size="sm" c="dimmed">
+            No turnaround stats available
+          </Text>
         )}
       </SimpleGrid>
 
       {/* Bed Turnaround Table */}
-      <Text size="sm" fw={600}>Bed Turnaround Detail</Text>
+      <Text size="sm" fw={600}>
+        Bed Turnaround Detail
+      </Text>
       <DataTable<BedTurnaroundRow>
         columns={bedCols}
         data={beds ?? []}
@@ -592,12 +725,18 @@ function BedManagementTab() {
       />
 
       {/* Discharge Pipeline (compact) */}
-      <Text size="sm" fw={600}>Discharge Pipeline</Text>
+      <Text size="sm" fw={600}>
+        Discharge Pipeline
+      </Text>
       <DataTable<PendingDischargeRow>
         columns={dischargeCols}
         data={(pendingDischarges ?? []).sort((a, b) => {
-          const da = a.expected_discharge_date ? new Date(a.expected_discharge_date).getTime() : Number.MAX_SAFE_INTEGER;
-          const db = b.expected_discharge_date ? new Date(b.expected_discharge_date).getTime() : Number.MAX_SAFE_INTEGER;
+          const da = a.expected_discharge_date
+            ? new Date(a.expected_discharge_date).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          const db = b.expected_discharge_date
+            ? new Date(b.expected_discharge_date).getTime()
+            : Number.MAX_SAFE_INTEGER;
           return da - db;
         })}
         loading={dischargesLoading}
@@ -621,8 +760,12 @@ function DischargeCoordinatorTab() {
   });
 
   const sorted = [...(pendingDischarges ?? [])].sort((a, b) => {
-    const da = a.expected_discharge_date ? new Date(a.expected_discharge_date).getTime() : Number.MAX_SAFE_INTEGER;
-    const db = b.expected_discharge_date ? new Date(b.expected_discharge_date).getTime() : Number.MAX_SAFE_INTEGER;
+    const da = a.expected_discharge_date
+      ? new Date(a.expected_discharge_date).getTime()
+      : Number.MAX_SAFE_INTEGER;
+    const db = b.expected_discharge_date
+      ? new Date(b.expected_discharge_date).getTime()
+      : Number.MAX_SAFE_INTEGER;
     return da - db;
   });
 
@@ -632,26 +775,39 @@ function DischargeCoordinatorTab() {
       label: "Patient",
       render: (r) => (
         <div>
-          <Text size="sm" fw={500}>{r.patient_name}</Text>
-          <Text size="xs" c="dimmed">{r.uhid}</Text>
+          <Text size="sm" fw={500}>
+            {r.patient_name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {r.uhid}
+          </Text>
         </div>
       ),
     },
     { key: "ward", label: "Ward", render: (r) => <Text size="sm">{r.ward_name}</Text> },
     { key: "bed", label: "Bed", render: (r) => <Text size="sm">{r.bed_code}</Text> },
     { key: "doctor", label: "Doctor", render: (r) => <Text size="sm">{r.doctor_name}</Text> },
-    { key: "admitted", label: "Admitted", render: (r) => <Text size="xs">{fmtShortDate(r.admitted_at)}</Text> },
+    {
+      key: "admitted",
+      label: "Admitted",
+      render: (r) => <Text size="xs">{fmtShortDate(r.admitted_at)}</Text>,
+    },
     {
       key: "expected",
       label: "Expected Discharge",
       render: (r) => {
-        const isOverdue = r.expected_discharge_date && new Date(r.expected_discharge_date) < new Date();
+        const isOverdue =
+          r.expected_discharge_date && new Date(r.expected_discharge_date) < new Date();
         return (
           <Group gap={4}>
             <Text size="sm" c={isOverdue ? "danger" : undefined} fw={isOverdue ? 600 : undefined}>
               {fmtShortDate(r.expected_discharge_date)}
             </Text>
-            {isOverdue && <Badge size="xs" color="danger" variant="filled">OVERDUE</Badge>}
+            {isOverdue && (
+              <Badge size="xs" color="danger" variant="filled">
+                OVERDUE
+              </Badge>
+            )}
           </Group>
         );
       },
@@ -659,7 +815,11 @@ function DischargeCoordinatorTab() {
     {
       key: "days",
       label: "Days",
-      render: (r) => <Text size="sm" fw={500}>{r.days_admitted}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.days_admitted}
+        </Text>
+      ),
     },
     {
       key: "blockers",
@@ -790,18 +950,26 @@ function TransportTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.createTransportRequest({
-      from_location_id: form.from_location || undefined,
-      to_location_id: form.to_location || undefined,
-      transport_mode: form.transport_mode,
-      priority: form.priority,
-      notes: form.notes || undefined,
-      patient_id: form.patient_id || undefined,
-    }),
+    mutationFn: () =>
+      api.createTransportRequest({
+        from_location_id: form.from_location || undefined,
+        to_location_id: form.to_location || undefined,
+        transport_mode: form.transport_mode,
+        priority: form.priority,
+        notes: form.notes || undefined,
+        patient_id: form.patient_id || undefined,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       closeCreate();
-      setForm({ from_location: "", to_location: "", transport_mode: "wheelchair", priority: "routine", patient_name: "", notes: "" });
+      setForm({
+        from_location: "",
+        to_location: "",
+        transport_mode: "wheelchair",
+        priority: "routine",
+        patient_name: "",
+        notes: "",
+      });
       notifications.show({ title: "Success", message: "Transport request created" });
     },
   });
@@ -932,10 +1100,30 @@ function TransportTab() {
     <Stack gap="md">
       {/* Stats */}
       <SimpleGrid cols={4}>
-        <StatCard label="Active Requests" value={active} icon={<IconTruck size={18} />} color="primary" />
-        <StatCard label="In Transit" value={inTransit} icon={<IconAmbulance size={18} />} color="warning" />
-        <StatCard label="Completed Today" value={completedToday} icon={<IconCheck size={18} />} color="success" />
-        <StatCard label="Avg Response (min)" value={avgResponse.toFixed(0)} icon={<IconClock size={18} />} color="info" />
+        <StatCard
+          label="Active Requests"
+          value={active}
+          icon={<IconTruck size={18} />}
+          color="primary"
+        />
+        <StatCard
+          label="In Transit"
+          value={inTransit}
+          icon={<IconAmbulance size={18} />}
+          color="warning"
+        />
+        <StatCard
+          label="Completed Today"
+          value={completedToday}
+          icon={<IconCheck size={18} />}
+          color="success"
+        />
+        <StatCard
+          label="Avg Response (min)"
+          value={avgResponse.toFixed(0)}
+          icon={<IconClock size={18} />}
+          color="info"
+        />
       </SimpleGrid>
 
       {/* Transport Table */}
@@ -995,7 +1183,9 @@ function TransportTab() {
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeCreate}>Cancel</Button>
+            <Button variant="subtle" onClick={closeCreate}>
+              Cancel
+            </Button>
             <Button onClick={() => createMut.mutate()} loading={createMut.isPending}>
               Create
             </Button>
@@ -1006,7 +1196,10 @@ function TransportTab() {
       {/* Assign Modal */}
       <Modal
         opened={assignModalId !== null}
-        onClose={() => { setAssignModalId(null); setAssignTo(""); }}
+        onClose={() => {
+          setAssignModalId(null);
+          setAssignTo("");
+        }}
         title="Assign Transport"
         size="sm"
       >
@@ -1018,7 +1211,13 @@ function TransportTab() {
             onChange={(e) => setAssignTo(e.currentTarget.value)}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={() => { setAssignModalId(null); setAssignTo(""); }}>
+            <Button
+              variant="subtle"
+              onClick={() => {
+                setAssignModalId(null);
+                setAssignTo("");
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -1098,7 +1297,11 @@ function AlertsThresholdsTab() {
     {
       key: "dept",
       label: "Department",
-      render: (r) => <Text size="sm" fw={500}>{r.department_name}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.department_name}
+        </Text>
+      ),
     },
     {
       key: "level",
@@ -1117,7 +1320,11 @@ function AlertsThresholdsTab() {
     {
       key: "current",
       label: "Current Value",
-      render: (r) => <Text size="sm" fw={600}>{r.current_value}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {r.current_value}
+        </Text>
+      ),
     },
     {
       key: "threshold",
@@ -1132,7 +1339,11 @@ function AlertsThresholdsTab() {
     {
       key: "time",
       label: "Time",
-      render: (r) => <Text size="xs" c="dimmed">{fmtDate(r.created_at)}</Text>,
+      render: (r) => (
+        <Text size="xs" c="dimmed">
+          {fmtDate(r.created_at)}
+        </Text>
+      ),
     },
     {
       key: "actions",
@@ -1140,8 +1351,12 @@ function AlertsThresholdsTab() {
       render: (r) => {
         if (r.acknowledged_by) {
           return (
-            <Tooltip label={`Acknowledged by ${r.acknowledged_by} at ${fmtDate(r.acknowledged_at)}`}>
-              <Badge size="xs" variant="light" color="success">ACK</Badge>
+            <Tooltip
+              label={`Acknowledged by ${r.acknowledged_by} at ${fmtDate(r.acknowledged_at)}`}
+            >
+              <Badge size="xs" variant="light" color="success">
+                ACK
+              </Badge>
             </Tooltip>
           );
         }
@@ -1169,7 +1384,11 @@ function AlertsThresholdsTab() {
     {
       key: "dept",
       label: "Department",
-      render: (r) => <Text size="sm" fw={500}>{r.department_name}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.department_name}
+        </Text>
+      ),
     },
     {
       key: "metric",
@@ -1234,7 +1453,9 @@ function AlertsThresholdsTab() {
   return (
     <Stack gap="md">
       {/* Active Alerts */}
-      <Text size="sm" fw={600}>Active Alerts</Text>
+      <Text size="sm" fw={600}>
+        Active Alerts
+      </Text>
       <DataTable<DepartmentAlertRow>
         columns={alertCols}
         data={alerts ?? []}
@@ -1245,13 +1466,20 @@ function AlertsThresholdsTab() {
         emptyDescription="All systems operating within normal parameters"
         rowStyle={(r) =>
           !r.acknowledged_by
-            ? { backgroundColor: r.alert_level === "critical" ? "var(--mantine-color-red-0)" : "var(--mantine-color-yellow-0)" }
+            ? {
+                backgroundColor:
+                  r.alert_level === "critical"
+                    ? "var(--mantine-color-red-0)"
+                    : "var(--mantine-color-yellow-0)",
+              }
             : undefined
         }
       />
 
       {/* Threshold Configuration */}
-      <Text size="sm" fw={600}>Threshold Configuration</Text>
+      <Text size="sm" fw={600}>
+        Threshold Configuration
+      </Text>
       <DataTable<AlertThresholdRow>
         columns={thresholdCols}
         data={thresholds ?? []}
@@ -1278,7 +1506,9 @@ function AlertsThresholdsTab() {
             label="Department ID"
             required
             value={thresholdForm.department_id}
-            onChange={(e) => setThresholdForm({ ...thresholdForm, department_id: e.currentTarget.value })}
+            onChange={(e) =>
+              setThresholdForm({ ...thresholdForm, department_id: e.currentTarget.value })
+            }
             placeholder="Enter department UUID"
           />
           <Select
@@ -1292,7 +1522,10 @@ function AlertsThresholdsTab() {
             label="Warning Threshold"
             value={thresholdForm.warning_threshold ?? ""}
             onChange={(v) =>
-              setThresholdForm({ ...thresholdForm, warning_threshold: typeof v === "number" ? v : undefined })
+              setThresholdForm({
+                ...thresholdForm,
+                warning_threshold: typeof v === "number" ? v : undefined,
+              })
             }
             min={0}
           />
@@ -1300,12 +1533,17 @@ function AlertsThresholdsTab() {
             label="Critical Threshold"
             value={thresholdForm.critical_threshold ?? ""}
             onChange={(v) =>
-              setThresholdForm({ ...thresholdForm, critical_threshold: typeof v === "number" ? v : undefined })
+              setThresholdForm({
+                ...thresholdForm,
+                critical_threshold: typeof v === "number" ? v : undefined,
+              })
             }
             min={0}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeThreshold}>Cancel</Button>
+            <Button variant="subtle" onClick={closeThreshold}>
+              Cancel
+            </Button>
             <Button
               onClick={() => createThreshold.mutate()}
               loading={createThreshold.isPending}

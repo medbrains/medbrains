@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
@@ -12,17 +11,18 @@ import {
   TextInput,
   Timeline,
 } from "@mantine/core";
-import {
-  IconSearch,
-  IconPlus,
-  IconPencil,
-  IconTrash,
-  IconChevronDown,
-  IconChevronRight,
-} from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { AuditLogEntry } from "@medbrains/types";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconPencil,
+  IconPlus,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -96,11 +96,7 @@ export function EntityTimelineTab() {
           size="sm"
           w={320}
         />
-        <Button
-          size="sm"
-          onClick={handleSearch}
-          disabled={!entityType || !entityId.trim()}
-        >
+        <Button size="sm" onClick={handleSearch} disabled={!entityType || !entityId.trim()}>
           Search
         </Button>
       </Group>
@@ -133,11 +129,7 @@ export function EntityTimelineTab() {
                 color={ACTION_COLORS[entry.action] ?? "slate"}
                 title={
                   <Group gap="xs">
-                    <Badge
-                      color={ACTION_COLORS[entry.action] ?? "slate"}
-                      variant="light"
-                      size="sm"
-                    >
+                    <Badge color={ACTION_COLORS[entry.action] ?? "slate"} variant="light" size="sm">
                       {entry.action}
                     </Badge>
                     <Text size="sm" c="dimmed">
@@ -164,8 +156,7 @@ export function EntityTimelineTab() {
       {!searchTriggered && (
         <Card withBorder p="xl">
           <Text c="dimmed" ta="center">
-            Select an entity type and paste the entity UUID to view its full
-            change history.
+            Select an entity type and paste the entity UUID to view its full change history.
           </Text>
         </Card>
       )}

@@ -1,8 +1,8 @@
 import { Badge, Button, Card, Group, Select, Stack, Text } from "@mantine/core";
+import { api } from "@medbrains/api";
 import { IconClipboardList, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@medbrains/api";
 import { SHIFTS } from "./shared";
 
 export function HandoverTab({ wardId }: { wardId: string | null }) {
@@ -20,7 +20,13 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
   return (
     <Stack gap="md">
       <Group>
-        <Select placeholder="Select shift" data={SHIFTS} value={shift} onChange={setShift} w={200} />
+        <Select
+          placeholder="Select shift"
+          data={SHIFTS}
+          value={shift}
+          onChange={setShift}
+          w={200}
+        />
         <Button
           leftSection={<IconClipboardList size={16} />}
           disabled={!effectiveWard || !shift}
@@ -30,7 +36,11 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
           Generate Summary
         </Button>
         {data && (
-          <Button variant="light" leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
+          <Button
+            variant="light"
+            leftSection={<IconPrinter size={16} />}
+            onClick={() => window.print()}
+          >
             Print
           </Button>
         )}
@@ -83,8 +93,16 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
                 </Text>
               )}
 
-              <BulletList title="Pending Tasks:" items={patient.pending_tasks} prefix={`${patient.admission_id}-task`} />
-              <BulletList title="Pending Meds:" items={patient.pending_meds} prefix={`${patient.admission_id}-med`} />
+              <BulletList
+                title="Pending Tasks:"
+                items={patient.pending_tasks}
+                prefix={`${patient.admission_id}-task`}
+              />
+              <BulletList
+                title="Pending Meds:"
+                items={patient.pending_meds}
+                prefix={`${patient.admission_id}-med`}
+              />
               <BulletList
                 title="Active Clinical Docs:"
                 items={patient.active_clinical_docs}

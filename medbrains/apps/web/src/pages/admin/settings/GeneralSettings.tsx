@@ -1,18 +1,10 @@
-import { useState } from "react";
-import {
-  Button,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Button, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { TenantSummary } from "@medbrains/types";
+import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const TIMEZONE_OPTIONS = [
   { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+5:30)" },

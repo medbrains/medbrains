@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -9,16 +8,17 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import type { ClinicalProtocol, CreateClinicalProtocolRequest } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const CATEGORIES = [
   { value: "sepsis", label: "Sepsis Bundle" },
@@ -51,7 +51,11 @@ export function ClinicalProtocolsSettings() {
     mutationFn: (data: CreateClinicalProtocolRequest) => api.createClinicalProtocol(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
-      notifications.show({ title: "Created", message: "Clinical protocol added", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Clinical protocol added",
+        color: "success",
+      });
       handleClose();
     },
     onError: () => {
@@ -109,15 +113,35 @@ export function ClinicalProtocolsSettings() {
         <Table.Tbody>
           {protocols.map((p: ClinicalProtocol) => (
             <Table.Tr key={p.id}>
-              <Table.Td><Text size="sm" fw={500}>{p.name}</Text></Table.Td>
-              <Table.Td><Text size="sm" c="dimmed">{p.code ?? "—"}</Text></Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light">{p.category}</Badge>
+                <Text size="sm" fw={500}>
+                  {p.name}
+                </Text>
               </Table.Td>
-              <Table.Td><Text size="xs" lineClamp={2}>{p.description ?? "—"}</Text></Table.Td>
+              <Table.Td>
+                <Text size="sm" c="dimmed">
+                  {p.code ?? "—"}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge size="sm" variant="light">
+                  {p.category}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs" lineClamp={2}>
+                  {p.description ?? "—"}
+                </Text>
+              </Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(p.id)} aria-label="Delete">
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => deleteMutation.mutate(p.id)}
+                    aria-label="Delete"
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -127,7 +151,9 @@ export function ClinicalProtocolsSettings() {
           {protocols.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={canManage ? 5 : 4}>
-                <Text size="sm" c="dimmed" ta="center">No clinical protocols configured</Text>
+                <Text size="sm" c="dimmed" ta="center">
+                  No clinical protocols configured
+                </Text>
               </Table.Td>
             </Table.Tr>
           )}
@@ -136,15 +162,45 @@ export function ClinicalProtocolsSettings() {
 
       <Modal opened={opened} onClose={handleClose} title="Add Clinical Protocol" size="md">
         <Stack gap="sm">
-          <TextInput label="Protocol Name" placeholder="e.g. Sepsis Bundle 1-Hour" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+          <TextInput
+            label="Protocol Name"
+            placeholder="e.g. Sepsis Bundle 1-Hour"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            required
+          />
           <Group grow>
-            <TextInput label="Code" placeholder="Optional identifier" value={code} onChange={(e) => setCode(e.currentTarget.value)} />
-            <Select label="Category" data={CATEGORIES} value={category} onChange={setCategory} required />
+            <TextInput
+              label="Code"
+              placeholder="Optional identifier"
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+            />
+            <Select
+              label="Category"
+              data={CATEGORIES}
+              value={category}
+              onChange={setCategory}
+              required
+            />
           </Group>
-          <Textarea label="Description" placeholder="Protocol description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={3} />
+          <Textarea
+            label="Description"
+            placeholder="Protocol description"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            autosize
+            minRows={3}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={!name.trim() || !category}>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={!name.trim() || !category}
+            >
               Create
             </Button>
           </Group>

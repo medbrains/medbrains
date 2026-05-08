@@ -1,20 +1,11 @@
-import { useState } from "react";
-import {
-  ActionIcon,
-  Badge,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Table,
-  Text,
-} from "@mantine/core";
+import { ActionIcon, Badge, Group, Loader, Modal, Stack, Table, Text } from "@mantine/core";
 import { TimeInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconClock } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { DepartmentRow, TimeSlot } from "@medbrains/types";
+import { IconCheck, IconClock } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface HoursFormState {
   monday?: TimeSlot;
@@ -80,13 +71,8 @@ export function DepartmentHoursSettings() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: Record<string, unknown>;
-    }) => api.updateDepartment(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      api.updateDepartment(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -174,8 +160,7 @@ export function DepartmentHoursSettings() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load departments:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load departments: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );
@@ -222,11 +207,7 @@ export function DepartmentHoursSettings() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={dept.is_active ? "success" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={dept.is_active ? "success" : "slate"} variant="light" size="sm">
                     {dept.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -268,9 +249,7 @@ export function DepartmentHoursSettings() {
               <TimeInput
                 placeholder="Start time"
                 value={form[day]?.start || ""}
-                onChange={(e) =>
-                  updateTimeSlot(day, "start", e.currentTarget.value)
-                }
+                onChange={(e) => updateTimeSlot(day, "start", e.currentTarget.value)}
                 flex={1}
               />
               <Text size="sm" c="dimmed">
@@ -279,9 +258,7 @@ export function DepartmentHoursSettings() {
               <TimeInput
                 placeholder="End time"
                 value={form[day]?.end || ""}
-                onChange={(e) =>
-                  updateTimeSlot(day, "end", e.currentTarget.value)
-                }
+                onChange={(e) => updateTimeSlot(day, "end", e.currentTarget.value)}
                 flex={1}
               />
             </Group>

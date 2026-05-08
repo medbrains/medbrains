@@ -55,19 +55,13 @@ pub async fn access_log_layer(
 
     // Snapshot context BEFORE handler runs
     let claims_opt = request.extensions().get::<Claims>().cloned();
-    let ip_opt = request
-        .extensions()
-        .get::<ClientIp>()
-        .map(ClientIp::as_str);
+    let ip_opt = request.extensions().get::<ClientIp>().map(ClientIp::as_str);
     let user_agent = request
         .headers()
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
-    let correlation_id = request
-        .extensions()
-        .get::<CorrelationId>()
-        .map(|c| c.0);
+    let correlation_id = request.extensions().get::<CorrelationId>().map(|c| c.0);
     let path = request.uri().path().to_owned();
 
     let response = next.run(request).await;
@@ -143,18 +137,23 @@ async fn insert_access_log(
         .bind(tenant_id.to_string())
         .execute(&mut *tx)
         .await?;
-    // patient_id resolution would need a per-entity-type lookup; for v1
-    // we record entity_id in entity_id column and let analytics correlate.
+    let patient_id = if entity_type == "patients" {
+        entity_id
+    } else {
+        None
+    };
+
     sqlx::query(
         "INSERT INTO access_log ( \
-             tenant_id, user_id, entity_type, entity_id, action, \
+             tenant_id, user_id, entity_type, entity_id, patient_id, action, \
              ip_address, user_agent, module, correlation_id \
-         ) VALUES ($1, $2, $3, $4, 'view', $5, $6, $7, $8)",
+         ) VALUES ($1, $2, $3, $4, $5, 'view', $6, $7, $8, $9)",
     )
     .bind(tenant_id)
     .bind(user_id)
     .bind(&entity_type)
     .bind(entity_id)
+    .bind(patient_id)
     .bind(ip_address.as_deref())
     .bind(user_agent.as_deref())
     .bind(&module)

@@ -4,11 +4,11 @@
 //!
 //! Permission rules:
 //!   - POST    — caller must hold `owner` on the target OR
-//!               `admin.sharing.manage` permission OR be a bypass role
+//!     `admin.sharing.manage` permission OR be a bypass role
 //!   - DELETE  — same as POST (only the resource owner / admin / bypass
-//!               can revoke a grant they didn't issue)
+//!     can revoke a grant they didn't issue)
 //!   - GET     — caller must hold `view` on the target (you can see
-//!               who else has access to a resource you can already see)
+//!     who else has access to a resource you can already see)
 //!   - GET granted-to-me — always allowed for any authenticated user
 //!     (it's their own list)
 //!
@@ -20,7 +20,7 @@
 
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Utc};
-use medbrains_authz::{AuthzBackend, Relation, Subject};
+use medbrains_authz::{Relation, Subject};
 use medbrains_core::access::ROLE_POLICIES;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -84,8 +84,8 @@ pub async fn create_grant(
 ) -> Result<Json<GrantResponse>, AppError> {
     // Check 1: caller has the abstract `admin.sharing.manage` perm OR
     // is a bypass role OR holds `owner` on the target resource.
-    let is_admin_sharer = require_permission(&claims, "admin.sharing.manage").is_ok()
-        || is_bypass_role(&claims);
+    let is_admin_sharer =
+        require_permission(&claims, "admin.sharing.manage").is_ok() || is_bypass_role(&claims);
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
@@ -145,8 +145,8 @@ pub async fn revoke_grant(
     Extension(claims): Extension<Claims>,
     Json(body): Json<RevokeGrantRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let is_admin_sharer = require_permission(&claims, "admin.sharing.manage").is_ok()
-        || is_bypass_role(&claims);
+    let is_admin_sharer =
+        require_permission(&claims, "admin.sharing.manage").is_ok() || is_bypass_role(&claims);
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
@@ -202,7 +202,12 @@ pub async fn list_grants(
     if !ctx.is_bypass {
         let can_view = state
             .authz
-            .check(&ctx, Relation::Viewer, &params.object_type, params.object_id)
+            .check(
+                &ctx,
+                Relation::Viewer,
+                &params.object_type,
+                params.object_id,
+            )
             .await
             .unwrap_or(false);
         if !can_view {

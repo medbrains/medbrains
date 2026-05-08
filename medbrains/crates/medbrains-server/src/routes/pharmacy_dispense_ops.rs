@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── pharmacy_substitutions ──────────────────────────────────────────
@@ -88,7 +88,10 @@ pub async fn list_substitutions_for_item(
     Extension(claims): Extension<Claims>,
     Path(item_id): Path<Uuid>,
 ) -> Result<Json<Vec<Substitution>>, AppError> {
-    require_permission(&claims, permissions::pharmacy_improvements::substitution::VIEW)?;
+    require_permission(
+        &claims,
+        permissions::pharmacy_improvements::substitution::VIEW,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -171,7 +174,10 @@ pub async fn list_counseling_for_order(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<Vec<Counseling>>, AppError> {
-    require_permission(&claims, permissions::pharmacy_improvements::counseling::VIEW)?;
+    require_permission(
+        &claims,
+        permissions::pharmacy_improvements::counseling::VIEW,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -221,10 +227,7 @@ pub async fn create_coverage_check(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCoverageCheckRequest>,
 ) -> Result<Json<CoverageCheck>, AppError> {
-    require_permission(
-        &claims,
-        permissions::pharmacy_improvements::coverage::CHECK,
-    )?;
+    require_permission(&claims, permissions::pharmacy_improvements::coverage::CHECK)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

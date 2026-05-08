@@ -7,8 +7,4 @@
 import type { Module } from "@medbrains/mobile-shell";
 import { bmeAmcModule } from "./bme-amc";
 
-
-export const MODULES: ReadonlyArray<Module> = [
-  bmeAmcModule,
-
-];
+export const MODULES: ReadonlyArray<Module> = [bmeAmcModule];

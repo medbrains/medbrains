@@ -1,0 +1,19 @@
+# Tauri build output
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+
+# Bundled artifacts
+*.dmg
+*.app
+*.msi
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.tar.gz
+
+# Runtime
+*.log
+node_modules/

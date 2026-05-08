@@ -8,13 +8,10 @@
  * Merkle audit chain.
  */
 
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import {
-  useCrdtText,
-  type CrdtConnectionStatus,
-} from "@medbrains/crdt";
+import { type CrdtConnectionStatus, useCrdtText } from "@medbrains/crdt";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
 
 export interface NotesSourceResult {
@@ -69,17 +66,12 @@ function useNotesRest(patientId: string, _authorName: string): NotesSourceResult
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["patient-notes", patientId] }),
   });
-  const setText = useCallback(
-    (next: string) => mutation.mutate(next),
-    [mutation],
-  );
+  const setText = useCallback((next: string) => mutation.mutate(next), [mutation]);
   return {
     text: query.data?.text ?? "",
     setText,
     lastAuthor: query.data?.last_author ?? null,
-    lastEditedAt: query.data?.last_edited_at
-      ? Date.parse(query.data.last_edited_at)
-      : null,
+    lastEditedAt: query.data?.last_edited_at ? Date.parse(query.data.last_edited_at) : null,
     status: query.isLoading ? "loading" : query.isError ? "error" : "online",
     ready: !query.isLoading,
     unsyncedOps: mutation.isPending ? 1 : 0,

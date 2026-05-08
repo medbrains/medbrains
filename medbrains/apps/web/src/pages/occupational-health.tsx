@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { BarChart, DonutChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
@@ -17,13 +17,30 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { BarChart, DonutChart } from "@mantine/charts";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  CreateDrugScreenRequest,
+  CreateInjuryRequest,
+  CreateOccHealthHazardRequest,
+  CreateOccScreeningRequest,
+  CreateVaccinationRequest,
+  OccHealthDrugScreen,
+  OccHealthHazard,
+  OccHealthInjuryReport,
+  OccHealthScreening,
+  OccHealthVaccination,
+  ReturnToWorkClearanceRequest,
+  UpdateInjuryRequest,
+  VaccinationComplianceRow,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCalendar,
@@ -38,27 +55,10 @@ import {
   IconVaccine,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  OccHealthScreening,
-  OccHealthDrugScreen,
-  OccHealthVaccination,
-  OccHealthInjuryReport,
-  OccHealthHazard,
-  VaccinationComplianceRow,
-  CreateOccScreeningRequest,
-  CreateOccHealthHazardRequest,
-  CreateDrugScreenRequest,
-  CreateVaccinationRequest,
-  CreateInjuryRequest,
-  UpdateInjuryRequest,
-  ReturnToWorkClearanceRequest,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -223,8 +223,7 @@ function ScreeningsPanel() {
 
   const { data: screenings = [], isLoading } = useQuery({
     queryKey: ["occ-screenings", typeFilter],
-    queryFn: () =>
-      api.listOccScreenings(typeFilter ? { screening_type: typeFilter } : undefined),
+    queryFn: () => api.listOccScreenings(typeFilter ? { screening_type: typeFilter } : undefined),
     enabled: !showDue,
   });
 
@@ -327,11 +326,7 @@ function ScreeningsPanel() {
       key: "screening_type",
       label: "Type",
       render: (r) => (
-        <Badge
-          color={SCREENING_TYPE_COLORS[r.screening_type] ?? "gray"}
-          variant="light"
-          size="sm"
-        >
+        <Badge color={SCREENING_TYPE_COLORS[r.screening_type] ?? "gray"} variant="light" size="sm">
           {SCREENING_TYPES.find((t) => t.value === r.screening_type)?.label ?? r.screening_type}
         </Badge>
       ),
@@ -345,11 +340,7 @@ function ScreeningsPanel() {
       key: "fitness_status",
       label: "Fitness Status",
       render: (r) => (
-        <Badge
-          color={FITNESS_STATUS_COLORS[r.fitness_status] ?? "gray"}
-          variant="filled"
-          size="sm"
-        >
+        <Badge color={FITNESS_STATUS_COLORS[r.fitness_status] ?? "gray"} variant="filled" size="sm">
           {r.fitness_status}
         </Badge>
       ),
@@ -516,7 +507,9 @@ function ScreeningsPanel() {
                   <Stack gap="xs">
                     {items.map((item, idx) => (
                       <Group key={idx} justify="space-between">
-                        <Text size="sm">{SCREENING_TYPES.find((t) => t.value === item.type)?.label}</Text>
+                        <Text size="sm">
+                          {SCREENING_TYPES.find((t) => t.value === item.type)?.label}
+                        </Text>
                         <Badge color={getUrgencyColor(item.due_date)} size="sm">
                           {item.due_date}
                         </Badge>
@@ -589,13 +582,17 @@ function ScreeningsPanel() {
                     label="Height (cm)"
                     size="xs"
                     value={preEmpForm.height_cm}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, height_cm: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, height_cm: e.currentTarget.value })
+                    }
                   />
                   <TextInput
                     label="Weight (kg)"
                     size="xs"
                     value={preEmpForm.weight_kg}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, weight_kg: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, weight_kg: e.currentTarget.value })
+                    }
                   />
                 </Group>
                 <Group grow>
@@ -603,13 +600,17 @@ function ScreeningsPanel() {
                     label="BP Systolic"
                     size="xs"
                     value={preEmpForm.bp_systolic}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, bp_systolic: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, bp_systolic: e.currentTarget.value })
+                    }
                   />
                   <TextInput
                     label="BP Diastolic"
                     size="xs"
                     value={preEmpForm.bp_diastolic}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, bp_diastolic: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, bp_diastolic: e.currentTarget.value })
+                    }
                   />
                 </Group>
                 <Group grow>
@@ -617,26 +618,34 @@ function ScreeningsPanel() {
                     label="Vision Left"
                     size="xs"
                     value={preEmpForm.vision_left}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, vision_left: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, vision_left: e.currentTarget.value })
+                    }
                   />
                   <TextInput
                     label="Vision Right"
                     size="xs"
                     value={preEmpForm.vision_right}
-                    onChange={(e) => setPreEmpForm({ ...preEmpForm, vision_right: e.currentTarget.value })}
+                    onChange={(e) =>
+                      setPreEmpForm({ ...preEmpForm, vision_right: e.currentTarget.value })
+                    }
                   />
                 </Group>
                 <TextInput
                   label="Hearing Test Result"
                   size="xs"
                   value={preEmpForm.hearing_test}
-                  onChange={(e) => setPreEmpForm({ ...preEmpForm, hearing_test: e.currentTarget.value })}
+                  onChange={(e) =>
+                    setPreEmpForm({ ...preEmpForm, hearing_test: e.currentTarget.value })
+                  }
                 />
                 <TextInput
                   label="Lab Results Reference"
                   size="xs"
                   value={preEmpForm.lab_results_ref}
-                  onChange={(e) => setPreEmpForm({ ...preEmpForm, lab_results_ref: e.currentTarget.value })}
+                  onChange={(e) =>
+                    setPreEmpForm({ ...preEmpForm, lab_results_ref: e.currentTarget.value })
+                  }
                 />
               </Stack>
             </Card>
@@ -662,16 +671,12 @@ function ScreeningsPanel() {
           <TextInput
             label="Examiner ID"
             value={form.examiner_id ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, examiner_id: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, examiner_id: e.currentTarget.value || undefined })}
           />
           <Textarea
             label="Notes"
             value={form.notes ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, notes: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           <Button
             onClick={() => createMut.mutate()}
@@ -763,7 +768,10 @@ function ScreeningsPanel() {
                   </Group>
                   <Group>
                     <Text fw={600}>Fitness Status:</Text>
-                    <Badge color={FITNESS_STATUS_COLORS[selected.fitness_status] ?? "gray"} size="lg">
+                    <Badge
+                      color={FITNESS_STATUS_COLORS[selected.fitness_status] ?? "gray"}
+                      size="lg"
+                    >
                       {selected.fitness_status.toUpperCase()}
                     </Badge>
                   </Group>
@@ -822,8 +830,7 @@ function DrugScreensPanel() {
 
   const { data: screens = [], isLoading } = useQuery({
     queryKey: ["occ-drug-screens", statusFilter],
-    queryFn: () =>
-      api.listDrugScreens(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () => api.listDrugScreens(statusFilter ? { status: statusFilter } : undefined),
   });
 
   const [form, setForm] = useState<CreateDrugScreenRequest>({
@@ -888,11 +895,7 @@ function DrugScreensPanel() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge
-          color={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "gray"}
-          variant="filled"
-          size="sm"
-        >
+        <Badge color={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "gray"} variant="filled" size="sm">
           {DRUG_SCREEN_STATUS_OPTIONS.find((s) => s.value === r.status)?.label ?? r.status}
         </Badge>
       ),
@@ -900,8 +903,7 @@ function DrugScreensPanel() {
     {
       key: "panel",
       label: "Panel",
-      render: (r) =>
-        DRUG_PANEL_OPTIONS.find((p) => p.value === r.panel)?.label ?? r.panel,
+      render: (r) => DRUG_PANEL_OPTIONS.find((p) => p.value === r.panel)?.label ?? r.panel,
     },
     {
       key: "mro_decision",
@@ -979,9 +981,7 @@ function DrugScreensPanel() {
             label="Screening ID"
             description="Link to a health screening (optional)"
             value={form.screening_id ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, screening_id: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, screening_id: e.currentTarget.value || undefined })}
           />
           <Select
             label="Panel"
@@ -1137,7 +1137,13 @@ function VaccinationsPanel() {
                   {row.compliant_count} / {row.total_employees}
                 </Text>
                 <Badge
-                  color={row.compliance_pct >= 90 ? "success" : row.compliance_pct >= 70 ? "warning" : "danger"}
+                  color={
+                    row.compliance_pct >= 90
+                      ? "success"
+                      : row.compliance_pct >= 70
+                        ? "warning"
+                        : "danger"
+                  }
                   variant="light"
                   size="sm"
                 >
@@ -1157,12 +1163,7 @@ function VaccinationsPanel() {
         )}
       </Group>
 
-      <DataTable
-        columns={columns}
-        data={vaccinations}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={vaccinations} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
       <Drawer
@@ -1207,9 +1208,7 @@ function VaccinationsPanel() {
           <TextInput
             label="Batch Number"
             value={form.batch_number ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, batch_number: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, batch_number: e.currentTarget.value || undefined })}
           />
           <DateInput
             label="Next Due Date"
@@ -1243,9 +1242,7 @@ function VaccinationsPanel() {
           <Textarea
             label="Notes"
             value={form.notes ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, notes: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           <Button
             onClick={() => createMut.mutate()}
@@ -1275,8 +1272,7 @@ function InjuriesPanel() {
 
   const { data: injuries = [], isLoading } = useQuery({
     queryKey: ["occ-injuries", rtwFilter],
-    queryFn: () =>
-      api.listInjuries(rtwFilter ? { rtw_status: rtwFilter } : undefined),
+    queryFn: () => api.listInjuries(rtwFilter ? { rtw_status: rtwFilter } : undefined),
   });
 
   const [form, setForm] = useState<CreateInjuryRequest>({
@@ -1351,8 +1347,7 @@ function InjuriesPanel() {
     {
       key: "injury_type",
       label: "Type",
-      render: (r) =>
-        INJURY_TYPES.find((t) => t.value === r.injury_type)?.label ?? r.injury_type,
+      render: (r) => INJURY_TYPES.find((t) => t.value === r.injury_type)?.label ?? r.injury_type,
     },
     {
       key: "is_osha_recordable",
@@ -1367,11 +1362,7 @@ function InjuriesPanel() {
       key: "rtw_status",
       label: "RTW Status",
       render: (r) => (
-        <Badge
-          color={RTW_STATUS_COLORS[r.rtw_status] ?? "gray"}
-          variant="filled"
-          size="sm"
-        >
+        <Badge color={RTW_STATUS_COLORS[r.rtw_status] ?? "gray"} variant="filled" size="sm">
           {RTW_STATUS_OPTIONS.find((s) => s.value === r.rtw_status)?.label ?? r.rtw_status}
         </Badge>
       ),
@@ -1682,12 +1673,20 @@ function HazardRegistryPanel() {
     {
       key: "description",
       label: "Description",
-      render: (r) => <Text size="sm" lineClamp={2}>{r.description ?? "---"}</Text>,
+      render: (r) => (
+        <Text size="sm" lineClamp={2}>
+          {r.description ?? "---"}
+        </Text>
+      ),
     },
     {
       key: "mitigation",
       label: "Mitigation",
-      render: (r) => <Text size="sm" lineClamp={2}>{r.mitigation ?? "---"}</Text>,
+      render: (r) => (
+        <Text size="sm" lineClamp={2}>
+          {r.mitigation ?? "---"}
+        </Text>
+      ),
     },
     {
       key: "assessed_date",
@@ -1791,11 +1790,19 @@ function OccHealthAnalyticsPanel() {
   });
 
   if (isLoading) {
-    return <Text c="dimmed" size="sm">Loading analytics...</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        Loading analytics...
+      </Text>
+    );
   }
 
   if (!analytics) {
-    return <Text c="dimmed" size="sm">No analytics data available</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No analytics data available
+      </Text>
+    );
   }
 
   const byTypeData = Object.entries(analytics.by_type ?? {}).map(([type, count]) => ({
@@ -1819,20 +1826,36 @@ function OccHealthAnalyticsPanel() {
       {/* Summary Stats */}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <Card withBorder p="md">
-          <Text size="xs" c="dimmed">Total Screenings</Text>
-          <Text fw={700} size="xl" c="primary">{analytics.total_screenings ?? 0}</Text>
+          <Text size="xs" c="dimmed">
+            Total Screenings
+          </Text>
+          <Text fw={700} size="xl" c="primary">
+            {analytics.total_screenings ?? 0}
+          </Text>
         </Card>
         <Card withBorder p="md">
-          <Text size="xs" c="dimmed">Screening Types</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.by_type ?? {}).length}</Text>
+          <Text size="xs" c="dimmed">
+            Screening Types
+          </Text>
+          <Text fw={700} size="xl">
+            {Object.keys(analytics.by_type ?? {}).length}
+          </Text>
         </Card>
         <Card withBorder p="md">
-          <Text size="xs" c="dimmed">Departments Covered</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.by_department ?? {}).length}</Text>
+          <Text size="xs" c="dimmed">
+            Departments Covered
+          </Text>
+          <Text fw={700} size="xl">
+            {Object.keys(analytics.by_department ?? {}).length}
+          </Text>
         </Card>
         <Card withBorder p="md">
-          <Text size="xs" c="dimmed">Fitness Statuses Tracked</Text>
-          <Text fw={700} size="xl">{Object.keys(analytics.fitness_rates ?? {}).length}</Text>
+          <Text size="xs" c="dimmed">
+            Fitness Statuses Tracked
+          </Text>
+          <Text fw={700} size="xl">
+            {Object.keys(analytics.fitness_rates ?? {}).length}
+          </Text>
         </Card>
       </SimpleGrid>
 
@@ -1840,7 +1863,9 @@ function OccHealthAnalyticsPanel() {
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         {byTypeData.length > 0 && (
           <Card withBorder p="md">
-            <Text fw={600} size="sm" mb="md">Screenings by Type</Text>
+            <Text fw={600} size="sm" mb="md">
+              Screenings by Type
+            </Text>
             <BarChart
               h={250}
               data={byTypeData}
@@ -1851,7 +1876,9 @@ function OccHealthAnalyticsPanel() {
         )}
         {fitnessData.length > 0 && (
           <Card withBorder p="md">
-            <Text fw={600} size="sm" mb="md">Fitness Rate Distribution (%)</Text>
+            <Text fw={600} size="sm" mb="md">
+              Fitness Rate Distribution (%)
+            </Text>
             <DonutChart
               data={fitnessData}
               size={200}
@@ -1866,7 +1893,9 @@ function OccHealthAnalyticsPanel() {
 
       {byDeptData.length > 0 && (
         <Card withBorder p="md">
-          <Text fw={600} size="sm" mb="md">Screenings by Department</Text>
+          <Text fw={600} size="sm" mb="md">
+            Screenings by Department
+          </Text>
           <BarChart
             h={300}
             data={byDeptData}
@@ -1897,7 +1926,8 @@ function ReturnToWorkPanel() {
     onSuccess: () => {
       notifications.show({
         title: "Clearance Issued",
-        message: "Return-to-work clearance issued successfully. A screening record has been created.",
+        message:
+          "Return-to-work clearance issued successfully. A screening record has been created.",
         color: "success",
       });
       void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
@@ -1944,9 +1974,7 @@ function ReturnToWorkPanel() {
             label="Restrictions"
             placeholder="e.g. No heavy lifting for 4 weeks"
             value={form.restrictions ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, restrictions: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, restrictions: e.currentTarget.value || undefined })}
           />
           <DateInput
             label="Follow-up Date"
@@ -1961,9 +1989,7 @@ function ReturnToWorkPanel() {
           <Textarea
             label="Notes"
             value={form.notes ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, notes: e.currentTarget.value || undefined })
-            }
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           {canCreate && (
             <Button

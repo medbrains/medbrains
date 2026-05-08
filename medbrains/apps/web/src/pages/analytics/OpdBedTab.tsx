@@ -1,18 +1,10 @@
-import { useState, useMemo } from "react";
-import {
-  Card,
-  Group,
-  Progress,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
 import { LineChart } from "@mantine/charts";
-import { useQuery } from "@tanstack/react-query";
+import { Card, Group, Progress, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
+import { DateInput } from "@mantine/dates";
 import { api } from "@medbrains/api";
-import type { OpdFootfallRow, BedOccupancyRow } from "@medbrains/types";
+import type { BedOccupancyRow, OpdFootfallRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -43,17 +35,28 @@ export function OpdBedTab() {
   const [to, setTo] = useState<string | null>(null);
   const [section, setSection] = useState("opd");
 
-  const params = useMemo(
-    () => ({ from: toIso(from), to: toIso(to) }),
-    [from, to],
-  );
+  const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
   return (
     <Stack gap="md">
       <Card withBorder p="sm">
         <Group>
-          <DateInput label="From" value={from} onChange={(v) => setFrom(v)} clearable maxDate={to ? new Date(to) : undefined} size="sm" />
-          <DateInput label="To" value={to} onChange={(v) => setTo(v)} clearable minDate={from ? new Date(from) : undefined} size="sm" />
+          <DateInput
+            label="From"
+            value={from}
+            onChange={(v) => setFrom(v)}
+            clearable
+            maxDate={to ? new Date(to) : undefined}
+            size="sm"
+          />
+          <DateInput
+            label="To"
+            value={to}
+            onChange={(v) => setTo(v)}
+            clearable
+            minDate={from ? new Date(from) : undefined}
+            size="sm"
+          />
           <SegmentedControl
             value={section}
             onChange={setSection}
@@ -108,8 +111,24 @@ function OpdSection({ params }: { params: { from?: string; to?: string } }) {
   const columns: Column<OpdFootfallRow>[] = [
     { key: "date", label: "Date", render: (r) => <Text size="sm">{r.date}</Text> },
     { key: "dept", label: "Department", render: (r) => <Text size="sm">{r.department_name}</Text> },
-    { key: "visits", label: "Visits", render: (r) => <Text size="sm" fw={600}>{r.visit_count}</Text> },
-    { key: "new", label: "New", render: (r) => <Text size="sm" c="success">{r.new_patients}</Text> },
+    {
+      key: "visits",
+      label: "Visits",
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {r.visit_count}
+        </Text>
+      ),
+    },
+    {
+      key: "new",
+      label: "New",
+      render: (r) => (
+        <Text size="sm" c="success">
+          {r.new_patients}
+        </Text>
+      ),
+    },
     { key: "follow", label: "Follow-ups", render: (r) => <Text size="sm">{r.follow_ups}</Text> },
   ];
 
@@ -123,7 +142,9 @@ function OpdSection({ params }: { params: { from?: string; to?: string } }) {
 
       {chartData.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="sm">Daily OPD Footfall</Text>
+          <Text fw={600} mb="sm">
+            Daily OPD Footfall
+          </Text>
           <LineChart
             h={300}
             data={chartData}
@@ -135,7 +156,12 @@ function OpdSection({ params }: { params: { from?: string; to?: string } }) {
         </Card>
       )}
 
-      <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(r) => `${r.date}-${r.department_name}`} />
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={isLoading}
+        rowKey={(r) => `${r.date}-${r.department_name}`}
+      />
     </Stack>
   );
 }
@@ -166,7 +192,15 @@ function BedSection() {
     { key: "ward", label: "Ward", render: (r) => <Text size="sm">{r.ward_name}</Text> },
     { key: "total", label: "Total Beds", render: (r) => <Text size="sm">{r.total_beds}</Text> },
     { key: "occupied", label: "Occupied", render: (r) => <Text size="sm">{r.occupied}</Text> },
-    { key: "vacant", label: "Vacant", render: (r) => <Text size="sm" c="success">{r.vacant}</Text> },
+    {
+      key: "vacant",
+      label: "Vacant",
+      render: (r) => (
+        <Text size="sm" c="success">
+          {r.vacant}
+        </Text>
+      ),
+    },
     {
       key: "pct",
       label: "Occupancy",
@@ -184,17 +218,25 @@ function BedSection() {
         <StatCard label="Total Beds" value={overall.totalBeds.toLocaleString()} />
         <StatCard label="Occupied" value={overall.totalOccupied.toLocaleString()} />
         <StatCard label="Vacant" value={overall.vacant.toLocaleString()} />
-        <StatCard label="Overall Occupancy" value={pct(overall.occupancyPct)} color={occupancyColor(overall.occupancyPct)} />
+        <StatCard
+          label="Overall Occupancy"
+          value={pct(overall.occupancyPct)}
+          color={occupancyColor(overall.occupancyPct)}
+        />
       </SimpleGrid>
 
       {/* Ward progress bars */}
       {rows.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="md">Ward Occupancy</Text>
+          <Text fw={600} mb="md">
+            Ward Occupancy
+          </Text>
           <Stack gap="sm">
             {rows.map((r) => (
               <Group key={r.ward_name} gap="sm">
-                <Text size="sm" w={160} truncate>{r.ward_name}</Text>
+                <Text size="sm" w={160} truncate>
+                  {r.ward_name}
+                </Text>
                 <Progress
                   value={r.occupancy_pct}
                   color={occupancyColor(r.occupancy_pct)}
@@ -220,8 +262,12 @@ function BedSection() {
 function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <Card withBorder p="lg">
-      <Text c="dimmed" size="sm">{label}</Text>
-      <Text fw={700} size="xl" c={color}>{value}</Text>
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Text fw={700} size="xl" c={color}>
+        {value}
+      </Text>
     </Card>
   );
 }

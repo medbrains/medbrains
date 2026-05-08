@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { useResourcePerm, type ResourceWithPerms } from "./useResourcePerm";
+import { describe, expect, it } from "vitest";
+import { type ResourceWithPerms, useResourcePerm } from "./useResourcePerm";
 
 describe("useResourcePerm", () => {
   it("returns deny-all when row is null", () => {

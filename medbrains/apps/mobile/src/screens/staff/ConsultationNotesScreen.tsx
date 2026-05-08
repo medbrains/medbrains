@@ -40,9 +40,9 @@ type NoteSection = "subjective" | "objective" | "assessment" | "plan";
 
 interface SOAPNote {
   subjective: string; // maps to chief_complaint
-  objective: string;  // maps to examination
+  objective: string; // maps to examination
   assessment: string; // maps to notes
-  plan: string;       // maps to plan
+  plan: string; // maps to plan
 }
 
 const SECTION_PROMPTS = {
@@ -157,12 +157,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
             </Text>
           </View>
           <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${getSectionProgress()}%` },
-              ]}
-            />
+            <View style={[styles.progressFill, { width: `${getSectionProgress()}%` }]} />
           </View>
           <View style={styles.sectionIndicators}>
             {(["subjective", "objective", "assessment", "plan"] as NoteSection[]).map((section) => (
@@ -222,52 +217,119 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
               <View style={styles.templateChips}>
                 {activeSection === "subjective" && (
                   <>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Patient complains of ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}Patient complains of `)
+                      }
+                    >
                       Complains of
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "History of ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}History of `)
+                      }
+                    >
                       H/O
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "No known allergies. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}No known allergies. `)
+                      }
+                    >
                       NKA
                     </Chip>
                   </>
                 )}
                 {activeSection === "objective" && (
                   <>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "On examination: ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}On examination: `)
+                      }
+                    >
                       O/E
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Vitals stable. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}Vitals stable. `)
+                      }
+                    >
                       Vitals stable
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "No abnormality detected. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(
+                          activeSection,
+                          `${notes[activeSection]}No abnormality detected. `,
+                        )
+                      }
+                    >
                       NAD
                     </Chip>
                   </>
                 )}
                 {activeSection === "assessment" && (
                   <>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Primary diagnosis: ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}Primary diagnosis: `)
+                      }
+                    >
                       Dx
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Rule out ")}>
+                    <Chip
+                      compact
+                      onPress={() => updateNote(activeSection, `${notes[activeSection]}Rule out `)}
+                    >
                       R/O
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Stable condition. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}Stable condition. `)
+                      }
+                    >
                       Stable
                     </Chip>
                   </>
                 )}
                 {activeSection === "plan" && (
                   <>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Continue current medications. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(
+                          activeSection,
+                          `${notes[activeSection]}Continue current medications. `,
+                        )
+                      }
+                    >
                       Continue meds
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Review after 1 week. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(activeSection, `${notes[activeSection]}Review after 1 week. `)
+                      }
+                    >
                       Review 1w
                     </Chip>
-                    <Chip compact onPress={() => updateNote(activeSection, notes[activeSection] + "Advised rest and hydration. ")}>
+                    <Chip
+                      compact
+                      onPress={() =>
+                        updateNote(
+                          activeSection,
+                          `${notes[activeSection]}Advised rest and hydration. `,
+                        )
+                      }
+                    >
                       Rest advised
                     </Chip>
                   </>

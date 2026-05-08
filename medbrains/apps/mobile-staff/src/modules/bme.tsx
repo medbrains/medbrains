@@ -3,15 +3,15 @@
  * calibrations, contracts, breakdowns.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
-import { ModuleHome } from "../components/module-home.js";
-import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import type { ReactNode } from "react";
+import { listEquipment } from "../api/bme.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
-import { listEquipment } from "../api/bme.js";
+import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   active: "success",
@@ -92,10 +92,7 @@ function EquipmentScreen(): ReactNode {
 
 function BmeScreen(): ReactNode {
   return (
-    <ModuleRouter
-      initial="home"
-      screens={{ home: <BmeHome />, equipment: <EquipmentScreen /> }}
-    />
+    <ModuleRouter initial="home" screens={{ home: <BmeHome />, equipment: <EquipmentScreen /> }} />
   );
 }
 

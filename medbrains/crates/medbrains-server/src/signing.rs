@@ -60,8 +60,7 @@ pub fn generate_keypair() -> Result<([u8; 32], [u8; 32]), SigningError> {
 /// bytes regardless of key insertion order.
 pub fn canonicalize(value: &Value) -> Result<Vec<u8>, SigningError> {
     let canonical = canonical_value(value);
-    serde_json::to_vec(&canonical)
-        .map_err(|e| SigningError::Canonicalize(e.to_string()))
+    serde_json::to_vec(&canonical).map_err(|e| SigningError::Canonicalize(e.to_string()))
 }
 
 fn canonical_value(value: &Value) -> Value {
@@ -109,8 +108,8 @@ pub fn verify(
     let pk_bytes: [u8; 32] = public_key
         .try_into()
         .map_err(|_| SigningError::InvalidPublicKey)?;
-    let verifying = VerifyingKey::from_bytes(&pk_bytes)
-        .map_err(|_| SigningError::InvalidPublicKey)?;
+    let verifying =
+        VerifyingKey::from_bytes(&pk_bytes).map_err(|_| SigningError::InvalidPublicKey)?;
     let sig_bytes: [u8; 64] = signature_bytes
         .try_into()
         .map_err(|_| SigningError::InvalidSignature)?;

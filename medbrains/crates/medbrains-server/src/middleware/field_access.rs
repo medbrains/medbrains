@@ -8,21 +8,55 @@
 use std::collections::HashMap;
 
 use medbrains_core::form::FieldAccessLevel;
+use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppError;
 
-/// Field-level access was tied to the form builder. With static React forms,
-/// there are no per-field access overrides — every authorized user can edit
-/// every field on their static form. Stubbed to always return an empty map.
+/// Resolve field-level restrictions from role defaults plus user overrides.
+///
+/// The returned map contains only non-edit restrictions. A user-level
+/// `"edit"` entry removes a role-level restriction for that field.
 pub async fn resolve_restricted_fields(
-    _db: &PgPool,
-    _tenant_id: Uuid,
-    _user_id: Uuid,
-    _role: &str,
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
 ) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
-    Ok(HashMap::new())
+    if role == "super_admin" || role == "hospital_admin" {
+        return Ok(HashMap::new());
+    }
+
+    let role_field_access = sqlx::query_scalar!(
+        "SELECT field_access_defaults FROM roles \
+         WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+        tenant_id,
+        role
+    )
+    .fetch_optional(db)
+    .await?;
+
+    let user_access_matrix = sqlx::query_scalar!(
+        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+        user_id,
+        tenant_id
+    )
+    .fetch_optional(db)
+    .await?;
+
+    let mut restricted = HashMap::new();
+    if let Some(value) = role_field_access {
+        merge_field_access_map(&mut restricted, &value)?;
+    }
+
+    if let Some(Value::Object(matrix)) = user_access_matrix {
+        if let Some(value) = matrix.get("field_access") {
+            merge_field_access_map(&mut restricted, value)?;
+        }
+    }
+
+    Ok(restricted)
 }
 
 /// Validate that a JSON body does not contain restricted fields.
@@ -33,7 +67,7 @@ pub async fn resolve_restricted_fields(
 /// if restricted fields are present.
 #[allow(clippy::implicit_hasher)]
 pub fn validate_write_access(
-    body: &serde_json::Value,
+    body: &Value,
     restricted: &HashMap<String, FieldAccessLevel>,
     module_prefix: &str,
 ) -> Result<(), AppError> {
@@ -67,4 +101,75 @@ pub fn validate_write_access(
         "Cannot write to restricted fields: {}",
         violations.join(", ")
     )))
+}
+
+fn merge_field_access_map(
+    restricted: &mut HashMap<String, FieldAccessLevel>,
+    value: &Value,
+) -> Result<(), AppError> {
+    let Value::Object(map) = value else {
+        return Ok(());
+    };
+
+    for (field_code, raw_level) in map {
+        let Some(level) = raw_level.as_str() else {
+            return Err(AppError::Internal(format!(
+                "Invalid field access level for {field_code}: expected string"
+            )));
+        };
+        match parse_field_access_level(level, field_code)? {
+            FieldAccessLevel::Edit => {
+                restricted.remove(field_code);
+            }
+            parsed @ (FieldAccessLevel::View | FieldAccessLevel::Hidden) => {
+                restricted.insert(field_code.clone(), parsed);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_field_access_level(level: &str, field_code: &str) -> Result<FieldAccessLevel, AppError> {
+    match level {
+        "edit" => Ok(FieldAccessLevel::Edit),
+        "view" => Ok(FieldAccessLevel::View),
+        "hidden" => Ok(FieldAccessLevel::Hidden),
+        other => Err(AppError::Internal(format!(
+            "Invalid field access level for {field_code}: {other}"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_edit_override_removes_role_restriction() {
+        let mut restricted = HashMap::new();
+        let role_result = merge_field_access_map(
+            &mut restricted,
+            &serde_json::json!({ "patients.aadhaar_number": "hidden" }),
+        );
+        let user_result = merge_field_access_map(
+            &mut restricted,
+            &serde_json::json!({ "patients.aadhaar_number": "edit" }),
+        );
+
+        assert!(role_result.is_ok());
+        assert!(user_result.is_ok());
+        assert!(!restricted.contains_key("patients.aadhaar_number"));
+    }
+
+    #[test]
+    fn invalid_field_access_value_is_rejected() {
+        let mut restricted = HashMap::new();
+        let result = merge_field_access_map(
+            &mut restricted,
+            &serde_json::json!({ "patients.aadhaar_number": "owner" }),
+        );
+
+        assert!(result.is_err());
+    }
 }

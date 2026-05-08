@@ -8,6 +8,23 @@
   position: relative;
   overflow: hidden;
   border: 1px solid var(--mb-border-subtle);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82)),
+    var(--mb-accent-gradient-soft);
+  box-shadow: var(--mb-float-shadow);
+}
+
+.headerGlow {
+  position: absolute;
+  right: -48px;
+  top: -72px;
+  width: 190px;
+  height: 160px;
+  border-radius: 999px;
+  background: var(--mb-accent-gradient-soft);
+  filter: blur(4px);
+  opacity: 0.78;
+  pointer-events: none;
 }
 
 .accentBar {
@@ -19,7 +36,8 @@
   background: linear-gradient(
     90deg,
     var(--mantine-color-primary-5) 0%,
-    var(--mantine-color-primary-3) 100%
+    var(--mantine-color-info-5) 48%,
+    var(--mantine-color-orange-5) 100%
   );
 }
 
@@ -32,7 +50,9 @@
 }
 
 .inner {
+  position: relative;
   padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  z-index: 1;
 }
 
 .breadcrumbs {
@@ -44,6 +64,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--mantine-spacing-md);
+  flex-wrap: wrap;
 }
 
 .titleGroup {
@@ -55,4 +76,45 @@
 .textBlock {
   display: flex;
   flex-direction: column;
+}
+
+.iconTile {
+  flex-shrink: 0;
+  box-shadow: 0 8px 18px rgba(20, 184, 166, 0.12);
+}
+
+.iconMotion {
+  display: inline-flex;
+  animation: headerIconFloat 2.6s ease-in-out infinite;
+}
+
+.actions {
+  margin-left: auto;
+}
+
+@keyframes headerIconFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(-4deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .titleGroup,
+  .actions {
+    width: 100%;
+  }
+
+  .actions {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconMotion {
+    animation: none;
+  }
 }

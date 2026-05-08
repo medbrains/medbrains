@@ -5,13 +5,14 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── shift_handoffs (SBAR) ───────────────────────────────────────────
@@ -181,6 +182,32 @@ pub async fn start_code_blue(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    crate::routes::nabh_evidence::mirror_code_blue_started(
+        &mut tx,
+        claims.tenant_id,
+        claims.sub,
+        row.id,
+    )
+    .await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::EmergencyCodeBlueActivated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "code_blue_id": row.id,
+            "patient_id": row.patient_id,
+            "encounter_id": row.encounter_id,
+            "location": &row.location,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -255,6 +282,33 @@ pub async fn end_code_blue(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    crate::routes::nabh_evidence::mirror_code_blue_started(
+        &mut tx,
+        claims.tenant_id,
+        claims.sub,
+        row.id,
+    )
+    .await?;
+    crate::routes::nabh_evidence::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::EmergencyCodeBlueCompleted,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "code_blue_id": row.id,
+            "patient_id": row.patient_id,
+            "encounter_id": row.encounter_id,
+            "outcome": &row.outcome,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }

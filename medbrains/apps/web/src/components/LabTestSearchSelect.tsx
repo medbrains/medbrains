@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
+import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import { type LabTestCatalog, P } from "@medbrains/types";
 import { IconMicroscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type { LabTestCatalog } from "@medbrains/types";
+import { useState } from "react";
+import { MiniAddLabTest } from "./Lab/MiniAddLabTest";
+import { SearchOrCreate } from "./SearchOrCreate";
 
 interface LabTestSearchSelectProps {
   value: string;
@@ -25,10 +28,9 @@ export function LabTestSearchSelect({
   size = "sm",
   error,
 }: LabTestSearchSelectProps) {
-  const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const [search, setSearch] = useState("");
-  const [displayValue, setDisplayValue] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
+  const canCreateTest = useHasPermission(P.LAB.ORDERS_CREATE);
 
   const { data } = useQuery({
     queryKey: ["lab-test-search", debounced],
@@ -39,77 +41,53 @@ export function LabTestSearchSelect({
 
   const tests = data ?? [];
 
-  const handleSelect = (testId: string) => {
-    const test = tests.find((t: LabTestCatalog) => t.id === testId);
-    if (test) {
-      onChange(test.id, test);
-      const display = `${test.name} (${test.code})`;
-      setDisplayValue(display);
-      setSearch(display);
-    }
-    combobox.closeDropdown();
-  };
-
   return (
-    <Combobox store={combobox} onOptionSubmit={handleSelect}>
-      <Combobox.Target>
-        <InputBase
-          label={label}
-          placeholder={placeholder}
-          required={required}
-          size={size}
-          error={error}
-          leftSection={<IconMicroscope size={14} />}
-          value={search || displayValue}
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            setSearch(v);
-            if (!v) {
-              onChange("");
-              setDisplayValue("");
-            }
-            combobox.openDropdown();
-            combobox.updateSelectedOptionIndex();
-          }}
-          onFocus={() => {
-            if (search.length >= 2) combobox.openDropdown();
-          }}
-          onBlur={() => {
-            combobox.closeDropdown();
-            if (!value) setSearch("");
-            else setSearch(displayValue);
-          }}
-          rightSectionPointerEvents="none"
-        />
-      </Combobox.Target>
-      <Combobox.Dropdown>
-        <Combobox.Options>
-          {tests.length > 0 ? (
-            tests.slice(0, 15).map((t: LabTestCatalog) => (
-              <Combobox.Option key={t.id} value={t.id}>
-                <Group gap={8} wrap="nowrap" justify="space-between">
-                  <div style={{ flex: 1 }}>
-                    <Text size="sm" fw={500}>{t.name}</Text>
-                    <Group gap={6}>
-                      <Text size="xs" c="primary" fw={600}>{t.code}</Text>
-                      {t.loinc_code && (
-                        <Text size="xs" c="dimmed">LOINC: {t.loinc_code}</Text>
-                      )}
-                    </Group>
-                  </div>
-                  <Text size="xs" fw={600} c="primary">
-                    {"\u20B9"}{t.price}
-                  </Text>
-                </Group>
-              </Combobox.Option>
-            ))
-          ) : debounced.length >= 2 ? (
-            <Combobox.Empty>No tests found</Combobox.Empty>
-          ) : (
-            <Combobox.Empty>Type at least 2 characters...</Combobox.Empty>
-          )}
-        </Combobox.Options>
-      </Combobox.Dropdown>
-    </Combobox>
+    <SearchOrCreate
+      value={value}
+      label={label}
+      placeholder={placeholder}
+      required={required}
+      size={size}
+      error={error}
+      leftSection={<IconMicroscope size={14} />}
+      items={tests.slice(0, 15)}
+      searchText={search}
+      onSearchChange={setSearch}
+      getItemValue={(test) => test.id}
+      getItemDisplay={(test) => `${test.name} (${test.code})`}
+      onSelect={(test) => onChange(test.id, test)}
+      onClear={() => onChange("")}
+      emptyLabel="No tests found"
+      canCreate={canCreateTest}
+      createButtonLabel="Add lab test"
+      createButtonIcon={<IconMicroscope size={14} />}
+      createModalTitle="Add lab test"
+      renderItem={(t) => (
+        <Group gap={8} wrap="nowrap" justify="space-between">
+          <div style={{ flex: 1 }}>
+            <Text size="sm" fw={500}>
+              {t.name}
+            </Text>
+            <Group gap={6}>
+              <Text size="xs" c="primary" fw={600}>
+                {t.code}
+              </Text>
+              {t.loinc_code && (
+                <Text size="xs" c="dimmed">
+                  LOINC: {t.loinc_code}
+                </Text>
+              )}
+            </Group>
+          </div>
+          <Text size="xs" fw={600} c="primary">
+            {"\u20B9"}
+            {t.price}
+          </Text>
+        </Group>
+      )}
+      renderCreateForm={({ searchText, close, selectItem }) => (
+        <MiniAddLabTest searchText={searchText} onCancel={close} onCreated={selectItem} />
+      )}
+    />
   );
 }

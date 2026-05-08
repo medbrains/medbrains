@@ -39,6 +39,8 @@ import type {
   BookAppointmentRequest,
   CancelAppointmentRequest,
   ClinicalIndicatorRow,
+  ClientErrorReportRequest,
+  ClientErrorReportResponse,
   CreateAmbulanceDriverRequest,
   CreateAmbulanceMaintenanceRequest,
   CreateAmbulanceRequest,
@@ -111,6 +113,7 @@ import type {
   PatientAppointmentRow,
   PatientConsent,
   PatientContact,
+  PatientContext,
   PatientIdentifier,
   PatientInvoiceRow,
   PatientLabOrderRow,
@@ -1331,6 +1334,14 @@ import type {
   DischargeSummary,
   BedTransferRequest,
   ExpectedDischargeRow,
+  IpdDischargeWorkflow,
+  IpdDischargeStepUpdate,
+  IpdDamaRecord,
+  IpdDamaRequest,
+  IpdPostDischargeRow,
+  IpdMortalityReview,
+  IpdMortalityCreate,
+  IpdMortalitySubmit,
   DrugInteractionCheckRequest,
   DrugInteractionResult,
   PrescriptionAuditEntry,
@@ -1466,6 +1477,7 @@ import type {
   InsuranceClaimPrintData,
   // Phase 4 Print Data - Regulatory
   NabhQualityReportPrintData,
+  NabhRollupResponse,
   NmcComplianceReportPrintData,
   NablQualityReportPrintData,
   SpcbBmwReturnsPrintData,
@@ -1760,7 +1772,11 @@ export {
 } from "@medbrains/schemas";
 
 // Import for internal use
-import { validateApiResponse, validateApiArrayResponse, TypeAssertionError } from "@medbrains/schemas";
+import {
+  validateApiResponse,
+  validateApiArrayResponse,
+  TypeAssertionError,
+} from "@medbrains/schemas";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // VALIDATED REQUEST - Runtime type checking for API responses
@@ -1810,8 +1826,7 @@ export function validatePayload<T>(
 const CSRF_STORAGE_KEY = "csrf_token";
 
 // Platform-agnostic storage check
-const isBrowser =
-  typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+const isBrowser = typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
 const hasDocument = typeof document !== "undefined";
 
 function loadCsrfToken(): string | null {
@@ -1824,6 +1839,7 @@ function loadCsrfToken(): string | null {
 }
 
 let _csrfToken: string | null = loadCsrfToken();
+let refreshInFlight: Promise<RefreshResponse | null> | null = null;
 
 export function setCsrfToken(token: string | null): void {
   _csrfToken = token;
@@ -1860,6 +1876,25 @@ function getCsrfToken(): string | null {
 /** Methods that require CSRF protection */
 const MUTATION_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
+function reportClientFailure(data: ClientErrorReportRequest): void {
+  if (data.route === "/client-errors/report") {
+    return;
+  }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const csrf = getCsrfToken();
+  if (csrf) {
+    headers["X-CSRF-Token"] = csrf;
+  }
+
+  void fetch(`${getApiBase()}/client-errors/report`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify(data),
+  }).catch(() => undefined);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getApiBase()}${path}`;
   const method = (init?.method ?? "GET").toUpperCase();
@@ -1885,15 +1920,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      const refreshed = await tryRefresh();
+      const refreshed = await refreshSession();
       if (refreshed) {
+        const refreshedCsrf = getCsrfToken();
         const retry = await fetch(url, {
           ...init,
           headers: {
             ...headers,
-            // Update CSRF token after refresh
-            ...(MUTATION_METHODS.has(method) && _csrfToken
-              ? { "X-CSRF-Token": _csrfToken }
+            // Update CSRF token after refresh.
+            ...(MUTATION_METHODS.has(method) && refreshedCsrf
+              ? { "X-CSRF-Token": refreshedCsrf }
               : {}),
           },
           credentials: "include",
@@ -1906,6 +1942,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       throw new Error("session_expired");
     }
     const body = await response.json().catch(() => ({}));
+    const errorMessage =
+      (body as { error?: string; detail?: string }).detail ??
+      (body as { error?: string }).error ??
+      `Request failed: ${response.status}`;
+    const errorName = (body as { error?: string }).error ?? `HTTP ${response.status}`;
+
+    if (response.status >= 500) {
+      reportClientFailure({
+        message: errorMessage,
+        method,
+        name: errorName,
+        occurred_at: new Date().toISOString(),
+        route: path,
+        source: "api",
+        status: response.status,
+        user_agent: isBrowser ? navigator.userAgent : undefined,
+      });
+    }
 
     // Parse 422 validation errors into a structured ValidationError
     if (
@@ -1914,38 +1968,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       (body as { fields?: Record<string, string[]> }).fields
     ) {
       const { ValidationError } = await import("@medbrains/utils");
-      throw new ValidationError(
-        (body as { fields: Record<string, string[]> }).fields,
-      );
+      throw new ValidationError((body as { fields: Record<string, string[]> }).fields);
     }
 
-    throw new Error(
-      (body as { error?: string; detail?: string }).detail ??
-        (body as { error?: string }).error ??
-        `Request failed: ${response.status}`,
-    );
+    throw new Error(errorMessage);
   }
 
   return response.json() as Promise<T>;
 }
 
-async function tryRefresh(): Promise<boolean> {
-  try {
-    const resp = await fetch(`${getApiBase()}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({}),
+async function refreshSession(): Promise<RefreshResponse | null> {
+  if (!refreshInFlight) {
+    const current = (async (): Promise<RefreshResponse | null> => {
+      try {
+        const resp = await fetch(`${getApiBase()}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({}),
+        });
+
+        if (!resp.ok) return null;
+
+        const data = (await resp.json()) as RefreshResponse;
+        setCsrfToken(data.csrf_token);
+        return data;
+      } catch {
+        return null;
+      }
+    })();
+
+    refreshInFlight = current;
+    void current.finally(() => {
+      if (refreshInFlight === current) {
+        refreshInFlight = null;
+      }
     });
-
-    if (!resp.ok) return false;
-
-    const data = (await resp.json()) as { csrf_token: string };
-    setCsrfToken(data.csrf_token);
-    return true;
-  } catch {
-    return false;
   }
+
+  return refreshInFlight;
 }
 
 export interface LoginRequest {
@@ -1978,6 +2039,13 @@ export interface MeResponse {
   field_access: Record<string, FieldAccessLevel>;
 }
 
+export interface RefreshResponse {
+  user: LoginResponse["user"];
+  csrf_token: string;
+  permissions: string[];
+  field_access: Record<string, FieldAccessLevel>;
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
 
@@ -1992,8 +2060,19 @@ export const api = {
     return resp;
   },
   me: () => request<MeResponse>("/auth/me"),
-  refreshToken: () =>
-    request<{ token: string }>("/auth/refresh", { method: "POST" }),
+  reportClientError: (data: ClientErrorReportRequest) =>
+    request<ClientErrorReportResponse>("/client-errors/report", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  refreshToken: async (): Promise<RefreshResponse> => {
+    const resp = await refreshSession();
+    if (!resp) {
+      setCsrfToken(null);
+      throw new Error("session_expired");
+    }
+    return resp;
+  },
   logout: () =>
     request<{ status: string }>("/auth/logout", {
       method: "POST",
@@ -2093,21 +2172,16 @@ export const api = {
     >("/sharing/granted-to-me"),
 
   // Onboarding
-  onboardingStatus: () =>
-    request<OnboardingStatusResponse>("/onboarding/status"),
+  onboardingStatus: () => request<OnboardingStatusResponse>("/onboarding/status"),
   onboardingInit: (data: OnboardingInitRequest) =>
     request<OnboardingInitResponse>("/onboarding/init", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  onboardingProgress: () =>
-    request<OnboardingProgress>("/onboarding/progress"),
-  updateOnboardingProgress: (data: {
-    current_step: number;
-    completed_steps: number[];
-  }) =>
+  onboardingProgress: () => request<OnboardingProgress>("/onboarding/progress"),
+  updateOnboardingProgress: (data: { current_step: number; completed_steps: number[] }) =>
     request<OnboardingProgress>("/onboarding/progress", {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   onboardingSetup: (data: OnboardingSetupRequest) =>
@@ -2115,15 +2189,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  completeOnboarding: () =>
-    request<{ status: string }>("/onboarding/complete", { method: "POST" }),
+  completeOnboarding: () => request<{ status: string }>("/onboarding/complete", { method: "POST" }),
 
   // Geo
   geoCountries: () => request<GeoCountry[]>("/geo/countries"),
-  geoStates: (countryId: string) =>
-    request<GeoState[]>(`/geo/countries/${countryId}/states`),
-  geoDistricts: (stateId: string) =>
-    request<GeoDistrict[]>(`/geo/states/${stateId}/districts`),
+  geoStates: (countryId: string) => request<GeoState[]>(`/geo/countries/${countryId}/states`),
+  geoDistricts: (stateId: string) => request<GeoDistrict[]>(`/geo/states/${stateId}/districts`),
   geoSubdistricts: (districtId: string) =>
     request<GeoSubdistrict[]>(`/geo/districts/${districtId}/subdistricts`),
   geoTowns: (subdistrictId: string) =>
@@ -2131,10 +2202,7 @@ export const api = {
   searchPincode: (pincode: string) =>
     request<PincodeResult[]>(`/geo/pincode/${encodeURIComponent(pincode)}`),
   geoRegulators: () => request<RegulatoryBody[]>("/geo/regulators"),
-  geoAutoDetectRegulators: (params: {
-    country_id?: string;
-    state_id?: string;
-  }) => {
+  geoAutoDetectRegulators: (params: { country_id?: string; state_id?: string }) => {
     const qs = new URLSearchParams();
     if (params.country_id) qs.set("country_id", params.country_id);
     if (params.state_id) qs.set("state_id", params.state_id);
@@ -2150,11 +2218,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  updateTenantGeo: (data: {
-    country_id?: string;
-    state_id?: string;
-    district_id?: string;
-  }) =>
+  updateTenantGeo: (data: { country_id?: string; state_id?: string; district_id?: string }) =>
     request<{ status: string; defaults_applied?: boolean }>("/setup/tenant/geo", {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2203,12 +2267,7 @@ export const api = {
 
   // Setup — locations
   listLocations: () => request<LocationRow[]>("/setup/locations"),
-  createLocation: (data: {
-    parent_id?: string;
-    level: string;
-    code: string;
-    name: string;
-  }) =>
+  createLocation: (data: { parent_id?: string; level: string; code: string; name: string }) =>
     request<LocationRow>("/setup/locations", {
       method: "POST",
       body: JSON.stringify(data),
@@ -2257,7 +2316,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateRole: (id: string, data: { name?: string; description?: string; permissions?: Record<string, unknown>; is_active?: boolean }) =>
+  updateRole: (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      permissions?: Record<string, unknown>;
+      is_active?: boolean;
+    },
+  ) =>
     request<CustomRole>(`/setup/roles/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2269,18 +2336,12 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ permissions }),
     }),
-  updateRoleFieldAccess: (
-    id: string,
-    fieldAccess: Record<string, FieldAccessLevel>,
-  ) =>
+  updateRoleFieldAccess: (id: string, fieldAccess: Record<string, FieldAccessLevel>) =>
     request<CustomRole>(`/setup/roles/${id}/field-access`, {
       method: "PUT",
       body: JSON.stringify({ field_access: fieldAccess }),
     }),
-  updateRoleWidgetAccess: (
-    id: string,
-    widgetAccess: Record<string, WidgetAccessLevel>,
-  ) =>
+  updateRoleWidgetAccess: (id: string, widgetAccess: Record<string, WidgetAccessLevel>) =>
     request<CustomRole>(`/setup/roles/${id}/widget-access`, {
       method: "PUT",
       body: JSON.stringify({ widget_access: widgetAccess }),
@@ -2312,10 +2373,7 @@ export const api = {
       is_active: boolean;
     }>("/access-groups", { method: "POST", body: JSON.stringify(data) }),
 
-  updateAccessGroup: (
-    id: string,
-    data: { code: string; name: string; description?: string },
-  ) =>
+  updateAccessGroup: (id: string, data: { code: string; name: string; description?: string }) =>
     request<{
       id: string;
       tenant_id: string;
@@ -2339,10 +2397,7 @@ export const api = {
       }>
     >(`/access-groups/${groupId}/members`),
 
-  addAccessGroupMember: (
-    groupId: string,
-    data: { user_id: string; expires_at?: string | null },
-  ) =>
+  addAccessGroupMember: (groupId: string, data: { user_id: string; expires_at?: string | null }) =>
     request<{ status: string }>(`/access-groups/${groupId}/members`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -2425,10 +2480,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateSequence: (
-    seqType: string,
-    data: { prefix?: string; pad_width?: number },
-  ) =>
+  updateSequence: (seqType: string, data: { prefix?: string; pad_width?: number }) =>
     request<SequenceRow>(`/setup/sequences/${seqType}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2438,7 +2490,14 @@ export const api = {
 
   // Setup — services
   listServices: () => request<ServiceRow[]>("/setup/services"),
-  createService: (data: { code: string; name: string; service_type: string; base_price?: number; department_id?: string | null; description?: string }) =>
+  createService: (data: {
+    code: string;
+    name: string;
+    service_type: string;
+    base_price?: number;
+    department_id?: string | null;
+    description?: string;
+  }) =>
     request<ServiceRow>("/setup/services", {
       method: "POST",
       body: JSON.stringify(data),
@@ -2468,7 +2527,13 @@ export const api = {
 
   // Setup — tax categories
   listTaxCategories: () => request<TaxCategoryRow[]>("/setup/tax-categories"),
-  createTaxCategory: (data: { code: string; name: string; rate_percent: number; applicability: string; description?: string }) =>
+  createTaxCategory: (data: {
+    code: string;
+    name: string;
+    rate_percent: number;
+    applicability: string;
+    description?: string;
+  }) =>
     request<TaxCategoryRow>("/setup/tax-categories", {
       method: "POST",
       body: JSON.stringify(data),
@@ -2512,8 +2577,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  getSecureDeviceSettings: () =>
-    request<SecureTenantSettingRow[]>("/setup/device-settings"),
+  getSecureDeviceSettings: () => request<SecureTenantSettingRow[]>("/setup/device-settings"),
   updateSecureDeviceSetting: (data: UpdateSecureDeviceSettingRequest) =>
     request<SecureTenantSettingRow>("/setup/device-settings", {
       method: "PUT",
@@ -2545,8 +2609,7 @@ export const api = {
     }),
 
   // Setup — print templates
-  getPrintTemplates: () =>
-    request<TenantSettingsRow[]>("/setup/print-templates"),
+  getPrintTemplates: () => request<TenantSettingsRow[]>("/setup/print-templates"),
   upsertPrintTemplate: (data: PrintTemplateRequest) =>
     request<{ status: string; template_type: string; value: unknown }>("/setup/print-templates", {
       method: "PUT",
@@ -2554,21 +2617,16 @@ export const api = {
     }),
 
   // Patients
-  listPatients: (params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-  }) => {
+  listPatients: (params?: { page?: number; per_page?: number; search?: string }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.per_page) qs.set("per_page", String(params.per_page));
     if (params?.search) qs.set("search", params.search);
     const query = qs.toString();
-    return request<PatientListResponse>(
-      `/patients${query ? `?${query}` : ""}`,
-    );
+    return request<PatientListResponse>(`/patients${query ? `?${query}` : ""}`);
   },
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
+  getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>
     request<Patient>("/patients", {
       method: "POST",
@@ -2823,21 +2881,16 @@ export const api = {
     }),
 
   // ── Dashboards — User-Facing ──────────────────────────
-  getDashboardStats: () =>
-    request<DashboardStatsResponse>("/dashboard/summary"),
-  listDashboards: () =>
-    request<DashboardSummary[]>("/dashboards"),
-  getMyDashboard: () =>
-    request<DashboardWithWidgets>("/dashboards/my"),
-  getDashboard: (id: string) =>
-    request<DashboardWithWidgets>(`/dashboards/${id}`),
+  getDashboardStats: () => request<DashboardStatsResponse>("/dashboard/summary"),
+  listDashboards: () => request<DashboardSummary[]>("/dashboards"),
+  getMyDashboard: () => request<DashboardWithWidgets>("/dashboards/my"),
+  getDashboard: (id: string) => request<DashboardWithWidgets>(`/dashboards/${id}`),
   personalizeDashboard: (data: PersonalizeDashboardRequest) =>
     request<DashboardWithWidgets>("/dashboards/my/personalize", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listWidgetTemplates: () =>
-    request<WidgetTemplate[]>("/widget-templates"),
+  listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
   getWidgetData: (widgetId: string) =>
     request<WidgetDataResponse>(`/dashboard/widget-data/${widgetId}`),
   batchWidgetData: (widgetIds: string[]) =>
@@ -2864,19 +2917,19 @@ export const api = {
       method: "PUT",
     }),
   approveIndentRequisition: (id: string, data: ApproveIndentRequest) =>
-    request<IndentRequisitionDetailResponse>(
-      `/indent/requisitions/${id}/approve`,
-      { method: "PUT", body: JSON.stringify(data) },
-    ),
+    request<IndentRequisitionDetailResponse>(`/indent/requisitions/${id}/approve`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   rejectIndentRequisition: (id: string) =>
     request<IndentRequisition>(`/indent/requisitions/${id}/reject`, {
       method: "PUT",
     }),
   issueIndentRequisition: (id: string, data: IssueIndentRequest) =>
-    request<IndentRequisitionDetailResponse>(
-      `/indent/requisitions/${id}/issue`,
-      { method: "PUT", body: JSON.stringify(data) },
-    ),
+    request<IndentRequisitionDetailResponse>(`/indent/requisitions/${id}/issue`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   cancelIndentRequisition: (id: string) =>
     request<IndentRequisition>(`/indent/requisitions/${id}/cancel`, {
       method: "PUT",
@@ -2907,55 +2960,84 @@ export const api = {
 
   // ── Indent Analytics ──────────────────────────────────
   getConsumptionAnalysis: (params?: Record<string, string>) =>
-    request<ConsumptionAnalysisRow[]>(`/indent/analytics/consumption${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<ConsumptionAnalysisRow[]>(
+      `/indent/analytics/consumption${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   getDeadStockReport: (params?: Record<string, string>) =>
-    request<DeadStockRow[]>(`/indent/analytics/dead-stock${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<DeadStockRow[]>(
+      `/indent/analytics/dead-stock${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   getPurchaseConsumptionTrend: (params?: Record<string, string>) =>
-    request<PurchaseConsumptionTrendRow[]>(`/indent/analytics/purchase-vs-consumption${params ? `?${new URLSearchParams(params)}` : ""}`),
-  getInventoryValuation: () =>
-    request<InventoryValuationRow[]>("/indent/analytics/valuation"),
-  getComplianceReport: () =>
-    request<ComplianceCheckRow[]>("/indent/analytics/compliance"),
+    request<PurchaseConsumptionTrendRow[]>(
+      `/indent/analytics/purchase-vs-consumption${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
+  getInventoryValuation: () => request<InventoryValuationRow[]>("/indent/analytics/valuation"),
+  getComplianceReport: () => request<ComplianceCheckRow[]>("/indent/analytics/compliance"),
   getFsnAnalysis: (params?: Record<string, string>) =>
-    request<FsnAnalysisRow[]>(`/indent/analytics/fsn${params ? `?${new URLSearchParams(params)}` : ""}`),
-  getAbcAnalysis: () =>
-    request<AbcAnalysisRow[]>("/indent/analytics/abc"),
-  getVedAnalysis: () =>
-    request<VedAnalysisRow[]>("/indent/analytics/ved"),
+    request<FsnAnalysisRow[]>(
+      `/indent/analytics/fsn${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
+  getAbcAnalysis: () => request<AbcAnalysisRow[]>("/indent/analytics/abc"),
+  getVedAnalysis: () => request<VedAnalysisRow[]>("/indent/analytics/ved"),
 
   // ── Indent Store Ops ──────────────────────────────────
   createDepartmentIssue: (data: DepartmentIssueRequest) =>
-    request<StoreStockMovement>("/indent/department-issues", { method: "POST", body: JSON.stringify(data) }),
+    request<StoreStockMovement>("/indent/department-issues", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   issueToPatient: (data: IssueToPatientRequest) =>
-    request<PatientConsumableIssue>("/indent/patient-consumables", { method: "POST", body: JSON.stringify(data) }),
+    request<PatientConsumableIssue>("/indent/patient-consumables", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listPatientConsumables: (params?: Record<string, string>) =>
-    request<PatientConsumableIssue[]>(`/indent/patient-consumables${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<PatientConsumableIssue[]>(
+      `/indent/patient-consumables${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   createReturnToStore: (data: ReturnToStoreRequest) =>
     request<StoreStockMovement>("/indent/returns", { method: "POST", body: JSON.stringify(data) }),
-  listConsignmentStock: () =>
-    request<BatchStock[]>("/indent/consignment-stock"),
+  listConsignmentStock: () => request<BatchStock[]>("/indent/consignment-stock"),
   recordConsignmentUsage: (data: ConsignmentUsageRequest) =>
-    request<StoreStockMovement>("/indent/consignment-usage", { method: "POST", body: JSON.stringify(data) }),
+    request<StoreStockMovement>("/indent/consignment-usage", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── Indent Assets & Implants ──────────────────────────
   listImplantRegistry: (params?: Record<string, string>) =>
-    request<ImplantRegistryEntry[]>(`/indent/implant-registry${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<ImplantRegistryEntry[]>(
+      `/indent/implant-registry${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   createImplantEntry: (data: CreateImplantRequest) =>
-    request<ImplantRegistryEntry>("/indent/implant-registry", { method: "POST", body: JSON.stringify(data) }),
+    request<ImplantRegistryEntry>("/indent/implant-registry", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateImplantEntry: (id: string, data: UpdateImplantRequest) =>
-    request<ImplantRegistryEntry>(`/indent/implant-registry/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<ImplantRegistryEntry>(`/indent/implant-registry/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listCondemnations: (params?: Record<string, string>) =>
-    request<EquipmentCondemnation[]>(`/indent/condemnations${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<EquipmentCondemnation[]>(
+      `/indent/condemnations${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   createCondemnation: (data: CreateCondemnationRequest) =>
-    request<EquipmentCondemnation>("/indent/condemnations", { method: "POST", body: JSON.stringify(data) }),
+    request<EquipmentCondemnation>("/indent/condemnations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateCondemnationStatus: (id: string, data: UpdateCondemnationStatusRequest) =>
-    request<EquipmentCondemnation>(`/indent/condemnations/${id}/status`, { method: "PUT", body: JSON.stringify(data) }),
+    request<EquipmentCondemnation>(`/indent/condemnations/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // ── Indent Reorder Alerts ─────────────────────────────
   checkReorderAlerts: () =>
     request<ReorderAlert[]>("/indent/reorder-alerts/check", { method: "POST" }),
-  listReorderAlerts: () =>
-    request<ReorderAlert[]>("/indent/reorder-alerts"),
+  listReorderAlerts: () => request<ReorderAlert[]>("/indent/reorder-alerts"),
   acknowledgeReorderAlert: (id: string) =>
     request<ReorderAlert>(`/indent/reorder-alerts/${id}/acknowledge`, { method: "PUT" }),
 
@@ -2970,8 +3052,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getEncounter: (id: string) =>
-    request<Encounter>(`/opd/encounters/${id}`),
+  getEncounter: (id: string) => request<Encounter>(`/opd/encounters/${id}`),
   updateEncounter: (id: string, data: UpdateEncounterRequest) =>
     request<Encounter>(`/opd/encounters/${id}`, {
       method: "PUT",
@@ -2989,8 +3070,7 @@ export const api = {
     request<{ status: string }>(`/opd/queue/${id}/complete`, { method: "PUT" }),
   markNoShow: (id: string) =>
     request<{ status: string }>(`/opd/queue/${id}/no-show`, { method: "PUT" }),
-  listVitals: (encounterId: string) =>
-    request<Vital[]>(`/opd/encounters/${encounterId}/vitals`),
+  listVitals: (encounterId: string) => request<Vital[]>(`/opd/encounters/${encounterId}/vitals`),
   createVital: (encounterId: string, data: CreateVitalRequest) =>
     request<Vital>(`/opd/encounters/${encounterId}/vitals`, {
       method: "POST",
@@ -3008,10 +3088,10 @@ export const api = {
     consultationId: string,
     data: UpdateConsultationRequest,
   ) =>
-    request<Consultation>(
-      `/opd/encounters/${encounterId}/consultation/${consultationId}`,
-      { method: "PUT", body: JSON.stringify(data) },
-    ),
+    request<Consultation>(`/opd/encounters/${encounterId}/consultation/${consultationId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listDiagnoses: (encounterId: string) =>
     request<Diagnosis[]>(`/opd/encounters/${encounterId}/diagnoses`),
   createDiagnosis: (encounterId: string, data: CreateDiagnosisRequest) =>
@@ -3020,30 +3100,21 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteDiagnosis: (encounterId: string, diagnosisId: string) =>
-    request<{ status: string }>(
-      `/opd/encounters/${encounterId}/diagnoses/${diagnosisId}`,
-      { method: "DELETE" },
-    ),
+    request<{ status: string }>(`/opd/encounters/${encounterId}/diagnoses/${diagnosisId}`, {
+      method: "DELETE",
+    }),
   listPrescriptions: (encounterId: string) =>
-    request<PrescriptionWithItems[]>(
-      `/opd/encounters/${encounterId}/prescriptions`,
-    ),
+    request<PrescriptionWithItems[]>(`/opd/encounters/${encounterId}/prescriptions`),
   getPrescription: (prescriptionId: string) =>
-    request<PrescriptionWithItems>(
-      `/opd/prescriptions/${prescriptionId}`,
-    ),
-  createPrescription: (
-    encounterId: string,
-    data: CreatePrescriptionRequest,
-  ) =>
-    request<PrescriptionWithItems>(
-      `/opd/encounters/${encounterId}/prescriptions`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<PrescriptionWithItems>(`/opd/prescriptions/${prescriptionId}`),
+  createPrescription: (encounterId: string, data: CreatePrescriptionRequest) =>
+    request<PrescriptionWithItems>(`/opd/encounters/${encounterId}/prescriptions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── Prescription Templates ──────────────────────────────
-  listPrescriptionTemplates: () =>
-    request<PrescriptionTemplate[]>("/opd/prescription-templates"),
+  listPrescriptionTemplates: () => request<PrescriptionTemplate[]>("/opd/prescription-templates"),
   createPrescriptionTemplate: (data: CreatePrescriptionTemplateRequest) =>
     request<PrescriptionTemplate>("/opd/prescription-templates", {
       method: "POST",
@@ -3085,8 +3156,7 @@ export const api = {
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
-  listProcedureCatalog: () =>
-    request<ProcedureCatalog[]>("/opd/procedure-catalog"),
+  listProcedureCatalog: () => request<ProcedureCatalog[]>("/opd/procedure-catalog"),
   listProcedureOrders: (encounterId: string) =>
     request<ProcedureOrderWithName[]>(`/opd/encounters/${encounterId}/procedure-orders`),
   createProcedureOrder: (data: CreateProcedureOrderRequest) =>
@@ -3098,16 +3168,24 @@ export const api = {
     request<{ status: string }>(`/opd/procedure-orders/${id}`, { method: "DELETE" }),
 
   // ── Duplicate Order Detection ───────────────────────────
-  checkDuplicateOrders: (params: { patient_id: string; test_id?: string; procedure_id?: string; hours?: number }) => {
-    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
+  checkDuplicateOrders: (params: {
+    patient_id: string;
+    test_id?: string;
+    procedure_id?: string;
+    hours?: number;
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => [k, String(v)]),
+    );
     return request<DuplicateOrderInfo[]>(`/opd/duplicate-check?${qs}`);
   },
 
   // ── ICD-10 & Chief Complaints ─────────────────────────
   searchIcd10: (q: string, limit?: number) =>
     request<Icd10Code[]>(`/opd/icd10/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`),
-  listChiefComplaints: () =>
-    request<ChiefComplaintMaster[]>("/opd/chief-complaints"),
+  listChiefComplaints: () => request<ChiefComplaintMaster[]>("/opd/chief-complaints"),
 
   // ── SNOMED CT Search ──────────────────────────────────
   searchSnomed: (q: string, limit?: number) =>
@@ -3115,7 +3193,10 @@ export const api = {
 
   // ── Multi-Doctor Appointment Groups ───────────────────
   bookAppointmentGroup: (data: BookAppointmentGroupRequest) =>
-    request<Appointment[]>("/opd/appointment-groups", { method: "POST", body: JSON.stringify(data) }),
+    request<Appointment[]>("/opd/appointment-groups", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listAppointmentGroup: (groupId: string) =>
     request<Appointment[]>(`/opd/appointment-groups/${groupId}`),
 
@@ -3129,7 +3210,10 @@ export const api = {
 
   // ── OPD → IPD Admission ───────────────────────────────
   admitFromOpd: (encounterId: string, data: AdmitFromOpdRequest) =>
-    request<AdmitFromOpdResponse>(`/opd/encounters/${encounterId}/admit-to-ipd`, { method: "POST", body: JSON.stringify(data) }),
+    request<AdmitFromOpdResponse>(`/opd/encounters/${encounterId}/admit-to-ipd`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── Available Beds ────────────────────────────────────
   listAvailableBeds: (params?: { ward_id?: string }) => {
@@ -3148,7 +3232,12 @@ export const api = {
     return request<DoctorDocket>(`/opd/docket/generate${qs}`, { method: "POST" });
   },
 
-  listReminders: (params?: { patient_id?: string; status?: string; from_date?: string; to_date?: string }) => {
+  listReminders: (params?: {
+    patient_id?: string;
+    status?: string;
+    from_date?: string;
+    to_date?: string;
+  }) => {
     const qs = params
       ? `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`
       : "";
@@ -3183,8 +3272,7 @@ export const api = {
     request<ProcedureConsent>(`/opd/consents/${id}/sign`, { method: "PUT" }),
 
   // ── Consultation Templates ────────────────────────────
-  listConsultationTemplates: () =>
-    request<ConsultationTemplate[]>("/opd/consultation-templates"),
+  listConsultationTemplates: () => request<ConsultationTemplate[]>("/opd/consultation-templates"),
   createConsultationTemplate: (data: CreateConsultationTemplateRequest) =>
     request<ConsultationTemplate>("/opd/consultation-templates", {
       method: "POST",
@@ -3199,7 +3287,9 @@ export const api = {
 
   // Doctor schedules
   listSchedules: (params?: { doctor_id?: string; department_id?: string }) => {
-    const qs = params ? `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}` : "";
+    const qs = params
+      ? `?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`
+      : "";
     return request<DoctorSchedule[]>(`/opd/schedules${qs}`);
   },
   createSchedule: (data: CreateScheduleRequest) =>
@@ -3246,8 +3336,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAppointment: (id: string) =>
-    request<Appointment>(`/opd/appointments/${id}`),
+  getAppointment: (id: string) => request<Appointment>(`/opd/appointments/${id}`),
   rescheduleAppointment: (id: string, data: RescheduleAppointmentRequest) =>
     request<Appointment>(`/opd/appointments/${id}/reschedule`, {
       method: "PUT",
@@ -3282,8 +3371,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getInvoice: (id: string) =>
-    request<InvoiceDetailResponse>(`/billing/invoices/${id}`),
+  getInvoice: (id: string) => request<InvoiceDetailResponse>(`/billing/invoices/${id}`),
   updateInvoice: (id: string, data: { notes?: string }) =>
     request<Invoice>(`/billing/invoices/${id}`, {
       method: "PUT",
@@ -3295,10 +3383,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
   removeInvoiceItem: (invoiceId: string, itemId: string) =>
-    request<{ status: string }>(
-      `/billing/invoices/${invoiceId}/items/${itemId}`,
-      { method: "DELETE" },
-    ),
+    request<{ status: string }>(`/billing/invoices/${invoiceId}/items/${itemId}`, {
+      method: "DELETE",
+    }),
   issueInvoice: (id: string) =>
     request<Invoice>(`/billing/invoices/${id}/issue`, { method: "POST" }),
   cancelInvoice: (id: string) =>
@@ -3331,8 +3418,7 @@ export const api = {
 
   // -- Billing Packages --
   listPackages: () => request<BillingPackage[]>("/billing/packages"),
-  getPackage: (id: string) =>
-    request<PackageDetailResponse>(`/billing/packages/${id}`),
+  getPackage: (id: string) => request<PackageDetailResponse>(`/billing/packages/${id}`),
   createPackage: (data: CreatePackageRequest) =>
     request<BillingPackage>("/billing/packages", {
       method: "POST",
@@ -3350,8 +3436,7 @@ export const api = {
 
   // -- Rate Plans --
   listRatePlans: () => request<RatePlan[]>("/billing/rate-plans"),
-  getRatePlan: (id: string) =>
-    request<RatePlanDetailResponse>(`/billing/rate-plans/${id}`),
+  getRatePlan: (id: string) => request<RatePlanDetailResponse>(`/billing/rate-plans/${id}`),
   createRatePlan: (data: CreateRatePlanRequest) =>
     request<RatePlan>("/billing/rate-plans", {
       method: "POST",
@@ -3376,10 +3461,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
   removeDiscount: (invoiceId: string, discountId: string) =>
-    request<{ deleted: boolean }>(
-      `/billing/invoices/${invoiceId}/discounts/${discountId}`,
-      { method: "DELETE" },
-    ),
+    request<{ deleted: boolean }>(`/billing/invoices/${invoiceId}/discounts/${discountId}`, {
+      method: "DELETE",
+    }),
 
   // -- Refunds --
   listRefunds: (params?: Record<string, string>) => {
@@ -3422,8 +3506,7 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<InsuranceClaim[]>(`/billing/insurance-claims${qs}`);
   },
-  getInsuranceClaim: (id: string) =>
-    request<InsuranceClaim>(`/billing/insurance-claims/${id}`),
+  getInsuranceClaim: (id: string) => request<InsuranceClaim>(`/billing/insurance-claims/${id}`),
   createInsuranceClaim: (data: CreateInsuranceClaimRequest) =>
     request<InsuranceClaim>("/billing/insurance-claims", {
       method: "POST",
@@ -3439,7 +3522,11 @@ export const api = {
    * NHCX webhook receipt log. Optional filters: correlation_id (specific
    * gateway exchange) or matched_id (specific local claim/preauth row).
    */
-  listNhcxCallbacks: (params?: { correlation_id?: string; matched_id?: string; limit?: number }) => {
+  listNhcxCallbacks: (params?: {
+    correlation_id?: string;
+    matched_id?: string;
+    limit?: number;
+  }) => {
     const qs = params
       ? `?${new URLSearchParams(
           Object.entries(params)
@@ -3523,9 +3610,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteCorporateEnrollment: (corporateId: string, enrollmentId: string) =>
-    request<{ deleted: boolean }>(`/billing/corporates/${corporateId}/enrollments/${enrollmentId}`, {
-      method: "DELETE",
-    }),
+    request<{ deleted: boolean }>(
+      `/billing/corporates/${corporateId}/enrollments/${enrollmentId}`,
+      {
+        method: "DELETE",
+      },
+    ),
   listCorporateInvoices: (corporateId: string) =>
     request<Invoice[]>(`/billing/corporates/${corporateId}/invoices`),
 
@@ -3535,7 +3625,9 @@ export const api = {
   billingReportDepartmentRevenue: (from: string, to: string) =>
     request<DepartmentRevenueRow[]>(`/billing/reports/department-revenue?from=${from}&to=${to}`),
   billingReportCollectionEfficiency: (from: string, to: string) =>
-    request<CollectionEfficiencyReport>(`/billing/reports/collection-efficiency?from=${from}&to=${to}`),
+    request<CollectionEfficiencyReport>(
+      `/billing/reports/collection-efficiency?from=${from}&to=${to}`,
+    ),
   billingReportAging: () => request<AgingBucket[]>("/billing/reports/aging"),
   billingReportDaily: (date: string) =>
     request<DailySummary>(`/billing/reports/daily?date=${date}`),
@@ -3634,8 +3726,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  reportCreditAging: () =>
-    request<CreditAgingRow[]>("/billing/credit-patients/aging"),
+  reportCreditAging: () => request<CreditAgingRow[]>("/billing/credit-patients/aging"),
 
   // -- Billing Phase 3: Dual Insurance --
   coordinateDualInsurance: (invoiceId: string) =>
@@ -3676,8 +3767,7 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<JournalEntry[]>(`/billing/journal-entries${qs}`);
   },
-  getJournalEntry: (id: string) =>
-    request<JournalEntryDetail>(`/billing/journal-entries/${id}`),
+  getJournalEntry: (id: string) => request<JournalEntryDetail>(`/billing/journal-entries/${id}`),
   createJournalEntry: (data: CreateJournalEntryRequest) =>
     request<JournalEntryDetail>("/billing/journal-entries", {
       method: "POST",
@@ -3751,7 +3841,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  issueTdsCertificate: (id: string, data: { certificate_number: string; certificate_date: string }) =>
+  issueTdsCertificate: (
+    id: string,
+    data: { certificate_number: string; certificate_date: string },
+  ) =>
     request<TdsDeduction>(`/billing/tds/${id}/certificate`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -3763,8 +3856,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listGstrSummaries: () =>
-    request<GstReturnSummary[]>("/billing/gst-returns"),
+  listGstrSummaries: () => request<GstReturnSummary[]>("/billing/gst-returns"),
   fileGstr: (id: string) =>
     request<GstReturnSummary>(`/billing/gst-returns/${id}/file`, { method: "POST" }),
   reportHsnSummary: (period: string) =>
@@ -3772,9 +3864,13 @@ export const api = {
 
   // -- Billing Phase 3: Financial MIS & P&L --
   reportFinancialMis: (dateFrom: string, dateTo: string) =>
-    request<FinancialMisReport>(`/billing/reports/financial-mis?date_from=${dateFrom}&date_to=${dateTo}`),
+    request<FinancialMisReport>(
+      `/billing/reports/financial-mis?date_from=${dateFrom}&date_to=${dateTo}`,
+    ),
   reportProfitLoss: (dateFrom: string, dateTo: string) =>
-    request<ProfitLossDeptRow[]>(`/billing/reports/profit-loss?date_from=${dateFrom}&date_to=${dateTo}`),
+    request<ProfitLossDeptRow[]>(
+      `/billing/reports/profit-loss?date_from=${dateFrom}&date_to=${dateTo}`,
+    ),
 
   // -- Billing Phase 3: ERP Export --
   exportToErp: (data: ErpExportRequest) =>
@@ -3782,8 +3878,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listErpExports: () =>
-    request<ErpExportLog[]>("/billing/erp/exports"),
+  listErpExports: () => request<ErpExportLog[]>("/billing/erp/exports"),
 
   // ── Lab ────────────────────────────────────────────────
 
@@ -3796,25 +3891,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getLabOrder: (id: string) =>
-    request<LabOrderDetailResponse>(`/lab/orders/${id}`),
-  collectSample: (id: string) =>
-    request<LabOrder>(`/lab/orders/${id}/collect`, { method: "PUT" }),
+  getLabOrder: (id: string) => request<LabOrderDetailResponse>(`/lab/orders/${id}`),
+  collectSample: (id: string) => request<LabOrder>(`/lab/orders/${id}/collect`, { method: "PUT" }),
   startProcessing: (id: string) =>
     request<LabOrder>(`/lab/orders/${id}/process`, { method: "PUT" }),
   completeLabOrder: (id: string) =>
     request<LabOrder>(`/lab/orders/${id}/complete`, { method: "PUT" }),
-  verifyResults: (id: string) =>
-    request<LabOrder>(`/lab/orders/${id}/verify`, { method: "PUT" }),
-  cancelLabOrder: (id: string) =>
-    request<LabOrder>(`/lab/orders/${id}/cancel`, { method: "PUT" }),
+  verifyResults: (id: string) => request<LabOrder>(`/lab/orders/${id}/verify`, { method: "PUT" }),
+  cancelLabOrder: (id: string) => request<LabOrder>(`/lab/orders/${id}/cancel`, { method: "PUT" }),
   addLabResults: (orderId: string, data: AddResultsRequest) =>
     request<LabResult[]>(`/lab/orders/${orderId}/results`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listLabResults: (orderId: string) =>
-    request<LabResult[]>(`/lab/orders/${orderId}/results`),
+  listLabResults: (orderId: string) => request<LabResult[]>(`/lab/orders/${orderId}/results`),
   listLabCatalog: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<LabTestCatalog[]>(`/lab/catalog${qs}`);
@@ -3831,10 +3921,8 @@ export const api = {
     }),
 
   // Lab Panels
-  listLabPanels: () =>
-    request<LabTestPanel[]>("/lab/panels"),
-  getLabPanel: (id: string) =>
-    request<LabPanelDetailResponse>(`/lab/panels/${id}`),
+  listLabPanels: () => request<LabTestPanel[]>("/lab/panels"),
+  getLabPanel: (id: string) => request<LabPanelDetailResponse>(`/lab/panels/${id}`),
   createLabPanel: (data: CreateLabPanelRequest) =>
     request<LabPanelDetailResponse>("/lab/panels", {
       method: "POST",
@@ -3984,8 +4072,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getHomeCollectionStats: () =>
-    request<HomeCollectionStatsRow[]>("/lab/home-collections/stats"),
+  getHomeCollectionStats: () => request<HomeCollectionStatsRow[]>("/lab/home-collections/stats"),
 
   // Lab Phase 3 — Collection Centers
   listCollectionCenters: (params?: Record<string, string>) => {
@@ -4050,8 +4137,7 @@ export const api = {
     }),
 
   // Lab Phase 3 — STAT Orders
-  listStatOrders: () =>
-    request<TatMonitoringRow[]>("/lab/stat-orders"),
+  listStatOrders: () => request<TatMonitoringRow[]>("/lab/stat-orders"),
 
   // Lab Phase 3 — EQAS
   listEqasResults: (params?: Record<string, string>) => {
@@ -4097,26 +4183,22 @@ export const api = {
     }),
 
   // Lab Phase 3 — Reagent Consumption
-  getReagentConsumption: () =>
-    request<ReagentConsumptionRow[]>("/lab/reagent-consumption"),
+  getReagentConsumption: () => request<ReagentConsumptionRow[]>("/lab/reagent-consumption"),
 
   // Lab Phase 3 — Specialized Reports
-  getHistopathReport: (orderId: string) =>
-    request<LabHistopathReport>(`/lab/histopath/${orderId}`),
+  getHistopathReport: (orderId: string) => request<LabHistopathReport>(`/lab/histopath/${orderId}`),
   createHistopathReport: (data: CreateHistopathReportRequest) =>
     request<LabHistopathReport>("/lab/histopath", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getCytologyReport: (orderId: string) =>
-    request<LabCytologyReport>(`/lab/cytology/${orderId}`),
+  getCytologyReport: (orderId: string) => request<LabCytologyReport>(`/lab/cytology/${orderId}`),
   createCytologyReport: (data: CreateCytologyReportRequest) =>
     request<LabCytologyReport>("/lab/cytology", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getMolecularReport: (orderId: string) =>
-    request<LabMolecularReport>(`/lab/molecular/${orderId}`),
+  getMolecularReport: (orderId: string) => request<LabMolecularReport>(`/lab/molecular/${orderId}`),
   createMolecularReport: (data: CreateMolecularReportRequest) =>
     request<LabMolecularReport>("/lab/molecular", {
       method: "POST",
@@ -4138,8 +4220,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listB2bRates: (clientId: string) =>
-    request<LabB2bRate[]>(`/lab/b2b-clients/${clientId}/rates`),
+  listB2bRates: (clientId: string) => request<LabB2bRate[]>(`/lab/b2b-clients/${clientId}/rates`),
   createB2bRate: (clientId: string, data: CreateB2bRateRequest) =>
     request<LabB2bRate>(`/lab/b2b-clients/${clientId}/rates`, {
       method: "POST",
@@ -4152,8 +4233,7 @@ export const api = {
     }),
   listDoctorCriticalAlerts: (doctorId: string) =>
     request<Record<string, unknown>[]>(`/lab/critical-alerts/doctor/${doctorId}`),
-  getLabTatAnalytics: () =>
-    request<LabTatAnalyticsRow[]>("/lab/analytics/tat"),
+  getLabTatAnalytics: () => request<LabTatAnalyticsRow[]>("/lab/analytics/tat"),
   getOrderCrossmatch: (orderId: string) =>
     request<LabCrossmatchLink>(`/lab/orders/${orderId}/crossmatch`),
 
@@ -4202,8 +4282,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listRadiologyModalities: () =>
-    request<RadiologyModality[]>("/radiology/modalities"),
+  listRadiologyModalities: () => request<RadiologyModality[]>("/radiology/modalities"),
 
   createRadiologyModality: (data: CreateModalityRequest) =>
     request<RadiologyModality>("/radiology/modalities", {
@@ -4234,8 +4313,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getRadiologyTat: () =>
-    request<RadiologyTatRow[]>("/radiology/analytics/tat"),
+  getRadiologyTat: () => request<RadiologyTatRow[]>("/radiology/analytics/tat"),
 
   // ── Pharmacy ──────────────────────────────────────────
 
@@ -4248,8 +4326,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getPharmacyOrder: (id: string) =>
-    request<PharmacyOrderDetailResponse>(`/pharmacy/orders/${id}`),
+  getPharmacyOrder: (id: string) => request<PharmacyOrderDetailResponse>(`/pharmacy/orders/${id}`),
   dispenseOrder: (id: string, data?: { items?: unknown[]; witnessed_by?: string }) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
       method: "PUT",
@@ -4307,10 +4384,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getNdpsBalance: () =>
-    request<NdpsReportResponse>("/pharmacy/ndps-register/balance"),
-  getNdpsReport: () =>
-    request<NdpsReportResponse>("/pharmacy/ndps-register/report"),
+  getNdpsBalance: () => request<NdpsReportResponse>("/pharmacy/ndps-register/balance"),
+  getNdpsReport: () => request<NdpsReportResponse>("/pharmacy/ndps-register/report"),
   listPharmacyBatches: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<PharmacyBatch[]>(`/pharmacy/batches${qs}`);
@@ -4348,8 +4423,7 @@ export const api = {
     request<PharmacyTransferRequest>(`/pharmacy/transfers/${id}/approve`, {
       method: "PUT",
     }),
-  listPharmacyReturns: () =>
-    request<PharmacyReturn[]>("/pharmacy/returns"),
+  listPharmacyReturns: () => request<PharmacyReturn[]>("/pharmacy/returns"),
   createPharmacyReturn: (data: CreatePharmacyReturnRequest) =>
     request<PharmacyReturn>("/pharmacy/returns", {
       method: "POST",
@@ -4364,10 +4438,8 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<PharmacyConsumptionRow[]>(`/pharmacy/analytics/consumption${qs}`);
   },
-  getPharmacyAbcVed: () =>
-    request<PharmacyAbcVedRow[]>("/pharmacy/analytics/abc-ved"),
-  getDrugUtilization: () =>
-    request<DrugUtilizationRow[]>("/pharmacy/analytics/utilization"),
+  getPharmacyAbcVed: () => request<PharmacyAbcVedRow[]>("/pharmacy/analytics/abc-ved"),
+  getDrugUtilization: () => request<DrugUtilizationRow[]>("/pharmacy/analytics/utilization"),
 
   // Pharmacy Phase 3: Rx Queue
   listRxQueue: (params?: { status?: string }) => {
@@ -4375,15 +4447,33 @@ export const api = {
     return request<RxQueueRow[]>(`/pharmacy/rx-queue${qs}`);
   },
   getRxDetail: (id: string) =>
-    request<{ prescription: PharmacyPrescriptionRx; items: unknown[]; allergies: unknown[] }>(`/pharmacy/rx-queue/${id}`),
-  reviewPrescription: (id: string, data: { action: string; notes?: string; rejection_reason?: string }) =>
-    request<PharmacyPrescriptionRx>(`/pharmacy/rx-queue/${id}/review`, { method: "PUT", body: JSON.stringify(data) }),
+    request<{ prescription: PharmacyPrescriptionRx; items: unknown[]; allergies: unknown[] }>(
+      `/pharmacy/rx-queue/${id}`,
+    ),
+  reviewPrescription: (
+    id: string,
+    data: { action: string; notes?: string; rejection_reason?: string },
+  ) =>
+    request<PharmacyPrescriptionRx>(`/pharmacy/rx-queue/${id}/review`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Safety
   checkPatientAllergies: (data: { patient_id: string; drug_ids: string[] }) =>
-    request<{ matches: unknown[]; safe: boolean }>("/pharmacy/safety/allergy-check", { method: "POST", body: JSON.stringify(data) }),
-  selectFefoBatch: (data: { catalog_item_id: string; quantity_needed: number; store_location_id?: string }) =>
-    request<{ batches: unknown[] }>("/pharmacy/batches/fefo-select", { method: "POST", body: JSON.stringify(data) }),
+    request<{ matches: unknown[]; safe: boolean }>("/pharmacy/safety/allergy-check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  selectFefoBatch: (data: {
+    catalog_item_id: string;
+    quantity_needed: number;
+    store_location_id?: string;
+  }) =>
+    request<{ batches: unknown[] }>("/pharmacy/batches/fefo-select", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // POS
   createPosSale: (data: Record<string, unknown>) =>
@@ -4395,18 +4485,28 @@ export const api = {
     const q = qs.toString();
     return request<PharmacyPosSale[]>(`/pharmacy/pos/sales${q ? `?${q}` : ""}`);
   },
-  getPosDaySummary: () =>
-    request<PosDaySummary>("/pharmacy/pos/day-summary"),
+  getPosDaySummary: () => request<PosDaySummary>("/pharmacy/pos/day-summary"),
 
   // Pricing
   resolveDrugPrice: (data: { catalog_item_id: string; tier_name?: string }) =>
-    request<Record<string, unknown>>("/pharmacy/pricing/resolve", { method: "POST", body: JSON.stringify(data) }),
+    request<Record<string, unknown>>("/pharmacy/pricing/resolve", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   upsertPricingTier: (data: { catalog_item_id: string; tier_name: string; price: number }) =>
-    request<PharmacyPricingTier>("/pharmacy/pricing/tiers", { method: "PUT", body: JSON.stringify(data) }),
+    request<PharmacyPricingTier>("/pharmacy/pricing/tiers", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Stock
-  reconcileStock: (data: { items: { catalog_item_id: string; physical_quantity: number; reason?: string }[] }) =>
-    request<{ reconciled: number }>("/pharmacy/stock/reconcile", { method: "POST", body: JSON.stringify(data) }),
+  reconcileStock: (data: {
+    items: { catalog_item_id: string; physical_quantity: number; reason?: string }[];
+  }) =>
+    request<{ reconciled: number }>("/pharmacy/stock/reconcile", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getReorderSuggestions: () =>
     request<{ suggestions: unknown[] }>("/pharmacy/stock/reorder-suggestions"),
 
@@ -4415,10 +4515,8 @@ export const api = {
     const qs = params?.days ? `?days=${params.days}` : "";
     return request<{ sales: unknown[] }>(`/pharmacy/analytics/daily-sales${qs}`);
   },
-  pharmacyFillRate: () =>
-    request<Record<string, unknown>>("/pharmacy/analytics/fill-rate"),
-  pharmacyMargins: () =>
-    request<{ margins: unknown[] }>("/pharmacy/analytics/margins"),
+  pharmacyFillRate: () => request<Record<string, unknown>>("/pharmacy/analytics/fill-rate"),
+  pharmacyMargins: () => request<{ margins: unknown[] }>("/pharmacy/analytics/margins"),
 
   // ── Pharmacy Credit Notes ──────────────────────────────
   listPharmacyCreditNotes: (params?: Record<string, string>) => {
@@ -4440,10 +4538,19 @@ export const api = {
     request<PharmacyCreditNote>(`/pharmacy/credit-notes/${id}/cancel`, { method: "PUT" }),
 
   listPatientOrdersForReturn: (patientId: string) =>
-    request<Array<{ order_id: string; order_date: string; status: string; items: unknown }>>(`/pharmacy/patient-orders/${patientId}`),
+    request<Array<{ order_id: string; order_date: string; status: string; items: unknown }>>(
+      `/pharmacy/patient-orders/${patientId}`,
+    ),
 
   lookupPosSale: (receipt: string) =>
-    request<{ id: string; receipt_number: string; total_amount: number; payment_mode: string; status: string; items: unknown }>(`/pharmacy/pos/lookup?receipt=${encodeURIComponent(receipt)}`),
+    request<{
+      id: string;
+      receipt_number: string;
+      total_amount: number;
+      payment_mode: string;
+      status: string;
+      items: unknown;
+    }>(`/pharmacy/pos/lookup?receipt=${encodeURIComponent(receipt)}`),
 
   // ── Pharmacy Store Indents ────────────────────────────
   listPharmacyStoreIndents: (params?: Record<string, string>) => {
@@ -4462,7 +4569,13 @@ export const api = {
   receivePharmacyStoreIndent: (id: string) =>
     request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/receive`, { method: "PUT" }),
 
-  returnPosItems: (saleId: string, data: { items: Array<{ item_id: string; return_qty: number; reason?: string }>; reason?: string }) =>
+  returnPosItems: (
+    saleId: string,
+    data: {
+      items: Array<{ item_id: string; return_qty: number; reason?: string }>;
+      reason?: string;
+    },
+  ) =>
     request<Record<string, unknown>>(`/pharmacy/pos/sales/${saleId}/return-items`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -4491,8 +4604,7 @@ export const api = {
     request<Record<string, unknown>>(`/pharmacy/recalls/${id}/affected-patients`),
 
   // ── Pharmacy Destruction Register ─────────────────────
-  listPharmacyDestructions: () =>
-    request<PharmacyDestructionLog[]>("/pharmacy/destruction"),
+  listPharmacyDestructions: () => request<PharmacyDestructionLog[]>("/pharmacy/destruction"),
   createPharmacyDestruction: (data: {
     destruction_date: string;
     method: string;
@@ -4526,8 +4638,7 @@ export const api = {
     }),
 
   // ── Emergency Kits ────────────────────────────────────
-  listPharmacyEmergencyKits: () =>
-    request<PharmacyEmergencyKit[]>("/pharmacy/emergency-kits"),
+  listPharmacyEmergencyKits: () => request<PharmacyEmergencyKit[]>("/pharmacy/emergency-kits"),
   createPharmacyEmergencyKit: (data: {
     kit_code: string;
     kit_type: string;
@@ -4603,8 +4714,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAdmission: (id: string) =>
-    request<AdmissionDetailResponse>(`/ipd/admissions/${id}`),
+  getAdmission: (id: string) => request<AdmissionDetailResponse>(`/ipd/admissions/${id}`),
   updateAdmission: (id: string, data: UpdateAdmissionRequest) =>
     request<Admission>(`/ipd/admissions/${id}`, {
       method: "PUT",
@@ -4627,11 +4737,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateNursingTask: (
-    admissionId: string,
-    taskId: string,
-    data: UpdateNursingTaskRequest,
-  ) =>
+  updateNursingTask: (admissionId: string, taskId: string, data: UpdateNursingTaskRequest) =>
     request<NursingTask>(`/ipd/admissions/${admissionId}/tasks/${taskId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -4695,11 +4801,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  updateNursingAssessment: (admissionId: string, assessId: string, data: CreateNursingAssessmentRequest) =>
-    request<IpdNursingAssessment>(`/ipd/admissions/${admissionId}/nursing-assessments/${assessId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  updateNursingAssessment: (
+    admissionId: string,
+    assessId: string,
+    data: CreateNursingAssessmentRequest,
+  ) =>
+    request<IpdNursingAssessment>(
+      `/ipd/admissions/${admissionId}/nursing-assessments/${assessId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    ),
 
   // Care Plans
   listCarePlans: (admissionId: string) =>
@@ -4724,9 +4837,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   acknowledgeHandover: (admissionId: string, handoverId: string) =>
-    request<IpdHandoverReport>(`/ipd/admissions/${admissionId}/handovers/${handoverId}/acknowledge`, {
-      method: "PUT",
-    }),
+    request<IpdHandoverReport>(
+      `/ipd/admissions/${admissionId}/handovers/${handoverId}/acknowledge`,
+      {
+        method: "PUT",
+      },
+    ),
 
   // Discharge Checklist
   listDischargeChecklist: (admissionId: string) =>
@@ -4735,7 +4851,11 @@ export const api = {
     request<IpdDischargeChecklist[]>(`/ipd/admissions/${admissionId}/discharge-checklist`, {
       method: "POST",
     }),
-  updateDischargeChecklistItem: (admissionId: string, itemId: string, data: UpdateDischargeChecklistRequest) =>
+  updateDischargeChecklistItem: (
+    admissionId: string,
+    itemId: string,
+    data: UpdateDischargeChecklistRequest,
+  ) =>
     request<IpdDischargeChecklist>(`/ipd/admissions/${admissionId}/discharge-checklist/${itemId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -4749,8 +4869,7 @@ export const api = {
     request<Ward>("/ipd/wards", { method: "POST", body: JSON.stringify(data) }),
   updateWard: (id: string, data: UpdateWardRequest) =>
     request<Ward>(`/ipd/wards/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  listWardBeds: (wardId: string) =>
-    request<WardBedRow[]>(`/ipd/wards/${wardId}/beds`),
+  listWardBeds: (wardId: string) => request<WardBedRow[]>(`/ipd/wards/${wardId}/beds`),
   assignBedToWard: (wardId: string, data: AssignBedToWardRequest) =>
     request<WardBedMapping>(`/ipd/wards/${wardId}/beds`, {
       method: "POST",
@@ -4762,8 +4881,7 @@ export const api = {
     }),
 
   // IPD Phase 2 — Bed Dashboard
-  bedDashboardSummary: () =>
-    request<BedDashboardSummary[]>("/ipd/bed-dashboard"),
+  bedDashboardSummary: () => request<BedDashboardSummary[]>("/ipd/bed-dashboard"),
   bedDashboardBeds: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<BedDashboardRow[]>(`/ipd/bed-dashboard/beds${qs}`);
@@ -4788,8 +4906,7 @@ export const api = {
     }),
 
   // IPD Phase 2 — Discharge Summary
-  listDischargeTemplates: () =>
-    request<DischargeSummaryTemplate[]>("/ipd/discharge-templates"),
+  listDischargeTemplates: () => request<DischargeSummaryTemplate[]>("/ipd/discharge-templates"),
   createDischargeTemplate: (data: CreateDischargeTemplateRequest) =>
     request<DischargeSummaryTemplate>("/ipd/discharge-templates", {
       method: "POST",
@@ -4956,8 +5073,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getBloodDonor: (id: string) =>
-    request<BloodDonor>(`/blood-bank/donors/${id}`),
+  getBloodDonor: (id: string) => request<BloodDonor>(`/blood-bank/donors/${id}`),
   listDonations: (donorId: string) =>
     request<BloodDonation[]>(`/blood-bank/donors/${donorId}/donations`),
   createDonation: (donorId: string, data: CreateDonationRequest) =>
@@ -4984,8 +5100,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCrossmatchRequests: () =>
-    request<CrossmatchRequest[]>("/blood-bank/crossmatch"),
+  listCrossmatchRequests: () => request<CrossmatchRequest[]>("/blood-bank/crossmatch"),
   createCrossmatchRequest: (data: CreateCrossmatchRequestBody) =>
     request<CrossmatchRequest>("/blood-bank/crossmatch", {
       method: "POST",
@@ -4996,8 +5111,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listTransfusions: () =>
-    request<TransfusionRecord[]>("/blood-bank/transfusions"),
+  listTransfusions: () => request<TransfusionRecord[]>("/blood-bank/transfusions"),
   createTransfusion: (data: CreateTransfusionRequest) =>
     request<TransfusionRecord>("/blood-bank/transfusions", {
       method: "POST",
@@ -5009,10 +5123,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getTtiReport: () =>
-    request<TtiReport>("/blood-bank/tti-report"),
-  getHemovigilanceReport: () =>
-    request<HemovigilanceReport>("/blood-bank/hemovigilance"),
+  getTtiReport: () => request<TtiReport>("/blood-bank/tti-report"),
+  getHemovigilanceReport: () => request<HemovigilanceReport>("/blood-bank/hemovigilance"),
 
   // ── Blood Bank Phase 2 ──────────────────────────────────
 
@@ -5023,35 +5135,59 @@ export const api = {
     return request<BbRecruitmentCampaignRow[]>(`/blood-bank/recruitment${qs ? `?${qs}` : ""}`);
   },
   createBbCampaign: (data: CreateBbCampaignRequest) =>
-    request<BbRecruitmentCampaignRow>("/blood-bank/recruitment", { method: "POST", body: JSON.stringify(data) }),
+    request<BbRecruitmentCampaignRow>("/blood-bank/recruitment", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateBbCampaign: (id: string, data: UpdateBbCampaignRequest) =>
-    request<BbRecruitmentCampaignRow>(`/blood-bank/recruitment/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<BbRecruitmentCampaignRow>(`/blood-bank/recruitment/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listBbDevices: () =>
-    request<BbColdChainDeviceRow[]>("/blood-bank/cold-chain/devices"),
+  listBbDevices: () => request<BbColdChainDeviceRow[]>("/blood-bank/cold-chain/devices"),
   createBbDevice: (data: CreateBbDeviceRequest) =>
-    request<BbColdChainDeviceRow>("/blood-bank/cold-chain/devices", { method: "POST", body: JSON.stringify(data) }),
+    request<BbColdChainDeviceRow>("/blood-bank/cold-chain/devices", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   addBbReading: (data: AddBbReadingRequest) =>
-    request<BbColdChainReadingRow>("/blood-bank/cold-chain/readings", { method: "POST", body: JSON.stringify(data) }),
+    request<BbColdChainReadingRow>("/blood-bank/cold-chain/readings", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listBbReadings: (deviceId: string) =>
     request<BbColdChainReadingRow[]>(`/blood-bank/cold-chain/readings?device_id=${deviceId}`),
 
   createBbReturn: (data: CreateBbReturnRequest) =>
-    request<BbBloodReturnRow>("/blood-bank/returns", { method: "POST", body: JSON.stringify(data) }),
+    request<BbBloodReturnRow>("/blood-bank/returns", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   inspectBbReturn: (id: string, data: InspectBbReturnRequest) =>
-    request<BbBloodReturnRow>(`/blood-bank/returns/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<BbBloodReturnRow>(`/blood-bank/returns/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listBbMsbos: () =>
-    request<BbMsbosGuidelineRow[]>("/blood-bank/msbos"),
+  listBbMsbos: () => request<BbMsbosGuidelineRow[]>("/blood-bank/msbos"),
   createBbMsbos: (data: CreateBbMsbosRequest) =>
-    request<BbMsbosGuidelineRow>("/blood-bank/msbos", { method: "POST", body: JSON.stringify(data) }),
+    request<BbMsbosGuidelineRow>("/blood-bank/msbos", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listBbLookback: () =>
-    request<BbLookbackEventRow[]>("/blood-bank/lookback"),
+  listBbLookback: () => request<BbLookbackEventRow[]>("/blood-bank/lookback"),
   createBbLookback: (data: CreateBbLookbackRequest) =>
-    request<BbLookbackEventRow>("/blood-bank/lookback", { method: "POST", body: JSON.stringify(data) }),
+    request<BbLookbackEventRow>("/blood-bank/lookback", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateBbLookback: (id: string, data: UpdateBbLookbackRequest) =>
-    request<BbLookbackEventRow>(`/blood-bank/lookback/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<BbLookbackEventRow>(`/blood-bank/lookback/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listBbBilling: (params?: { status?: string; patient_id?: string }) => {
     const sp = new URLSearchParams();
@@ -5061,10 +5197,12 @@ export const api = {
     return request<BbBillingItemRow[]>(`/blood-bank/billing${qs ? `?${qs}` : ""}`);
   },
   createBbBilling: (data: CreateBbBillingRequest) =>
-    request<BbBillingItemRow>("/blood-bank/billing", { method: "POST", body: JSON.stringify(data) }),
+    request<BbBillingItemRow>("/blood-bank/billing", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  getBbSbtcReport: () =>
-    request<BbSbtcReport>("/blood-bank/sbtc-report"),
+  getBbSbtcReport: () => request<BbSbtcReport>("/blood-bank/sbtc-report"),
 
   // ── ICU / Critical Care ────────────────────────────────
 
@@ -5102,7 +5240,11 @@ export const api = {
     }),
   listIcuBundleChecks: (admissionId: string, deviceId: string) =>
     request<IcuBundleCheck[]>(`/icu/admissions/${admissionId}/devices/${deviceId}/bundle-checks`),
-  createIcuBundleCheck: (admissionId: string, deviceId: string, data: CreateIcuBundleCheckRequest) =>
+  createIcuBundleCheck: (
+    admissionId: string,
+    deviceId: string,
+    data: CreateIcuBundleCheckRequest,
+  ) =>
     request<IcuBundleCheck>(`/icu/admissions/${admissionId}/devices/${deviceId}/bundle-checks`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -5122,8 +5264,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getIcuLosAnalytics: () =>
-    request<IcuLosAnalytics>("/icu/analytics/los"),
+  getIcuLosAnalytics: () => request<IcuLosAnalytics>("/icu/analytics/los"),
   getIcuDeviceInfectionRates: () =>
     request<DeviceInfectionRate[]>("/icu/analytics/device-infections"),
 
@@ -5142,7 +5283,10 @@ export const api = {
   updateAmbulance: (id: string, data: UpdateAmbulanceRequest) =>
     request<AmbulanceRow>(`/ambulance/fleet/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   updateAmbulanceLocation: (id: string, data: UpdateAmbulanceLocationRequest) =>
-    request<AmbulanceRow>(`/ambulance/fleet/${id}/location`, { method: "PUT", body: JSON.stringify(data) }),
+    request<AmbulanceRow>(`/ambulance/fleet/${id}/location`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listAmbulanceDrivers: (params?: { is_active?: boolean }) => {
     const sp = new URLSearchParams();
@@ -5151,11 +5295,22 @@ export const api = {
     return request<AmbulanceDriverRow[]>(`/ambulance/drivers${qs ? `?${qs}` : ""}`);
   },
   createAmbulanceDriver: (data: CreateAmbulanceDriverRequest) =>
-    request<AmbulanceDriverRow>("/ambulance/drivers", { method: "POST", body: JSON.stringify(data) }),
+    request<AmbulanceDriverRow>("/ambulance/drivers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateAmbulanceDriver: (id: string, data: UpdateAmbulanceDriverRequest) =>
-    request<AmbulanceDriverRow>(`/ambulance/drivers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<AmbulanceDriverRow>(`/ambulance/drivers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listAmbulanceTrips: (params?: { status?: string; trip_type?: string; ambulance_id?: string; priority?: string }) => {
+  listAmbulanceTrips: (params?: {
+    status?: string;
+    trip_type?: string;
+    ambulance_id?: string;
+    priority?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     if (params?.trip_type) sp.set("trip_type", params.trip_type);
@@ -5168,13 +5323,22 @@ export const api = {
   createAmbulanceTrip: (data: CreateAmbulanceTripRequest) =>
     request<AmbulanceTripRow>("/ambulance/trips", { method: "POST", body: JSON.stringify(data) }),
   updateAmbulanceTrip: (id: string, data: UpdateAmbulanceTripRequest) =>
-    request<AmbulanceTripRow>(`/ambulance/trips/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<AmbulanceTripRow>(`/ambulance/trips/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   updateAmbulanceTripStatus: (id: string, data: UpdateAmbulanceTripStatusRequest) =>
-    request<AmbulanceTripRow>(`/ambulance/trips/${id}/status`, { method: "PUT", body: JSON.stringify(data) }),
+    request<AmbulanceTripRow>(`/ambulance/trips/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listAmbulanceTripLogs: (tripId: string) =>
     request<AmbulanceTripLogRow[]>(`/ambulance/trips/${tripId}/logs`),
   addAmbulanceTripLog: (tripId: string, data: AddAmbulanceTripLogRequest) =>
-    request<AmbulanceTripLogRow>(`/ambulance/trips/${tripId}/logs`, { method: "POST", body: JSON.stringify(data) }),
+    request<AmbulanceTripLogRow>(`/ambulance/trips/${tripId}/logs`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   listAmbulanceMaintenance: (params?: { ambulance_id?: string; status?: string }) => {
     const sp = new URLSearchParams();
@@ -5184,15 +5348,20 @@ export const api = {
     return request<AmbulanceMaintenanceRow[]>(`/ambulance/maintenance${qs ? `?${qs}` : ""}`);
   },
   createAmbulanceMaintenance: (data: CreateAmbulanceMaintenanceRequest) =>
-    request<AmbulanceMaintenanceRow>("/ambulance/maintenance", { method: "POST", body: JSON.stringify(data) }),
+    request<AmbulanceMaintenanceRow>("/ambulance/maintenance", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateAmbulanceMaintenance: (id: string, data: UpdateAmbulanceMaintenanceRequest) =>
-    request<AmbulanceMaintenanceRow>(`/ambulance/maintenance/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<AmbulanceMaintenanceRow>(`/ambulance/maintenance/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // ── Communication Hub ──────────────────────────────────
 
   /** DLT (India SMS) template registry. */
-  listDltTemplates: () =>
-    request<DltTemplate[]>("/communications/dlt-templates"),
+  listDltTemplates: () => request<DltTemplate[]>("/communications/dlt-templates"),
   createDltTemplate: (data: CreateDltTemplateRequest) =>
     request<DltTemplate>("/communications/dlt-templates", {
       method: "POST",
@@ -5208,7 +5377,11 @@ export const api = {
       method: "DELETE",
     }),
 
-  listCommTemplates: (params?: { channel?: string; template_type?: string; is_active?: boolean }) => {
+  listCommTemplates: (params?: {
+    channel?: string;
+    template_type?: string;
+    is_active?: boolean;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.channel) sp.set("channel", params.channel);
     if (params?.template_type) sp.set("template_type", params.template_type);
@@ -5217,11 +5390,22 @@ export const api = {
     return request<CommTemplateRow[]>(`/communications/templates${qs ? `?${qs}` : ""}`);
   },
   createCommTemplate: (data: CreateCommTemplateRequest) =>
-    request<CommTemplateRow>("/communications/templates", { method: "POST", body: JSON.stringify(data) }),
+    request<CommTemplateRow>("/communications/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateCommTemplate: (id: string, data: UpdateCommTemplateRequest) =>
-    request<CommTemplateRow>(`/communications/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CommTemplateRow>(`/communications/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listCommMessages: (params?: { channel?: string; status?: string; recipient_type?: string; context_type?: string }) => {
+  listCommMessages: (params?: {
+    channel?: string;
+    status?: string;
+    recipient_type?: string;
+    context_type?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.channel) sp.set("channel", params.channel);
     if (params?.status) sp.set("status", params.status);
@@ -5232,11 +5416,23 @@ export const api = {
   },
   getCommMessage: (id: string) => request<CommMessageRow>(`/communications/messages/${id}`),
   createCommMessage: (data: CreateCommMessageRequest) =>
-    request<CommMessageRow>("/communications/messages", { method: "POST", body: JSON.stringify(data) }),
+    request<CommMessageRow>("/communications/messages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateCommMessageStatus: (id: string, data: UpdateCommMessageStatusRequest) =>
-    request<CommMessageRow>(`/communications/messages/${id}/status`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CommMessageRow>(`/communications/messages/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listClinicalMessages: (params?: { sender_id?: string; recipient_id?: string; patient_id?: string; priority?: string; message_type?: string }) => {
+  listClinicalMessages: (params?: {
+    sender_id?: string;
+    recipient_id?: string;
+    patient_id?: string;
+    priority?: string;
+    message_type?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.sender_id) sp.set("sender_id", params.sender_id);
     if (params?.recipient_id) sp.set("recipient_id", params.recipient_id);
@@ -5246,11 +5442,18 @@ export const api = {
     const qs = sp.toString();
     return request<CommClinicalMessageRow[]>(`/communications/clinical${qs ? `?${qs}` : ""}`);
   },
-  getClinicalMessage: (id: string) => request<CommClinicalMessageRow>(`/communications/clinical/${id}`),
+  getClinicalMessage: (id: string) =>
+    request<CommClinicalMessageRow>(`/communications/clinical/${id}`),
   createClinicalMessage: (data: CreateCommClinicalRequest) =>
-    request<CommClinicalMessageRow>("/communications/clinical", { method: "POST", body: JSON.stringify(data) }),
+    request<CommClinicalMessageRow>("/communications/clinical", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   acknowledgeClinicalMessage: (id: string) =>
-    request<CommClinicalMessageRow>(`/communications/clinical/${id}/acknowledge`, { method: "PUT", body: "{}" }),
+    request<CommClinicalMessageRow>(`/communications/clinical/${id}/acknowledge`, {
+      method: "PUT",
+      body: "{}",
+    }),
 
   listCommAlerts: (params?: { status?: string; priority?: string; alert_source?: string }) => {
     const sp = new URLSearchParams();
@@ -5261,13 +5464,27 @@ export const api = {
     return request<CommCriticalAlertRow[]>(`/communications/alerts${qs ? `?${qs}` : ""}`);
   },
   createCommAlert: (data: CreateCommAlertRequest) =>
-    request<CommCriticalAlertRow>("/communications/alerts", { method: "POST", body: JSON.stringify(data) }),
+    request<CommCriticalAlertRow>("/communications/alerts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   acknowledgeCommAlert: (id: string) =>
-    request<CommCriticalAlertRow>(`/communications/alerts/${id}/acknowledge`, { method: "PUT", body: "{}" }),
+    request<CommCriticalAlertRow>(`/communications/alerts/${id}/acknowledge`, {
+      method: "PUT",
+      body: "{}",
+    }),
   resolveCommAlert: (id: string, data: ResolveCommAlertRequest) =>
-    request<CommCriticalAlertRow>(`/communications/alerts/${id}/resolve`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CommCriticalAlertRow>(`/communications/alerts/${id}/resolve`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listComplaints: (params?: { status?: string; source?: string; severity?: string; department_id?: string }) => {
+  listComplaints: (params?: {
+    status?: string;
+    source?: string;
+    severity?: string;
+    department_id?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     if (params?.source) sp.set("source", params.source);
@@ -5277,11 +5494,20 @@ export const api = {
     return request<CommComplaintRow[]>(`/communications/complaints${qs ? `?${qs}` : ""}`);
   },
   createComplaint: (data: CreateCommComplaintRequest) =>
-    request<CommComplaintRow>("/communications/complaints", { method: "POST", body: JSON.stringify(data) }),
+    request<CommComplaintRow>("/communications/complaints", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateComplaint: (id: string, data: UpdateCommComplaintRequest) =>
-    request<CommComplaintRow>(`/communications/complaints/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CommComplaintRow>(`/communications/complaints/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   resolveComplaint: (id: string, data: ResolveCommComplaintRequest) =>
-    request<CommComplaintRow>(`/communications/complaints/${id}/resolve`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CommComplaintRow>(`/communications/complaints/${id}/resolve`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listCommFeedback: (params?: { feedback_type?: string; department_id?: string }) => {
     const sp = new URLSearchParams();
@@ -5291,7 +5517,10 @@ export const api = {
     return request<CommFeedbackSurveyRow[]>(`/communications/feedback${qs ? `?${qs}` : ""}`);
   },
   createCommFeedback: (data: CreateCommFeedbackRequest) =>
-    request<CommFeedbackSurveyRow>("/communications/feedback", { method: "POST", body: JSON.stringify(data) }),
+    request<CommFeedbackSurveyRow>("/communications/feedback", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getCommFeedbackStats: (params?: { feedback_type?: string; department_id?: string }) => {
     const sp = new URLSearchParams();
     if (params?.feedback_type) sp.set("feedback_type", params.feedback_type);
@@ -5320,19 +5549,15 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  approveCamp: (id: string) =>
-    request<Camp>(`/camp/camps/${id}/approve`, { method: "PUT" }),
-  activateCamp: (id: string) =>
-    request<Camp>(`/camp/camps/${id}/activate`, { method: "PUT" }),
-  completeCamp: (id: string) =>
-    request<Camp>(`/camp/camps/${id}/complete`, { method: "PUT" }),
+  approveCamp: (id: string) => request<Camp>(`/camp/camps/${id}/approve`, { method: "PUT" }),
+  activateCamp: (id: string) => request<Camp>(`/camp/camps/${id}/activate`, { method: "PUT" }),
+  completeCamp: (id: string) => request<Camp>(`/camp/camps/${id}/complete`, { method: "PUT" }),
   cancelCamp: (id: string, data: CancelCampRequest) =>
     request<Camp>(`/camp/camps/${id}/cancel`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCampTeamMembers: (campId: string) =>
-    request<CampTeamMember[]>(`/camp/camps/${campId}/team`),
+  listCampTeamMembers: (campId: string) => request<CampTeamMember[]>(`/camp/camps/${campId}/team`),
   addCampTeamMember: (campId: string, data: AddCampTeamMemberRequest) =>
     request<CampTeamMember>(`/camp/camps/${campId}/team`, {
       method: "POST",
@@ -5342,8 +5567,7 @@ export const api = {
     request<{ deleted: boolean }>(`/camp/camps/${campId}/team/${memberId}`, {
       method: "DELETE",
     }),
-  getCampStats: (campId: string) =>
-    request<CampStatsResponse>(`/camp/camps/${campId}/stats`),
+  getCampStats: (campId: string) => request<CampStatsResponse>(`/camp/camps/${campId}/stats`),
   listCampRegistrations: (params: { camp_id: string; status?: string }) => {
     const sp = new URLSearchParams();
     sp.set("camp_id", params.camp_id);
@@ -5429,8 +5653,7 @@ export const api = {
     const qs = sp.toString();
     return request<ConsentTemplate[]>(`/consent/templates${qs ? `?${qs}` : ""}`);
   },
-  getConsentTemplate: (id: string) =>
-    request<ConsentTemplate>(`/consent/templates/${id}`),
+  getConsentTemplate: (id: string) => request<ConsentTemplate>(`/consent/templates/${id}`),
   createConsentTemplate: (data: CreateConsentTemplateRequest) =>
     request<ConsentTemplate>("/consent/templates", {
       method: "POST",
@@ -5475,10 +5698,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listConsentSignatures: (params?: {
-    consent_source?: string;
-    consent_id?: string;
-  }) => {
+  listConsentSignatures: (params?: { consent_source?: string; consent_id?: string }) => {
     const sp = new URLSearchParams();
     if (params?.consent_source) sp.set("consent_source", params.consent_source);
     if (params?.consent_id) sp.set("consent_id", params.consent_id);
@@ -5499,8 +5719,7 @@ export const api = {
 
   // ── CSSD ───────────────────────────────────────────────
 
-  listCssdInstruments: () =>
-    request<CssdInstrument[]>("/cssd/instruments"),
+  listCssdInstruments: () => request<CssdInstrument[]>("/cssd/instruments"),
   createCssdInstrument: (data: CreateCssdInstrumentRequest) =>
     request<CssdInstrument>("/cssd/instruments", {
       method: "POST",
@@ -5511,17 +5730,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCssdSets: () =>
-    request<CssdInstrumentSet[]>("/cssd/sets"),
+  listCssdSets: () => request<CssdInstrumentSet[]>("/cssd/sets"),
   createCssdSet: (data: CreateCssdSetRequest) =>
     request<CssdInstrumentSet>("/cssd/sets", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getCssdSetItems: (setId: string) =>
-    request<CssdSetItem[]>(`/cssd/sets/${setId}/items`),
-  listCssdSterilizers: () =>
-    request<CssdSterilizer[]>("/cssd/sterilizers"),
+  getCssdSetItems: (setId: string) => request<CssdSetItem[]>(`/cssd/sets/${setId}/items`),
+  listCssdSterilizers: () => request<CssdSterilizer[]>("/cssd/sterilizers"),
   createCssdSterilizer: (data: CreateCssdSterilizerRequest) =>
     request<CssdSterilizer>("/cssd/sterilizers", {
       method: "POST",
@@ -5539,8 +5755,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listCssdLoads: () =>
-    request<CssdSterilizationLoad[]>("/cssd/loads"),
+  listCssdLoads: () => request<CssdSterilizationLoad[]>("/cssd/loads"),
   createCssdLoad: (data: CreateCssdLoadRequest) =>
     request<CssdSterilizationLoad>("/cssd/loads", {
       method: "POST",
@@ -5563,8 +5778,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listCssdIssuances: () =>
-    request<CssdIssuance[]>("/cssd/issuances"),
+  listCssdIssuances: () => request<CssdIssuance[]>("/cssd/issuances"),
   createCssdIssuance: (data: CreateCssdIssuanceRequest) =>
     request<CssdIssuance>("/cssd/issuances", {
       method: "POST",
@@ -5583,8 +5797,7 @@ export const api = {
 
   // ── Diet & Kitchen ────────────────────────────────────
 
-  listDietTemplates: () =>
-    request<DietTemplate[]>("/diet/templates"),
+  listDietTemplates: () => request<DietTemplate[]>("/diet/templates"),
 
   createDietTemplate: (data: CreateDietTemplateRequest) =>
     request<DietTemplate>("/diet/templates", {
@@ -5598,8 +5811,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listDietOrders: () =>
-    request<DietOrder[]>("/diet/orders"),
+  listDietOrders: () => request<DietOrder[]>("/diet/orders"),
 
   createDietOrder: (data: CreateDietOrderRequest) =>
     request<DietOrder>("/diet/orders", {
@@ -5613,8 +5825,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listKitchenMenus: () =>
-    request<KitchenMenu[]>("/diet/menus"),
+  listKitchenMenus: () => request<KitchenMenu[]>("/diet/menus"),
 
   createKitchenMenu: (data: CreateKitchenMenuRequest) =>
     request<KitchenMenu>("/diet/menus", {
@@ -5631,8 +5842,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listMealPreps: () =>
-    request<MealPreparation[]>("/diet/meal-preps"),
+  listMealPreps: () => request<MealPreparation[]>("/diet/meal-preps"),
 
   createMealPrep: (data: CreateMealPrepRequest) =>
     request<MealPreparation>("/diet/meal-preps", {
@@ -5646,8 +5856,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listMealCounts: () =>
-    request<MealCount[]>("/diet/meal-counts"),
+  listMealCounts: () => request<MealCount[]>("/diet/meal-counts"),
 
   createMealCount: (data: CreateMealCountRequest) =>
     request<MealCount>("/diet/meal-counts", {
@@ -5655,8 +5864,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listKitchenInventory: () =>
-    request<KitchenInventory[]>("/diet/inventory"),
+  listKitchenInventory: () => request<KitchenInventory[]>("/diet/inventory"),
 
   createKitchenInventoryItem: (data: CreateKitchenInventoryRequest) =>
     request<KitchenInventory>("/diet/inventory", {
@@ -5670,8 +5878,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listKitchenAudits: () =>
-    request<KitchenAudit[]>("/diet/audits"),
+  listKitchenAudits: () => request<KitchenAudit[]>("/diet/audits"),
 
   createKitchenAudit: (data: CreateKitchenAuditRequest) =>
     request<KitchenAudit>("/diet/audits", {
@@ -5704,8 +5911,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getPipeline: (id: string) =>
-    request<IntegrationPipeline>(`/integration/pipelines/${id}`),
+  getPipeline: (id: string) => request<IntegrationPipeline>(`/integration/pipelines/${id}`),
   updatePipeline: (id: string, data: UpdatePipelineRequest) =>
     request<IntegrationPipeline>(`/integration/pipelines/${id}`, {
       method: "PUT",
@@ -5723,19 +5929,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data ?? {}),
     }),
-  listPipelineExecutions: (
-    pipelineId: string,
-    params?: Record<string, string>,
-  ) => {
+  listPipelineExecutions: (pipelineId: string, params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<ExecutionListResponse>(
-      `/integration/pipelines/${pipelineId}/executions${qs}`,
-    );
+    return request<ExecutionListResponse>(`/integration/pipelines/${pipelineId}/executions${qs}`);
   },
-  getExecution: (id: string) =>
-    request<IntegrationExecution>(`/integration/executions/${id}`),
-  listNodeTemplates: () =>
-    request<IntegrationNodeTemplate[]>("/integration/node-templates"),
+  getExecution: (id: string) => request<IntegrationExecution>(`/integration/executions/${id}`),
+  listNodeTemplates: () => request<IntegrationNodeTemplate[]>("/integration/node-templates"),
   createNodeTemplate: (data: Record<string, unknown>) =>
     request<IntegrationNodeTemplate>("/integration/node-templates", {
       method: "POST",
@@ -5759,10 +5958,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
   testConnector: (id: string) =>
-    request<ConnectorHealthCheckResponse>(
-      `/orchestration/connectors/${id}/test`,
-      { method: "POST" },
-    ),
+    request<ConnectorHealthCheckResponse>(`/orchestration/connectors/${id}/test`, {
+      method: "POST",
+    }),
   listJobs: (params?: { status?: string; page?: string; per_page?: string }) => {
     const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
     return request<JobListResponse>(`/orchestration/jobs${qs}`);
@@ -5771,8 +5969,7 @@ export const api = {
 
   // ── Custom Code (Pipeline Code Execution) ───────────────
 
-  listCodeSnippets: () =>
-    request<CustomCodeSnippet[]>("/integration/code-snippets"),
+  listCodeSnippets: () => request<CustomCodeSnippet[]>("/integration/code-snippets"),
 
   createCodeSnippet: (data: {
     name: string;
@@ -5828,9 +6025,7 @@ export const api = {
     request<ModuleEntitySchema[]>(`/schema/modules/${code}/entities`),
   listEventSchemas: () => request<EventSchema[]>("/schema/events"),
   getEventSchema: (eventType: string) =>
-    request<EventSchema>(
-      `/schema/events/${encodeURIComponent(eventType)}`,
-    ),
+    request<EventSchema>(`/schema/events/${encodeURIComponent(eventType)}`),
   // ── Clinical Decision Support ─────────────────────────────
 
   checkDrugSafety: (data: CheckDrugInteractionsRequest) =>
@@ -5838,8 +6033,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listDrugInteractions: () =>
-    request<DrugInteraction[]>("/cds/drug-interactions"),
+  listDrugInteractions: () => request<DrugInteraction[]>("/cds/drug-interactions"),
   createDrugInteraction: (data: CreateDrugInteractionRequest) =>
     request<DrugInteraction>("/cds/drug-interactions", {
       method: "POST",
@@ -5849,8 +6043,7 @@ export const api = {
     request<DrugInteraction>(`/cds/drug-interactions/${id}`, {
       method: "DELETE",
     }),
-  listCriticalValueRules: () =>
-    request<CriticalValueRule[]>("/cds/critical-value-rules"),
+  listCriticalValueRules: () => request<CriticalValueRule[]>("/cds/critical-value-rules"),
   createCriticalValueRule: (data: CreateCriticalValueRuleRequest) =>
     request<CriticalValueRule>("/cds/critical-value-rules", {
       method: "POST",
@@ -5860,8 +6053,7 @@ export const api = {
     request<CriticalValueRule>(`/cds/critical-value-rules/${id}`, {
       method: "DELETE",
     }),
-  listClinicalProtocols: () =>
-    request<ClinicalProtocol[]>("/cds/protocols"),
+  listClinicalProtocols: () => request<ClinicalProtocol[]>("/cds/protocols"),
   createClinicalProtocol: (data: CreateClinicalProtocolRequest) =>
     request<ClinicalProtocol>("/cds/protocols", {
       method: "POST",
@@ -5897,7 +6089,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listPgLogbook: (params?: { user_id?: string; supervisor_id?: string; pending_verification?: boolean }) => {
+  listPgLogbook: (params?: {
+    user_id?: string;
+    supervisor_id?: string;
+    pending_verification?: boolean;
+  }) => {
     const searchParams = new URLSearchParams();
     if (params?.user_id) searchParams.set("user_id", params.user_id);
     if (params?.supervisor_id) searchParams.set("supervisor_id", params.supervisor_id);
@@ -5914,8 +6110,7 @@ export const api = {
     request<PgLogbookEntry>(`/cds/pg-logbook/${id}/verify`, {
       method: "PUT",
     }),
-  listCoSignatures: () =>
-    request<CoSignatureRequest[]>("/cds/co-signatures"),
+  listCoSignatures: () => request<CoSignatureRequest[]>("/cds/co-signatures"),
   createCoSignature: (data: CreateCoSignatureRequest) =>
     request<CoSignatureRequest>("/cds/co-signatures", {
       method: "POST",
@@ -5929,11 +6124,9 @@ export const api = {
 
   // ── Emergency ─────────────────────────────────────────
 
-  listErVisits: () =>
-    request<ErVisit[]>("/emergency/visits"),
+  listErVisits: () => request<ErVisit[]>("/emergency/visits"),
 
-  getErVisit: (id: string) =>
-    request<ErVisit>(`/emergency/visits/${id}`),
+  getErVisit: (id: string) => request<ErVisit>(`/emergency/visits/${id}`),
 
   createErVisit: (data: CreateErVisitRequest) =>
     request<ErVisit>("/emergency/visits", {
@@ -5965,8 +6158,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listCodeActivations: () =>
-    request<ErCodeActivation[]>("/emergency/codes"),
+  listCodeActivations: () => request<ErCodeActivation[]>("/emergency/codes"),
 
   createCodeActivation: (data: CreateCodeActivationRequest) =>
     request<ErCodeActivation>("/emergency/codes", {
@@ -5980,8 +6172,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listMlcCases: () =>
-    request<MlcCase[]>("/emergency/mlc"),
+  listMlcCases: () => request<MlcCase[]>("/emergency/mlc"),
 
   createMlcCase: (data: CreateMlcCaseRequest) =>
     request<MlcCase>("/emergency/mlc", {
@@ -5995,8 +6186,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listMlcDocuments: (mlcId: string) =>
-    request<MlcDocument[]>(`/emergency/mlc/${mlcId}/documents`),
+  listMlcDocuments: (mlcId: string) => request<MlcDocument[]>(`/emergency/mlc/${mlcId}/documents`),
 
   createMlcDocument: (mlcId: string, data: CreateMlcDocumentRequest) =>
     request<MlcDocument>(`/emergency/mlc/${mlcId}/documents`, {
@@ -6018,8 +6208,7 @@ export const api = {
       method: "PUT",
     }),
 
-  listMassCasualtyEvents: () =>
-    request<MassCasualtyEvent[]>("/emergency/mass-casualty"),
+  listMassCasualtyEvents: () => request<MassCasualtyEvent[]>("/emergency/mass-casualty"),
 
   createMassCasualtyEvent: (data: CreateMassCasualtyEventRequest) =>
     request<MassCasualtyEvent>("/emergency/mass-casualty", {
@@ -6045,8 +6234,7 @@ export const api = {
   listVendors: (params?: Record<string, string>) =>
     request<Vendor[]>(`/procurement/vendors${params ? `?${new URLSearchParams(params)}` : ""}`),
 
-  getVendor: (id: string) =>
-    request<Vendor>(`/procurement/vendors/${id}`),
+  getVendor: (id: string) => request<Vendor>(`/procurement/vendors/${id}`),
 
   createVendor: (data: CreateVendorRequest) =>
     request<Vendor>("/procurement/vendors", {
@@ -6061,8 +6249,7 @@ export const api = {
     }),
 
   // Store Locations
-  listStoreLocations: () =>
-    request<StoreLocation[]>("/procurement/store-locations"),
+  listStoreLocations: () => request<StoreLocation[]>("/procurement/store-locations"),
 
   createStoreLocation: (data: CreateStoreLocationRequest) =>
     request<StoreLocation>("/procurement/store-locations", {
@@ -6078,10 +6265,11 @@ export const api = {
 
   // Purchase Orders
   listPurchaseOrders: (params?: Record<string, string>) =>
-    request<PoListResponse>(`/procurement/purchase-orders${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<PoListResponse>(
+      `/procurement/purchase-orders${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
 
-  getPurchaseOrder: (id: string) =>
-    request<PoDetailResponse>(`/procurement/purchase-orders/${id}`),
+  getPurchaseOrder: (id: string) => request<PoDetailResponse>(`/procurement/purchase-orders/${id}`),
 
   createPurchaseOrder: (data: CreatePurchaseOrderRequest) =>
     request<PoDetailResponse>("/procurement/purchase-orders", {
@@ -6108,8 +6296,7 @@ export const api = {
   listGrns: (params?: Record<string, string>) =>
     request<GrnListResponse>(`/procurement/grns${params ? `?${new URLSearchParams(params)}` : ""}`),
 
-  getGrn: (id: string) =>
-    request<GrnDetailResponse>(`/procurement/grns/${id}`),
+  getGrn: (id: string) => request<GrnDetailResponse>(`/procurement/grns/${id}`),
 
   createGrn: (data: CreateGrnRequest) =>
     request<GrnDetailResponse>("/procurement/grns", {
@@ -6124,10 +6311,11 @@ export const api = {
 
   // Rate Contracts
   listRateContracts: (params?: Record<string, string>) =>
-    request<RateContract[]>(`/procurement/rate-contracts${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<RateContract[]>(
+      `/procurement/rate-contracts${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
 
-  getRateContract: (id: string) =>
-    request<RcDetailResponse>(`/procurement/rate-contracts/${id}`),
+  getRateContract: (id: string) => request<RcDetailResponse>(`/procurement/rate-contracts/${id}`),
 
   createRateContract: (data: CreateRateContractRequest) =>
     request<RcDetailResponse>("/procurement/rate-contracts", {
@@ -6137,25 +6325,41 @@ export const api = {
 
   // Batch Stock
   listBatchStock: (params?: Record<string, string>) =>
-    request<BatchStock[]>(`/procurement/batch-stock${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<BatchStock[]>(
+      `/procurement/batch-stock${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
 
   // ── Procurement Phase 2 ──
-  getVendorPerformance: () =>
-    request<VendorPerformanceRow[]>("/procurement/vendor-performance"),
+  getVendorPerformance: () => request<VendorPerformanceRow[]>("/procurement/vendor-performance"),
   getVendorComparison: (catalogItemId: string) =>
-    request<VendorComparisonRow[]>(`/procurement/vendor-comparison?catalog_item_id=${catalogItemId}`),
+    request<VendorComparisonRow[]>(
+      `/procurement/vendor-comparison?catalog_item_id=${catalogItemId}`,
+    ),
   createEmergencyPo: (data: CreateEmergencyPoRequest) =>
-    request<PoDetailResponse>("/procurement/emergency-purchase", { method: "POST", body: JSON.stringify(data) }),
+    request<PoDetailResponse>("/procurement/emergency-purchase", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listSupplierPayments: (params?: Record<string, string>) =>
-    request<SupplierPayment[]>(`/procurement/supplier-payments${params ? `?${new URLSearchParams(params)}` : ""}`),
+    request<SupplierPayment[]>(
+      `/procurement/supplier-payments${params ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
   createSupplierPayment: (data: CreateSupplierPaymentRequest) =>
-    request<SupplierPayment>("/procurement/supplier-payments", { method: "POST", body: JSON.stringify(data) }),
+    request<SupplierPayment>("/procurement/supplier-payments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateSupplierPayment: (id: string, data: UpdateSupplierPaymentRequest) =>
-    request<SupplierPayment>(`/procurement/supplier-payments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<SupplierPayment>(`/procurement/supplier-payments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // ── Quality Management ──
   listQualityIndicators: (params?: { category?: string }) =>
-    request<QualityIndicator[]>(`/quality/indicators${params?.category ? `?category=${encodeURIComponent(params.category)}` : ""}`),
+    request<QualityIndicator[]>(
+      `/quality/indicators${params?.category ? `?category=${encodeURIComponent(params.category)}` : ""}`,
+    ),
 
   createQualityIndicator: (data: CreateQualityIndicatorRequest) =>
     request<QualityIndicator>("/quality/indicators", {
@@ -6185,8 +6389,7 @@ export const api = {
     return request<QualityDocument[]>(`/quality/documents${q ? `?${q}` : ""}`);
   },
 
-  getQualityDocument: (id: string) =>
-    request<QualityDocument>(`/quality/documents/${id}`),
+  getQualityDocument: (id: string) => request<QualityDocument>(`/quality/documents/${id}`),
 
   createQualityDocument: (data: CreateQualityDocumentRequest) =>
     request<QualityDocument>("/quality/documents", {
@@ -6214,8 +6417,7 @@ export const api = {
     return request<QualityIncident[]>(`/quality/incidents${q ? `?${q}` : ""}`);
   },
 
-  getQualityIncident: (id: string) =>
-    request<QualityIncident>(`/quality/incidents/${id}`),
+  getQualityIncident: (id: string) => request<QualityIncident>(`/quality/incidents/${id}`),
 
   createQualityIncident: (data: CreateQualityIncidentRequest) =>
     request<QualityIncident>("/quality/incidents", {
@@ -6249,8 +6451,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listQualityCommittees: () =>
-    request<QualityCommittee[]>("/quality/committees"),
+  listQualityCommittees: () => request<QualityCommittee[]>("/quality/committees"),
 
   createQualityCommittee: (data: CreateQualityCommitteeRequest) =>
     request<QualityCommittee>("/quality/committees", {
@@ -6259,7 +6460,9 @@ export const api = {
     }),
 
   listCommitteeMeetings: (params?: { committee_id?: string }) =>
-    request<QualityCommitteeMeeting[]>(`/quality/meetings${params?.committee_id ? `?committee_id=${encodeURIComponent(params.committee_id)}` : ""}`),
+    request<QualityCommitteeMeeting[]>(
+      `/quality/meetings${params?.committee_id ? `?committee_id=${encodeURIComponent(params.committee_id)}` : ""}`,
+    ),
 
   createCommitteeMeeting: (data: CreateMeetingRequest) =>
     request<QualityCommitteeMeeting>("/quality/meetings", {
@@ -6281,14 +6484,22 @@ export const api = {
     return request<QualityActionItem[]>(`/quality/action-items${q ? `?${q}` : ""}`);
   },
 
-  createActionItem: (data: { source_type: string; source_id: string; description?: string; assigned_to: string; due_date: string }) =>
+  createActionItem: (data: {
+    source_type: string;
+    source_id: string;
+    description?: string;
+    assigned_to: string;
+    due_date: string;
+  }) =>
     request<QualityActionItem>("/quality/action-items", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   listAccreditationStandards: (params?: { body?: string }) =>
-    request<QualityAccreditationStandard[]>(`/quality/standards${params?.body ? `?body=${encodeURIComponent(params.body)}` : ""}`),
+    request<QualityAccreditationStandard[]>(
+      `/quality/standards${params?.body ? `?body=${encodeURIComponent(params.body)}` : ""}`,
+    ),
 
   createAccreditationStandard: (data: CreateAccreditationStandardRequest) =>
     request<QualityAccreditationStandard>("/quality/standards", {
@@ -6297,7 +6508,9 @@ export const api = {
     }),
 
   listAccreditationCompliance: (params?: { standard_id?: string }) =>
-    request<QualityAccreditationCompliance[]>(`/quality/compliance${params?.standard_id ? `?standard_id=${encodeURIComponent(params.standard_id)}` : ""}`),
+    request<QualityAccreditationCompliance[]>(
+      `/quality/compliance${params?.standard_id ? `?standard_id=${encodeURIComponent(params.standard_id)}` : ""}`,
+    ),
 
   updateAccreditationCompliance: (data: UpdateComplianceRequest) =>
     request<QualityAccreditationCompliance>("/quality/compliance", {
@@ -6313,8 +6526,7 @@ export const api = {
     return request<QualityAudit[]>(`/quality/audits${q ? `?${q}` : ""}`);
   },
 
-  getQualityAudit: (id: string) =>
-    request<QualityAudit>(`/quality/audits/${id}`),
+  getQualityAudit: (id: string) => request<QualityAudit>(`/quality/audits/${id}`),
 
   createQualityAudit: (data: CreateQualityAuditRequest) =>
     request<QualityAudit>("/quality/audits", {
@@ -6348,7 +6560,9 @@ export const api = {
     if (params?.hai_type) qs.set("hai_type", params.hai_type);
     if (params?.infection_status) qs.set("infection_status", params.infection_status);
     const q = qs.toString();
-    return request<InfectionSurveillanceEvent[]>(`/infection-control/surveillance${q ? `?${q}` : ""}`);
+    return request<InfectionSurveillanceEvent[]>(
+      `/infection-control/surveillance${q ? `?${q}` : ""}`,
+    );
   },
 
   createSurveillanceEvent: (data: CreateSurveillanceEventRequest) =>
@@ -6376,7 +6590,9 @@ export const api = {
     const qs = new URLSearchParams();
     if (params?.request_status) qs.set("request_status", params.request_status);
     const q = qs.toString();
-    return request<AntibioticStewardshipRequest[]>(`/infection-control/stewardship${q ? `?${q}` : ""}`);
+    return request<AntibioticStewardshipRequest[]>(
+      `/infection-control/stewardship${q ? `?${q}` : ""}`,
+    );
   },
 
   createStewardshipRequest: (data: CreateStewardshipRequest) =>
@@ -6396,7 +6612,9 @@ export const api = {
     if (params?.department_id) qs.set("department_id", params.department_id);
     if (params?.record_month) qs.set("record_month", params.record_month);
     const q = qs.toString();
-    return request<AntibioticConsumptionRecord[]>(`/infection-control/consumption${q ? `?${q}` : ""}`);
+    return request<AntibioticConsumptionRecord[]>(
+      `/infection-control/consumption${q ? `?${q}` : ""}`,
+    );
   },
 
   recordConsumption: (data: Record<string, unknown>) =>
@@ -6493,8 +6711,7 @@ export const api = {
   // ── HR & Staff Management ──────────────────────────────
 
   // Designations
-  listDesignations: () =>
-    request<Designation[]>("/hr/designations"),
+  listDesignations: () => request<Designation[]>("/hr/designations"),
 
   createDesignation: (data: CreateDesignationRequest) =>
     request<Designation>("/hr/designations", {
@@ -6509,7 +6726,12 @@ export const api = {
     }),
 
   // Employees
-  listEmployees: (params?: { search?: string; department_id?: string; status?: string; employment_type?: string }) => {
+  listEmployees: (params?: {
+    search?: string;
+    department_id?: string;
+    status?: string;
+    employment_type?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.search) qs.set("search", params.search);
     if (params?.department_id) qs.set("department_id", params.department_id);
@@ -6519,8 +6741,7 @@ export const api = {
     return request<Employee[]>(`/hr/employees${q ? `?${q}` : ""}`);
   },
 
-  getEmployee: (id: string) =>
-    request<Employee>(`/hr/employees/${id}`),
+  getEmployee: (id: string) => request<Employee>(`/hr/employees/${id}`),
 
   createEmployee: (data: CreateEmployeeRequest) =>
     request<Employee>("/hr/employees", {
@@ -6551,8 +6772,7 @@ export const api = {
     }),
 
   // Shifts
-  listShifts: () =>
-    request<ShiftDefinition[]>("/hr/shifts"),
+  listShifts: () => request<ShiftDefinition[]>("/hr/shifts"),
 
   createShift: (data: CreateShiftRequest) =>
     request<ShiftDefinition>("/hr/shifts", {
@@ -6588,7 +6808,12 @@ export const api = {
     }),
 
   // Attendance
-  listAttendance: (params?: { department_id?: string; date_from?: string; date_to?: string; employee_id?: string }) => {
+  listAttendance: (params?: {
+    department_id?: string;
+    date_from?: string;
+    date_to?: string;
+    employee_id?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.department_id) qs.set("department_id", params.department_id);
     if (params?.date_from) qs.set("date_from", params.date_from);
@@ -6650,8 +6875,7 @@ export const api = {
     }),
 
   // Training Programs
-  listTrainingPrograms: () =>
-    request<TrainingProgram[]>("/hr/training-programs"),
+  listTrainingPrograms: () => request<TrainingProgram[]>("/hr/training-programs"),
 
   createTrainingProgram: (data: CreateTrainingProgramRequest) =>
     request<TrainingProgram>("/hr/training-programs", {
@@ -6693,7 +6917,9 @@ export const api = {
 
   // Cleaning Schedules
   listCleaningSchedules: (areaType?: string) =>
-    request<CleaningSchedule[]>(`/housekeeping/schedules${areaType ? `?area_type=${areaType}` : ""}`),
+    request<CleaningSchedule[]>(
+      `/housekeeping/schedules${areaType ? `?area_type=${areaType}` : ""}`,
+    ),
 
   createCleaningSchedule: (data: CreateCleaningScheduleRequest) =>
     request<CleaningSchedule>("/housekeeping/schedules", {
@@ -6755,8 +6981,7 @@ export const api = {
     }),
 
   // Pest Control
-  listPestControlSchedules: () =>
-    request<PestControlSchedule[]>("/housekeeping/pest-control"),
+  listPestControlSchedules: () => request<PestControlSchedule[]>("/housekeeping/pest-control"),
 
   createPestControlSchedule: (data: CreatePestControlScheduleRequest) =>
     request<PestControlSchedule>("/housekeeping/pest-control", {
@@ -6770,8 +6995,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listPestControlLogs: () =>
-    request<PestControlLog[]>("/housekeeping/pest-control-logs"),
+  listPestControlLogs: () => request<PestControlLog[]>("/housekeeping/pest-control-logs"),
 
   createPestControlLog: (data: CreatePestControlLogRequest) =>
     request<PestControlLog>("/housekeeping/pest-control-logs", {
@@ -6801,8 +7025,7 @@ export const api = {
     }),
 
   // Linen Movements
-  listLinenMovements: () =>
-    request<LinenMovement[]>("/housekeeping/linen-movements"),
+  listLinenMovements: () => request<LinenMovement[]>("/housekeeping/linen-movements"),
 
   createLinenMovement: (data: CreateLinenMovementRequest) =>
     request<LinenMovement>("/housekeeping/linen-movements", {
@@ -6811,8 +7034,7 @@ export const api = {
     }),
 
   // Laundry Batches
-  listLaundryBatches: () =>
-    request<LaundryBatch[]>("/housekeeping/laundry-batches"),
+  listLaundryBatches: () => request<LaundryBatch[]>("/housekeeping/laundry-batches"),
 
   createLaundryBatch: (data: CreateLaundryBatchRequest) =>
     request<LaundryBatch>("/housekeeping/laundry-batches", {
@@ -6826,8 +7048,7 @@ export const api = {
     }),
 
   // Par Levels
-  listParLevels: () =>
-    request<LinenParLevel[]>("/housekeeping/par-levels"),
+  listParLevels: () => request<LinenParLevel[]>("/housekeeping/par-levels"),
 
   upsertParLevel: (data: UpsertParLevelRequest) =>
     request<LinenParLevel>("/housekeeping/par-levels", {
@@ -6836,8 +7057,7 @@ export const api = {
     }),
 
   // Linen Condemnations
-  listLinenCondemnations: () =>
-    request<LinenCondemnation[]>("/housekeeping/condemnations"),
+  listLinenCondemnations: () => request<LinenCondemnation[]>("/housekeeping/condemnations"),
 
   createLinenCondemnation: (data: CreateLinenCondemnationRequest) =>
     request<LinenCondemnation>("/housekeeping/condemnations", {
@@ -6860,8 +7080,7 @@ export const api = {
   // ══════════════════════════════════════════════════════════
 
   // Visiting Hours
-  listVisitingHours: () =>
-    request<VisitingHours[]>("/front-office/visiting-hours"),
+  listVisitingHours: () => request<VisitingHours[]>("/front-office/visiting-hours"),
 
   upsertVisitingHours: (data: UpsertVisitingHoursRequest) =>
     request<VisitingHours>("/front-office/visiting-hours", {
@@ -6916,8 +7135,7 @@ export const api = {
     }),
 
   // Queue Priority Rules
-  listQueuePriorityRules: () =>
-    request<QueuePriorityRule[]>("/front-office/queue-priority"),
+  listQueuePriorityRules: () => request<QueuePriorityRule[]>("/front-office/queue-priority"),
 
   upsertQueuePriorityRule: (data: UpsertQueuePriorityRequest) =>
     request<QueuePriorityRule>("/front-office/queue-priority", {
@@ -6926,8 +7144,7 @@ export const api = {
     }),
 
   // Queue Display Config
-  listQueueDisplayConfig: () =>
-    request<QueueDisplayConfig[]>("/front-office/display-config"),
+  listQueueDisplayConfig: () => request<QueueDisplayConfig[]>("/front-office/display-config"),
 
   upsertQueueDisplayConfig: (data: UpsertDisplayConfigRequest) =>
     request<QueueDisplayConfig>("/front-office/display-config", {
@@ -6963,7 +7180,11 @@ export const api = {
   // ═══════════════════════════════════════════════════════
 
   // Equipment
-  listBmeEquipment: (params?: { status?: string; department_id?: string; risk_category?: string }) => {
+  listBmeEquipment: (params?: {
+    status?: string;
+    department_id?: string;
+    risk_category?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     if (params?.department_id) sp.set("department_id", params.department_id);
@@ -6971,15 +7192,16 @@ export const api = {
     const qs = sp.toString();
     return request<BmeEquipment[]>(`/bme/equipment${qs ? `?${qs}` : ""}`);
   },
-  getBmeEquipment: (id: string) =>
-    request<BmeEquipment>(`/bme/equipment/${id}`),
+  getBmeEquipment: (id: string) => request<BmeEquipment>(`/bme/equipment/${id}`),
   createBmeEquipment: (body: CreateBmeEquipmentRequest) =>
     request<BmeEquipment>("/bme/equipment", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmeEquipment: (id: string, body: UpdateBmeEquipmentRequest) =>
     request<BmeEquipment>(`/bme/equipment/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // PM Schedules
@@ -6992,11 +7214,13 @@ export const api = {
   },
   createBmePmSchedule: (body: CreateBmePmScheduleRequest) =>
     request<BmePmSchedule>("/bme/pm-schedules", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmePmSchedule: (id: string, body: UpdateBmePmScheduleRequest) =>
     request<BmePmSchedule>(`/bme/pm-schedules/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Work Orders
@@ -7008,15 +7232,16 @@ export const api = {
     const qs = sp.toString();
     return request<BmeWorkOrder[]>(`/bme/work-orders${qs ? `?${qs}` : ""}`);
   },
-  getBmeWorkOrder: (id: string) =>
-    request<BmeWorkOrder>(`/bme/work-orders/${id}`),
+  getBmeWorkOrder: (id: string) => request<BmeWorkOrder>(`/bme/work-orders/${id}`),
   createBmeWorkOrder: (body: CreateBmeWorkOrderRequest) =>
     request<BmeWorkOrder>("/bme/work-orders", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmeWorkOrderStatus: (id: string, body: UpdateBmeWorkOrderStatusRequest) =>
     request<BmeWorkOrder>(`/bme/work-orders/${id}/status`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Calibrations
@@ -7029,15 +7254,21 @@ export const api = {
   },
   createBmeCalibration: (body: CreateBmeCalibrationRequest) =>
     request<BmeCalibration>("/bme/calibrations", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmeCalibration: (id: string, body: UpdateBmeCalibrationRequest) =>
     request<BmeCalibration>(`/bme/calibrations/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Contracts
-  listBmeContracts: (params?: { equipment_id?: string; contract_type?: string; is_active?: boolean }) => {
+  listBmeContracts: (params?: {
+    equipment_id?: string;
+    contract_type?: string;
+    is_active?: boolean;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.equipment_id) sp.set("equipment_id", params.equipment_id);
     if (params?.contract_type) sp.set("contract_type", params.contract_type);
@@ -7047,11 +7278,13 @@ export const api = {
   },
   createBmeContract: (body: CreateBmeContractRequest) =>
     request<BmeContract>("/bme/contracts", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmeContract: (id: string, body: UpdateBmeContractRequest) =>
     request<BmeContract>(`/bme/contracts/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Breakdowns
@@ -7065,11 +7298,13 @@ export const api = {
   },
   createBmeBreakdown: (body: CreateBmeBreakdownRequest) =>
     request<BmeBreakdown>("/bme/breakdowns", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateBmeBreakdownStatus: (id: string, body: UpdateBmeBreakdownStatusRequest) =>
     request<BmeBreakdown>(`/bme/breakdowns/${id}/status`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Vendor Evaluations
@@ -7079,20 +7314,23 @@ export const api = {
     ),
   createBmeVendorEvaluation: (body: CreateBmeVendorEvaluationRequest) =>
     request<BmeVendorEvaluation>("/bme/vendor-evaluations", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Stats
   getBmeStats: () => request<BmeStatsResponse>("/bme/stats"),
-  getBmeMtbfAnalytics: () =>
-    request<BmeMtbfRow[]>("/bme/analytics/mtbf"),
-  getBmeUptimeAnalytics: () =>
-    request<BmeUptimeRow[]>("/bme/analytics/uptime"),
+  getBmeMtbfAnalytics: () => request<BmeMtbfRow[]>("/bme/analytics/mtbf"),
+  getBmeUptimeAnalytics: () => request<BmeUptimeRow[]>("/bme/analytics/uptime"),
 
   // ── Facilities Management ─────────────────────────────────
 
   // Gas Readings
-  listFmsGasReadings: (params?: { gas_type?: string; source_type?: string; location_id?: string }) => {
+  listFmsGasReadings: (params?: {
+    gas_type?: string;
+    source_type?: string;
+    location_id?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.gas_type) sp.set("gas_type", params.gas_type);
     if (params?.source_type) sp.set("source_type", params.source_type);
@@ -7102,23 +7340,29 @@ export const api = {
   },
   createFmsGasReading: (body: CreateFmsGasReadingRequest) =>
     request<FmsGasReading>("/facilities/gas-readings", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Gas Compliance
-  listFmsGasCompliance: () =>
-    request<FmsGasCompliance[]>("/facilities/gas-compliance"),
+  listFmsGasCompliance: () => request<FmsGasCompliance[]>("/facilities/gas-compliance"),
   createFmsGasCompliance: (body: CreateFmsGasComplianceRequest) =>
     request<FmsGasCompliance>("/facilities/gas-compliance", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateFmsGasCompliance: (id: string, body: UpdateFmsGasComplianceRequest) =>
     request<FmsGasCompliance>(`/facilities/gas-compliance/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Fire Equipment
-  listFmsFireEquipment: (params?: { equipment_type?: string; location_id?: string; is_active?: boolean }) => {
+  listFmsFireEquipment: (params?: {
+    equipment_type?: string;
+    location_id?: string;
+    is_active?: boolean;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.equipment_type) sp.set("equipment_type", params.equipment_type);
     if (params?.location_id) sp.set("location_id", params.location_id);
@@ -7128,11 +7372,13 @@ export const api = {
   },
   createFmsFireEquipment: (body: CreateFmsFireEquipmentRequest) =>
     request<FmsFireEquipment>("/facilities/fire-equipment", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateFmsFireEquipment: (id: string, body: UpdateFmsFireEquipmentRequest) =>
     request<FmsFireEquipment>(`/facilities/fire-equipment/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Fire Inspections
@@ -7142,27 +7388,29 @@ export const api = {
     ),
   createFmsFireInspection: (body: CreateFmsFireInspectionRequest) =>
     request<FmsFireInspection>("/facilities/fire-inspections", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Fire Drills
-  listFmsFireDrills: () =>
-    request<FmsFireDrill[]>("/facilities/fire-drills"),
+  listFmsFireDrills: () => request<FmsFireDrill[]>("/facilities/fire-drills"),
   createFmsFireDrill: (body: CreateFmsFireDrillRequest) =>
     request<FmsFireDrill>("/facilities/fire-drills", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Fire NOC
-  listFmsFireNoc: () =>
-    request<FmsFireNoc[]>("/facilities/fire-noc"),
+  listFmsFireNoc: () => request<FmsFireNoc[]>("/facilities/fire-noc"),
   createFmsFireNoc: (body: CreateFmsFireNocRequest) =>
     request<FmsFireNoc>("/facilities/fire-noc", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateFmsFireNoc: (id: string, body: UpdateFmsFireNocRequest) =>
     request<FmsFireNoc>(`/facilities/fire-noc/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Water Tests
@@ -7175,19 +7423,21 @@ export const api = {
   },
   createFmsWaterTest: (body: CreateFmsWaterTestRequest) =>
     request<FmsWaterTest>("/facilities/water-tests", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Water Schedules
-  listFmsWaterSchedules: () =>
-    request<FmsWaterSchedule[]>("/facilities/water-schedules"),
+  listFmsWaterSchedules: () => request<FmsWaterSchedule[]>("/facilities/water-schedules"),
   createFmsWaterSchedule: (body: CreateFmsWaterScheduleRequest) =>
     request<FmsWaterSchedule>("/facilities/water-schedules", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateFmsWaterSchedule: (id: string, body: UpdateFmsWaterScheduleRequest) =>
     request<FmsWaterSchedule>(`/facilities/water-schedules/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Energy Readings
@@ -7200,11 +7450,17 @@ export const api = {
   },
   createFmsEnergyReading: (body: CreateFmsEnergyReadingRequest) =>
     request<FmsEnergyReading>("/facilities/energy-readings", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Work Orders
-  listFmsWorkOrders: (params?: { status?: string; priority?: string; department_id?: string; category?: string }) => {
+  listFmsWorkOrders: (params?: {
+    status?: string;
+    priority?: string;
+    department_id?: string;
+    category?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     if (params?.priority) sp.set("priority", params.priority);
@@ -7213,15 +7469,16 @@ export const api = {
     const qs = sp.toString();
     return request<FmsWorkOrder[]>(`/facilities/work-orders${qs ? `?${qs}` : ""}`);
   },
-  getFmsWorkOrder: (id: string) =>
-    request<FmsWorkOrder>(`/facilities/work-orders/${id}`),
+  getFmsWorkOrder: (id: string) => request<FmsWorkOrder>(`/facilities/work-orders/${id}`),
   createFmsWorkOrder: (body: CreateFmsWorkOrderRequest) =>
     request<FmsWorkOrder>("/facilities/work-orders", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateFmsWorkOrderStatus: (id: string, body: UpdateFmsWorkOrderStatusRequest) =>
     request<FmsWorkOrder>(`/facilities/work-orders/${id}/status`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Stats
@@ -7230,19 +7487,26 @@ export const api = {
   // ── Security Department ─────────────────────────────────
 
   // Zones
-  listSecurityZones: () =>
-    request<SecurityZone[]>("/security/zones"),
+  listSecurityZones: () => request<SecurityZone[]>("/security/zones"),
   createSecurityZone: (body: CreateSecurityZoneRequest) =>
     request<SecurityZone>("/security/zones", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateSecurityZone: (id: string, body: UpdateSecurityZoneRequest) =>
     request<SecurityZone>(`/security/zones/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Access Logs
-  listSecurityAccessLogs: (params?: { zone_id?: string; employee_id?: string; is_after_hours?: boolean; from?: string; to?: string }) => {
+  listSecurityAccessLogs: (params?: {
+    zone_id?: string;
+    employee_id?: string;
+    is_after_hours?: boolean;
+    from?: string;
+    to?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.zone_id) sp.set("zone_id", params.zone_id);
     if (params?.employee_id) sp.set("employee_id", params.employee_id);
@@ -7254,7 +7518,8 @@ export const api = {
   },
   createSecurityAccessLog: (body: CreateSecurityAccessLogRequest) =>
     request<SecurityAccessLog>("/security/access-logs", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Access Cards
@@ -7267,15 +7532,18 @@ export const api = {
   },
   createSecurityAccessCard: (body: CreateSecurityAccessCardRequest) =>
     request<SecurityAccessCard>("/security/cards", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateSecurityAccessCard: (id: string, body: UpdateSecurityAccessCardRequest) =>
     request<SecurityAccessCard>(`/security/cards/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
   deactivateSecurityAccessCard: (id: string, reason?: string) =>
     request<SecurityAccessCard>(`/security/cards/${id}/deactivate`, {
-      method: "PUT", body: JSON.stringify({ reason }),
+      method: "PUT",
+      body: JSON.stringify({ reason }),
     }),
 
   // Cameras
@@ -7288,11 +7556,13 @@ export const api = {
   },
   createSecurityCamera: (body: CreateSecurityCameraRequest) =>
     request<SecurityCamera>("/security/cameras", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateSecurityCamera: (id: string, body: UpdateSecurityCameraRequest) =>
     request<SecurityCamera>(`/security/cameras/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Incidents
@@ -7304,19 +7574,24 @@ export const api = {
     const qs = sp.toString();
     return request<SecurityIncident[]>(`/security-incidents${qs ? `?${qs}` : ""}`);
   },
-  getSecurityIncident: (id: string) =>
-    request<SecurityIncident>(`/security-incidents/${id}`),
+  getSecurityIncident: (id: string) => request<SecurityIncident>(`/security-incidents/${id}`),
   createSecurityIncident: (body: CreateSecurityIncidentRequest) =>
     request<SecurityIncident>("/security-incidents", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateSecurityIncident: (id: string, body: UpdateSecurityIncidentRequest) =>
     request<SecurityIncident>(`/security-incidents/${id}`, {
-      method: "PATCH", body: JSON.stringify(body),
+      method: "PATCH",
+      body: JSON.stringify(body),
     }),
 
   // Patient Tags
-  listSecurityPatientTags: (params?: { patient_id?: string; tag_type?: string; alert_status?: string }) => {
+  listSecurityPatientTags: (params?: {
+    patient_id?: string;
+    tag_type?: string;
+    alert_status?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.patient_id) sp.set("patient_id", params.patient_id);
     if (params?.tag_type) sp.set("tag_type", params.tag_type);
@@ -7326,7 +7601,8 @@ export const api = {
   },
   createSecurityPatientTag: (body: CreateSecurityPatientTagRequest) =>
     request<SecurityPatientTag>("/security/patient-tags", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   deactivateSecurityPatientTag: (id: string) =>
     request<SecurityPatientTag>(`/security/patient-tags/${id}/deactivate`, {
@@ -7343,17 +7619,17 @@ export const api = {
   },
   resolveSecurityTagAlert: (id: string, body: ResolveSecurityTagAlertRequest) =>
     request<SecurityTagAlert>(`/security/tag-alerts/${id}/resolve`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Code Debriefs
-  listSecurityCodeDebriefs: () =>
-    request<SecurityCodeDebrief[]>("/security/debriefs"),
-  getSecurityCodeDebrief: (id: string) =>
-    request<SecurityCodeDebrief>(`/security/debriefs/${id}`),
+  listSecurityCodeDebriefs: () => request<SecurityCodeDebrief[]>("/security/debriefs"),
+  getSecurityCodeDebrief: (id: string) => request<SecurityCodeDebrief>(`/security/debriefs/${id}`),
   createSecurityCodeDebrief: (body: CreateSecurityCodeDebriefRequest) =>
     request<SecurityCodeDebrief>("/security/debriefs", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // ── MRD (Medical Records Department) ────────────────────
@@ -7369,13 +7645,14 @@ export const api = {
   },
   createMrdRecord: (body: CreateMrdRecordRequest) =>
     request<MrdMedicalRecord>("/mrd/records", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
-  getMrdRecord: (id: string) =>
-    request<MrdMedicalRecord>(`/mrd/records/${id}`),
+  getMrdRecord: (id: string) => request<MrdMedicalRecord>(`/mrd/records/${id}`),
   updateMrdRecord: (id: string, body: UpdateMrdRecordRequest) =>
     request<MrdMedicalRecord>(`/mrd/records/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Record Movements
@@ -7383,7 +7660,8 @@ export const api = {
     request<MrdRecordMovement[]>(`/mrd/records/${recordId}/movements`),
   issueMrdRecord: (recordId: string, body: IssueMrdRecordRequest) =>
     request<MrdRecordMovement>(`/mrd/records/${recordId}/issue`, {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   returnMrdRecord: (recordId: string, movementId: string) =>
     request<MrdRecordMovement>(`/mrd/records/${recordId}/movements/${movementId}/return`, {
@@ -7400,10 +7678,10 @@ export const api = {
   },
   createMrdBirth: (body: CreateMrdBirthRequest) =>
     request<MrdBirthRegister>("/mrd/births", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
-  getMrdBirth: (id: string) =>
-    request<MrdBirthRegister>(`/mrd/births/${id}`),
+  getMrdBirth: (id: string) => request<MrdBirthRegister>(`/mrd/births/${id}`),
 
   // Death Register
   listMrdDeaths: (params?: { from_date?: string; to_date?: string }) => {
@@ -7415,21 +7693,22 @@ export const api = {
   },
   createMrdDeath: (body: CreateMrdDeathRequest) =>
     request<MrdDeathRegister>("/mrd/deaths", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
-  getMrdDeath: (id: string) =>
-    request<MrdDeathRegister>(`/mrd/deaths/${id}`),
+  getMrdDeath: (id: string) => request<MrdDeathRegister>(`/mrd/deaths/${id}`),
 
   // Retention Policies
-  listMrdRetentionPolicies: () =>
-    request<MrdRetentionPolicy[]>("/mrd/retention-policies"),
+  listMrdRetentionPolicies: () => request<MrdRetentionPolicy[]>("/mrd/retention-policies"),
   createMrdRetentionPolicy: (body: CreateMrdRetentionPolicyRequest) =>
     request<MrdRetentionPolicy>("/mrd/retention-policies", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      body: JSON.stringify(body),
     }),
   updateMrdRetentionPolicy: (id: string, body: UpdateMrdRetentionPolicyRequest) =>
     request<MrdRetentionPolicy>(`/mrd/retention-policies/${id}`, {
-      method: "PUT", body: JSON.stringify(body),
+      method: "PUT",
+      body: JSON.stringify(body),
     }),
 
   // Stats
@@ -7438,1376 +7717,1478 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<MrdMorbidityMortalityResponse>(`/mrd/stats/morbidity-mortality${qs ? `?${qs}` : ""}`);
+    return request<MrdMorbidityMortalityResponse>(
+      `/mrd/stats/morbidity-mortality${qs ? `?${qs}` : ""}`,
+    );
   },
   getMrdAdmissionDischarge: (params?: { from_date?: string; to_date?: string }) => {
     const sp = new URLSearchParams();
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<MrdAdmissionDischargeSummary>(`/mrd/stats/admission-discharge${qs ? `?${qs}` : ""}`);
+    return request<MrdAdmissionDischargeSummary>(
+      `/mrd/stats/admission-discharge${qs ? `?${qs}` : ""}`,
+    );
   },
 
-    // ── Specialty Clinical: Cath Lab ────────────────────────────
+  // ── Specialty Clinical: Cath Lab ────────────────────────────
 
-    listCathProcedures: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<CathProcedure[]>(`/specialty/cath-lab/procedures${qs ? `?${qs}` : ""}`);
+  listCathProcedures: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<CathProcedure[]>(`/specialty/cath-lab/procedures${qs ? `?${qs}` : ""}`);
+  },
+  getCathProcedure: (id: string) => request<CathProcedure>(`/specialty/cath-lab/procedures/${id}`),
+  createCathProcedure: (data: CreateCathProcedureRequest) =>
+    request<CathProcedure>("/specialty/cath-lab/procedures", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateCathProcedure: (id: string, data: Partial<CreateCathProcedureRequest>) =>
+    request<CathProcedure>(`/specialty/cath-lab/procedures/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listCathHemodynamics: (procedureId: string) =>
+    request<CathHemodynamic[]>(`/specialty/cath-lab/procedures/${procedureId}/hemodynamics`),
+  createCathHemodynamic: (procedureId: string, data: CreateCathHemodynamicRequest) =>
+    request<CathHemodynamic>(`/specialty/cath-lab/procedures/${procedureId}/hemodynamics`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listCathDevices: (procedureId: string) =>
+    request<CathDevice[]>(`/specialty/cath-lab/procedures/${procedureId}/devices`),
+  createCathDevice: (procedureId: string, data: CreateCathDeviceRequest) =>
+    request<CathDevice>(`/specialty/cath-lab/procedures/${procedureId}/devices`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listStemiTimeline: (procedureId: string) =>
+    request<CathStemiTimeline[]>(`/specialty/cath-lab/procedures/${procedureId}/stemi-timeline`),
+  createStemiEvent: (procedureId: string, data: CreateCathStemiEventRequest) =>
+    request<CathStemiTimeline>(`/specialty/cath-lab/procedures/${procedureId}/stemi-timeline`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPostMonitoring: (procedureId: string) =>
+    request<CathPostMonitoring[]>(`/specialty/cath-lab/procedures/${procedureId}/post-monitoring`),
+  createPostMonitoring: (procedureId: string, data: CreateCathPostMonitoringRequest) =>
+    request<CathPostMonitoring>(`/specialty/cath-lab/procedures/${procedureId}/post-monitoring`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Specialty Clinical: Endoscopy ───────────────────────────
+
+  listEndoscopyProcedures: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<EndoscopyProcedure[]>(`/specialty/endoscopy/procedures${qs ? `?${qs}` : ""}`);
+  },
+  createEndoscopyProcedure: (data: CreateEndoscopyProcedureRequest) =>
+    request<EndoscopyProcedure>("/specialty/endoscopy/procedures", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateEndoscopyProcedure: (id: string, data: Partial<CreateEndoscopyProcedureRequest>) =>
+    request<EndoscopyProcedure>(`/specialty/endoscopy/procedures/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listEndoscopyScopes: (params?: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<EndoscopyScope[]>(`/specialty/endoscopy/scopes${qs ? `?${qs}` : ""}`);
+  },
+  createEndoscopyScope: (data: CreateEndoscopyScopeRequest) =>
+    request<EndoscopyScope>("/specialty/endoscopy/scopes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateEndoscopyScope: (
+    id: string,
+    data: Partial<CreateEndoscopyScopeRequest> & { status?: ScopeStatus },
+  ) =>
+    request<EndoscopyScope>(`/specialty/endoscopy/scopes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listEndoscopyReprocessing: (params?: { scope_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.scope_id) sp.set("scope_id", params.scope_id);
+    const qs = sp.toString();
+    return request<EndoscopyReprocessing[]>(
+      `/specialty/endoscopy/reprocessing${qs ? `?${qs}` : ""}`,
+    );
+  },
+  createEndoscopyReprocessing: (data: CreateEndoscopyReprocessingRequest) =>
+    request<EndoscopyReprocessing>("/specialty/endoscopy/reprocessing", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listBiopsySpecimens: (procedureId: string) =>
+    request<EndoscopyBiopsySpecimen[]>(`/specialty/endoscopy/procedures/${procedureId}/biopsies`),
+  createBiopsySpecimen: (procedureId: string, data: CreateEndoscopyBiopsyRequest) =>
+    request<EndoscopyBiopsySpecimen>(`/specialty/endoscopy/procedures/${procedureId}/biopsies`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Specialty Clinical: Psychiatry ──────────────────────────
+
+  listPsychPatients: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<PsychPatient[]>(`/specialty/psychiatry/patients${qs ? `?${qs}` : ""}`);
+  },
+  getPsychPatient: (id: string) => request<PsychPatient>(`/specialty/psychiatry/patients/${id}`),
+  createPsychPatient: (data: CreatePsychPatientRequest) =>
+    request<PsychPatient>("/specialty/psychiatry/patients", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updatePsychPatient: (id: string, data: Partial<CreatePsychPatientRequest>) =>
+    request<PsychPatient>(`/specialty/psychiatry/patients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listPsychAssessments: (patientId: string) =>
+    request<PsychAssessment[]>(`/specialty/psychiatry/patients/${patientId}/assessments`),
+  createPsychAssessment: (patientId: string, data: CreatePsychAssessmentRequest) =>
+    request<PsychAssessment>(`/specialty/psychiatry/patients/${patientId}/assessments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listEctSessions: (patientId: string) =>
+    request<PsychEctSession[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
+  createEctSession: (patientId: string, data: CreatePsychEctRequest) =>
+    request<PsychEctSession>(`/specialty/psychiatry/patients/${patientId}/ect`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listRestraints: (patientId: string) =>
+    request<PsychRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
+  createRestraint: (patientId: string, data: CreatePsychRestraintRequest) =>
+    request<PsychRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  releaseRestraint: (id: string) =>
+    request<PsychRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
+      method: "PUT",
+    }),
+  listMhrbNotifications: (patientId: string) =>
+    request<PsychMhrbNotification[]>(`/specialty/psychiatry/patients/${patientId}/mhrb`),
+  createMhrbNotification: (patientId: string, data: CreatePsychMhrbRequest) =>
+    request<PsychMhrbNotification>(`/specialty/psychiatry/patients/${patientId}/mhrb`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateMhrbNotification: (
+    id: string,
+    data: Partial<CreatePsychMhrbRequest> & { status?: string },
+  ) =>
+    request<PsychMhrbNotification>(`/specialty/psychiatry/mhrb/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listCounselingSessions: (patientId: string) =>
+    request<PsychCounselingSession[]>(`/specialty/psychiatry/patients/${patientId}/counseling`),
+  createCounselingSession: (patientId: string, data: CreatePsychCounselingRequest) =>
+    request<PsychCounselingSession>(`/specialty/psychiatry/patients/${patientId}/counseling`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Specialty Clinical: Maternity ───────────────────────────
+
+  listMaternityRegistrations: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<MaternityRegistration[]>(
+      `/specialty/maternity/registrations${qs ? `?${qs}` : ""}`,
+    );
+  },
+  getMaternityRegistration: (id: string) =>
+    request<MaternityRegistration>(`/specialty/maternity/registrations/${id}`),
+  createMaternityRegistration: (data: CreateMaternityRegistrationRequest) =>
+    request<MaternityRegistration>("/specialty/maternity/registrations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listAncVisits: (registrationId: string) =>
+    request<AncVisit[]>(`/specialty/maternity/registrations/${registrationId}/anc`),
+  createAncVisit: (registrationId: string, data: CreateAncVisitRequest) =>
+    request<AncVisit>(`/specialty/maternity/registrations/${registrationId}/anc`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listLaborRecords: (registrationId: string) =>
+    request<LaborRecord[]>(`/specialty/maternity/registrations/${registrationId}/labor`),
+  createLaborRecord: (registrationId: string, data: CreateLaborRecordRequest) =>
+    request<LaborRecord>(`/specialty/maternity/registrations/${registrationId}/labor`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateLaborRecord: (
+    id: string,
+    data: Partial<CreateLaborRecordRequest> & {
+      delivery_type?: DeliveryType;
+      apgar_1min?: number;
+      apgar_5min?: number;
+      baby_weight_gm?: number;
     },
-    getCathProcedure: (id: string) =>
-      request<CathProcedure>(`/specialty/cath-lab/procedures/${id}`),
-    createCathProcedure: (data: CreateCathProcedureRequest) =>
-      request<CathProcedure>("/specialty/cath-lab/procedures", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateCathProcedure: (id: string, data: Partial<CreateCathProcedureRequest>) =>
-      request<CathProcedure>(`/specialty/cath-lab/procedures/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listCathHemodynamics: (procedureId: string) =>
-      request<CathHemodynamic[]>(`/specialty/cath-lab/procedures/${procedureId}/hemodynamics`),
-    createCathHemodynamic: (procedureId: string, data: CreateCathHemodynamicRequest) =>
-      request<CathHemodynamic>(`/specialty/cath-lab/procedures/${procedureId}/hemodynamics`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listCathDevices: (procedureId: string) =>
-      request<CathDevice[]>(`/specialty/cath-lab/procedures/${procedureId}/devices`),
-    createCathDevice: (procedureId: string, data: CreateCathDeviceRequest) =>
-      request<CathDevice>(`/specialty/cath-lab/procedures/${procedureId}/devices`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listStemiTimeline: (procedureId: string) =>
-      request<CathStemiTimeline[]>(`/specialty/cath-lab/procedures/${procedureId}/stemi-timeline`),
-    createStemiEvent: (procedureId: string, data: CreateCathStemiEventRequest) =>
-      request<CathStemiTimeline>(`/specialty/cath-lab/procedures/${procedureId}/stemi-timeline`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listPostMonitoring: (procedureId: string) =>
-      request<CathPostMonitoring[]>(`/specialty/cath-lab/procedures/${procedureId}/post-monitoring`),
-    createPostMonitoring: (procedureId: string, data: CreateCathPostMonitoringRequest) =>
-      request<CathPostMonitoring>(`/specialty/cath-lab/procedures/${procedureId}/post-monitoring`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+  ) =>
+    request<LaborRecord>(`/specialty/maternity/labor/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listNewborns: (laborId: string) =>
+    request<NewbornRecord[]>(`/specialty/maternity/labor/${laborId}/newborns`),
+  createNewborn: (laborId: string, data: CreateNewbornRecordRequest) =>
+    request<NewbornRecord>(`/specialty/maternity/labor/${laborId}/newborns`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPostnatalRecords: (registrationId: string) =>
+    request<PostnatalRecord[]>(`/specialty/maternity/registrations/${registrationId}/postnatal`),
+  createPostnatalRecord: (registrationId: string, data: CreatePostnatalRecordRequest) =>
+    request<PostnatalRecord>(`/specialty/maternity/registrations/${registrationId}/postnatal`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-    // ── Specialty Clinical: Endoscopy ───────────────────────────
+  // ── Specialty Clinical: PMR / Audiology ─────────────────────
 
-    listEndoscopyProcedures: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<EndoscopyProcedure[]>(`/specialty/endoscopy/procedures${qs ? `?${qs}` : ""}`);
+  listRehabPlans: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<RehabPlan[]>(`/specialty/pmr/rehab-plans${qs ? `?${qs}` : ""}`);
+  },
+  createRehabPlan: (data: CreateRehabPlanRequest) =>
+    request<RehabPlan>("/specialty/pmr/rehab-plans", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listRehabSessions: (planId: string) =>
+    request<RehabSession[]>(`/specialty/pmr/rehab-plans/${planId}/sessions`),
+  createRehabSession: (planId: string, data: CreateRehabSessionRequest) =>
+    request<RehabSession>(`/specialty/pmr/rehab-plans/${planId}/sessions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listAudiologyTests: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<AudiologyTest[]>(`/specialty/pmr/audiology${qs ? `?${qs}` : ""}`);
+  },
+  createAudiologyTest: (data: CreateAudiologyTestRequest) =>
+    request<AudiologyTest>("/specialty/pmr/audiology", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPsychometricTests: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<PsychometricTest[]>(`/specialty/pmr/psychometric${qs ? `?${qs}` : ""}`);
+  },
+  createPsychometricTest: (data: CreatePsychometricTestRequest) =>
+    request<PsychometricTest>("/specialty/pmr/psychometric", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Specialty Clinical: Palliative / Mortuary / Nuclear Med ──
+
+  listDnrOrders: (params?: { patient_id?: string; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<DnrOrder[]>(`/specialty/palliative/dnr${qs ? `?${qs}` : ""}`);
+  },
+  createDnrOrder: (data: CreateDnrOrderRequest) =>
+    request<DnrOrder>("/specialty/palliative/dnr", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  revokeDnrOrder: (id: string) =>
+    request<DnrOrder>(`/specialty/palliative/dnr/${id}/revoke`, {
+      method: "PUT",
+    }),
+  listPainAssessments: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<PainAssessment[]>(`/specialty/palliative/pain${qs ? `?${qs}` : ""}`);
+  },
+  createPainAssessment: (data: CreatePainAssessmentRequest) =>
+    request<PainAssessment>("/specialty/palliative/pain", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listMortuaryRecords: (params?: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<MortuaryRecord[]>(`/specialty/mortuary/records${qs ? `?${qs}` : ""}`);
+  },
+  createMortuaryRecord: (data: CreateMortuaryRecordRequest) =>
+    request<MortuaryRecord>("/specialty/mortuary/records", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateMortuaryRecord: (
+    id: string,
+    data: Partial<CreateMortuaryRecordRequest> & {
+      status?: BodyStatus;
+      pm_requested?: boolean;
+      pm_conducted_by?: string;
+      pm_date?: string;
+      pm_findings?: string;
     },
-    createEndoscopyProcedure: (data: CreateEndoscopyProcedureRequest) =>
-      request<EndoscopyProcedure>("/specialty/endoscopy/procedures", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateEndoscopyProcedure: (id: string, data: Partial<CreateEndoscopyProcedureRequest>) =>
-      request<EndoscopyProcedure>(`/specialty/endoscopy/procedures/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listEndoscopyScopes: (params?: { status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<EndoscopyScope[]>(`/specialty/endoscopy/scopes${qs ? `?${qs}` : ""}`);
+  ) =>
+    request<MortuaryRecord>(`/specialty/mortuary/records/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listNuclearSources: () => request<NuclearMedSource[]>("/specialty/nuclear-med/sources"),
+  createNuclearSource: (data: CreateNuclearMedSourceRequest) =>
+    request<NuclearMedSource>("/specialty/nuclear-med/sources", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listNuclearAdministrations: (params?: { patient_id?: string; source_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.source_id) sp.set("source_id", params.source_id);
+    const qs = sp.toString();
+    return request<NuclearMedAdministration[]>(
+      `/specialty/nuclear-med/administrations${qs ? `?${qs}` : ""}`,
+    );
+  },
+  createNuclearAdministration: (data: CreateNuclearMedAdminRequest) =>
+    request<NuclearMedAdministration>("/specialty/nuclear-med/administrations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Specialty Clinical: Other Specialties ───────────────────
+
+  listSpecialtyTemplates: (params?: { specialty?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.specialty) sp.set("specialty", params.specialty);
+    const qs = sp.toString();
+    return request<SpecialtyTemplate[]>(`/specialty/templates${qs ? `?${qs}` : ""}`);
+  },
+  createSpecialtyTemplate: (data: CreateSpecialtyTemplateRequest) =>
+    request<SpecialtyTemplate>("/specialty/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listSpecialtyRecords: (params?: { patient_id?: string; specialty?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.specialty) sp.set("specialty", params.specialty);
+    const qs = sp.toString();
+    return request<SpecialtyRecord[]>(`/specialty/records${qs ? `?${qs}` : ""}`);
+  },
+  createSpecialtyRecord: (data: CreateSpecialtyRecordRequest) =>
+    request<SpecialtyRecord>("/specialty/records", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listDialysisSessions: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<DialysisSession[]>(`/specialty/dialysis/sessions${qs ? `?${qs}` : ""}`);
+  },
+  createDialysisSession: (data: CreateDialysisSessionRequest) =>
+    request<DialysisSession>("/specialty/dialysis/sessions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateDialysisSession: (
+    id: string,
+    data: Partial<CreateDialysisSessionRequest> & {
+      post_weight_kg?: number;
+      uf_achieved_ml?: number;
+      post_vitals?: Record<string, unknown>;
+      kt_v?: number;
+      urr_pct?: number;
     },
-    createEndoscopyScope: (data: CreateEndoscopyScopeRequest) =>
-      request<EndoscopyScope>("/specialty/endoscopy/scopes", {
+  ) =>
+    request<DialysisSession>(`/specialty/dialysis/sessions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listChemoProtocols: (params?: { patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<ChemoProtocol[]>(`/specialty/chemo/protocols${qs ? `?${qs}` : ""}`);
+  },
+  createChemoProtocol: (data: CreateChemoProtocolRequest) =>
+    request<ChemoProtocol>("/specialty/chemo/protocols", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateChemoProtocol: (id: string, data: Partial<CreateChemoProtocolRequest>) =>
+    request<ChemoProtocol>(`/specialty/chemo/protocols/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Documents Module ─────────────────────────────────────
+
+  // Templates
+  listDocumentTemplates: (params?: {
+    category?: string;
+    module_code?: string;
+    is_active?: boolean;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.category) sp.set("category", params.category);
+    if (params?.module_code) sp.set("module_code", params.module_code);
+    if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
+    const qs = sp.toString();
+    return request<DocumentTemplate[]>(`/documents/templates${qs ? `?${qs}` : ""}`);
+  },
+  createDocumentTemplate: (data: CreateDocumentTemplateRequest) =>
+    request<DocumentTemplate>("/documents/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDocumentTemplate: (id: string) => request<DocumentTemplate>(`/documents/templates/${id}`),
+  updateDocumentTemplate: (id: string, data: UpdateDocumentTemplateRequest) =>
+    request<DocumentTemplate>(`/documents/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteDocumentTemplate: (id: string) =>
+    request<{ status: string }>(`/documents/templates/${id}`, {
+      method: "DELETE",
+    }),
+  listTemplateVersions: (id: string) =>
+    request<DocumentTemplateVersion[]>(`/documents/templates/${id}/versions`),
+  listDefaultTemplates: () => request<DocumentTemplate[]>("/documents/templates/defaults"),
+  setDefaultTemplate: (id: string) =>
+    request<DocumentTemplate>(`/documents/templates/${id}/set-default`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  // Document Generation
+  generateDocument: (data: GenerateDocumentRequest) =>
+    request<DocumentOutput>("/documents/generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  previewDocument: (data: GenerateDocumentRequest) =>
+    request<DocumentOutput>("/documents/generate/preview", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  batchGenerateDocuments: (data: BatchGenerateRequest) =>
+    request<DocumentOutput[]>("/documents/generate/batch", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Document Outputs
+  listDocumentOutputs: (params?: {
+    category?: string;
+    status?: string;
+    patient_id?: string;
+    module_code?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.category) sp.set("category", params.category);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.module_code) sp.set("module_code", params.module_code);
+    const qs = sp.toString();
+    return request<DocumentOutput[]>(`/documents/outputs${qs ? `?${qs}` : ""}`);
+  },
+  getDocumentOutput: (id: string) => request<DocumentOutput>(`/documents/outputs/${id}`),
+  recordDocumentPrint: (id: string) =>
+    request<DocumentOutput>(`/documents/outputs/${id}/print`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  voidDocumentOutput: (id: string, data: VoidDocumentRequest) =>
+    request<DocumentOutput>(`/documents/outputs/${id}/void`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPatientDocumentOutputs: (patientId: string) =>
+    request<DocumentOutput[]>(`/documents/outputs/patient/${patientId}`),
+  getDocumentOutputStats: () => request<DocumentOutputStats>("/documents/outputs/stats"),
+
+  // Document Signatures
+  listDocumentSignatures: (docId: string) =>
+    request<DocumentOutputSignature[]>(`/documents/outputs/${docId}/signatures`),
+  addDocumentSignature: (docId: string, data: AddDocumentSignatureRequest) =>
+    request<DocumentOutputSignature>(`/documents/outputs/${docId}/signatures`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteDocumentSignature: (docId: string, sigId: string) =>
+    request<{ status: string }>(`/documents/outputs/${docId}/signatures/${sigId}`, {
+      method: "DELETE",
+    }),
+
+  // Review Schedule
+  listReviewSchedule: (params?: { template_id?: string; review_status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.template_id) sp.set("template_id", params.template_id);
+    if (params?.review_status) sp.set("review_status", params.review_status);
+    const qs = sp.toString();
+    return request<DocumentFormReviewSchedule[]>(`/documents/review-schedule${qs ? `?${qs}` : ""}`);
+  },
+  createReviewSchedule: (data: CreateReviewScheduleRequest) =>
+    request<DocumentFormReviewSchedule>("/documents/review-schedule", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  markReviewed: (id: string) =>
+    request<DocumentFormReviewSchedule>(`/documents/review-schedule/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({}),
+    }),
+
+  // Printers & Print Jobs
+  listPrinters: () => request<unknown[]>("/documents/printers"),
+  createPrinter: (data: Record<string, unknown>) =>
+    request<unknown>("/documents/printers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPrintJobs: () => request<unknown[]>("/documents/print-jobs"),
+  updatePrintJob: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/documents/print-jobs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Regulatory & Compliance ──────────────────────────────
+
+  // Dashboard
+  getRegulatoryDashboard: () => request<ComplianceDashboard>("/regulatory/dashboard"),
+
+  getDepartmentCompliance: (deptId: string) =>
+    request<ComplianceChecklist[]>(`/regulatory/dashboard/department/${deptId}`),
+
+  getComplianceGaps: () => request<ComplianceGap[]>("/regulatory/dashboard/gaps"),
+
+  // Checklists
+  listChecklists: (params?: {
+    department_id?: string;
+    accreditation_body?: string;
+    status?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.accreditation_body) sp.set("accreditation_body", params.accreditation_body);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<ComplianceChecklist[]>(`/regulatory/checklists${qs ? `?${qs}` : ""}`);
+  },
+
+  createChecklist: (data: CreateChecklistRequest) =>
+    request<ComplianceChecklist>("/regulatory/checklists", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getChecklist: (id: string) =>
+    request<ComplianceChecklistWithItems>(`/regulatory/checklists/${id}`),
+
+  updateChecklist: (id: string, data: UpdateChecklistRequest) =>
+    request<ComplianceChecklist>(`/regulatory/checklists/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  batchChecklistItems: (checklistId: string, items: ChecklistItemInput[]) =>
+    request<ComplianceChecklistItem[]>(`/regulatory/checklists/${checklistId}/items`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
+
+  updateChecklistItem: (checklistId: string, itemId: string, data: Record<string, unknown>) =>
+    request<ComplianceChecklistItem>(`/regulatory/checklists/${checklistId}/items/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // ADR Reports
+  listAdrReports: (params?: { status?: string; severity?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.severity) sp.set("severity", params.severity);
+    const qs = sp.toString();
+    return request<AdrReport[]>(`/regulatory/adr-reports${qs ? `?${qs}` : ""}`);
+  },
+
+  createAdrReport: (data: CreateAdrRequest) =>
+    request<AdrReport>("/regulatory/adr-reports", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getAdrReport: (id: string) => request<AdrReport>(`/regulatory/adr-reports/${id}`),
+
+  updateAdrReport: (id: string, data: UpdateAdrRequest) =>
+    request<AdrReport>(`/regulatory/adr-reports/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  submitAdrToPvpi: (id: string) =>
+    request<AdrReport>(`/regulatory/adr-reports/${id}/submit`, {
+      method: "POST",
+    }),
+
+  // Materiovigilance
+  listMvReports: (params?: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<MateriovigilanceReport[]>(`/regulatory/materiovigilance${qs ? `?${qs}` : ""}`);
+  },
+
+  createMvReport: (data: CreateMvRequest) =>
+    request<MateriovigilanceReport>("/regulatory/materiovigilance", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getMvReport: (id: string) =>
+    request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}`),
+
+  updateMvReport: (id: string, data: UpdateMvRequest) =>
+    request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  submitMvToCdsco: (id: string) =>
+    request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}/submit`, {
+      method: "POST",
+    }),
+
+  // PCPNDT Forms
+  listPcpndtForms: (params?: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<PcpndtForm[]>(`/regulatory/pcpndt-forms${qs ? `?${qs}` : ""}`);
+  },
+
+  createPcpndtForm: (data: CreatePcpndtRequest) =>
+    request<PcpndtForm>("/regulatory/pcpndt-forms", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getPcpndtForm: (id: string) => request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`),
+
+  updatePcpndtForm: (id: string, data: UpdatePcpndtRequest) =>
+    request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getPcpndtQuarterly: () => request<PcpndtQuarterlySummary>("/regulatory/pcpndt-forms/quarterly"),
+
+  // Compliance Calendar
+  listCalendarEvents: (params?: {
+    status?: string;
+    department_id?: string;
+    from_date?: string;
+    to_date?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<ComplianceCalendarEvent[]>(`/regulatory/calendar${qs ? `?${qs}` : ""}`);
+  },
+
+  createCalendarEvent: (data: CreateCalendarEventRequest) =>
+    request<ComplianceCalendarEvent>("/regulatory/calendar", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateCalendarEvent: (id: string, data: UpdateCalendarEventRequest) =>
+    request<ComplianceCalendarEvent>(`/regulatory/calendar/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getOverdueCalendarEvents: () =>
+    request<ComplianceCalendarEvent[]>("/regulatory/calendar/overdue"),
+
+  // ── Order Sets ──────────────────────────────────────
+
+  listOrderSetTemplates: (params?: {
+    context?: string;
+    department_id?: string;
+    search?: string;
+    is_active?: boolean;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.context) sp.set("context", params.context);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.search) sp.set("search", params.search);
+    if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
+    const qs = sp.toString();
+    return request<OrderSetTemplate[]>(`/order-sets/templates${qs ? `?${qs}` : ""}`);
+  },
+
+  getOrderSetTemplate: (id: string) => request<TemplateWithItems>(`/order-sets/templates/${id}`),
+
+  createOrderSetTemplate: (data: CreateOrderSetTemplateRequest) =>
+    request<OrderSetTemplate>("/order-sets/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateOrderSetTemplate: (id: string, data: UpdateOrderSetTemplateRequest) =>
+    request<OrderSetTemplate>(`/order-sets/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteOrderSetTemplate: (id: string) =>
+    request<OrderSetTemplate>(`/order-sets/templates/${id}`, {
+      method: "DELETE",
+    }),
+
+  addOrderSetItem: (templateId: string, data: AddOrderSetItemRequest) =>
+    request<OrderSetTemplateItem>(`/order-sets/templates/${templateId}/items`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateOrderSetItem: (templateId: string, itemId: string, data: UpdateOrderSetItemRequest) =>
+    request<OrderSetTemplateItem>(`/order-sets/templates/${templateId}/items/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteOrderSetItem: (templateId: string, itemId: string) =>
+    request<{ deleted: boolean }>(`/order-sets/templates/${templateId}/items/${itemId}`, {
+      method: "DELETE",
+    }),
+
+  createOrderSetVersion: (id: string) =>
+    request<TemplateWithItems>(`/order-sets/templates/${id}/new-version`, {
+      method: "POST",
+    }),
+
+  approveOrderSetTemplate: (id: string) =>
+    request<OrderSetTemplate>(`/order-sets/templates/${id}/approve`, {
+      method: "PUT",
+    }),
+
+  listOrderSetVersions: (id: string) =>
+    request<OrderSetTemplate[]>(`/order-sets/templates/${id}/versions`),
+
+  suggestOrderSets: (params?: { icd_code?: string; context?: string; department_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.icd_code) sp.set("icd_code", params.icd_code);
+    if (params?.context) sp.set("context", params.context);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    const qs = sp.toString();
+    return request<OrderSetTemplate[]>(`/order-sets/suggest${qs ? `?${qs}` : ""}`);
+  },
+
+  activateOrderSet: (data: ActivateOrderSetRequest) =>
+    request<ActivationResult>("/order-sets/activate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listOrderSetActivations: (params?: {
+    encounter_id?: string;
+    patient_id?: string;
+    template_id?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.encounter_id) sp.set("encounter_id", params.encounter_id);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.template_id) sp.set("template_id", params.template_id);
+    const qs = sp.toString();
+    return request<OrderSetActivation[]>(`/order-sets/activations${qs ? `?${qs}` : ""}`);
+  },
+
+  getOrderSetActivation: (id: string) =>
+    request<ActivationWithItems>(`/order-sets/activations/${id}`),
+
+  getOrderSetAnalytics: () => request<OrderSetAnalyticsSummary>("/order-sets/analytics"),
+
+  getOrderSetTemplateAnalytics: (templateId: string) =>
+    request<OrderSetUsageStats[]>(`/order-sets/analytics/${templateId}`),
+
+  // ── Insurance & TPA ─────────────────────────────────────
+
+  // Verification
+  listVerifications: (params?: {
+    patient_id?: string;
+    status?: string;
+    from_date?: string;
+    to_date?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<InsuranceVerification[]>(`/insurance/verifications${qs ? `?${qs}` : ""}`);
+  },
+
+  runVerification: (data: RunVerificationRequest) =>
+    request<InsuranceVerification>("/insurance/verifications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getVerification: (id: string) => request<InsuranceVerification>(`/insurance/verifications/${id}`),
+
+  getPatientBenefits: (patientId: string) =>
+    request<InsuranceVerification>(`/insurance/verifications/patient/${patientId}/benefits`),
+
+  // Prior Auth
+  listPriorAuths: (params?: {
+    patient_id?: string;
+    status?: string;
+    urgency?: string;
+    from_date?: string;
+    to_date?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.urgency) sp.set("urgency", params.urgency);
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<PriorAuthRequestRow[]>(`/insurance/prior-auths${qs ? `?${qs}` : ""}`);
+  },
+
+  getPriorAuth: (id: string) => request<PriorAuthDetail>(`/insurance/prior-auths/${id}`),
+
+  createPriorAuth: (data: CreatePriorAuthRequestBody) =>
+    request<PriorAuthRequestRow>("/insurance/prior-auths", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updatePriorAuth: (id: string, data: UpdatePriorAuthRequestBody) =>
+    request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  submitPriorAuth: (id: string) =>
+    request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/submit`, {
+      method: "POST",
+    }),
+
+  respondPriorAuth: (id: string, data: RespondPriorAuthRequest) =>
+    request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/respond`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  cancelPriorAuth: (id: string) =>
+    request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/cancel`, {
+      method: "POST",
+    }),
+
+  checkPaRequired: (data: CheckPaRequiredRequest) =>
+    request<PaCheckResult>("/insurance/check-pa", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Documents
+  listPaDocuments: (paId: string) =>
+    request<PriorAuthDocument[]>(`/insurance/prior-auths/${paId}/documents`),
+
+  attachPaDocument: (paId: string, data: AttachDocumentRequest) =>
+    request<PriorAuthDocument>(`/insurance/prior-auths/${paId}/documents`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  removePaDocument: (paId: string, docId: string) =>
+    request<{ deleted: boolean }>(`/insurance/prior-auths/${paId}/documents/${docId}`, {
+      method: "DELETE",
+    }),
+
+  // Appeals
+  listAppeals: (params?: { prior_auth_id?: string; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.prior_auth_id) sp.set("prior_auth_id", params.prior_auth_id);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<PriorAuthAppeal[]>(`/insurance/appeals${qs ? `?${qs}` : ""}`);
+  },
+
+  createAppeal: (data: CreateAppealRequest) =>
+    request<PriorAuthAppeal>("/insurance/appeals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateAppeal: (id: string, data: UpdateAppealRequest) =>
+    request<PriorAuthAppeal>(`/insurance/appeals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // PA Rules
+  listPaRules: () => request<PaRequirementRule[]>("/insurance/rules"),
+
+  createPaRule: (data: CreatePaRuleRequest) =>
+    request<PaRequirementRule>("/insurance/rules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updatePaRule: (id: string, data: UpdatePaRuleRequest) =>
+    request<PaRequirementRule>(`/insurance/rules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Dashboard
+  getInsuranceDashboard: () => request<InsuranceDashboard>("/insurance/dashboard"),
+
+  // ── IPD Phase 2b ──────────────────────────────────────────
+
+  // IP Type Configuration
+  listIpTypes: () => request<IpTypeConfiguration[]>("/ipd/ip-types"),
+
+  createIpType: (data: CreateIpTypeRequest) =>
+    request<IpTypeConfiguration>("/ipd/ip-types", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateIpType: (id: string, data: UpdateIpTypeRequest) =>
+    request<IpTypeConfiguration>(`/ipd/ip-types/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Admission Checklists
+  listAdmissionChecklist: (admissionId: string) =>
+    request<AdmissionChecklist[]>(`/ipd/admissions/${admissionId}/checklist`),
+
+  createAdmissionChecklist: (admissionId: string, data: CreateChecklistItemsRequest) =>
+    request<AdmissionChecklist[]>(`/ipd/admissions/${admissionId}/checklist`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  toggleChecklistItem: (admissionId: string, itemId: string, data: ToggleChecklistItemRequest) =>
+    request<AdmissionChecklist>(`/ipd/admissions/${admissionId}/checklist/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Bed Reservations
+  listBedReservations: (params?: { status?: string; bed_id?: string; patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.bed_id) sp.set("bed_id", params.bed_id);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<BedReservation[]>(`/ipd/bed-reservations${qs ? `?${qs}` : ""}`);
+  },
+
+  createBedReservation: (data: CreateBedReservationRequest) =>
+    request<BedReservation>("/ipd/bed-reservations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateBedReservationStatus: (id: string, data: UpdateBedReservationStatusRequest) =>
+    request<BedReservation>(`/ipd/bed-reservations/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  listBedReservationsForBed: (bedId: string) =>
+    request<BedReservation[]>(`/ipd/beds/${bedId}/reservations`),
+
+  // Bed Turnaround
+  listBedTurnaround: (params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    const qs = sp.toString();
+    return request<BedTurnaroundLog[]>(`/ipd/bed-turnaround${qs ? `?${qs}` : ""}`);
+  },
+
+  createBedTurnaround: (data: CreateBedTurnaroundRequest) =>
+    request<BedTurnaroundLog>("/ipd/bed-turnaround", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  completeBedTurnaround: (id: string) =>
+    request<BedTurnaroundLog>(`/ipd/bed-turnaround/${id}/complete`, {
+      method: "POST",
+    }),
+
+  // Clinical Documentation
+  listClinicalDocs: (admissionId: string, params?: { doc_type?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.doc_type) sp.set("doc_type", params.doc_type);
+    const qs = sp.toString();
+    return request<IpdClinicalDocumentation[]>(
+      `/ipd/admissions/${admissionId}/clinical-docs${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  createClinicalDoc: (admissionId: string, data: CreateClinicalDocRequest) =>
+    request<IpdClinicalDocumentation>(`/ipd/admissions/${admissionId}/clinical-docs`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateClinicalDoc: (admissionId: string, docId: string, data: UpdateClinicalDocRequest) =>
+    request<IpdClinicalDocumentation>(`/ipd/admissions/${admissionId}/clinical-docs/${docId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  resolveClinicalDoc: (admissionId: string, docId: string) =>
+    request<IpdClinicalDocumentation>(
+      `/ipd/admissions/${admissionId}/clinical-docs/${docId}/resolve`,
+      {
         method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateEndoscopyScope: (id: string, data: Partial<CreateEndoscopyScopeRequest> & { status?: ScopeStatus }) =>
-      request<EndoscopyScope>(`/specialty/endoscopy/scopes/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listEndoscopyReprocessing: (params?: { scope_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.scope_id) sp.set("scope_id", params.scope_id);
-      const qs = sp.toString();
-      return request<EndoscopyReprocessing[]>(`/specialty/endoscopy/reprocessing${qs ? `?${qs}` : ""}`);
+      },
+    ),
+
+  // Restraint Monitoring
+  listRestraintChecks: (admissionId: string, docId: string) =>
+    request<RestraintMonitoringLog[]>(`/ipd/admissions/${admissionId}/restraint-checks/${docId}`),
+
+  createRestraintCheck: (admissionId: string, data: CreateRestraintCheckRequest) =>
+    request<RestraintMonitoringLog>(`/ipd/admissions/${admissionId}/restraint-checks`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Transfers
+  listTransfers: (admissionId: string) =>
+    request<IpdTransferLog[]>(`/ipd/admissions/${admissionId}/transfers`),
+
+  createTransfer: (admissionId: string, data: CreateTransferRequest) =>
+    request<IpdTransferLog>(`/ipd/admissions/${admissionId}/transfers`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Death Summary
+  getDeathSummary: (admissionId: string) =>
+    request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`),
+
+  createDeathSummary: (admissionId: string, data: CreateDeathSummaryRequest) =>
+    request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateDeathSummary: (admissionId: string, data: UpdateDeathSummaryRequest) =>
+    request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Birth Records
+  listBirthRecords: (admissionId: string) =>
+    request<IpdBirthRecord[]>(`/ipd/admissions/${admissionId}/birth-records`),
+
+  createBirthRecord: (admissionId: string, data: CreateBirthRecordRequest) =>
+    request<IpdBirthRecord>(`/ipd/admissions/${admissionId}/birth-records`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateBirthRecord: (admissionId: string, recId: string, data: UpdateBirthRecordRequest) =>
+    request<IpdBirthRecord>(`/ipd/admissions/${admissionId}/birth-records/${recId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Discharge TAT
+  getDischargeTat: (admissionId: string) =>
+    request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`),
+
+  initiateDischargeTat: (admissionId: string, data?: InitDischargeTatRequest) =>
+    request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  updateDischargeTat: (admissionId: string, data: UpdateDischargeTatRequest) =>
+    request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // OT Consumables
+  listOtConsumables: (bookingId: string) =>
+    request<OtConsumableUsage[]>(`/ot/bookings/${bookingId}/consumables`),
+
+  createOtConsumable: (bookingId: string, data: CreateOtConsumableRequest) =>
+    request<OtConsumableUsage>(`/ot/bookings/${bookingId}/consumables`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deleteOtConsumable: (bookingId: string, itemId: string) =>
+    request<{ deleted: boolean }>(`/ot/bookings/${bookingId}/consumables/${itemId}`, {
+      method: "DELETE",
+    }),
+
+  // OT Analytics
+  otUtilization: (params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    const qs = sp.toString();
+    return request<RoomUtilization[]>(`/ot/analytics/utilization${qs ? `?${qs}` : ""}`);
+  },
+
+  getSurgeonCaseload: (params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    const qs = sp.toString();
+    return request<SurgeonCaseloadEntry[]>(`/ot/analytics/surgeon-caseload${qs ? `?${qs}` : ""}`);
+  },
+
+  listAnesthesiaComplications: (params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    const qs = sp.toString();
+    return request<AnesthesiaComplicationEntry[]>(
+      `/ot/analytics/anesthesia-complications${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  // IPD Phase 3a — Cross-module reads
+  getAdmissionInvestigations: (admissionId: string) =>
+    request<InvestigationsResponse>(`/ipd/admissions/${admissionId}/investigations`),
+
+  getEstimatedCost: (admissionId: string) =>
+    request<EstimatedCostResponse>(`/ipd/admissions/${admissionId}/estimated-cost`),
+
+  getAdmissionAdvances: (admissionId: string) =>
+    request<Receipt[]>(`/ipd/admissions/${admissionId}/advances`),
+
+  getAdmissionPriorAuth: (admissionId: string) =>
+    request<PriorAuthRequestRow[]>(`/ipd/admissions/${admissionId}/prior-auth`),
+
+  linkMlc: (admissionId: string, data: LinkMlcRequest) =>
+    request<Admission>(`/ipd/admissions/${admissionId}/mlc`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getAdmissionMlc: (admissionId: string) =>
+    request<MlcCase | null>(`/ipd/admissions/${admissionId}/mlc`),
+
+  getAdmissionBillingSummary: (admissionId: string) =>
+    request<BillingSummaryResponse>(`/ipd/admissions/${admissionId}/billing-summary`),
+
+  getAdmissionPrintData: (admissionId: string) =>
+    request<AdmissionPrintData>(`/ipd/admissions/${admissionId}/print`),
+
+  getAdmissionDietOrders: (admissionId: string) =>
+    request<DietOrder[]>(`/ipd/admissions/${admissionId}/diet-orders`),
+
+  getAdmissionConsents: (admissionId: string) =>
+    request<ProcedureConsent[]>(`/ipd/admissions/${admissionId}/consents`),
+
+  // ── Care View / Ward Dashboard ──────────────────────────
+
+  wardPatientGrid: (wardId?: string) =>
+    request<WardGridResponse>(`/care-view/ward-grid${wardId ? `?ward_id=${wardId}` : ""}`),
+
+  careViewMyTasks: (params?: { ward_id?: string; category?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.ward_id) sp.set("ward_id", params.ward_id);
+    if (params?.category) sp.set("category", params.category);
+    const qs = sp.toString();
+    return request<MyTasksResponse>(`/care-view/my-tasks${qs ? `?${qs}` : ""}`);
+  },
+
+  vitalsChecklist: (wardId?: string) =>
+    request<VitalsChecklistRow[]>(
+      `/care-view/vitals-checklist${wardId ? `?ward_id=${wardId}` : ""}`,
+    ),
+
+  handoverSummary: (wardId: string, shift: string) =>
+    request<HandoverSummaryResponse>(`/care-view/handover?ward_id=${wardId}&shift=${shift}`),
+
+  dischargeReadiness: (wardId?: string) =>
+    request<DischargeReadinessRow[]>(
+      `/care-view/discharge-tracker${wardId ? `?ward_id=${wardId}` : ""}`,
+    ),
+
+  completeCareViewTask: (taskId: string) =>
+    request<{ completed: boolean }>(`/care-view/tasks/${taskId}/complete`, {
+      method: "POST",
+    }),
+
+  updatePrimaryNurse: (admissionId: string, body: UpdatePrimaryNurseRequest) =>
+    request<{ updated: boolean }>(`/care-view/admissions/${admissionId}/primary-nurse`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  // ── Chronic Care / Drug-o-gram ──────────────────────────
+
+  listChronicPrograms: (params?: {
+    program_type?: string;
+    is_active?: boolean;
+    search?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.program_type) sp.set("program_type", params.program_type);
+    if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
+    if (params?.search) sp.set("search", params.search);
+    const qs = sp.toString();
+    return request<ChronicProgram[]>(`/chronic-care/programs${qs ? `?${qs}` : ""}`);
+  },
+
+  createChronicProgram: (data: CreateChronicProgramRequest) =>
+    request<ChronicProgram>("/chronic-care/programs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateChronicProgram: (
+    id: string,
+    data: Partial<CreateChronicProgramRequest> & { is_active?: boolean },
+  ) =>
+    request<ChronicProgram>(`/chronic-care/programs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteChronicProgram: (id: string) =>
+    request<{ deleted: boolean }>(`/chronic-care/programs/${id}`, {
+      method: "DELETE",
+    }),
+
+  listChronicEnrollments: (params?: {
+    program_type?: string;
+    status?: string;
+    doctor_id?: string;
+    search?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.program_type) sp.set("program_type", params.program_type);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.doctor_id) sp.set("doctor_id", params.doctor_id);
+    if (params?.search) sp.set("search", params.search);
+    const qs = sp.toString();
+    return request<ChronicEnrollmentRow[]>(`/chronic-care/enrollments${qs ? `?${qs}` : ""}`);
+  },
+
+  patientEnrollments: (patientId: string) =>
+    request<ChronicEnrollmentRow[]>(`/chronic-care/patients/${patientId}/enrollments`),
+
+  createEnrollment: (data: CreateChronicEnrollmentRequest) =>
+    request<{ id: string }>("/chronic-care/enrollments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateEnrollment: (
+    id: string,
+    data: {
+      primary_doctor_id?: string;
+      expected_end_date?: string;
+      target_overrides?: unknown;
+      notes?: string;
     },
-    createEndoscopyReprocessing: (data: CreateEndoscopyReprocessingRequest) =>
-      request<EndoscopyReprocessing>("/specialty/endoscopy/reprocessing", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listBiopsySpecimens: (procedureId: string) =>
-      request<EndoscopyBiopsySpecimen[]>(`/specialty/endoscopy/procedures/${procedureId}/biopsies`),
-    createBiopsySpecimen: (procedureId: string, data: CreateEndoscopyBiopsyRequest) =>
-      request<EndoscopyBiopsySpecimen>(`/specialty/endoscopy/procedures/${procedureId}/biopsies`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Specialty Clinical: Psychiatry ──────────────────────────
-
-    listPsychPatients: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<PsychPatient[]>(`/specialty/psychiatry/patients${qs ? `?${qs}` : ""}`);
-    },
-    getPsychPatient: (id: string) =>
-      request<PsychPatient>(`/specialty/psychiatry/patients/${id}`),
-    createPsychPatient: (data: CreatePsychPatientRequest) =>
-      request<PsychPatient>("/specialty/psychiatry/patients", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updatePsychPatient: (id: string, data: Partial<CreatePsychPatientRequest>) =>
-      request<PsychPatient>(`/specialty/psychiatry/patients/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listPsychAssessments: (patientId: string) =>
-      request<PsychAssessment[]>(`/specialty/psychiatry/patients/${patientId}/assessments`),
-    createPsychAssessment: (patientId: string, data: CreatePsychAssessmentRequest) =>
-      request<PsychAssessment>(`/specialty/psychiatry/patients/${patientId}/assessments`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listEctSessions: (patientId: string) =>
-      request<PsychEctSession[]>(`/specialty/psychiatry/patients/${patientId}/ect`),
-    createEctSession: (patientId: string, data: CreatePsychEctRequest) =>
-      request<PsychEctSession>(`/specialty/psychiatry/patients/${patientId}/ect`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listRestraints: (patientId: string) =>
-      request<PsychRestraint[]>(`/specialty/psychiatry/patients/${patientId}/restraints`),
-    createRestraint: (patientId: string, data: CreatePsychRestraintRequest) =>
-      request<PsychRestraint>(`/specialty/psychiatry/patients/${patientId}/restraints`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    releaseRestraint: (id: string) =>
-      request<PsychRestraint>(`/specialty/psychiatry/restraints/${id}/release`, {
-        method: "PUT",
-      }),
-    listMhrbNotifications: (patientId: string) =>
-      request<PsychMhrbNotification[]>(`/specialty/psychiatry/patients/${patientId}/mhrb`),
-    createMhrbNotification: (patientId: string, data: CreatePsychMhrbRequest) =>
-      request<PsychMhrbNotification>(`/specialty/psychiatry/patients/${patientId}/mhrb`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateMhrbNotification: (id: string, data: Partial<CreatePsychMhrbRequest> & { status?: string }) =>
-      request<PsychMhrbNotification>(`/specialty/psychiatry/mhrb/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listCounselingSessions: (patientId: string) =>
-      request<PsychCounselingSession[]>(`/specialty/psychiatry/patients/${patientId}/counseling`),
-    createCounselingSession: (patientId: string, data: CreatePsychCounselingRequest) =>
-      request<PsychCounselingSession>(`/specialty/psychiatry/patients/${patientId}/counseling`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Specialty Clinical: Maternity ───────────────────────────
-
-    listMaternityRegistrations: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<MaternityRegistration[]>(`/specialty/maternity/registrations${qs ? `?${qs}` : ""}`);
-    },
-    getMaternityRegistration: (id: string) =>
-      request<MaternityRegistration>(`/specialty/maternity/registrations/${id}`),
-    createMaternityRegistration: (data: CreateMaternityRegistrationRequest) =>
-      request<MaternityRegistration>("/specialty/maternity/registrations", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listAncVisits: (registrationId: string) =>
-      request<AncVisit[]>(`/specialty/maternity/registrations/${registrationId}/anc`),
-    createAncVisit: (registrationId: string, data: CreateAncVisitRequest) =>
-      request<AncVisit>(`/specialty/maternity/registrations/${registrationId}/anc`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listLaborRecords: (registrationId: string) =>
-      request<LaborRecord[]>(`/specialty/maternity/registrations/${registrationId}/labor`),
-    createLaborRecord: (registrationId: string, data: CreateLaborRecordRequest) =>
-      request<LaborRecord>(`/specialty/maternity/registrations/${registrationId}/labor`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateLaborRecord: (id: string, data: Partial<CreateLaborRecordRequest> & { delivery_type?: DeliveryType; apgar_1min?: number; apgar_5min?: number; baby_weight_gm?: number }) =>
-      request<LaborRecord>(`/specialty/maternity/labor/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listNewborns: (laborId: string) =>
-      request<NewbornRecord[]>(`/specialty/maternity/labor/${laborId}/newborns`),
-    createNewborn: (laborId: string, data: CreateNewbornRecordRequest) =>
-      request<NewbornRecord>(`/specialty/maternity/labor/${laborId}/newborns`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listPostnatalRecords: (registrationId: string) =>
-      request<PostnatalRecord[]>(`/specialty/maternity/registrations/${registrationId}/postnatal`),
-    createPostnatalRecord: (registrationId: string, data: CreatePostnatalRecordRequest) =>
-      request<PostnatalRecord>(`/specialty/maternity/registrations/${registrationId}/postnatal`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Specialty Clinical: PMR / Audiology ─────────────────────
-
-    listRehabPlans: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<RehabPlan[]>(`/specialty/pmr/rehab-plans${qs ? `?${qs}` : ""}`);
-    },
-    createRehabPlan: (data: CreateRehabPlanRequest) =>
-      request<RehabPlan>("/specialty/pmr/rehab-plans", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listRehabSessions: (planId: string) =>
-      request<RehabSession[]>(`/specialty/pmr/rehab-plans/${planId}/sessions`),
-    createRehabSession: (planId: string, data: CreateRehabSessionRequest) =>
-      request<RehabSession>(`/specialty/pmr/rehab-plans/${planId}/sessions`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listAudiologyTests: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<AudiologyTest[]>(`/specialty/pmr/audiology${qs ? `?${qs}` : ""}`);
-    },
-    createAudiologyTest: (data: CreateAudiologyTestRequest) =>
-      request<AudiologyTest>("/specialty/pmr/audiology", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listPsychometricTests: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<PsychometricTest[]>(`/specialty/pmr/psychometric${qs ? `?${qs}` : ""}`);
-    },
-    createPsychometricTest: (data: CreatePsychometricTestRequest) =>
-      request<PsychometricTest>("/specialty/pmr/psychometric", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Specialty Clinical: Palliative / Mortuary / Nuclear Med ──
-
-    listDnrOrders: (params?: { patient_id?: string; status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<DnrOrder[]>(`/specialty/palliative/dnr${qs ? `?${qs}` : ""}`);
-    },
-    createDnrOrder: (data: CreateDnrOrderRequest) =>
-      request<DnrOrder>("/specialty/palliative/dnr", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    revokeDnrOrder: (id: string) =>
-      request<DnrOrder>(`/specialty/palliative/dnr/${id}/revoke`, {
-        method: "PUT",
-      }),
-    listPainAssessments: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<PainAssessment[]>(`/specialty/palliative/pain${qs ? `?${qs}` : ""}`);
-    },
-    createPainAssessment: (data: CreatePainAssessmentRequest) =>
-      request<PainAssessment>("/specialty/palliative/pain", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listMortuaryRecords: (params?: { status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<MortuaryRecord[]>(`/specialty/mortuary/records${qs ? `?${qs}` : ""}`);
-    },
-    createMortuaryRecord: (data: CreateMortuaryRecordRequest) =>
-      request<MortuaryRecord>("/specialty/mortuary/records", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateMortuaryRecord: (id: string, data: Partial<CreateMortuaryRecordRequest> & { status?: BodyStatus; pm_requested?: boolean; pm_conducted_by?: string; pm_date?: string; pm_findings?: string }) =>
-      request<MortuaryRecord>(`/specialty/mortuary/records/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listNuclearSources: () =>
-      request<NuclearMedSource[]>("/specialty/nuclear-med/sources"),
-    createNuclearSource: (data: CreateNuclearMedSourceRequest) =>
-      request<NuclearMedSource>("/specialty/nuclear-med/sources", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listNuclearAdministrations: (params?: { patient_id?: string; source_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.source_id) sp.set("source_id", params.source_id);
-      const qs = sp.toString();
-      return request<NuclearMedAdministration[]>(`/specialty/nuclear-med/administrations${qs ? `?${qs}` : ""}`);
-    },
-    createNuclearAdministration: (data: CreateNuclearMedAdminRequest) =>
-      request<NuclearMedAdministration>("/specialty/nuclear-med/administrations", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Specialty Clinical: Other Specialties ───────────────────
-
-    listSpecialtyTemplates: (params?: { specialty?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.specialty) sp.set("specialty", params.specialty);
-      const qs = sp.toString();
-      return request<SpecialtyTemplate[]>(`/specialty/templates${qs ? `?${qs}` : ""}`);
-    },
-    createSpecialtyTemplate: (data: CreateSpecialtyTemplateRequest) =>
-      request<SpecialtyTemplate>("/specialty/templates", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listSpecialtyRecords: (params?: { patient_id?: string; specialty?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.specialty) sp.set("specialty", params.specialty);
-      const qs = sp.toString();
-      return request<SpecialtyRecord[]>(`/specialty/records${qs ? `?${qs}` : ""}`);
-    },
-    createSpecialtyRecord: (data: CreateSpecialtyRecordRequest) =>
-      request<SpecialtyRecord>("/specialty/records", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listDialysisSessions: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<DialysisSession[]>(`/specialty/dialysis/sessions${qs ? `?${qs}` : ""}`);
-    },
-    createDialysisSession: (data: CreateDialysisSessionRequest) =>
-      request<DialysisSession>("/specialty/dialysis/sessions", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateDialysisSession: (id: string, data: Partial<CreateDialysisSessionRequest> & { post_weight_kg?: number; uf_achieved_ml?: number; post_vitals?: Record<string, unknown>; kt_v?: number; urr_pct?: number }) =>
-      request<DialysisSession>(`/specialty/dialysis/sessions/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    listChemoProtocols: (params?: { patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<ChemoProtocol[]>(`/specialty/chemo/protocols${qs ? `?${qs}` : ""}`);
-    },
-    createChemoProtocol: (data: CreateChemoProtocolRequest) =>
-      request<ChemoProtocol>("/specialty/chemo/protocols", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    updateChemoProtocol: (id: string, data: Partial<CreateChemoProtocolRequest>) =>
-      request<ChemoProtocol>(`/specialty/chemo/protocols/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Documents Module ─────────────────────────────────────
-
-    // Templates
-    listDocumentTemplates: (params?: { category?: string; module_code?: string; is_active?: boolean }) => {
-      const sp = new URLSearchParams();
-      if (params?.category) sp.set("category", params.category);
-      if (params?.module_code) sp.set("module_code", params.module_code);
-      if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
-      const qs = sp.toString();
-      return request<DocumentTemplate[]>(`/documents/templates${qs ? `?${qs}` : ""}`);
-    },
-    createDocumentTemplate: (data: CreateDocumentTemplateRequest) =>
-      request<DocumentTemplate>("/documents/templates", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    getDocumentTemplate: (id: string) =>
-      request<DocumentTemplate>(`/documents/templates/${id}`),
-    updateDocumentTemplate: (id: string, data: UpdateDocumentTemplateRequest) =>
-      request<DocumentTemplate>(`/documents/templates/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-    deleteDocumentTemplate: (id: string) =>
-      request<{ status: string }>(`/documents/templates/${id}`, {
-        method: "DELETE",
-      }),
-    listTemplateVersions: (id: string) =>
-      request<DocumentTemplateVersion[]>(`/documents/templates/${id}/versions`),
-    listDefaultTemplates: () =>
-      request<DocumentTemplate[]>("/documents/templates/defaults"),
-    setDefaultTemplate: (id: string) =>
-      request<DocumentTemplate>(`/documents/templates/${id}/set-default`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      }),
-
-    // Document Generation
-    generateDocument: (data: GenerateDocumentRequest) =>
-      request<DocumentOutput>("/documents/generate", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    previewDocument: (data: GenerateDocumentRequest) =>
-      request<DocumentOutput>("/documents/generate/preview", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    batchGenerateDocuments: (data: BatchGenerateRequest) =>
-      request<DocumentOutput[]>("/documents/generate/batch", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Document Outputs
-    listDocumentOutputs: (params?: { category?: string; status?: string; patient_id?: string; module_code?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.category) sp.set("category", params.category);
-      if (params?.status) sp.set("status", params.status);
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.module_code) sp.set("module_code", params.module_code);
-      const qs = sp.toString();
-      return request<DocumentOutput[]>(`/documents/outputs${qs ? `?${qs}` : ""}`);
-    },
-    getDocumentOutput: (id: string) =>
-      request<DocumentOutput>(`/documents/outputs/${id}`),
-    recordDocumentPrint: (id: string) =>
-      request<DocumentOutput>(`/documents/outputs/${id}/print`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      }),
-    voidDocumentOutput: (id: string, data: VoidDocumentRequest) =>
-      request<DocumentOutput>(`/documents/outputs/${id}/void`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listPatientDocumentOutputs: (patientId: string) =>
-      request<DocumentOutput[]>(`/documents/outputs/patient/${patientId}`),
-    getDocumentOutputStats: () =>
-      request<DocumentOutputStats>("/documents/outputs/stats"),
-
-    // Document Signatures
-    listDocumentSignatures: (docId: string) =>
-      request<DocumentOutputSignature[]>(`/documents/outputs/${docId}/signatures`),
-    addDocumentSignature: (docId: string, data: AddDocumentSignatureRequest) =>
-      request<DocumentOutputSignature>(`/documents/outputs/${docId}/signatures`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    deleteDocumentSignature: (docId: string, sigId: string) =>
-      request<{ status: string }>(`/documents/outputs/${docId}/signatures/${sigId}`, {
-        method: "DELETE",
-      }),
-
-    // Review Schedule
-    listReviewSchedule: (params?: { template_id?: string; review_status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.template_id) sp.set("template_id", params.template_id);
-      if (params?.review_status) sp.set("review_status", params.review_status);
-      const qs = sp.toString();
-      return request<DocumentFormReviewSchedule[]>(`/documents/review-schedule${qs ? `?${qs}` : ""}`);
-    },
-    createReviewSchedule: (data: CreateReviewScheduleRequest) =>
-      request<DocumentFormReviewSchedule>("/documents/review-schedule", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    markReviewed: (id: string) =>
-      request<DocumentFormReviewSchedule>(`/documents/review-schedule/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({}),
-      }),
-
-    // Printers & Print Jobs
-    listPrinters: () =>
-      request<unknown[]>("/documents/printers"),
-    createPrinter: (data: Record<string, unknown>) =>
-      request<unknown>("/documents/printers", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    listPrintJobs: () =>
-      request<unknown[]>("/documents/print-jobs"),
-    updatePrintJob: (id: string, data: Record<string, unknown>) =>
-      request<unknown>(`/documents/print-jobs/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // ── Regulatory & Compliance ──────────────────────────────
-
-    // Dashboard
-    getRegulatoryDashboard: () =>
-      request<ComplianceDashboard>("/regulatory/dashboard"),
-
-    getDepartmentCompliance: (deptId: string) =>
-      request<ComplianceChecklist[]>(`/regulatory/dashboard/department/${deptId}`),
-
-    getComplianceGaps: () =>
-      request<ComplianceGap[]>("/regulatory/dashboard/gaps"),
-
-    // Checklists
-    listChecklists: (params?: { department_id?: string; accreditation_body?: string; status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.department_id) sp.set("department_id", params.department_id);
-      if (params?.accreditation_body) sp.set("accreditation_body", params.accreditation_body);
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<ComplianceChecklist[]>(`/regulatory/checklists${qs ? `?${qs}` : ""}`);
-    },
-
-    createChecklist: (data: CreateChecklistRequest) =>
-      request<ComplianceChecklist>("/regulatory/checklists", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    getChecklist: (id: string) =>
-      request<ComplianceChecklistWithItems>(`/regulatory/checklists/${id}`),
-
-    updateChecklist: (id: string, data: UpdateChecklistRequest) =>
-      request<ComplianceChecklist>(`/regulatory/checklists/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    batchChecklistItems: (checklistId: string, items: ChecklistItemInput[]) =>
-      request<ComplianceChecklistItem[]>(`/regulatory/checklists/${checklistId}/items`, {
-        method: "POST",
-        body: JSON.stringify({ items }),
-      }),
-
-    updateChecklistItem: (checklistId: string, itemId: string, data: Record<string, unknown>) =>
-      request<ComplianceChecklistItem>(`/regulatory/checklists/${checklistId}/items/${itemId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // ADR Reports
-    listAdrReports: (params?: { status?: string; severity?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      if (params?.severity) sp.set("severity", params.severity);
-      const qs = sp.toString();
-      return request<AdrReport[]>(`/regulatory/adr-reports${qs ? `?${qs}` : ""}`);
-    },
-
-    createAdrReport: (data: CreateAdrRequest) =>
-      request<AdrReport>("/regulatory/adr-reports", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    getAdrReport: (id: string) =>
-      request<AdrReport>(`/regulatory/adr-reports/${id}`),
-
-    updateAdrReport: (id: string, data: UpdateAdrRequest) =>
-      request<AdrReport>(`/regulatory/adr-reports/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    submitAdrToPvpi: (id: string) =>
-      request<AdrReport>(`/regulatory/adr-reports/${id}/submit`, {
-        method: "POST",
-      }),
-
-    // Materiovigilance
-    listMvReports: (params?: { status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<MateriovigilanceReport[]>(`/regulatory/materiovigilance${qs ? `?${qs}` : ""}`);
-    },
-
-    createMvReport: (data: CreateMvRequest) =>
-      request<MateriovigilanceReport>("/regulatory/materiovigilance", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    getMvReport: (id: string) =>
-      request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}`),
-
-    updateMvReport: (id: string, data: UpdateMvRequest) =>
-      request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    submitMvToCdsco: (id: string) =>
-      request<MateriovigilanceReport>(`/regulatory/materiovigilance/${id}/submit`, {
-        method: "POST",
-      }),
-
-    // PCPNDT Forms
-    listPcpndtForms: (params?: { status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<PcpndtForm[]>(`/regulatory/pcpndt-forms${qs ? `?${qs}` : ""}`);
-    },
-
-    createPcpndtForm: (data: CreatePcpndtRequest) =>
-      request<PcpndtForm>("/regulatory/pcpndt-forms", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    getPcpndtForm: (id: string) =>
-      request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`),
-
-    updatePcpndtForm: (id: string, data: UpdatePcpndtRequest) =>
-      request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    getPcpndtQuarterly: () =>
-      request<PcpndtQuarterlySummary>("/regulatory/pcpndt-forms/quarterly"),
-
-    // Compliance Calendar
-    listCalendarEvents: (params?: { status?: string; department_id?: string; from_date?: string; to_date?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      if (params?.department_id) sp.set("department_id", params.department_id);
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      const qs = sp.toString();
-      return request<ComplianceCalendarEvent[]>(`/regulatory/calendar${qs ? `?${qs}` : ""}`);
-    },
-
-    createCalendarEvent: (data: CreateCalendarEventRequest) =>
-      request<ComplianceCalendarEvent>("/regulatory/calendar", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateCalendarEvent: (id: string, data: UpdateCalendarEventRequest) =>
-      request<ComplianceCalendarEvent>(`/regulatory/calendar/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    getOverdueCalendarEvents: () =>
-      request<ComplianceCalendarEvent[]>("/regulatory/calendar/overdue"),
-
-    // ── Order Sets ──────────────────────────────────────
-
-    listOrderSetTemplates: (params?: { context?: string; department_id?: string; search?: string; is_active?: boolean }) => {
-      const sp = new URLSearchParams();
-      if (params?.context) sp.set("context", params.context);
-      if (params?.department_id) sp.set("department_id", params.department_id);
-      if (params?.search) sp.set("search", params.search);
-      if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
-      const qs = sp.toString();
-      return request<OrderSetTemplate[]>(`/order-sets/templates${qs ? `?${qs}` : ""}`);
-    },
-
-    getOrderSetTemplate: (id: string) =>
-      request<TemplateWithItems>(`/order-sets/templates/${id}`),
-
-    createOrderSetTemplate: (data: CreateOrderSetTemplateRequest) =>
-      request<OrderSetTemplate>("/order-sets/templates", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateOrderSetTemplate: (id: string, data: UpdateOrderSetTemplateRequest) =>
-      request<OrderSetTemplate>(`/order-sets/templates/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    deleteOrderSetTemplate: (id: string) =>
-      request<OrderSetTemplate>(`/order-sets/templates/${id}`, {
-        method: "DELETE",
-      }),
-
-    addOrderSetItem: (templateId: string, data: AddOrderSetItemRequest) =>
-      request<OrderSetTemplateItem>(`/order-sets/templates/${templateId}/items`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateOrderSetItem: (templateId: string, itemId: string, data: UpdateOrderSetItemRequest) =>
-      request<OrderSetTemplateItem>(`/order-sets/templates/${templateId}/items/${itemId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    deleteOrderSetItem: (templateId: string, itemId: string) =>
-      request<{ deleted: boolean }>(`/order-sets/templates/${templateId}/items/${itemId}`, {
-        method: "DELETE",
-      }),
-
-    createOrderSetVersion: (id: string) =>
-      request<TemplateWithItems>(`/order-sets/templates/${id}/new-version`, {
-        method: "POST",
-      }),
-
-    approveOrderSetTemplate: (id: string) =>
-      request<OrderSetTemplate>(`/order-sets/templates/${id}/approve`, {
-        method: "PUT",
-      }),
-
-    listOrderSetVersions: (id: string) =>
-      request<OrderSetTemplate[]>(`/order-sets/templates/${id}/versions`),
-
-    suggestOrderSets: (params?: { icd_code?: string; context?: string; department_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.icd_code) sp.set("icd_code", params.icd_code);
-      if (params?.context) sp.set("context", params.context);
-      if (params?.department_id) sp.set("department_id", params.department_id);
-      const qs = sp.toString();
-      return request<OrderSetTemplate[]>(`/order-sets/suggest${qs ? `?${qs}` : ""}`);
-    },
-
-    activateOrderSet: (data: ActivateOrderSetRequest) =>
-      request<ActivationResult>("/order-sets/activate", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    listOrderSetActivations: (params?: { encounter_id?: string; patient_id?: string; template_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.encounter_id) sp.set("encounter_id", params.encounter_id);
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.template_id) sp.set("template_id", params.template_id);
-      const qs = sp.toString();
-      return request<OrderSetActivation[]>(`/order-sets/activations${qs ? `?${qs}` : ""}`);
-    },
-
-    getOrderSetActivation: (id: string) =>
-      request<ActivationWithItems>(`/order-sets/activations/${id}`),
-
-    getOrderSetAnalytics: () =>
-      request<OrderSetAnalyticsSummary>("/order-sets/analytics"),
-
-    getOrderSetTemplateAnalytics: (templateId: string) =>
-      request<OrderSetUsageStats[]>(`/order-sets/analytics/${templateId}`),
-
-    // ── Insurance & TPA ─────────────────────────────────────
-
-    // Verification
-    listVerifications: (params?: { patient_id?: string; status?: string; from_date?: string; to_date?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.status) sp.set("status", params.status);
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      const qs = sp.toString();
-      return request<InsuranceVerification[]>(`/insurance/verifications${qs ? `?${qs}` : ""}`);
-    },
-
-    runVerification: (data: RunVerificationRequest) =>
-      request<InsuranceVerification>("/insurance/verifications", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    getVerification: (id: string) =>
-      request<InsuranceVerification>(`/insurance/verifications/${id}`),
-
-    getPatientBenefits: (patientId: string) =>
-      request<InsuranceVerification>(`/insurance/verifications/patient/${patientId}/benefits`),
-
-    // Prior Auth
-    listPriorAuths: (params?: { patient_id?: string; status?: string; urgency?: string; from_date?: string; to_date?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      if (params?.status) sp.set("status", params.status);
-      if (params?.urgency) sp.set("urgency", params.urgency);
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      const qs = sp.toString();
-      return request<PriorAuthRequestRow[]>(`/insurance/prior-auths${qs ? `?${qs}` : ""}`);
-    },
-
-    getPriorAuth: (id: string) =>
-      request<PriorAuthDetail>(`/insurance/prior-auths/${id}`),
-
-    createPriorAuth: (data: CreatePriorAuthRequestBody) =>
-      request<PriorAuthRequestRow>("/insurance/prior-auths", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updatePriorAuth: (id: string, data: UpdatePriorAuthRequestBody) =>
-      request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    submitPriorAuth: (id: string) =>
-      request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/submit`, {
-        method: "POST",
-      }),
-
-    respondPriorAuth: (id: string, data: RespondPriorAuthRequest) =>
-      request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/respond`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    cancelPriorAuth: (id: string) =>
-      request<PriorAuthRequestRow>(`/insurance/prior-auths/${id}/cancel`, {
-        method: "POST",
-      }),
-
-    checkPaRequired: (data: CheckPaRequiredRequest) =>
-      request<PaCheckResult>("/insurance/check-pa", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Documents
-    listPaDocuments: (paId: string) =>
-      request<PriorAuthDocument[]>(`/insurance/prior-auths/${paId}/documents`),
-
-    attachPaDocument: (paId: string, data: AttachDocumentRequest) =>
-      request<PriorAuthDocument>(`/insurance/prior-auths/${paId}/documents`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    removePaDocument: (paId: string, docId: string) =>
-      request<{ deleted: boolean }>(`/insurance/prior-auths/${paId}/documents/${docId}`, {
-        method: "DELETE",
-      }),
-
-    // Appeals
-    listAppeals: (params?: { prior_auth_id?: string; status?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.prior_auth_id) sp.set("prior_auth_id", params.prior_auth_id);
-      if (params?.status) sp.set("status", params.status);
-      const qs = sp.toString();
-      return request<PriorAuthAppeal[]>(`/insurance/appeals${qs ? `?${qs}` : ""}`);
-    },
-
-    createAppeal: (data: CreateAppealRequest) =>
-      request<PriorAuthAppeal>("/insurance/appeals", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateAppeal: (id: string, data: UpdateAppealRequest) =>
-      request<PriorAuthAppeal>(`/insurance/appeals/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // PA Rules
-    listPaRules: () =>
-      request<PaRequirementRule[]>("/insurance/rules"),
-
-    createPaRule: (data: CreatePaRuleRequest) =>
-      request<PaRequirementRule>("/insurance/rules", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updatePaRule: (id: string, data: UpdatePaRuleRequest) =>
-      request<PaRequirementRule>(`/insurance/rules/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // Dashboard
-    getInsuranceDashboard: () =>
-      request<InsuranceDashboard>("/insurance/dashboard"),
-
-    // ── IPD Phase 2b ──────────────────────────────────────────
-
-    // IP Type Configuration
-    listIpTypes: () =>
-      request<IpTypeConfiguration[]>("/ipd/ip-types"),
-
-    createIpType: (data: CreateIpTypeRequest) =>
-      request<IpTypeConfiguration>("/ipd/ip-types", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateIpType: (id: string, data: UpdateIpTypeRequest) =>
-      request<IpTypeConfiguration>(`/ipd/ip-types/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // Admission Checklists
-    listAdmissionChecklist: (admissionId: string) =>
-      request<AdmissionChecklist[]>(`/ipd/admissions/${admissionId}/checklist`),
-
-    createAdmissionChecklist: (admissionId: string, data: CreateChecklistItemsRequest) =>
-      request<AdmissionChecklist[]>(`/ipd/admissions/${admissionId}/checklist`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    toggleChecklistItem: (admissionId: string, itemId: string, data: ToggleChecklistItemRequest) =>
-      request<AdmissionChecklist>(`/ipd/admissions/${admissionId}/checklist/${itemId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // Bed Reservations
-    listBedReservations: (params?: { status?: string; bed_id?: string; patient_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      if (params?.bed_id) sp.set("bed_id", params.bed_id);
-      if (params?.patient_id) sp.set("patient_id", params.patient_id);
-      const qs = sp.toString();
-      return request<BedReservation[]>(`/ipd/bed-reservations${qs ? `?${qs}` : ""}`);
-    },
-
-    createBedReservation: (data: CreateBedReservationRequest) =>
-      request<BedReservation>("/ipd/bed-reservations", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateBedReservationStatus: (id: string, data: UpdateBedReservationStatusRequest) =>
-      request<BedReservation>(`/ipd/bed-reservations/${id}/status`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    listBedReservationsForBed: (bedId: string) =>
-      request<BedReservation[]>(`/ipd/beds/${bedId}/reservations`),
-
-    // Bed Turnaround
-    listBedTurnaround: (params?: { from?: string; to?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from) sp.set("from", params.from);
-      if (params?.to) sp.set("to", params.to);
-      const qs = sp.toString();
-      return request<BedTurnaroundLog[]>(`/ipd/bed-turnaround${qs ? `?${qs}` : ""}`);
-    },
-
-    createBedTurnaround: (data: CreateBedTurnaroundRequest) =>
-      request<BedTurnaroundLog>("/ipd/bed-turnaround", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    completeBedTurnaround: (id: string) =>
-      request<BedTurnaroundLog>(`/ipd/bed-turnaround/${id}/complete`, {
-        method: "POST",
-      }),
-
-    // Clinical Documentation
-    listClinicalDocs: (admissionId: string, params?: { doc_type?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.doc_type) sp.set("doc_type", params.doc_type);
-      const qs = sp.toString();
-      return request<IpdClinicalDocumentation[]>(`/ipd/admissions/${admissionId}/clinical-docs${qs ? `?${qs}` : ""}`);
-    },
-
-    createClinicalDoc: (admissionId: string, data: CreateClinicalDocRequest) =>
-      request<IpdClinicalDocumentation>(`/ipd/admissions/${admissionId}/clinical-docs`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateClinicalDoc: (admissionId: string, docId: string, data: UpdateClinicalDocRequest) =>
-      request<IpdClinicalDocumentation>(`/ipd/admissions/${admissionId}/clinical-docs/${docId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    resolveClinicalDoc: (admissionId: string, docId: string) =>
-      request<IpdClinicalDocumentation>(`/ipd/admissions/${admissionId}/clinical-docs/${docId}/resolve`, {
-        method: "POST",
-      }),
-
-    // Restraint Monitoring
-    listRestraintChecks: (admissionId: string, docId: string) =>
-      request<RestraintMonitoringLog[]>(`/ipd/admissions/${admissionId}/restraint-checks/${docId}`),
-
-    createRestraintCheck: (admissionId: string, data: CreateRestraintCheckRequest) =>
-      request<RestraintMonitoringLog>(`/ipd/admissions/${admissionId}/restraint-checks`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Transfers
-    listTransfers: (admissionId: string) =>
-      request<IpdTransferLog[]>(`/ipd/admissions/${admissionId}/transfers`),
-
-    createTransfer: (admissionId: string, data: CreateTransferRequest) =>
-      request<IpdTransferLog>(`/ipd/admissions/${admissionId}/transfers`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Death Summary
-    getDeathSummary: (admissionId: string) =>
-      request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`),
-
-    createDeathSummary: (admissionId: string, data: CreateDeathSummaryRequest) =>
-      request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateDeathSummary: (admissionId: string, data: UpdateDeathSummaryRequest) =>
-      request<IpdDeathSummary>(`/ipd/admissions/${admissionId}/death-summary`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // Birth Records
-    listBirthRecords: (admissionId: string) =>
-      request<IpdBirthRecord[]>(`/ipd/admissions/${admissionId}/birth-records`),
-
-    createBirthRecord: (admissionId: string, data: CreateBirthRecordRequest) =>
-      request<IpdBirthRecord>(`/ipd/admissions/${admissionId}/birth-records`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateBirthRecord: (admissionId: string, recId: string, data: UpdateBirthRecordRequest) =>
-      request<IpdBirthRecord>(`/ipd/admissions/${admissionId}/birth-records/${recId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // Discharge TAT
-    getDischargeTat: (admissionId: string) =>
-      request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`),
-
-    initiateDischargeTat: (admissionId: string, data?: InitDischargeTatRequest) =>
-      request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`, {
-        method: "POST",
-        body: JSON.stringify(data ?? {}),
-      }),
-
-    updateDischargeTat: (admissionId: string, data: UpdateDischargeTatRequest) =>
-      request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    // OT Consumables
-    listOtConsumables: (bookingId: string) =>
-      request<OtConsumableUsage[]>(`/ot/bookings/${bookingId}/consumables`),
-
-    createOtConsumable: (bookingId: string, data: CreateOtConsumableRequest) =>
-      request<OtConsumableUsage>(`/ot/bookings/${bookingId}/consumables`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    deleteOtConsumable: (bookingId: string, itemId: string) =>
-      request<{ deleted: boolean }>(`/ot/bookings/${bookingId}/consumables/${itemId}`, {
-        method: "DELETE",
-      }),
-
-    // OT Analytics
-    otUtilization: (params?: { from?: string; to?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from) sp.set("from", params.from);
-      if (params?.to) sp.set("to", params.to);
-      const qs = sp.toString();
-      return request<RoomUtilization[]>(`/ot/analytics/utilization${qs ? `?${qs}` : ""}`);
-    },
-
-    getSurgeonCaseload: (params?: { from?: string; to?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from) sp.set("from", params.from);
-      if (params?.to) sp.set("to", params.to);
-      const qs = sp.toString();
-      return request<SurgeonCaseloadEntry[]>(`/ot/analytics/surgeon-caseload${qs ? `?${qs}` : ""}`);
-    },
-
-    listAnesthesiaComplications: (params?: { from?: string; to?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from) sp.set("from", params.from);
-      if (params?.to) sp.set("to", params.to);
-      const qs = sp.toString();
-      return request<AnesthesiaComplicationEntry[]>(`/ot/analytics/anesthesia-complications${qs ? `?${qs}` : ""}`);
-    },
-
-    // IPD Phase 3a — Cross-module reads
-    getAdmissionInvestigations: (admissionId: string) =>
-      request<InvestigationsResponse>(`/ipd/admissions/${admissionId}/investigations`),
-
-    getEstimatedCost: (admissionId: string) =>
-      request<EstimatedCostResponse>(`/ipd/admissions/${admissionId}/estimated-cost`),
-
-    getAdmissionAdvances: (admissionId: string) =>
-      request<Receipt[]>(`/ipd/admissions/${admissionId}/advances`),
-
-    getAdmissionPriorAuth: (admissionId: string) =>
-      request<PriorAuthRequestRow[]>(`/ipd/admissions/${admissionId}/prior-auth`),
-
-    linkMlc: (admissionId: string, data: LinkMlcRequest) =>
-      request<Admission>(`/ipd/admissions/${admissionId}/mlc`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    getAdmissionMlc: (admissionId: string) =>
-      request<MlcCase | null>(`/ipd/admissions/${admissionId}/mlc`),
-
-    getAdmissionBillingSummary: (admissionId: string) =>
-      request<BillingSummaryResponse>(`/ipd/admissions/${admissionId}/billing-summary`),
-
-    getAdmissionPrintData: (admissionId: string) =>
-      request<AdmissionPrintData>(`/ipd/admissions/${admissionId}/print`),
-
-    getAdmissionDietOrders: (admissionId: string) =>
-      request<DietOrder[]>(`/ipd/admissions/${admissionId}/diet-orders`),
-
-    getAdmissionConsents: (admissionId: string) =>
-      request<ProcedureConsent[]>(`/ipd/admissions/${admissionId}/consents`),
-
-    // ── Care View / Ward Dashboard ──────────────────────────
-
-    wardPatientGrid: (wardId?: string) =>
-      request<WardGridResponse>(
-        `/care-view/ward-grid${wardId ? `?ward_id=${wardId}` : ""}`,
-      ),
-
-    careViewMyTasks: (params?: { ward_id?: string; category?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.ward_id) sp.set("ward_id", params.ward_id);
-      if (params?.category) sp.set("category", params.category);
-      const qs = sp.toString();
-      return request<MyTasksResponse>(`/care-view/my-tasks${qs ? `?${qs}` : ""}`);
-    },
-
-    vitalsChecklist: (wardId?: string) =>
-      request<VitalsChecklistRow[]>(
-        `/care-view/vitals-checklist${wardId ? `?ward_id=${wardId}` : ""}`,
-      ),
-
-    handoverSummary: (wardId: string, shift: string) =>
-      request<HandoverSummaryResponse>(
-        `/care-view/handover?ward_id=${wardId}&shift=${shift}`,
-      ),
-
-    dischargeReadiness: (wardId?: string) =>
-      request<DischargeReadinessRow[]>(
-        `/care-view/discharge-tracker${wardId ? `?ward_id=${wardId}` : ""}`,
-      ),
-
-    completeCareViewTask: (taskId: string) =>
-      request<{ completed: boolean }>(`/care-view/tasks/${taskId}/complete`, {
-        method: "POST",
-      }),
-
-    updatePrimaryNurse: (admissionId: string, body: UpdatePrimaryNurseRequest) =>
-      request<{ updated: boolean }>(
-        `/care-view/admissions/${admissionId}/primary-nurse`,
-        { method: "PUT", body: JSON.stringify(body) },
-      ),
-
-    // ── Chronic Care / Drug-o-gram ──────────────────────────
-
-    listChronicPrograms: (params?: { program_type?: string; is_active?: boolean; search?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.program_type) sp.set("program_type", params.program_type);
-      if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
-      if (params?.search) sp.set("search", params.search);
-      const qs = sp.toString();
-      return request<ChronicProgram[]>(`/chronic-care/programs${qs ? `?${qs}` : ""}`);
-    },
-
-    createChronicProgram: (data: CreateChronicProgramRequest) =>
-      request<ChronicProgram>("/chronic-care/programs", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateChronicProgram: (id: string, data: Partial<CreateChronicProgramRequest> & { is_active?: boolean }) =>
-      request<ChronicProgram>(`/chronic-care/programs/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    deleteChronicProgram: (id: string) =>
-      request<{ deleted: boolean }>(`/chronic-care/programs/${id}`, {
-        method: "DELETE",
-      }),
-
-    listChronicEnrollments: (params?: { program_type?: string; status?: string; doctor_id?: string; search?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.program_type) sp.set("program_type", params.program_type);
-      if (params?.status) sp.set("status", params.status);
-      if (params?.doctor_id) sp.set("doctor_id", params.doctor_id);
-      if (params?.search) sp.set("search", params.search);
-      const qs = sp.toString();
-      return request<ChronicEnrollmentRow[]>(`/chronic-care/enrollments${qs ? `?${qs}` : ""}`);
-    },
-
-    patientEnrollments: (patientId: string) =>
-      request<ChronicEnrollmentRow[]>(`/chronic-care/patients/${patientId}/enrollments`),
-
-    createEnrollment: (data: CreateChronicEnrollmentRequest) =>
-      request<{ id: string }>("/chronic-care/enrollments", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateEnrollment: (id: string, data: { primary_doctor_id?: string; expected_end_date?: string; target_overrides?: unknown; notes?: string }) =>
-      request<{ updated: boolean }>(`/chronic-care/enrollments/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    updateEnrollmentStatus: (id: string, data: UpdateEnrollmentStatusRequest) =>
-      request<{ updated: boolean }>(`/chronic-care/enrollments/${id}/status`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    drugTimeline: (patientId: string, params?: { from_date?: string; to_date?: string; enrollment_id?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      if (params?.enrollment_id) sp.set("enrollment_id", params.enrollment_id);
-      const qs = sp.toString();
-      return request<MedicationTimelineEvent[]>(`/chronic-care/patients/${patientId}/drug-timeline${qs ? `?${qs}` : ""}`);
-    },
-
-    drugTimelineWithLabs: (patientId: string, params?: { from_date?: string; to_date?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      const qs = sp.toString();
-      return request<DrugTimelineWithLabsResponse>(`/chronic-care/patients/${patientId}/drug-timeline/with-labs${qs ? `?${qs}` : ""}`);
-    },
-
-    createTimelineEvent: (data: CreateTimelineEventRequest) =>
-      request<{ id: string }>("/chronic-care/timeline-events", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    listAdherence: (enrollmentId: string, params?: { event_type?: string; from_date?: string; to_date?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.event_type) sp.set("event_type", params.event_type);
-      if (params?.from_date) sp.set("from_date", params.from_date);
-      if (params?.to_date) sp.set("to_date", params.to_date);
-      const qs = sp.toString();
-      return request<AdherenceRow[]>(`/chronic-care/enrollments/${enrollmentId}/adherence${qs ? `?${qs}` : ""}`);
-    },
-
-    recordAdherence: (data: RecordAdherenceRequest) =>
-      request<{ id: string }>("/chronic-care/adherence", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    adherenceSummary: (enrollmentId: string) =>
-      request<AdherenceSummaryResponse>(`/chronic-care/enrollments/${enrollmentId}/adherence-summary`),
-
-    listOutcomeTargets: (patientId: string) =>
-      request<PatientOutcomeTarget[]>(`/chronic-care/patients/${patientId}/targets`),
-
-    createOutcomeTarget: (data: CreateOutcomeTargetRequest) =>
-      request<{ id: string }>("/chronic-care/targets", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    updateOutcomeTarget: (id: string, data: UpdateOutcomeTargetRequest) =>
-      request<{ updated: boolean }>(`/chronic-care/targets/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    outcomeDashboard: (patientId: string) =>
-      request<OutcomeDashboardResponse>(`/chronic-care/patients/${patientId}/outcome-dashboard`),
-
-    listInteractionAlerts: (patientId: string) =>
-      request<PolypharmacyInteractionAlert[]>(`/chronic-care/patients/${patientId}/interaction-alerts`),
-
-    checkPolypharmacy: (patientId: string) =>
-      request<PolypharmacyInteractionAlert[]>(`/chronic-care/patients/${patientId}/check-interactions`, {
-        method: "POST",
-      }),
-
-    acknowledgeAlert: (id: string, data: { status: string; override_reason?: string }) =>
-      request<{ updated: boolean }>(`/chronic-care/interaction-alerts/${id}/acknowledge`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    treatmentSummary: (patientId: string) =>
-      request<TreatmentSummaryResponse>(`/chronic-care/patients/${patientId}/treatment-summary`),
+  ) =>
+    request<{ updated: boolean }>(`/chronic-care/enrollments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  updateEnrollmentStatus: (id: string, data: UpdateEnrollmentStatusRequest) =>
+    request<{ updated: boolean }>(`/chronic-care/enrollments/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  drugTimeline: (
+    patientId: string,
+    params?: { from_date?: string; to_date?: string; enrollment_id?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    if (params?.enrollment_id) sp.set("enrollment_id", params.enrollment_id);
+    const qs = sp.toString();
+    return request<MedicationTimelineEvent[]>(
+      `/chronic-care/patients/${patientId}/drug-timeline${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  drugTimelineWithLabs: (patientId: string, params?: { from_date?: string; to_date?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<DrugTimelineWithLabsResponse>(
+      `/chronic-care/patients/${patientId}/drug-timeline/with-labs${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  createTimelineEvent: (data: CreateTimelineEventRequest) =>
+    request<{ id: string }>("/chronic-care/timeline-events", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listAdherence: (
+    enrollmentId: string,
+    params?: { event_type?: string; from_date?: string; to_date?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.event_type) sp.set("event_type", params.event_type);
+    if (params?.from_date) sp.set("from_date", params.from_date);
+    if (params?.to_date) sp.set("to_date", params.to_date);
+    const qs = sp.toString();
+    return request<AdherenceRow[]>(
+      `/chronic-care/enrollments/${enrollmentId}/adherence${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  recordAdherence: (data: RecordAdherenceRequest) =>
+    request<{ id: string }>("/chronic-care/adherence", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adherenceSummary: (enrollmentId: string) =>
+    request<AdherenceSummaryResponse>(
+      `/chronic-care/enrollments/${enrollmentId}/adherence-summary`,
+    ),
+
+  listOutcomeTargets: (patientId: string) =>
+    request<PatientOutcomeTarget[]>(`/chronic-care/patients/${patientId}/targets`),
+
+  createOutcomeTarget: (data: CreateOutcomeTargetRequest) =>
+    request<{ id: string }>("/chronic-care/targets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateOutcomeTarget: (id: string, data: UpdateOutcomeTargetRequest) =>
+    request<{ updated: boolean }>(`/chronic-care/targets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  outcomeDashboard: (patientId: string) =>
+    request<OutcomeDashboardResponse>(`/chronic-care/patients/${patientId}/outcome-dashboard`),
+
+  listInteractionAlerts: (patientId: string) =>
+    request<PolypharmacyInteractionAlert[]>(
+      `/chronic-care/patients/${patientId}/interaction-alerts`,
+    ),
+
+  checkPolypharmacy: (patientId: string) =>
+    request<PolypharmacyInteractionAlert[]>(
+      `/chronic-care/patients/${patientId}/check-interactions`,
+      {
+        method: "POST",
+      },
+    ),
+
+  acknowledgeAlert: (id: string, data: { status: string; override_reason?: string }) =>
+    request<{ updated: boolean }>(`/chronic-care/interaction-alerts/${id}/acknowledge`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  treatmentSummary: (patientId: string) =>
+    request<TreatmentSummaryResponse>(`/chronic-care/patients/${patientId}/treatment-summary`),
 
   // ══════════════════════════════════════════════════════════
   //  Retrospective Data Entry
   // ══════════════════════════════════════════════════════════
 
-    getRetroSettings: () =>
-      request<RetrospectiveSettings>("/retrospective/settings"),
+  getRetroSettings: () => request<RetrospectiveSettings>("/retrospective/settings"),
 
-    updateRetroSettings: (data: Partial<RetrospectiveSettings>) =>
-      request<{ updated: boolean }>("/retrospective/settings", {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
+  updateRetroSettings: (data: Partial<RetrospectiveSettings>) =>
+    request<{ updated: boolean }>("/retrospective/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-    createRetroEncounter: (data: CreateRetroEncounterRequest) =>
-      request<{ encounter_id: string; retrospective_entry_id: string; status: string }>("/retrospective/encounters", {
+  createRetroEncounter: (data: CreateRetroEncounterRequest) =>
+    request<{ encounter_id: string; retrospective_entry_id: string; status: string }>(
+      "/retrospective/encounters",
+      {
         method: "POST",
         body: JSON.stringify(data),
-      }),
+      },
+    ),
 
-    listRetroEntries: (params?: { status?: string; source_table?: string }) => {
-      const sp = new URLSearchParams();
-      if (params?.status) sp.set("status", params.status);
-      if (params?.source_table) sp.set("source_table", params.source_table);
-      const qs = sp.toString();
-      return request<RetrospectiveEntry[]>(`/retrospective/entries${qs ? `?${qs}` : ""}`);
-    },
+  listRetroEntries: (params?: { status?: string; source_table?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.source_table) sp.set("source_table", params.source_table);
+    const qs = sp.toString();
+    return request<RetrospectiveEntry[]>(`/retrospective/entries${qs ? `?${qs}` : ""}`);
+  },
 
-    getRetroEntry: (id: string) =>
-      request<RetrospectiveEntry>(`/retrospective/entries/${id}`),
+  getRetroEntry: (id: string) => request<RetrospectiveEntry>(`/retrospective/entries/${id}`),
 
-    approveRetroEntry: (id: string, data?: ApproveRejectRequest) =>
-      request<{ approved: boolean }>(`/retrospective/entries/${id}/approve`, {
-        method: "PUT",
-        body: JSON.stringify(data ?? {}),
-      }),
+  approveRetroEntry: (id: string, data?: ApproveRejectRequest) =>
+    request<{ approved: boolean }>(`/retrospective/entries/${id}/approve`, {
+      method: "PUT",
+      body: JSON.stringify(data ?? {}),
+    }),
 
-    rejectRetroEntry: (id: string, data?: ApproveRejectRequest) =>
-      request<{ rejected: boolean }>(`/retrospective/entries/${id}/reject`, {
-        method: "PUT",
-        body: JSON.stringify(data ?? {}),
-      }),
+  rejectRetroEntry: (id: string, data?: ApproveRejectRequest) =>
+    request<{ rejected: boolean }>(`/retrospective/entries/${id}/reject`, {
+      method: "PUT",
+      body: JSON.stringify(data ?? {}),
+    }),
 
-    retroAuditTrail: (sourceTable: string, sourceId: string) =>
-      request<RetrospectiveEntry[]>(`/retrospective/audit/${sourceTable}/${sourceId}`),
+  retroAuditTrail: (sourceTable: string, sourceId: string) =>
+    request<RetrospectiveEntry[]>(`/retrospective/audit/${sourceTable}/${sourceId}`),
 
   // ══════════════════════════════════════════════════════════
   //  Occupational Health
@@ -8822,16 +9203,20 @@ export const api = {
   },
 
   createOccScreening: (data: CreateOccScreeningRequest) =>
-    request<OccHealthScreening>("/occ-health/screenings", { method: "POST", body: JSON.stringify(data) }),
+    request<OccHealthScreening>("/occ-health/screenings", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listDueScreenings: () =>
-    request<OccHealthScreening[]>("/occ-health/screenings/due"),
+  listDueScreenings: () => request<OccHealthScreening[]>("/occ-health/screenings/due"),
 
-  getOccScreening: (id: string) =>
-    request<OccHealthScreening>(`/occ-health/screenings/${id}`),
+  getOccScreening: (id: string) => request<OccHealthScreening>(`/occ-health/screenings/${id}`),
 
   updateOccScreening: (id: string, data: UpdateOccScreeningRequest) =>
-    request<OccHealthScreening>(`/occ-health/screenings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<OccHealthScreening>(`/occ-health/screenings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listDrugScreens: (params?: { employee_id?: string; status?: string }) => {
     const sp = new URLSearchParams();
@@ -8842,10 +9227,16 @@ export const api = {
   },
 
   createDrugScreen: (data: CreateDrugScreenRequest) =>
-    request<OccHealthDrugScreen>("/occ-health/drug-screens", { method: "POST", body: JSON.stringify(data) }),
+    request<OccHealthDrugScreen>("/occ-health/drug-screens", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateDrugScreen: (id: string, data: UpdateDrugScreenRequest) =>
-    request<OccHealthDrugScreen>(`/occ-health/drug-screens/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<OccHealthDrugScreen>(`/occ-health/drug-screens/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listVaccinations: (params?: { employee_id?: string; vaccine_name?: string }) => {
     const sp = new URLSearchParams();
@@ -8856,15 +9247,25 @@ export const api = {
   },
 
   createVaccination: (data: CreateVaccinationRequest) =>
-    request<OccHealthVaccination>("/occ-health/vaccinations", { method: "POST", body: JSON.stringify(data) }),
+    request<OccHealthVaccination>("/occ-health/vaccinations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateVaccination: (id: string, data: Partial<CreateVaccinationRequest>) =>
-    request<OccHealthVaccination>(`/occ-health/vaccinations/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<OccHealthVaccination>(`/occ-health/vaccinations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   vaccinationCompliance: () =>
     request<VaccinationComplianceRow[]>("/occ-health/vaccinations/compliance"),
 
-  listInjuries: (params?: { employee_id?: string; rtw_status?: string; is_osha_recordable?: string }) => {
+  listInjuries: (params?: {
+    employee_id?: string;
+    rtw_status?: string;
+    is_osha_recordable?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.employee_id) sp.set("employee_id", params.employee_id);
     if (params?.rtw_status) sp.set("rtw_status", params.rtw_status);
@@ -8874,10 +9275,16 @@ export const api = {
   },
 
   createInjury: (data: CreateInjuryRequest) =>
-    request<OccHealthInjuryReport>("/occ-health/injuries", { method: "POST", body: JSON.stringify(data) }),
+    request<OccHealthInjuryReport>("/occ-health/injuries", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateInjury: (id: string, data: UpdateInjuryRequest) =>
-    request<OccHealthInjuryReport>(`/occ-health/injuries/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<OccHealthInjuryReport>(`/occ-health/injuries/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   getEmployerView: (id: string) =>
     request<EmployerViewResponse>(`/occ-health/injuries/${id}/employer-view`),
@@ -8886,7 +9293,12 @@ export const api = {
   //  Utilization Review
   // ══════════════════════════════════════════════════════════
 
-  listUrReviews: (params?: { admission_id?: string; review_type?: string; decision?: string; is_outlier?: string }) => {
+  listUrReviews: (params?: {
+    admission_id?: string;
+    review_type?: string;
+    decision?: string;
+    is_outlier?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.admission_id) sp.set("admission_id", params.admission_id);
     if (params?.review_type) sp.set("review_type", params.review_type);
@@ -8897,19 +9309,25 @@ export const api = {
   },
 
   createUrReview: (data: CreateUrReviewRequest) =>
-    request<UtilizationReview>("/utilization-review/reviews", { method: "POST", body: JSON.stringify(data) }),
+    request<UtilizationReview>("/utilization-review/reviews", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listUrOutliers: () =>
-    request<UtilizationReview[]>("/utilization-review/reviews/outliers"),
+  listUrOutliers: () => request<UtilizationReview[]>("/utilization-review/reviews/outliers"),
 
-  getUrReview: (id: string) =>
-    request<UtilizationReview>(`/utilization-review/reviews/${id}`),
+  getUrReview: (id: string) => request<UtilizationReview>(`/utilization-review/reviews/${id}`),
 
   updateUrReview: (id: string, data: UpdateUrReviewRequest) =>
-    request<UtilizationReview>(`/utilization-review/reviews/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<UtilizationReview>(`/utilization-review/reviews/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   aiExtractStub: (id: string) =>
-    request<{ status: string; message: string }>(`/utilization-review/reviews/${id}/ai-extract`, { method: "POST" }),
+    request<{ status: string; message: string }>(`/utilization-review/reviews/${id}/ai-extract`, {
+      method: "POST",
+    }),
 
   listUrByAdmission: (admissionId: string) =>
     request<UtilizationReview[]>(`/utilization-review/reviews/admission/${admissionId}`),
@@ -8918,14 +9336,22 @@ export const api = {
     const sp = new URLSearchParams();
     if (params?.review_id) sp.set("review_id", params.review_id);
     const qs = sp.toString();
-    return request<UrPayerCommunication[]>(`/utilization-review/communications${qs ? `?${qs}` : ""}`);
+    return request<UrPayerCommunication[]>(
+      `/utilization-review/communications${qs ? `?${qs}` : ""}`,
+    );
   },
 
   createUrCommunication: (data: CreateUrCommunicationRequest) =>
-    request<UrPayerCommunication>("/utilization-review/communications", { method: "POST", body: JSON.stringify(data) }),
+    request<UrPayerCommunication>("/utilization-review/communications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateUrCommunication: (id: string, data: Partial<CreateUrCommunicationRequest>) =>
-    request<UrPayerCommunication>(`/utilization-review/communications/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<UrPayerCommunication>(`/utilization-review/communications/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listUrConversions: (params?: { admission_id?: string }) => {
     const sp = new URLSearchParams();
@@ -8935,10 +9361,12 @@ export const api = {
   },
 
   createUrConversion: (data: CreateUrConversionRequest) =>
-    request<UrStatusConversion>("/utilization-review/conversions", { method: "POST", body: JSON.stringify(data) }),
+    request<UrStatusConversion>("/utilization-review/conversions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  urAnalyticsSummary: () =>
-    request<UrAnalyticsSummary>("/utilization-review/analytics"),
+  urAnalyticsSummary: () => request<UrAnalyticsSummary>("/utilization-review/analytics"),
 
   urLosComparison: () =>
     request<LosComparisonRow[]>("/utilization-review/analytics/los-comparison"),
@@ -8947,7 +9375,11 @@ export const api = {
   //  Case Management
   // ══════════════════════════════════════════════════════════
 
-  listCaseAssignments: (params?: { case_manager_id?: string; status?: string; priority?: string }) => {
+  listCaseAssignments: (params?: {
+    case_manager_id?: string;
+    status?: string;
+    priority?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.case_manager_id) sp.set("case_manager_id", params.case_manager_id);
     if (params?.status) sp.set("status", params.status);
@@ -8957,21 +9389,32 @@ export const api = {
   },
 
   createCaseAssignment: (data: CreateCaseAssignmentRequest) =>
-    request<CaseAssignment>("/case-mgmt/assignments", { method: "POST", body: JSON.stringify(data) }),
+    request<CaseAssignment>("/case-mgmt/assignments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  getCaseAssignment: (id: string) =>
-    request<CaseAssignment>(`/case-mgmt/assignments/${id}`),
+  getCaseAssignment: (id: string) => request<CaseAssignment>(`/case-mgmt/assignments/${id}`),
 
   updateCaseAssignment: (id: string, data: UpdateCaseAssignmentRequest) =>
-    request<CaseAssignment>(`/case-mgmt/assignments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CaseAssignment>(`/case-mgmt/assignments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  caseloadSummary: () =>
-    request<CaseloadRow[]>("/case-mgmt/caseload"),
+  caseloadSummary: () => request<CaseloadRow[]>("/case-mgmt/caseload"),
 
   autoAssignCase: (data: AutoAssignRequest) =>
-    request<CaseAssignment>("/case-mgmt/auto-assign", { method: "POST", body: JSON.stringify(data) }),
+    request<CaseAssignment>("/case-mgmt/auto-assign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listDischargeBarriers: (params?: { case_assignment_id?: string; barrier_type?: string; is_resolved?: string }) => {
+  listDischargeBarriers: (params?: {
+    case_assignment_id?: string;
+    barrier_type?: string;
+    is_resolved?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.case_assignment_id) sp.set("case_assignment_id", params.case_assignment_id);
     if (params?.barrier_type) sp.set("barrier_type", params.barrier_type);
@@ -8981,12 +9424,22 @@ export const api = {
   },
 
   createDischargeBarrier: (data: CreateDischargeBarrierRequest) =>
-    request<DischargeBarrier>("/case-mgmt/barriers", { method: "POST", body: JSON.stringify(data) }),
+    request<DischargeBarrier>("/case-mgmt/barriers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateDischargeBarrier: (id: string, data: UpdateDischargeBarrierRequest) =>
-    request<DischargeBarrier>(`/case-mgmt/barriers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<DischargeBarrier>(`/case-mgmt/barriers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listCaseReferrals: (params?: { case_assignment_id?: string; referral_type?: string; status?: string }) => {
+  listCaseReferrals: (params?: {
+    case_assignment_id?: string;
+    referral_type?: string;
+    status?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.case_assignment_id) sp.set("case_assignment_id", params.case_assignment_id);
     if (params?.referral_type) sp.set("referral_type", params.referral_type);
@@ -8999,22 +9452,26 @@ export const api = {
     request<CaseReferral>("/case-mgmt/referrals", { method: "POST", body: JSON.stringify(data) }),
 
   updateCaseReferral: (id: string, data: UpdateCaseReferralRequest) =>
-    request<CaseReferral>(`/case-mgmt/referrals/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<CaseReferral>(`/case-mgmt/referrals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  dispositionAnalytics: () =>
-    request<DispositionRow[]>("/case-mgmt/analytics/dispositions"),
+  dispositionAnalytics: () => request<DispositionRow[]>("/case-mgmt/analytics/dispositions"),
 
-  barrierAnalytics: () =>
-    request<BarrierAnalyticsRow[]>("/case-mgmt/analytics/barriers"),
+  barrierAnalytics: () => request<BarrierAnalyticsRow[]>("/case-mgmt/analytics/barriers"),
 
-  outcomeAnalytics: () =>
-    request<OutcomeAnalytics>("/case-mgmt/analytics/outcomes"),
+  outcomeAnalytics: () => request<OutcomeAnalytics>("/case-mgmt/analytics/outcomes"),
 
   // ══════════════════════════════════════════════════════════
   //  Scheduling / No-Show AI
   // ══════════════════════════════════════════════════════════
 
-  listPredictions: (params?: { patient_id?: string; risk_level?: string; appointment_id?: string }) => {
+  listPredictions: (params?: {
+    patient_id?: string;
+    risk_level?: string;
+    appointment_id?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.patient_id) sp.set("patient_id", params.patient_id);
     if (params?.risk_level) sp.set("risk_level", params.risk_level);
@@ -9024,12 +9481,23 @@ export const api = {
   },
 
   scoreAppointment: (data: ScoreAppointmentRequest) =>
-    request<NoshowPredictionScore>("/scheduling/predictions/score", { method: "POST", body: JSON.stringify(data) }),
+    request<NoshowPredictionScore>("/scheduling/predictions/score", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   scoreBatch: (data: ScoreBatchRequest) =>
-    request<NoshowPredictionScore[]>("/scheduling/predictions/score-batch", { method: "POST", body: JSON.stringify(data) }),
+    request<NoshowPredictionScore[]>("/scheduling/predictions/score-batch", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listWaitlist: (params?: { doctor_id?: string; department_id?: string; status?: string; priority?: string }) => {
+  listWaitlist: (params?: {
+    doctor_id?: string;
+    department_id?: string;
+    status?: string;
+    priority?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.doctor_id) sp.set("doctor_id", params.doctor_id);
     if (params?.department_id) sp.set("department_id", params.department_id);
@@ -9040,54 +9508,81 @@ export const api = {
   },
 
   createWaitlistEntry: (data: CreateWaitlistRequest) =>
-    request<SchedulingWaitlistEntry>("/scheduling/waitlist", { method: "POST", body: JSON.stringify(data) }),
+    request<SchedulingWaitlistEntry>("/scheduling/waitlist", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateWaitlistEntry: (id: string, data: UpdateWaitlistRequest) =>
-    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   offerSlot: (id: string, data: OfferSlotRequest) =>
-    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}/offer`, { method: "POST", body: JSON.stringify(data) }),
+    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}/offer`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   respondToOffer: (id: string, data: RespondToOfferRequest) =>
-    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}/respond`, { method: "POST", body: JSON.stringify(data) }),
+    request<SchedulingWaitlistEntry>(`/scheduling/waitlist/${id}/respond`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  autoFillSlots: () =>
-    request<AutoFillResult>("/scheduling/auto-fill", { method: "POST" }),
+  autoFillSlots: () => request<AutoFillResult>("/scheduling/auto-fill", { method: "POST" }),
 
-  listOverbookingRules: (params?: { doctor_id?: string; department_id?: string; is_active?: string }) => {
+  listOverbookingRules: (params?: {
+    doctor_id?: string;
+    department_id?: string;
+    is_active?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.doctor_id) sp.set("doctor_id", params.doctor_id);
     if (params?.department_id) sp.set("department_id", params.department_id);
     if (params?.is_active) sp.set("is_active", params.is_active);
     const qs = sp.toString();
-    return request<SchedulingOverbookingRule[]>(`/scheduling/overbooking-rules${qs ? `?${qs}` : ""}`);
+    return request<SchedulingOverbookingRule[]>(
+      `/scheduling/overbooking-rules${qs ? `?${qs}` : ""}`,
+    );
   },
 
   createOverbookingRule: (data: CreateOverbookingRuleRequest) =>
-    request<SchedulingOverbookingRule>("/scheduling/overbooking-rules", { method: "POST", body: JSON.stringify(data) }),
+    request<SchedulingOverbookingRule>("/scheduling/overbooking-rules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateOverbookingRule: (id: string, data: UpdateOverbookingRuleRequest) =>
-    request<SchedulingOverbookingRule>(`/scheduling/overbooking-rules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<SchedulingOverbookingRule>(`/scheduling/overbooking-rules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   deleteOverbookingRule: (id: string) =>
     request<void>(`/scheduling/overbooking-rules/${id}`, { method: "DELETE" }),
 
-  getOverbookingRecommendation: (params: { doctor_id: string; department_id: string; date: string }) => {
+  getOverbookingRecommendation: (params: {
+    doctor_id: string;
+    department_id: string;
+    date: string;
+  }) => {
     const sp = new URLSearchParams();
     sp.set("doctor_id", params.doctor_id);
     sp.set("department_id", params.department_id);
     sp.set("date", params.date);
-    return request<OverbookingRecommendation>(`/scheduling/overbooking/recommendation?${sp.toString()}`);
+    return request<OverbookingRecommendation>(
+      `/scheduling/overbooking/recommendation?${sp.toString()}`,
+    );
   },
 
-  noshowRates: () =>
-    request<NoshowRateRow[]>("/scheduling/analytics/noshow-rates"),
+  noshowRates: () => request<NoshowRateRow[]>("/scheduling/analytics/noshow-rates"),
 
   predictionAccuracy: () =>
     request<PredictionAccuracyReport>("/scheduling/analytics/prediction-accuracy"),
 
-  waitlistStats: () =>
-    request<WaitlistStatsResponse>("/scheduling/analytics/waitlist-stats"),
+  waitlistStats: () => request<WaitlistStatsResponse>("/scheduling/analytics/waitlist-stats"),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Infection Control Analytics
@@ -9106,7 +9601,9 @@ export const api = {
     if (params?.from) sp.set("from", params.from);
     if (params?.to) sp.set("to", params.to);
     const qs = sp.toString();
-    return request<DeviceUtilizationRow[]>(`/infection-control/analytics/device-utilization${qs ? `?${qs}` : ""}`);
+    return request<DeviceUtilizationRow[]>(
+      `/infection-control/analytics/device-utilization${qs ? `?${qs}` : ""}`,
+    );
   },
 
   icAntimicrobialConsumption: (params?: { from?: string; to?: string }) => {
@@ -9114,7 +9611,9 @@ export const api = {
     if (params?.from) sp.set("from", params.from);
     if (params?.to) sp.set("to", params.to);
     const qs = sp.toString();
-    return request<AntimicrobialConsumptionRow[]>(`/infection-control/analytics/antimicrobial-consumption${qs ? `?${qs}` : ""}`);
+    return request<AntimicrobialConsumptionRow[]>(
+      `/infection-control/analytics/antimicrobial-consumption${qs ? `?${qs}` : ""}`,
+    );
   },
 
   icSurgicalProphylaxis: (params?: { from?: string; to?: string }) => {
@@ -9122,7 +9621,9 @@ export const api = {
     if (params?.from) sp.set("from", params.from);
     if (params?.to) sp.set("to", params.to);
     const qs = sp.toString();
-    return request<SurgicalProphylaxisRow[]>(`/infection-control/analytics/surgical-prophylaxis${qs ? `?${qs}` : ""}`);
+    return request<SurgicalProphylaxisRow[]>(
+      `/infection-control/analytics/surgical-prophylaxis${qs ? `?${qs}` : ""}`,
+    );
   },
 
   icCultureSensitivityReport: (params?: { from?: string; to?: string }) => {
@@ -9130,7 +9631,9 @@ export const api = {
     if (params?.from) sp.set("from", params.from);
     if (params?.to) sp.set("to", params.to);
     const qs = sp.toString();
-    return request<CultureSensitivityRow[]>(`/infection-control/reports/culture-sensitivity${qs ? `?${qs}` : ""}`);
+    return request<CultureSensitivityRow[]>(
+      `/infection-control/reports/culture-sensitivity${qs ? `?${qs}` : ""}`,
+    );
   },
 
   icMdroTracking: (params?: { from?: string; to?: string }) => {
@@ -9142,48 +9645,64 @@ export const api = {
   },
 
   createIcExposure: (data: CreateExposureRequest) =>
-    request<InfectionSurveillanceEvent>("/infection-control/exposures", { method: "POST", body: JSON.stringify(data) }),
+    request<InfectionSurveillanceEvent>("/infection-control/exposures", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listIcMeetings: () =>
-    request<IcMeeting[]>("/infection-control/meetings"),
+  listIcMeetings: () => request<IcMeeting[]>("/infection-control/meetings"),
 
   createIcMeeting: (data: CreateIcMeetingRequest) =>
-    request<IcMeeting>("/infection-control/meetings", { method: "POST", body: JSON.stringify(data) }),
+    request<IcMeeting>("/infection-control/meetings", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   icMonthlySurveillance: (params?: { month?: string }) => {
     const sp = new URLSearchParams();
     if (params?.month) sp.set("month", params.month);
     const qs = sp.toString();
-    return request<MonthlySurveillanceReport>(`/infection-control/reports/monthly${qs ? `?${qs}` : ""}`);
+    return request<MonthlySurveillanceReport>(
+      `/infection-control/reports/monthly${qs ? `?${qs}` : ""}`,
+    );
   },
 
   createOutbreakRca: (outbreakId: string, data: CreateOutbreakRcaRequest) =>
-    request<{ success: true }>(`/infection-control/outbreaks/${outbreakId}/rca`, { method: "POST", body: JSON.stringify(data) }),
+    request<{ success: true }>(`/infection-control/outbreaks/${outbreakId}/rca`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Quality Analytics
   // ══════════════════════════════════════════════════════════
 
   scheduleAudits: (data: ScheduleAuditsRequest) =>
-    request<{ count: number }>("/quality/audits/schedule", { method: "POST", body: JSON.stringify(data) }),
+    request<{ count: number }>("/quality/audits/schedule", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   listAuditFindings: (auditId: string) =>
     request<AuditFinding[]>(`/quality/audits/${auditId}/findings`),
 
   createAuditFinding: (auditId: string, data: CreateAuditFindingRequest) =>
-    request<AuditFinding>(`/quality/audits/${auditId}/findings`, { method: "POST", body: JSON.stringify(data) }),
+    request<AuditFinding>(`/quality/audits/${auditId}/findings`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listOverdueCapas: () =>
-    request<QualityCapa[]>("/quality/capas/overdue"),
+  listOverdueCapas: () => request<QualityCapa[]>("/quality/capas/overdue"),
 
-  committeeDashboard: () =>
-    request<CommitteeDashboard>("/quality/committees/dashboard"),
+  committeeDashboard: () => request<CommitteeDashboard>("/quality/committees/dashboard"),
 
   createMortalityReview: (data: CreateMortalityReviewRequest) =>
-    request<QualityIncident>("/quality/mortality-reviews", { method: "POST", body: JSON.stringify(data) }),
+    request<QualityIncident>("/quality/mortality-reviews", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listSentinelEvents: () =>
-    request<QualityIncident[]>("/quality/incidents/sentinel"),
+  listSentinelEvents: () => request<QualityIncident[]>("/quality/incidents/sentinel"),
 
   patientSafetyIndicators: (params?: { from?: string; to?: string }) => {
     const sp = new URLSearchParams();
@@ -9193,68 +9712,76 @@ export const api = {
     return request<PatientSafetyIndicator[]>(`/quality/analytics/psi${qs ? `?${qs}` : ""}`);
   },
 
-  departmentScorecard: () =>
-    request<DepartmentScorecard[]>("/quality/analytics/scorecard"),
+  departmentScorecard: () => request<DepartmentScorecard[]>("/quality/analytics/scorecard"),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Regulatory
   // ══════════════════════════════════════════════════════════
 
   autoPopulateChecklist: (checklistId: string, data?: AutoPopulateRequest) =>
-    request<{ updated: number }>(`/regulatory/checklists/${checklistId}/auto-populate`, { method: "POST", body: JSON.stringify(data ?? {}) }),
+    request<{ updated: number }>(`/regulatory/checklists/${checklistId}/auto-populate`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
 
-  listRegulatorySubmissions: () =>
-    request<RegulatorySubmission[]>("/regulatory/submissions"),
+  listRegulatorySubmissions: () => request<RegulatorySubmission[]>("/regulatory/submissions"),
 
   createRegulatorySubmission: (data: CreateRegulatorySubmissionRequest) =>
-    request<RegulatorySubmission>("/regulatory/submissions", { method: "POST", body: JSON.stringify(data) }),
+    request<RegulatorySubmission>("/regulatory/submissions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listMockSurveys: () =>
-    request<ComplianceChecklist[]>("/regulatory/mock-surveys"),
+  listMockSurveys: () => request<ComplianceChecklist[]>("/regulatory/mock-surveys"),
 
   createMockSurvey: (data: CreateChecklistRequest) =>
-    request<ComplianceChecklist>("/regulatory/mock-surveys", { method: "POST", body: JSON.stringify(data) }),
+    request<ComplianceChecklist>("/regulatory/mock-surveys", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  staffCredentials: () =>
-    request<StaffCredentialSummary[]>("/regulatory/staff-credentials"),
+  staffCredentials: () => request<StaffCredentialSummary[]>("/regulatory/staff-credentials"),
 
-  licenseDashboard: () =>
-    request<LicenseDashboardItem[]>("/regulatory/licenses/dashboard"),
+  licenseDashboard: () => request<LicenseDashboardItem[]>("/regulatory/licenses/dashboard"),
 
-  nablDocumentTracking: () =>
-    request<NablDocumentSummary[]>("/regulatory/nabl/documents"),
+  nablDocumentTracking: () => request<NablDocumentSummary[]>("/regulatory/nabl/documents"),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Setup
   // ══════════════════════════════════════════════════════════
 
   bulkCreateUsers: (data: BulkCreateUsersRequest) =>
-    request<{ created: number }>("/setup/users/bulk", { method: "POST", body: JSON.stringify(data) }),
+    request<{ created: number }>("/setup/users/bulk", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   seedDepartmentTemplate: () =>
     request<{ created: number }>("/setup/departments/template", { method: "POST" }),
 
-  completenessCheck: () =>
-    request<CompletenessCheck>("/setup/completeness"),
+  completenessCheck: () => request<CompletenessCheck>("/setup/completeness"),
 
-  systemHealth: () =>
-    request<SystemHealth>("/setup/health"),
+  systemHealth: () => request<SystemHealth>("/setup/health"),
 
-  exportConfig: () =>
-    request<Record<string, unknown>>("/setup/config/export"),
+  exportConfig: () => request<Record<string, unknown>>("/setup/config/export"),
 
   importConfig: (data: Record<string, unknown>) =>
-    request<{ success: true }>("/setup/config/import", { method: "POST", body: JSON.stringify(data) }),
+    request<{ success: true }>("/setup/config/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Scheduling (extended)
   // ══════════════════════════════════════════════════════════
 
-  schedulingConflicts: () =>
-    request<SchedulingConflict[]>("/scheduling/conflicts"),
+  schedulingConflicts: () => request<SchedulingConflict[]>("/scheduling/conflicts"),
 
   promoteWaitlist: (data: { slot_id: string }) =>
-    request<{ promoted: boolean }>("/scheduling/waitlist/promote", { method: "POST", body: JSON.stringify(data) }),
+    request<{ promoted: boolean }>("/scheduling/waitlist/promote", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   scheduleAnalytics: (params?: { from?: string; to?: string }) => {
     const sp = new URLSearchParams();
@@ -9265,26 +9792,33 @@ export const api = {
   },
 
   createRecurringAppointment: (data: CreateRecurringRequest) =>
-    request<{ created: number }>("/scheduling/recurring", { method: "POST", body: JSON.stringify(data) }),
+    request<{ created: number }>("/scheduling/recurring", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   createScheduleBlock: (data: CreateBlockRequest) =>
-    request<{ success: true }>("/scheduling/blocks", { method: "POST", body: JSON.stringify(data) }),
+    request<{ success: true }>("/scheduling/blocks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Occupational Health (extended)
   // ══════════════════════════════════════════════════════════
 
-  listOccHealthHazards: () =>
-    request<OccHealthHazard[]>("/occ-health/hazards"),
+  listOccHealthHazards: () => request<OccHealthHazard[]>("/occ-health/hazards"),
 
   createOccHealthHazard: (data: CreateOccHealthHazardRequest) =>
     request<OccHealthHazard>("/occ-health/hazards", { method: "POST", body: JSON.stringify(data) }),
 
-  occHealthAnalytics: () =>
-    request<OccHealthAnalytics>("/occ-health/analytics"),
+  occHealthAnalytics: () => request<OccHealthAnalytics>("/occ-health/analytics"),
 
   returnToWorkClearance: (data: ReturnToWorkClearanceRequest) =>
-    request<OccHealthScreening>("/occ-health/clearance", { method: "POST", body: JSON.stringify(data) }),
+    request<OccHealthScreening>("/occ-health/clearance", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — OPD (extended)
@@ -9300,18 +9834,22 @@ export const api = {
     return request<ReferralTrackingRow[]>(`/opd/referrals/tracking${qs ? `?${qs}` : ""}`);
   },
 
-  opdFollowupCompliance: () =>
-    request<FollowupComplianceRow[]>("/opd/analytics/followup"),
+  opdFollowupCompliance: () => request<FollowupComplianceRow[]>("/opd/analytics/followup"),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — IPD (extended)
   // ══════════════════════════════════════════════════════════
 
   generateDischargeSummary: (admissionId: string) =>
-    request<DischargeSummary>(`/ipd/admissions/${admissionId}/discharge-summary`, { method: "POST" }),
+    request<DischargeSummary>(`/ipd/admissions/${admissionId}/discharge-summary`, {
+      method: "POST",
+    }),
 
   bedTransfer: (admissionId: string, data: BedTransferRequest) =>
-    request<{ success: true }>(`/ipd/admissions/${admissionId}/transfer`, { method: "POST", body: JSON.stringify(data) }),
+    request<{ success: true }>(`/ipd/admissions/${admissionId}/transfer`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   expectedDischarges: (params?: { hours?: number }) => {
     const sp = new URLSearchParams();
@@ -9320,31 +9858,75 @@ export const api = {
     return request<ExpectedDischargeRow[]>(`/ipd/discharges/expected${qs ? `?${qs}` : ""}`);
   },
 
+  // ── IPD post-discharge workflow ─────────────────────────
+  getIpdDischargeWorkflow: (admissionId: string) =>
+    request<IpdDischargeWorkflow | null>(`/ipd/admissions/${admissionId}/discharge-workflow`),
+  updateIpdDischargeStep: (admissionId: string, body: IpdDischargeStepUpdate) =>
+    request<IpdDischargeWorkflow>(`/ipd/admissions/${admissionId}/discharge-workflow/step`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getIpdDama: (admissionId: string) =>
+    request<IpdDamaRecord | null>(`/ipd/admissions/${admissionId}/dama`),
+  recordIpdDama: (admissionId: string, body: IpdDamaRequest) =>
+    request<IpdDamaRecord>(`/ipd/admissions/${admissionId}/dama`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listIpdPostDischarge: () => request<IpdPostDischargeRow[]>(`/ipd/post-discharge`),
+  sendIpdSurvey: (admissionId: string, via: "sms" | "email" | "whatsapp") =>
+    request<IpdPostDischargeRow>(`/ipd/post-discharge/${admissionId}/survey/send`, {
+      method: "POST",
+      body: JSON.stringify({ via }),
+    }),
+  listIpdMortalityReviews: () => request<IpdMortalityReview[]>(`/ipd/mortality-reviews`),
+  createIpdMortalityReview: (body: IpdMortalityCreate) =>
+    request<IpdMortalityReview>(`/ipd/mortality-reviews`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  submitIpdMortalityReview: (id: string, body: IpdMortalitySubmit) =>
+    request<IpdMortalityReview>(`/ipd/mortality-reviews/${id}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Pharmacy (extended)
   // ══════════════════════════════════════════════════════════
 
   checkDrugInteractions: (data: DrugInteractionCheckRequest) =>
-    request<DrugInteractionResult[]>("/pharmacy/interactions/check", { method: "POST", body: JSON.stringify(data) }),
+    request<DrugInteractionResult[]>("/pharmacy/interactions/check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   prescriptionAudit: (prescriptionId: string) =>
     request<PrescriptionAuditEntry[]>(`/pharmacy/prescriptions/${prescriptionId}/audit`),
 
   formularyCheck: (data: { drug_id: string }) =>
-    request<FormularyCheckResult>("/pharmacy/formulary/check", { method: "POST", body: JSON.stringify(data) }),
+    request<FormularyCheckResult>("/pharmacy/formulary/check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Billing (extended)
   // ══════════════════════════════════════════════════════════
 
-  listBillingPackages: () =>
-    request<BillingServicePackage[]>("/billing/packages"),
+  listBillingPackages: () => request<BillingServicePackage[]>("/billing/packages"),
 
   createBillingPackage: (data: CreateBillingServicePackageRequest) =>
-    request<BillingServicePackage>("/billing/packages", { method: "POST", body: JSON.stringify(data) }),
+    request<BillingServicePackage>("/billing/packages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   calculateCopay: (data: { invoice_id: string }) =>
-    request<CopayCalculation>("/billing/copay/calculate", { method: "POST", body: JSON.stringify(data) }),
+    request<CopayCalculation>("/billing/copay/calculate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   erFastInvoice: (data: ErFastInvoiceRequest) =>
     request<Invoice>("/billing/er-invoice", { method: "POST", body: JSON.stringify(data) }),
@@ -9375,18 +9957,19 @@ export const api = {
   //  Batch 2 — Camp (extended)
   // ══════════════════════════════════════════════════════════
 
-  campAnalytics: () =>
-    request<CampAnalytics>("/camp/analytics"),
+  campAnalytics: () => request<CampAnalytics>("/camp/analytics"),
 
-  campReport: (campId: string) =>
-    request<CampReport>(`/camp/camps/${campId}/report`),
+  campReport: (campId: string) => request<CampReport>(`/camp/camps/${campId}/report`),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — Facilities (extended)
   // ══════════════════════════════════════════════════════════
 
   schedulePm: (data: SchedulePmRequest) =>
-    request<{ created: number }>("/facilities/pm/schedule", { method: "POST", body: JSON.stringify(data) }),
+    request<{ created: number }>("/facilities/pm/schedule", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   energyAnalytics: (params?: { from?: string; to?: string }) => {
     const sp = new URLSearchParams();
@@ -9408,42 +9991,34 @@ export const api = {
     return request<VisitorAnalytics>(`/front-office/analytics${qs ? `?${qs}` : ""}`);
   },
 
-  queueMetrics: () =>
-    request<QueueMetrics[]>("/front-office/queue/metrics"),
+  queueMetrics: () => request<QueueMetrics[]>("/front-office/queue/metrics"),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — HR (extended)
   // ══════════════════════════════════════════════════════════
 
-  trainingCompliance: () =>
-    request<TrainingComplianceRow[]>("/hr/training/compliance"),
+  trainingCompliance: () => request<TrainingComplianceRow[]>("/hr/training/compliance"),
 
   // ══════════════════════════════════════════════════════════
   //  Command Center
   // ══════════════════════════════════════════════════════════
 
   // Patient Flow
-  getPatientFlow: () =>
-    request<PatientFlowSnapshot>("/command-center/patient-flow"),
+  getPatientFlow: () => request<PatientFlowSnapshot>("/command-center/patient-flow"),
 
-  getHourlyFlow: () =>
-    request<HourlyFlowRow[]>("/command-center/patient-flow/hourly"),
+  getHourlyFlow: () => request<HourlyFlowRow[]>("/command-center/patient-flow/hourly"),
 
-  getBottlenecks: () =>
-    request<BottleneckRow[]>("/command-center/bottlenecks"),
+  getBottlenecks: () => request<BottleneckRow[]>("/command-center/bottlenecks"),
 
   // Department Load
-  getDepartmentLoad: () =>
-    request<DepartmentLoadRow[]>("/command-center/department-load"),
+  getDepartmentLoad: () => request<DepartmentLoadRow[]>("/command-center/department-load"),
 
-  getActiveAlerts: () =>
-    request<DepartmentAlertRow[]>("/command-center/alerts"),
+  getActiveAlerts: () => request<DepartmentAlertRow[]>("/command-center/alerts"),
 
   acknowledgeDeptAlert: (id: string) =>
     request<DepartmentAlertRow>(`/command-center/alerts/${id}/acknowledge`, { method: "POST" }),
 
-  listAlertThresholds: () =>
-    request<AlertThresholdRow[]>("/command-center/alert-thresholds"),
+  listAlertThresholds: () => request<AlertThresholdRow[]>("/command-center/alert-thresholds"),
 
   createAlertThreshold: (data: CreateAlertThresholdRequest) =>
     request<AlertThresholdRow>("/command-center/alert-thresholds", {
@@ -9458,22 +10033,18 @@ export const api = {
     }),
 
   // Discharge Coordinator
-  listPendingDischarges: () =>
-    request<PendingDischargeRow[]>("/command-center/pending-discharges"),
+  listPendingDischarges: () => request<PendingDischargeRow[]>("/command-center/pending-discharges"),
 
   getDischargeBlockers: (admissionId: string) =>
     request<Record<string, unknown>>(`/command-center/discharge-blockers/${admissionId}`),
 
   // Environmental Services
-  getBedTurnaround: () =>
-    request<BedTurnaroundRow[]>("/command-center/bed-turnaround"),
+  getBedTurnaround: () => request<BedTurnaroundRow[]>("/command-center/bed-turnaround"),
 
-  getTurnaroundStats: () =>
-    request<TurnaroundStatsRow[]>("/command-center/bed-turnaround/stats"),
+  getTurnaroundStats: () => request<TurnaroundStatsRow[]>("/command-center/bed-turnaround/stats"),
 
   // Transport
-  listTransportRequests: () =>
-    request<TransportRequestRow[]>("/command-center/transport"),
+  listTransportRequests: () => request<TransportRequestRow[]>("/command-center/transport"),
 
   createTransportRequest: (data: CreateTransportRequest) =>
     request<TransportRequestRow>("/command-center/transport", {
@@ -9499,11 +10070,9 @@ export const api = {
     }),
 
   // KPIs
-  getKpis: () =>
-    request<KpiTile[]>("/command-center/kpis"),
+  getKpis: () => request<KpiTile[]>("/command-center/kpis"),
 
-  getKpiDetail: (code: string) =>
-    request<Record<string, unknown>>(`/command-center/kpis/${code}`),
+  getKpiDetail: (code: string) => request<Record<string, unknown>>(`/command-center/kpis/${code}`),
 
   // ══════════════════════════════════════════════════════════
   //  Audit Trail
@@ -9524,14 +10093,12 @@ export const api = {
     return request<AuditLogSummary[]>(`/audit/log${qs ? `?${qs}` : ""}`);
   },
 
-  getAuditEntry: (id: string) =>
-    request<AuditLogEntry>(`/audit/log/${id}`),
+  getAuditEntry: (id: string) => request<AuditLogEntry>(`/audit/log/${id}`),
 
   getEntityAuditTrail: (entityType: string, entityId: string) =>
     request<AuditLogEntry[]>(`/audit/log/entity/${entityType}/${entityId}`),
 
-  getAuditStats: () =>
-    request<AuditStats>("/audit/stats"),
+  getAuditStats: () => request<AuditStats>("/audit/stats"),
 
   listAccessLog: (params?: AccessLogQuery) => {
     const sp = new URLSearchParams();
@@ -9553,11 +10120,9 @@ export const api = {
   getPatientAccessLog: (patientId: string) =>
     request<AccessLogEntry[]>(`/audit/access-log/patient/${patientId}`),
 
-  listAuditModules: () =>
-    request<string[]>("/audit/modules"),
+  listAuditModules: () => request<string[]>("/audit/modules"),
 
-  listAuditEntityTypes: () =>
-    request<string[]>("/audit/entity-types"),
+  listAuditEntityTypes: () => request<string[]>("/audit/entity-types"),
 
   exportAuditLogUrl: (params?: AuditLogQuery & { format?: string }) => {
     const sp = new URLSearchParams();
@@ -9573,11 +10138,9 @@ export const api = {
     return `${getApiBase()}/audit/export${qs ? `?${qs}` : ""}`;
   },
 
-  verifyAuditIntegrity: () =>
-    request<IntegrityResult>("/audit/verify-integrity"),
+  verifyAuditIntegrity: () => request<IntegrityResult>("/audit/verify-integrity"),
 
-  getUserActivity: (userId: string) =>
-    request<AuditLogSummary[]>(`/audit/user/${userId}/activity`),
+  getUserActivity: (userId: string) => request<AuditLogSummary[]>(`/audit/user/${userId}/activity`),
 
   getEntityTimeline: (entityType: string, entityId: string) =>
     request<AuditLogEntry[]>(`/audit/timeline/${entityType}/${entityId}`),
@@ -9658,8 +10221,7 @@ export const api = {
     return request<OpdFootfallRow[]>(`/analytics/opd/footfall${qs ? `?${qs}` : ""}`);
   },
 
-  getBedOccupancy: () =>
-    request<BedOccupancyRow[]>("/analytics/bed/occupancy"),
+  getBedOccupancy: () => request<BedOccupancyRow[]>("/analytics/bed/occupancy"),
 
   exportAnalytics: (params: { report: string; from?: string; to?: string }) => {
     const sp = new URLSearchParams();
@@ -9942,6 +10504,9 @@ export const api = {
   getTdsCertificateFullPrintData: (tdsId: string) =>
     request<TdsCertificatePrintData>(`/print-data/tds-certificate/${tdsId}`),
 
+  // ── NABH KPI rollup ───────────────────────────────────────
+  getNabhIndicators: () => request<NabhRollupResponse>(`/nabh/indicators`),
+
   // ── Phase 4: Regulatory Print Data ────────────────────────
   getNabhQualityReportPrintData: (period: string) =>
     request<NabhQualityReportPrintData>(`/print-data/nabh-quality-report/${period}`),
@@ -9986,8 +10551,7 @@ export const api = {
   getPurchaseOrderPrintData: (poId: string) =>
     request<PurchaseOrderPrintData>(`/print-data/purchase-order/${poId}`),
 
-  getGrnPrintData: (grnId: string) =>
-    request<GrnPrintData>(`/print-data/grn/${grnId}`),
+  getGrnPrintData: (grnId: string) => request<GrnPrintData>(`/print-data/grn/${grnId}`),
 
   getMaterialIssueVoucherPrintData: (voucherId: string) =>
     request<MaterialIssueVoucherPrintData>(`/print-data/material-issue-voucher/${voucherId}`),
@@ -10025,7 +10589,9 @@ export const api = {
     request<LeaveApplicationPrintData>(`/print-data/leave-application/${leaveId}`),
 
   getStaffAttendancePrintData: (departmentId: string, month: number, year: number) =>
-    request<StaffAttendanceReportPrintData>(`/print-data/staff-attendance/${departmentId}/${month}/${year}`),
+    request<StaffAttendanceReportPrintData>(
+      `/print-data/staff-attendance/${departmentId}/${month}/${year}`,
+    ),
 
   getTrainingCertificatePrintData: (trainingId: string) =>
     request<TrainingCertificatePrintData>(`/print-data/training-certificate/${trainingId}`),
@@ -10041,7 +10607,9 @@ export const api = {
     request<AmcContractPrintData>(`/print-data/amc-contract/${contractId}`),
 
   getCalibrationCertificatePrintData: (calibrationId: string) =>
-    request<CalibrationCertificatePrintData>(`/print-data/calibration-certificate/${calibrationId}`),
+    request<CalibrationCertificatePrintData>(
+      `/print-data/calibration-certificate/${calibrationId}`,
+    ),
 
   getEquipmentBreakdownPrintData: (breakdownId: string) =>
     request<EquipmentBreakdownReportPrintData>(`/print-data/equipment-breakdown/${breakdownId}`),
@@ -10105,7 +10673,9 @@ export const api = {
     request<PgLogbookEntryPrintData>(`/print-data/pg-logbook-entry/${entryId}`),
 
   getInternalAssessmentMarksPrintData: (assessmentId: string) =>
-    request<InternalAssessmentMarksPrintData>(`/print-data/internal-assessment-marks/${assessmentId}`),
+    request<InternalAssessmentMarksPrintData>(
+      `/print-data/internal-assessment-marks/${assessmentId}`,
+    ),
 
   getExamHallTicketPrintData: (ticketId: string) =>
     request<ExamHallTicketPrintData>(`/print-data/exam-hall-ticket/${ticketId}`),
@@ -10129,13 +10699,19 @@ export const api = {
     request<HostelAllotmentOrderPrintData>(`/print-data/hostel-allotment-order/${orderId}`),
 
   getAntiRaggingUndertakingPrintData: (undertakingId: string) =>
-    request<AntiRaggingUndertakingPrintData>(`/print-data/anti-ragging-undertaking/${undertakingId}`),
+    request<AntiRaggingUndertakingPrintData>(
+      `/print-data/anti-ragging-undertaking/${undertakingId}`,
+    ),
 
   getDisabilityAccommodationPlanPrintData: (planId: string) =>
-    request<DisabilityAccommodationPlanPrintData>(`/print-data/disability-accommodation-plan/${planId}`),
+    request<DisabilityAccommodationPlanPrintData>(
+      `/print-data/disability-accommodation-plan/${planId}`,
+    ),
 
   getInternshipCompletionCertificatePrintData: (certificateId: string) =>
-    request<InternshipCompletionCertificatePrintData>(`/print-data/internship-completion-certificate/${certificateId}`),
+    request<InternshipCompletionCertificatePrintData>(
+      `/print-data/internship-completion-certificate/${certificateId}`,
+    ),
 
   getServiceBondAgreementPrintData: (bondId: string) =>
     request<ServiceBondAgreementPrintData>(`/print-data/service-bond-agreement/${bondId}`),
@@ -10151,8 +10727,7 @@ export const api = {
   //  Bedside Portal
   // ══════════════════════════════════════════════════════════
 
-  listBedsideSessions: () =>
-    request<BedsideSessionRow[]>("/bedside/sessions"),
+  listBedsideSessions: () => request<BedsideSessionRow[]>("/bedside/sessions"),
 
   createBedsideSession: (data: CreateBedsideSessionRequest) =>
     request<BedsideSessionRow>("/bedside/sessions", { method: "POST", body: JSON.stringify(data) }),
@@ -10176,17 +10751,25 @@ export const api = {
     request<BedsideDietOrderItem[]>(`/bedside/${admissionId}/diet-order`),
 
   createBedsideNurseRequest: (admissionId: string, data: CreateBedsideNurseRequestPayload) =>
-    request<BedsideNurseRequestRow>(`/bedside/${admissionId}/nurse-request`, { method: "POST", body: JSON.stringify(data) }),
+    request<BedsideNurseRequestRow>(`/bedside/${admissionId}/nurse-request`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   listBedsideNurseRequests: (admissionId: string, params?: { status?: string }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     const qs = sp.toString();
-    return request<BedsideNurseRequestRow[]>(`/bedside/${admissionId}/nurse-requests${qs ? `?${qs}` : ""}`);
+    return request<BedsideNurseRequestRow[]>(
+      `/bedside/${admissionId}/nurse-requests${qs ? `?${qs}` : ""}`,
+    );
   },
 
   updateBedsideRequestStatus: (id: string, data: UpdateBedsideRequestStatusPayload) =>
-    request<BedsideNurseRequestRow>(`/bedside/nurse-requests/${id}/status`, { method: "PUT", body: JSON.stringify(data) }),
+    request<BedsideNurseRequestRow>(`/bedside/nurse-requests/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listBedsideVideos: (params?: { category?: string }) => {
     const sp = new URLSearchParams();
@@ -10196,16 +10779,28 @@ export const api = {
   },
 
   createBedsideVideo: (data: CreateBedsideVideoRequest) =>
-    request<BedsideEducationVideoRow>("/bedside/videos", { method: "POST", body: JSON.stringify(data) }),
+    request<BedsideEducationVideoRow>("/bedside/videos", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateBedsideVideo: (id: string, data: UpdateBedsideVideoRequest) =>
-    request<BedsideEducationVideoRow>(`/bedside/videos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<BedsideEducationVideoRow>(`/bedside/videos/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   recordBedsideVideoView: (admissionId: string, data: RecordBedsideVideoViewRequest) =>
-    request<BedsideEducationViewRow>(`/bedside/${admissionId}/video-view`, { method: "POST", body: JSON.stringify(data) }),
+    request<BedsideEducationViewRow>(`/bedside/${admissionId}/video-view`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   submitBedsideFeedback: (admissionId: string, data: SubmitBedsideFeedbackRequest) =>
-    request<BedsideRealtimeFeedbackRow>(`/bedside/${admissionId}/feedback`, { method: "POST", body: JSON.stringify(data) }),
+    request<BedsideRealtimeFeedbackRow>(`/bedside/${admissionId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   listBedsideFeedback: (admissionId: string) =>
     request<BedsideRealtimeFeedbackRow[]>(`/bedside/${admissionId}/feedback`),
@@ -10224,8 +10819,7 @@ export const api = {
   updateTvDisplay: (id: string, data: UpdateTvDisplayRequest) =>
     request<TvDisplay>(`/tv/displays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteTvDisplay: (id: string) =>
-    request<void>(`/tv/displays/${id}`, { method: "DELETE" }),
+  deleteTvDisplay: (id: string) => request<void>(`/tv/displays/${id}`, { method: "DELETE" }),
 
   listQueueTokens: (params?: ListQueueTokensQuery) => {
     const sp = new URLSearchParams();
@@ -10239,8 +10833,7 @@ export const api = {
   createQueueToken: (data: CreateQueueTokenRequest) =>
     request<CreateQueueTokenResponse>("/tv/tokens", { method: "POST", body: JSON.stringify(data) }),
 
-  callQueueToken: (id: string) =>
-    request<QueueToken>(`/tv/tokens/${id}/call`, { method: "POST" }),
+  callQueueToken: (id: string) => request<QueueToken>(`/tv/tokens/${id}/call`, { method: "POST" }),
 
   completeQueueToken: (id: string) =>
     request<QueueToken>(`/tv/tokens/${id}/complete`, { method: "POST" }),
@@ -10255,20 +10848,16 @@ export const api = {
     request<TvAnnouncement>("/tv/announcements", { method: "POST", body: JSON.stringify(data) }),
 
   // ── Specialty Queue Displays ─────────────────────────────────────────────
-  getPharmacyQueueDisplay: () =>
-    request<PharmacyQueueDisplay>("/tv/queue/pharmacy"),
+  getPharmacyQueueDisplay: () => request<PharmacyQueueDisplay>("/tv/queue/pharmacy"),
 
-  getLabQueueDisplay: () =>
-    request<LabQueueDisplay>("/tv/queue/lab"),
+  getLabQueueDisplay: () => request<LabQueueDisplay>("/tv/queue/lab"),
 
   getRadiologyQueueDisplay: (modality: string) =>
     request<RadiologyQueueDisplay>(`/tv/queue/radiology/${modality}`),
 
-  getErQueueDisplay: () =>
-    request<ErQueueDisplay>("/tv/queue/er"),
+  getErQueueDisplay: () => request<ErQueueDisplay>("/tv/queue/er"),
 
-  getBillingQueueDisplay: () =>
-    request<BillingQueueDisplay>("/tv/queue/billing"),
+  getBillingQueueDisplay: () => request<BillingQueueDisplay>("/tv/queue/billing"),
 
   getBedAvailabilityDisplay: (wardType: string) =>
     request<BedAvailabilityDisplay>(`/tv/queue/beds/${wardType}`),
@@ -10284,17 +10873,21 @@ export const api = {
   // ══════════════════════════════════════════════════════════════════════════════
 
   // Hospital Groups
-  listHospitalGroups: () =>
-    request<HospitalGroup[]>("/multi-hospital/groups"),
+  listHospitalGroups: () => request<HospitalGroup[]>("/multi-hospital/groups"),
 
-  getHospitalGroup: (id: string) =>
-    request<HospitalGroup>(`/multi-hospital/groups/${id}`),
+  getHospitalGroup: (id: string) => request<HospitalGroup>(`/multi-hospital/groups/${id}`),
 
   createHospitalGroup: (data: CreateHospitalGroup) =>
-    request<HospitalGroup>("/multi-hospital/groups", { method: "POST", body: JSON.stringify(data) }),
+    request<HospitalGroup>("/multi-hospital/groups", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateHospitalGroup: (id: string, data: UpdateHospitalGroup) =>
-    request<HospitalGroup>(`/multi-hospital/groups/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<HospitalGroup>(`/multi-hospital/groups/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   deleteHospitalGroup: (id: string) =>
     request<void>(`/multi-hospital/groups/${id}`, { method: "DELETE" }),
@@ -10305,11 +10898,13 @@ export const api = {
     return request<HospitalRegion[]>(`/multi-hospital/regions?${sp.toString()}`);
   },
 
-  getHospitalRegion: (id: string) =>
-    request<HospitalRegion>(`/multi-hospital/regions/${id}`),
+  getHospitalRegion: (id: string) => request<HospitalRegion>(`/multi-hospital/regions/${id}`),
 
   createHospitalRegion: (data: CreateHospitalRegion) =>
-    request<HospitalRegion>("/multi-hospital/regions", { method: "POST", body: JSON.stringify(data) }),
+    request<HospitalRegion>("/multi-hospital/regions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   deleteHospitalRegion: (id: string) =>
     request<void>(`/multi-hospital/regions/${id}`, { method: "DELETE" }),
@@ -10319,7 +10914,10 @@ export const api = {
     request<HospitalInGroup[]>(`/multi-hospital/groups/${groupId}/hospitals`),
 
   assignHospitalToGroup: (data: AssignHospitalToGroup) =>
-    request<HospitalInGroup>("/multi-hospital/hospital-assignments", { method: "POST", body: JSON.stringify(data) }),
+    request<HospitalInGroup>("/multi-hospital/hospital-assignments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   removeHospitalFromGroup: (tenantId: string) =>
     request<void>(`/multi-hospital/hospital-assignments/${tenantId}`, { method: "DELETE" }),
@@ -10334,7 +10932,10 @@ export const api = {
   },
 
   createUserHospitalAssignment: (data: CreateUserHospitalAssignment) =>
-    request<UserHospitalAssignment>("/multi-hospital/user-assignments", { method: "POST", body: JSON.stringify(data) }),
+    request<UserHospitalAssignment>("/multi-hospital/user-assignments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   deleteUserHospitalAssignment: (assignmentId: string) =>
     request<void>(`/multi-hospital/user-assignments/${assignmentId}`, { method: "DELETE" }),
@@ -10345,7 +10946,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<PatientTransferDisplay[]>(`/multi-hospital/transfers/patients/outgoing${qs ? `?${qs}` : ""}`);
+    return request<PatientTransferDisplay[]>(
+      `/multi-hospital/transfers/patients/outgoing${qs ? `?${qs}` : ""}`,
+    );
   },
 
   listIncomingPatientTransfers: (params?: { from_date?: string; to_date?: string }) => {
@@ -10353,17 +10956,25 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<PatientTransferDisplay[]>(`/multi-hospital/transfers/patients/incoming${qs ? `?${qs}` : ""}`);
+    return request<PatientTransferDisplay[]>(
+      `/multi-hospital/transfers/patients/incoming${qs ? `?${qs}` : ""}`,
+    );
   },
 
   getPatientTransfer: (id: string) =>
     request<PatientTransfer>(`/multi-hospital/transfers/patients/${id}`),
 
   createPatientTransfer: (data: CreatePatientTransfer) =>
-    request<PatientTransfer>("/multi-hospital/transfers/patients", { method: "POST", body: JSON.stringify(data) }),
+    request<PatientTransfer>("/multi-hospital/transfers/patients", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updatePatientTransferStatus: (id: string, data: UpdateTransferStatus) =>
-    request<PatientTransfer>(`/multi-hospital/transfers/patients/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<PatientTransfer>(`/multi-hospital/transfers/patients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Stock Transfers
   listOutgoingStockTransfers: (params?: { from_date?: string; to_date?: string }) => {
@@ -10371,7 +10982,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<StockTransfer[]>(`/multi-hospital/transfers/stock/outgoing${qs ? `?${qs}` : ""}`);
+    return request<StockTransfer[]>(
+      `/multi-hospital/transfers/stock/outgoing${qs ? `?${qs}` : ""}`,
+    );
   },
 
   listIncomingStockTransfers: (params?: { from_date?: string; to_date?: string }) => {
@@ -10379,20 +10992,27 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<StockTransfer[]>(`/multi-hospital/transfers/stock/incoming${qs ? `?${qs}` : ""}`);
+    return request<StockTransfer[]>(
+      `/multi-hospital/transfers/stock/incoming${qs ? `?${qs}` : ""}`,
+    );
   },
 
-  getStockTransfer: (id: string) =>
-    request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`),
+  getStockTransfer: (id: string) => request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`),
 
   getStockTransferItems: (transferId: string) =>
     request<StockTransferItem[]>(`/multi-hospital/transfers/stock/${transferId}/items`),
 
   createStockTransfer: (data: CreateStockTransfer) =>
-    request<StockTransfer>("/multi-hospital/transfers/stock", { method: "POST", body: JSON.stringify(data) }),
+    request<StockTransfer>("/multi-hospital/transfers/stock", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateStockTransferStatus: (id: string, data: UpdateTransferStatus) =>
-    request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<StockTransfer>(`/multi-hospital/transfers/stock/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Group KPIs & Dashboard
   getGroupDashboard: (groupId: string, params?: { from_date?: string; to_date?: string }) => {
@@ -10400,7 +11020,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<GroupDashboard>(`/multi-hospital/groups/${groupId}/dashboard${qs ? `?${qs}` : ""}`);
+    return request<GroupDashboard>(
+      `/multi-hospital/groups/${groupId}/dashboard${qs ? `?${qs}` : ""}`,
+    );
   },
 
   listGroupKpis: (groupId: string, params?: { from_date?: string; to_date?: string }) => {
@@ -10408,7 +11030,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<GroupKpiSnapshot[]>(`/multi-hospital/groups/${groupId}/kpis${qs ? `?${qs}` : ""}`);
+    return request<GroupKpiSnapshot[]>(
+      `/multi-hospital/groups/${groupId}/kpis${qs ? `?${qs}` : ""}`,
+    );
   },
 
   getHospitalKpi: (tenantId: string, params?: { from_date?: string; to_date?: string }) => {
@@ -10416,7 +11040,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<HospitalKpiSummary>(`/multi-hospital/hospitals/${tenantId}/kpi${qs ? `?${qs}` : ""}`);
+    return request<HospitalKpiSummary>(
+      `/multi-hospital/hospitals/${tenantId}/kpi${qs ? `?${qs}` : ""}`,
+    );
   },
 
   // Doctor Rotation
@@ -10425,7 +11051,9 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<DoctorRotationDisplay[]>(`/multi-hospital/groups/${groupId}/rotations${qs ? `?${qs}` : ""}`);
+    return request<DoctorRotationDisplay[]>(
+      `/multi-hospital/groups/${groupId}/rotations${qs ? `?${qs}` : ""}`,
+    );
   },
 
   getDoctorRotation: (doctorId: string, params?: { from_date?: string; to_date?: string }) => {
@@ -10433,11 +11061,16 @@ export const api = {
     if (params?.from_date) sp.set("from_date", params.from_date);
     if (params?.to_date) sp.set("to_date", params.to_date);
     const qs = sp.toString();
-    return request<DoctorRotationSchedule[]>(`/multi-hospital/doctors/${doctorId}/rotations${qs ? `?${qs}` : ""}`);
+    return request<DoctorRotationSchedule[]>(
+      `/multi-hospital/doctors/${doctorId}/rotations${qs ? `?${qs}` : ""}`,
+    );
   },
 
   createDoctorRotation: (groupId: string, data: CreateDoctorRotation) =>
-    request<DoctorRotationSchedule>(`/multi-hospital/groups/${groupId}/rotations`, { method: "POST", body: JSON.stringify(data) }),
+    request<DoctorRotationSchedule>(`/multi-hospital/groups/${groupId}/rotations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   deleteDoctorRotation: (id: string) =>
     request<void>(`/multi-hospital/rotations/${id}`, { method: "DELETE" }),
@@ -10452,22 +11085,25 @@ export const api = {
   listGroupTariffs: (groupId: string) =>
     request<GroupTariffMaster[]>(`/multi-hospital/groups/${groupId}/tariffs`),
 
-  listPriceOverrides: () =>
-    request<HospitalPriceOverride[]>("/multi-hospital/price-overrides"),
+  listPriceOverrides: () => request<HospitalPriceOverride[]>("/multi-hospital/price-overrides"),
 
   // Group Templates
   listGroupTemplates: (groupId: string, templateType?: string) => {
     const sp = new URLSearchParams();
     if (templateType) sp.set("period", templateType);
     const qs = sp.toString();
-    return request<GroupTemplate[]>(`/multi-hospital/groups/${groupId}/templates${qs ? `?${qs}` : ""}`);
+    return request<GroupTemplate[]>(
+      `/multi-hospital/groups/${groupId}/templates${qs ? `?${qs}` : ""}`,
+    );
   },
 
-  getGroupTemplate: (id: string) =>
-    request<GroupTemplate>(`/multi-hospital/templates/${id}`),
+  getGroupTemplate: (id: string) => request<GroupTemplate>(`/multi-hospital/templates/${id}`),
 
   createGroupTemplate: (groupId: string, data: CreateGroupTemplate) =>
-    request<GroupTemplate>(`/multi-hospital/groups/${groupId}/templates`, { method: "POST", body: JSON.stringify(data) }),
+    request<GroupTemplate>(`/multi-hospital/groups/${groupId}/templates`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   deleteGroupTemplate: (id: string) =>
     request<void>(`/multi-hospital/templates/${id}`, { method: "DELETE" }),
@@ -10477,18 +11113,14 @@ export const api = {
   // ══════════════════════════════════════════════════════════════════════════════
 
   // Dashboard
-  getCmsDashboard: () =>
-    request<CmsDashboardStats>("/cms/dashboard"),
+  getCmsDashboard: () => request<CmsDashboardStats>("/cms/dashboard"),
 
   // Categories
-  listCmsCategories: () =>
-    request<CmsCategory[]>("/cms/categories"),
+  listCmsCategories: () => request<CmsCategory[]>("/cms/categories"),
 
-  listCmsCategoriesTree: () =>
-    request<CmsCategoryWithChildren[]>("/cms/categories/tree"),
+  listCmsCategoriesTree: () => request<CmsCategoryWithChildren[]>("/cms/categories/tree"),
 
-  getCmsCategory: (id: string) =>
-    request<CmsCategory>(`/cms/categories/${id}`),
+  getCmsCategory: (id: string) => request<CmsCategory>(`/cms/categories/${id}`),
 
   createCmsCategory: (data: CreateCmsCategory) =>
     request<CmsCategory>("/cms/categories", { method: "POST", body: JSON.stringify(data) }),
@@ -10496,15 +11128,12 @@ export const api = {
   updateCmsCategory: (id: string, data: UpdateCmsCategory) =>
     request<CmsCategory>(`/cms/categories/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsCategory: (id: string) =>
-    request<void>(`/cms/categories/${id}`, { method: "DELETE" }),
+  deleteCmsCategory: (id: string) => request<void>(`/cms/categories/${id}`, { method: "DELETE" }),
 
   // Tags
-  listCmsTags: () =>
-    request<CmsTag[]>("/cms/tags"),
+  listCmsTags: () => request<CmsTag[]>("/cms/tags"),
 
-  getCmsTag: (id: string) =>
-    request<CmsTag>(`/cms/tags/${id}`),
+  getCmsTag: (id: string) => request<CmsTag>(`/cms/tags/${id}`),
 
   createCmsTag: (data: CreateCmsTag) =>
     request<CmsTag>("/cms/tags", { method: "POST", body: JSON.stringify(data) }),
@@ -10512,18 +11141,15 @@ export const api = {
   updateCmsTag: (id: string, data: UpdateCmsTag) =>
     request<CmsTag>(`/cms/tags/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsTag: (id: string) =>
-    request<void>(`/cms/tags/${id}`, { method: "DELETE" }),
+  deleteCmsTag: (id: string) => request<void>(`/cms/tags/${id}`, { method: "DELETE" }),
 
   bulkDeleteCmsTags: (ids: string[]) =>
     request<void>("/cms/tags/bulk-delete", { method: "POST", body: JSON.stringify(ids) }),
 
   // Authors
-  listCmsAuthors: () =>
-    request<CmsAuthor[]>("/cms/authors"),
+  listCmsAuthors: () => request<CmsAuthor[]>("/cms/authors"),
 
-  getCmsAuthor: (id: string) =>
-    request<CmsAuthor>(`/cms/authors/${id}`),
+  getCmsAuthor: (id: string) => request<CmsAuthor>(`/cms/authors/${id}`),
 
   createCmsAuthor: (data: CreateCmsAuthor) =>
     request<CmsAuthor>("/cms/authors", { method: "POST", body: JSON.stringify(data) }),
@@ -10531,8 +11157,7 @@ export const api = {
   updateCmsAuthor: (id: string, data: UpdateCmsAuthor) =>
     request<CmsAuthor>(`/cms/authors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsAuthor: (id: string) =>
-    request<void>(`/cms/authors/${id}`, { method: "DELETE" }),
+  deleteCmsAuthor: (id: string) => request<void>(`/cms/authors/${id}`, { method: "DELETE" }),
 
   // Media Library
   listCmsMedia: (params?: { page?: number; per_page?: number; mime_type?: string }) => {
@@ -10544,8 +11169,7 @@ export const api = {
     return request<CmsMedia[]>(`/cms/media${qs ? `?${qs}` : ""}`);
   },
 
-  getCmsMedia: (id: string) =>
-    request<CmsMedia>(`/cms/media/${id}`),
+  getCmsMedia: (id: string) => request<CmsMedia>(`/cms/media/${id}`),
 
   createCmsMedia: (data: CreateCmsMedia) =>
     request<CmsMedia>("/cms/media", { method: "POST", body: JSON.stringify(data) }),
@@ -10553,11 +11177,17 @@ export const api = {
   updateCmsMedia: (id: string, data: UpdateCmsMedia) =>
     request<CmsMedia>(`/cms/media/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsMedia: (id: string) =>
-    request<void>(`/cms/media/${id}`, { method: "DELETE" }),
+  deleteCmsMedia: (id: string) => request<void>(`/cms/media/${id}`, { method: "DELETE" }),
 
   // Posts
-  listCmsPosts: (params?: { page?: number; per_page?: number; status?: string; category_id?: string; author_id?: string; search?: string }) => {
+  listCmsPosts: (params?: {
+    page?: number;
+    per_page?: number;
+    status?: string;
+    category_id?: string;
+    author_id?: string;
+    search?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.page) sp.set("page", String(params.page));
     if (params?.per_page) sp.set("per_page", String(params.per_page));
@@ -10569,8 +11199,7 @@ export const api = {
     return request<CmsPostSummary[]>(`/cms/posts${qs ? `?${qs}` : ""}`);
   },
 
-  getCmsPost: (id: string) =>
-    request<CmsPostDetail>(`/cms/posts/${id}`),
+  getCmsPost: (id: string) => request<CmsPostDetail>(`/cms/posts/${id}`),
 
   createCmsPost: (data: CreateCmsPost) =>
     request<CmsPost>("/cms/posts", { method: "POST", body: JSON.stringify(data) }),
@@ -10578,27 +11207,30 @@ export const api = {
   updateCmsPost: (id: string, data: UpdateCmsPost) =>
     request<CmsPost>(`/cms/posts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsPost: (id: string) =>
-    request<void>(`/cms/posts/${id}`, { method: "DELETE" }),
+  deleteCmsPost: (id: string) => request<void>(`/cms/posts/${id}`, { method: "DELETE" }),
 
   // Post Workflow
   submitCmsPostForReview: (id: string, data: SubmitPostForReview) =>
-    request<CmsPost>(`/cms/posts/${id}/submit-review`, { method: "POST", body: JSON.stringify(data) }),
+    request<CmsPost>(`/cms/posts/${id}/submit-review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   reviewCmsPost: (id: string, data: ReviewPostAction) =>
     request<CmsPost>(`/cms/posts/${id}/review`, { method: "POST", body: JSON.stringify(data) }),
 
   medicalReviewCmsPost: (id: string, data: ReviewPostAction) =>
-    request<CmsPost>(`/cms/posts/${id}/medical-review`, { method: "POST", body: JSON.stringify(data) }),
+    request<CmsPost>(`/cms/posts/${id}/medical-review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  publishCmsPost: (id: string) =>
-    request<CmsPost>(`/cms/posts/${id}/publish`, { method: "POST" }),
+  publishCmsPost: (id: string) => request<CmsPost>(`/cms/posts/${id}/publish`, { method: "POST" }),
 
   scheduleCmsPost: (id: string, data: SchedulePostRequest) =>
     request<CmsPost>(`/cms/posts/${id}/schedule`, { method: "POST", body: JSON.stringify(data) }),
 
-  archiveCmsPost: (id: string) =>
-    request<CmsPost>(`/cms/posts/${id}/archive`, { method: "POST" }),
+  archiveCmsPost: (id: string) => request<CmsPost>(`/cms/posts/${id}/archive`, { method: "POST" }),
 
   unarchiveCmsPost: (id: string) =>
     request<CmsPost>(`/cms/posts/${id}/unarchive`, { method: "POST" }),
@@ -10611,14 +11243,14 @@ export const api = {
     request<CmsPostRevision>(`/cms/posts/${postId}/revisions/${revisionNumber}`),
 
   restoreCmsPostRevision: (postId: string, revisionNumber: number) =>
-    request<CmsPost>(`/cms/posts/${postId}/revisions/${revisionNumber}/restore`, { method: "POST" }),
+    request<CmsPost>(`/cms/posts/${postId}/revisions/${revisionNumber}/restore`, {
+      method: "POST",
+    }),
 
   // Post Analytics
-  getCmsPostAnalytics: (id: string) =>
-    request<CmsPostAnalytics>(`/cms/posts/${id}/analytics`),
+  getCmsPostAnalytics: (id: string) => request<CmsPostAnalytics>(`/cms/posts/${id}/analytics`),
 
-  listCmsTopPosts: () =>
-    request<CmsPostAnalytics[]>("/cms/analytics/top-posts"),
+  listCmsTopPosts: () => request<CmsPostAnalytics[]>("/cms/analytics/top-posts"),
 
   // Subscribers
   listCmsSubscribers: (params?: { page?: number; per_page?: number; status?: string }) => {
@@ -10630,21 +11262,17 @@ export const api = {
     return request<CmsSubscriber[]>(`/cms/subscribers${qs ? `?${qs}` : ""}`);
   },
 
-  getCmsSubscriber: (id: string) =>
-    request<CmsSubscriber>(`/cms/subscribers/${id}`),
+  getCmsSubscriber: (id: string) => request<CmsSubscriber>(`/cms/subscribers/${id}`),
 
   deleteCmsSubscriber: (id: string) =>
     request<void>(`/cms/subscribers/${id}`, { method: "DELETE" }),
 
-  exportCmsSubscribers: () =>
-    request<string>("/cms/subscribers/export"),
+  exportCmsSubscribers: () => request<string>("/cms/subscribers/export"),
 
   // Pages
-  listCmsPages: () =>
-    request<CmsPage[]>("/cms/pages"),
+  listCmsPages: () => request<CmsPage[]>("/cms/pages"),
 
-  getCmsPage: (id: string) =>
-    request<CmsPage>(`/cms/pages/${id}`),
+  getCmsPage: (id: string) => request<CmsPage>(`/cms/pages/${id}`),
 
   createCmsPage: (data: CreateCmsPage) =>
     request<CmsPage>("/cms/pages", { method: "POST", body: JSON.stringify(data) }),
@@ -10652,28 +11280,30 @@ export const api = {
   updateCmsPage: (id: string, data: UpdateCmsPage) =>
     request<CmsPage>(`/cms/pages/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  deleteCmsPage: (id: string) =>
-    request<void>(`/cms/pages/${id}`, { method: "DELETE" }),
+  deleteCmsPage: (id: string) => request<void>(`/cms/pages/${id}`, { method: "DELETE" }),
 
   // Settings
-  getCmsSettings: () =>
-    request<CmsSettings>("/cms/settings"),
+  getCmsSettings: () => request<CmsSettings>("/cms/settings"),
 
   updateCmsSettings: (data: UpdateCmsSettings) =>
     request<CmsSettings>("/cms/settings", { method: "PUT", body: JSON.stringify(data) }),
 
   // Menus
-  listCmsMenus: () =>
-    request<CmsMenu[]>("/cms/menus"),
+  listCmsMenus: () => request<CmsMenu[]>("/cms/menus"),
 
-  getCmsMenu: (location: string) =>
-    request<CmsMenu>(`/cms/menus/${location}`),
+  getCmsMenu: (location: string) => request<CmsMenu>(`/cms/menus/${location}`),
 
   updateCmsMenu: (location: string, data: UpdateCmsMenu) =>
     request<CmsMenu>(`/cms/menus/${location}`, { method: "PUT", body: JSON.stringify(data) }),
 
   // Public API
-  publicListCmsPosts: (params?: { page?: number; per_page?: number; category?: string; tag?: string; author?: string }) => {
+  publicListCmsPosts: (params?: {
+    page?: number;
+    per_page?: number;
+    category?: string;
+    tag?: string;
+    author?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.page) sp.set("page", String(params.page));
     if (params?.per_page) sp.set("per_page", String(params.per_page));
@@ -10684,26 +11314,21 @@ export const api = {
     return request<CmsPostList>(`/public/cms/posts${qs ? `?${qs}` : ""}`);
   },
 
-  publicGetCmsPost: (slug: string) =>
-    request<CmsPublicPost>(`/public/cms/posts/${slug}`),
+  publicGetCmsPost: (slug: string) => request<CmsPublicPost>(`/public/cms/posts/${slug}`),
 
-  publicGetFeaturedPosts: () =>
-    request<CmsPublicPost[]>("/public/cms/posts/featured"),
+  publicGetFeaturedPosts: () => request<CmsPublicPost[]>("/public/cms/posts/featured"),
 
   publicRecordCmsView: (postId: string) =>
     request<void>(`/public/cms/posts/${postId}/view`, { method: "POST" }),
 
-  publicGetCmsPage: (slug: string) =>
-    request<CmsPage>(`/public/cms/pages/${slug}`),
+  publicGetCmsPage: (slug: string) => request<CmsPage>(`/public/cms/pages/${slug}`),
 
   publicSubscribeCms: (data: CreateCmsSubscriber) =>
     request<CmsSubscriber>("/public/cms/subscribe", { method: "POST", body: JSON.stringify(data) }),
 
-  publicConfirmCmsSubscription: (token: string) =>
-    request<void>(`/public/cms/confirm/${token}`),
+  publicConfirmCmsSubscription: (token: string) => request<void>(`/public/cms/confirm/${token}`),
 
-  publicUnsubscribeCms: (token: string) =>
-    request<void>(`/public/cms/unsubscribe/${token}`),
+  publicUnsubscribeCms: (token: string) => request<void>(`/public/cms/unsubscribe/${token}`),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: BREAK-GLASS
@@ -10726,33 +11351,42 @@ export const api = {
     return request<BreakGlassEventSummary[]>(`/break-glass${qs ? `?${qs}` : ""}`);
   },
 
-  getBreakGlass: (id: string) =>
-    request<BreakGlassEvent>(`/break-glass/${id}`),
+  getBreakGlass: (id: string) => request<BreakGlassEvent>(`/break-glass/${id}`),
 
   endBreakGlass: (id: string, data: EndBreakGlassRequest) =>
-    request<BreakGlassEvent>(`/break-glass/${id}/end`, { method: "POST", body: JSON.stringify(data) }),
+    request<BreakGlassEvent>(`/break-glass/${id}/end`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   reviewBreakGlass: (id: string, data: ReviewBreakGlassRequest) =>
-    request<BreakGlassEvent>(`/break-glass/${id}/review`, { method: "POST", body: JSON.stringify(data) }),
+    request<BreakGlassEvent>(`/break-glass/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: CLINICAL ACCESS MONITOR
   // ══════════════════════════════════════════════════════════════
 
-  listSensitivePatients: () =>
-    request<SensitivePatientSummary[]>("/sensitive-patients"),
+  listSensitivePatients: () => request<SensitivePatientSummary[]>("/sensitive-patients"),
 
   createSensitivePatient: (data: CreateSensitivePatientRequest) =>
-    request<SensitivePatient>("/sensitive-patients", { method: "POST", body: JSON.stringify(data) }),
+    request<SensitivePatient>("/sensitive-patients", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   deleteSensitivePatient: (id: string) =>
     request<{ deleted: boolean }>(`/sensitive-patients/${id}`, { method: "DELETE" }),
 
-  listAccessAlerts: () =>
-    request<AccessAlert[]>("/access-alerts"),
+  listAccessAlerts: () => request<AccessAlert[]>("/access-alerts"),
 
   acknowledgeAccessAlert: (id: string, data: AcknowledgeAlertRequest) =>
-    request<AccessAlert>(`/access-alerts/${id}/acknowledge`, { method: "POST", body: JSON.stringify(data) }),
+    request<AccessAlert>(`/access-alerts/${id}/acknowledge`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: STOCK DISPOSAL
@@ -10771,27 +11405,30 @@ export const api = {
     return request<StockDisposalSummary[]>(`/disposals${qs ? `?${qs}` : ""}`);
   },
 
-  getDisposal: (id: string) =>
-    request<StockDisposalRequest>(`/disposals/${id}`),
+  getDisposal: (id: string) => request<StockDisposalRequest>(`/disposals/${id}`),
 
-  getDisposalItems: (id: string) =>
-    request<StockDisposalItem[]>(`/disposals/${id}/items`),
+  getDisposalItems: (id: string) => request<StockDisposalItem[]>(`/disposals/${id}/items`),
 
   createDisposal: (data: CreateDisposalRequest) =>
     request<StockDisposalRequest>("/disposals", { method: "POST", body: JSON.stringify(data) }),
 
   approveDisposal: (id: string, data: ApproveDisposalRequest) =>
-    request<StockDisposalRequest>(`/disposals/${id}/approve`, { method: "POST", body: JSON.stringify(data) }),
+    request<StockDisposalRequest>(`/disposals/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   executeDisposal: (id: string, data: ExecuteDisposalRequest) =>
-    request<StockDisposalRequest>(`/disposals/${id}/execute`, { method: "POST", body: JSON.stringify(data) }),
+    request<StockDisposalRequest>(`/disposals/${id}/execute`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: TAT TRACKING
   // ══════════════════════════════════════════════════════════════
 
-  listTatBenchmarks: () =>
-    request<TatBenchmark[]>("/tat/benchmarks"),
+  listTatBenchmarks: () => request<TatBenchmark[]>("/tat/benchmarks"),
 
   createTatBenchmark: (data: CreateTatBenchmarkRequest) =>
     request<TatBenchmark>("/tat/benchmarks", { method: "POST", body: JSON.stringify(data) }),
@@ -10813,10 +11450,12 @@ export const api = {
     request<TatRecord>("/tat/records", { method: "POST", body: JSON.stringify(data) }),
 
   completeTatRecord: (id: string, data: CompleteTatRecordRequest) =>
-    request<TatRecord>(`/tat/records/${id}/complete`, { method: "POST", body: JSON.stringify(data) }),
+    request<TatRecord>(`/tat/records/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  getTatDashboard: () =>
-    request<TatDashboard>("/tat/dashboard"),
+  getTatDashboard: () => request<TatDashboard>("/tat/dashboard"),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: DATA MIGRATION
@@ -10833,8 +11472,7 @@ export const api = {
     return request<DataMigration[]>(`/migrations${qs ? `?${qs}` : ""}`);
   },
 
-  getMigration: (id: string) =>
-    request<DataMigration>(`/migrations/${id}`),
+  getMigration: (id: string) => request<DataMigration>(`/migrations/${id}`),
 
   createMigration: (data: CreateMigrationRequest) =>
     request<DataMigration>("/migrations", { method: "POST", body: JSON.stringify(data) }),
@@ -10846,21 +11484,21 @@ export const api = {
   // IT SECURITY: EOD DIGEST
   // ══════════════════════════════════════════════════════════════
 
-  getMyDigestSubscription: () =>
-    request<EodDigestSubscription | null>("/digest/subscription"),
+  getMyDigestSubscription: () => request<EodDigestSubscription | null>("/digest/subscription"),
 
   upsertDigestSubscription: (data: CreateDigestSubscriptionRequest) =>
-    request<EodDigestSubscription>("/digest/subscription", { method: "POST", body: JSON.stringify(data) }),
+    request<EodDigestSubscription>("/digest/subscription", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listDigestHistory: () =>
-    request<EodDigestHistory[]>("/digest/history"),
+  listDigestHistory: () => request<EodDigestHistory[]>("/digest/history"),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: DATA QUALITY
   // ══════════════════════════════════════════════════════════════
 
-  listDataQualityRules: () =>
-    request<DataQualityRule[]>("/data-quality/rules"),
+  listDataQualityRules: () => request<DataQualityRule[]>("/data-quality/rules"),
 
   createDataQualityRule: (data: CreateDataQualityRuleRequest) =>
     request<DataQualityRule>("/data-quality/rules", { method: "POST", body: JSON.stringify(data) }),
@@ -10878,65 +11516,77 @@ export const api = {
   },
 
   resolveDataQualityIssue: (id: string, data: ResolveIssueRequest) =>
-    request<DataQualityIssue>(`/data-quality/issues/${id}/resolve`, { method: "POST", body: JSON.stringify(data) }),
+    request<DataQualityIssue>(`/data-quality/issues/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  getDataQualityDashboard: () =>
-    request<DataQualityDashboard>("/data-quality/dashboard"),
+  getDataQualityDashboard: () => request<DataQualityDashboard>("/data-quality/dashboard"),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: CERT-IN COMPLIANCE
   // ══════════════════════════════════════════════════════════════
 
   reportToCertIn: (id: string, data: ReportToCertInRequest) =>
-    request<CertInIncident>(`/security-incidents/${id}/cert-in`, { method: "POST", body: JSON.stringify(data) }),
+    request<CertInIncident>(`/security-incidents/${id}/cert-in`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   getIncidentUpdates: (id: string) =>
     request<CertInIncidentUpdate[]>(`/security-incidents/${id}/updates`),
 
   addIncidentUpdate: (id: string, data: AddCertInUpdateRequest) =>
-    request<CertInIncidentUpdate>(`/security-incidents/${id}/updates`, { method: "POST", body: JSON.stringify(data) }),
+    request<CertInIncidentUpdate>(`/security-incidents/${id}/updates`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listVulnerabilities: () =>
-    request<Vulnerability[]>("/vulnerabilities"),
+  listVulnerabilities: () => request<Vulnerability[]>("/vulnerabilities"),
 
   createVulnerability: (data: CreateVulnerabilityRequest) =>
     request<Vulnerability>("/vulnerabilities", { method: "POST", body: JSON.stringify(data) }),
 
   updateVulnerability: (id: string, data: UpdateVulnerabilityRequest) =>
-    request<Vulnerability>(`/vulnerabilities/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    request<Vulnerability>(`/vulnerabilities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
-  listComplianceRequirements: () =>
-    request<ComplianceRequirement[]>("/compliance-requirements"),
+  listComplianceRequirements: () => request<ComplianceRequirement[]>("/compliance-requirements"),
 
   updateComplianceRequirement: (id: string, data: UpdateCertInComplianceRequest) =>
-    request<ComplianceRequirement>(`/compliance-requirements/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    request<ComplianceRequirement>(`/compliance-requirements/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: SYSTEM HEALTH & MONITORING
   // ══════════════════════════════════════════════════════════════
 
-  getSystemHealthDashboard: () =>
-    request<SystemHealthDashboard>("/system-health"),
+  getSystemHealthDashboard: () => request<SystemHealthDashboard>("/system-health"),
 
-  listBackups: () =>
-    request<BackupHistory[]>("/backups"),
+  listBackups: () => request<BackupHistory[]>("/backups"),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: ONBOARDING WIZARD
   // ══════════════════════════════════════════════════════════════
 
   getOnboardingProgress: () =>
-    request<ItSecurityOnboardingProgress | null>("/onboarding/progress"),
+    request<ItSecurityOnboardingProgress | null>("/it-onboarding/progress"),
 
   completeOnboardingStep: (data: CompleteItSecurityOnboardingStepRequest) =>
-    request<ItSecurityOnboardingProgress>("/onboarding/complete-step", { method: "POST", body: JSON.stringify(data) }),
+    request<ItSecurityOnboardingProgress>("/it-onboarding/complete-step", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════════
   // IT SECURITY: INCENTIVE CONFIGURATION
   // ══════════════════════════════════════════════════════════════
 
-  listIncentivePlans: () =>
-    request<IncentivePlan[]>("/incentive-plans"),
+  listIncentivePlans: () => request<IncentivePlan[]>("/incentive-plans"),
 
   createIncentivePlan: (data: CreateIncentivePlanRequest) =>
     request<IncentivePlan>("/incentive-plans", { method: "POST", body: JSON.stringify(data) }),
@@ -10945,32 +11595,50 @@ export const api = {
     request<IncentivePlanRule[]>(`/incentive-plans/${id}/rules`),
 
   addIncentiveRule: (planId: string, data: CreateIncentiveRuleRequest) =>
-    request<IncentivePlanRule>(`/incentive-plans/${planId}/rules`, { method: "POST", body: JSON.stringify(data) }),
+    request<IncentivePlanRule>(`/incentive-plans/${planId}/rules`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   listDoctorIncentiveAssignments: () =>
     request<DoctorIncentiveAssignment[]>("/incentive-assignments"),
 
   assignIncentivePlan: (data: AssignIncentivePlanRequest) =>
-    request<DoctorIncentiveAssignment>("/incentive-assignments", { method: "POST", body: JSON.stringify(data) }),
+    request<DoctorIncentiveAssignment>("/incentive-assignments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
-  listIncentiveCalculations: () =>
-    request<IncentiveCalculation[]>("/incentive-calculations"),
+  listIncentiveCalculations: () => request<IncentiveCalculation[]>("/incentive-calculations"),
 
   calculateIncentive: (data: CalculateIncentiveRequest) =>
-    request<IncentiveCalculation>("/incentive-calculations", { method: "POST", body: JSON.stringify(data) }),
+    request<IncentiveCalculation>("/incentive-calculations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   approveIncentive: (id: string, data: ApproveIncentiveRequest) =>
-    request<IncentiveCalculation>(`/incentive-calculations/${id}/approve`, { method: "POST", body: JSON.stringify(data) }),
+    request<IncentiveCalculation>(`/incentive-calculations/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   markIncentivePaid: (id: string, data: MarkIncentivePaidRequest) =>
-    request<IncentiveCalculation>(`/incentive-calculations/${id}/paid`, { method: "POST", body: JSON.stringify(data) }),
+    request<IncentiveCalculation>(`/incentive-calculations/${id}/paid`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── Device Integration ──────────────────────────────────────
 
-  listManufacturers: () =>
-    request<ManufacturerSummary[]>("/devices/manufacturers"),
+  listManufacturers: () => request<ManufacturerSummary[]>("/devices/manufacturers"),
 
-  listAdapterCatalog: (params?: { q?: string; category?: string; protocol?: string; manufacturer?: string }) => {
+  listAdapterCatalog: (params?: {
+    q?: string;
+    category?: string;
+    protocol?: string;
+    manufacturer?: string;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.q) qs.set("q", params.q);
     if (params?.category) qs.set("category", params.category);
@@ -10984,52 +11652,65 @@ export const api = {
     request<DeviceAdapterCatalog>(`/devices/catalog/${adapterCode}`),
 
   previewAdapterConfig: (adapterCode: string, departmentCode?: string) =>
-    request<GeneratedDeviceConfig>(`/devices/catalog/${adapterCode}/preview-config${departmentCode ? `?department_code=${departmentCode}` : ""}`),
+    request<GeneratedDeviceConfig>(
+      `/devices/catalog/${adapterCode}/preview-config${departmentCode ? `?department_code=${departmentCode}` : ""}`,
+    ),
 
-  listDeviceInstances: () =>
-    request<DeviceInstance[]>("/devices/instances"),
+  listDeviceInstances: () => request<DeviceInstance[]>("/devices/instances"),
 
-  getDeviceInstance: (id: string) =>
-    request<DeviceInstance>(`/devices/instances/${id}`),
+  getDeviceInstance: (id: string) => request<DeviceInstance>(`/devices/instances/${id}`),
 
   createDeviceInstance: (data: CreateDeviceInstanceRequest) =>
     request<DeviceInstance>("/devices/instances", { method: "POST", body: JSON.stringify(data) }),
 
   updateDeviceInstance: (id: string, data: UpdateDeviceInstanceRequest) =>
-    request<DeviceInstance>(`/devices/instances/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<DeviceInstance>(`/devices/instances/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   decommissionDevice: (id: string) =>
     request<{ status: string }>(`/devices/instances/${id}`, { method: "DELETE" }),
 
   testDeviceConnection: (id: string) =>
-    request<{ status: string; message: string }>(`/devices/instances/${id}/test`, { method: "POST" }),
+    request<{ status: string; message: string }>(`/devices/instances/${id}/test`, {
+      method: "POST",
+    }),
 
   regenerateDeviceConfig: (id: string) =>
-    request<GeneratedDeviceConfig>(`/devices/instances/${id}/regenerate-config`, { method: "POST" }),
+    request<GeneratedDeviceConfig>(`/devices/instances/${id}/regenerate-config`, {
+      method: "POST",
+    }),
 
   listDeviceMessages: (deviceId: string, params?: { page?: number; status?: string }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.status) qs.set("status", params.status);
     const query = qs.toString();
-    return request<DeviceMessage[]>(`/devices/instances/${deviceId}/messages${query ? `?${query}` : ""}`);
+    return request<DeviceMessage[]>(
+      `/devices/instances/${deviceId}/messages${query ? `?${query}` : ""}`,
+    );
   },
 
   listDeviceConfigHistory: (deviceId: string) =>
     request<DeviceConfigHistory[]>(`/devices/instances/${deviceId}/config-history`),
 
-  listBridgeAgents: () =>
-    request<BridgeAgent[]>("/devices/agents"),
+  listBridgeAgents: () => request<BridgeAgent[]>("/devices/agents"),
 
   // Routing Rules
-  listRoutingRules: () =>
-    request<DeviceRoutingRule[]>("/devices/routing-rules"),
+  listRoutingRules: () => request<DeviceRoutingRule[]>("/devices/routing-rules"),
 
   createRoutingRule: (data: CreateRoutingRuleRequest) =>
-    request<DeviceRoutingRule>("/devices/routing-rules", { method: "POST", body: JSON.stringify(data) }),
+    request<DeviceRoutingRule>("/devices/routing-rules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateRoutingRule: (id: string, data: UpdateRoutingRuleRequest) =>
-    request<DeviceRoutingRule>(`/devices/routing-rules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<DeviceRoutingRule>(`/devices/routing-rules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   deleteRoutingRule: (id: string) =>
     request<{ status: string }>(`/devices/routing-rules/${id}`, { method: "DELETE" }),
@@ -11044,34 +11725,86 @@ export const api = {
     const q = qs.toString();
     return request<LmsCourse[]>(`/lms/courses${q ? `?${q}` : ""}`);
   },
-  getLmsCourse: (id: string) =>
-    request<CourseWithModules>(`/lms/courses/${id}`),
-  createLmsCourse: (data: { code: string; title: string; description?: string; category?: string; duration_hours?: number; is_mandatory?: boolean; target_roles?: string[]; content_type?: string }) =>
-    request<LmsCourse>("/lms/courses", { method: "POST", body: JSON.stringify(data) }),
+  getLmsCourse: (id: string) => request<CourseWithModules>(`/lms/courses/${id}`),
+  createLmsCourse: (data: {
+    code: string;
+    title: string;
+    description?: string;
+    category?: string;
+    duration_hours?: number;
+    is_mandatory?: boolean;
+    target_roles?: string[];
+    content_type?: string;
+  }) => request<LmsCourse>("/lms/courses", { method: "POST", body: JSON.stringify(data) }),
   updateLmsCourse: (id: string, data: Record<string, unknown>) =>
     request<LmsCourse>(`/lms/courses/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteLmsCourse: (id: string) =>
     request<{ deleted: boolean }>(`/lms/courses/${id}`, { method: "DELETE" }),
 
-  addLmsModule: (courseId: string, data: { title: string; description?: string; sort_order?: number; content?: Record<string, unknown> }) =>
-    request<LmsCourseModule>(`/lms/courses/${courseId}/modules`, { method: "POST", body: JSON.stringify(data) }),
+  addLmsModule: (
+    courseId: string,
+    data: {
+      title: string;
+      description?: string;
+      sort_order?: number;
+      content?: Record<string, unknown>;
+    },
+  ) =>
+    request<LmsCourseModule>(`/lms/courses/${courseId}/modules`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateLmsModule: (courseId: string, moduleId: string, data: Record<string, unknown>) =>
-    request<LmsCourseModule>(`/lms/courses/${courseId}/modules/${moduleId}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<LmsCourseModule>(`/lms/courses/${courseId}/modules/${moduleId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   deleteLmsModule: (courseId: string, moduleId: string) =>
-    request<{ deleted: boolean }>(`/lms/courses/${courseId}/modules/${moduleId}`, { method: "DELETE" }),
+    request<{ deleted: boolean }>(`/lms/courses/${courseId}/modules/${moduleId}`, {
+      method: "DELETE",
+    }),
   reorderLmsModules: (courseId: string, moduleIds: string[]) =>
-    request<{ reordered: boolean }>(`/lms/courses/${courseId}/modules/reorder`, { method: "PUT", body: JSON.stringify({ module_ids: moduleIds }) }),
+    request<{ reordered: boolean }>(`/lms/courses/${courseId}/modules/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ module_ids: moduleIds }),
+    }),
 
-  listLmsQuizzes: (courseId: string) =>
-    request<LmsQuiz[]>(`/lms/courses/${courseId}/quizzes`),
-  createLmsQuiz: (courseId: string, data: { title: string; pass_percentage?: number; max_attempts?: number; time_limit_minutes?: number }) =>
-    request<LmsQuiz>(`/lms/courses/${courseId}/quizzes`, { method: "POST", body: JSON.stringify(data) }),
+  listLmsQuizzes: (courseId: string) => request<LmsQuiz[]>(`/lms/courses/${courseId}/quizzes`),
+  createLmsQuiz: (
+    courseId: string,
+    data: {
+      title: string;
+      pass_percentage?: number;
+      max_attempts?: number;
+      time_limit_minutes?: number;
+    },
+  ) =>
+    request<LmsQuiz>(`/lms/courses/${courseId}/quizzes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateLmsQuiz: (id: string, data: Record<string, unknown>) =>
     request<LmsQuiz>(`/lms/quizzes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  addLmsQuestion: (quizId: string, data: { question_text: string; question_type?: string; options: unknown; correct_answer: unknown; explanation?: string; points?: number }) =>
-    request<LmsQuizQuestion>(`/lms/quizzes/${quizId}/questions`, { method: "POST", body: JSON.stringify(data) }),
+  addLmsQuestion: (
+    quizId: string,
+    data: {
+      question_text: string;
+      question_type?: string;
+      options: unknown;
+      correct_answer: unknown;
+      explanation?: string;
+      points?: number;
+    },
+  ) =>
+    request<LmsQuizQuestion>(`/lms/quizzes/${quizId}/questions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateLmsQuestion: (quizId: string, qid: string, data: Record<string, unknown>) =>
-    request<LmsQuizQuestion>(`/lms/quizzes/${quizId}/questions/${qid}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<LmsQuizQuestion>(`/lms/quizzes/${quizId}/questions/${qid}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   deleteLmsQuestion: (quizId: string, qid: string) =>
     request<{ deleted: boolean }>(`/lms/quizzes/${quizId}/questions/${qid}`, { method: "DELETE" }),
 
@@ -11086,31 +11819,57 @@ export const api = {
   assignLmsCourse: (data: { user_id: string; course_id: string; due_date?: string }) =>
     request<LmsEnrollment>("/lms/enrollments", { method: "POST", body: JSON.stringify(data) }),
   bulkAssignByRole: (data: { course_id: string; role: string; due_date?: string }) =>
-    request<{ enrolled: number }>("/lms/enrollments/bulk-role", { method: "POST", body: JSON.stringify(data) }),
+    request<{ enrolled: number }>("/lms/enrollments/bulk-role", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateLmsEnrollment: (id: string, data: { status?: string; due_date?: string }) =>
     request<LmsEnrollment>(`/lms/enrollments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  myLmsEnrollments: () =>
-    request<EnrollmentWithCourse[]>("/lms/my/enrollments"),
+  myLmsEnrollments: () => request<EnrollmentWithCourse[]>("/lms/my/enrollments"),
   myLmsCourseDetail: (enrollmentId: string) =>
     request<CourseWithModules>(`/lms/my/enrollments/${enrollmentId}`),
-  updateLmsProgress: (enrollmentId: string, data: { module_id: string; progress_percentage: number }) =>
-    request<LmsEnrollment>(`/lms/my/enrollments/${enrollmentId}/progress`, { method: "PUT", body: JSON.stringify(data) }),
+  updateLmsProgress: (
+    enrollmentId: string,
+    data: { module_id: string; progress_percentage: number },
+  ) =>
+    request<LmsEnrollment>(`/lms/my/enrollments/${enrollmentId}/progress`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   startQuizAttempt: (data: { quiz_id: string }) =>
-    request<QuizAttemptStart>("/lms/my/quiz-attempts", { method: "POST", body: JSON.stringify(data) }),
-  submitQuizAttempt: (attemptId: string, data: { answers: { question_id: string; selected: unknown }[] }) =>
-    request<QuizAttemptResult>(`/lms/my/quiz-attempts/${attemptId}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<QuizAttemptStart>("/lms/my/quiz-attempts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  submitQuizAttempt: (
+    attemptId: string,
+    data: { answers: { question_id: string; selected: unknown }[] },
+  ) =>
+    request<QuizAttemptResult>(`/lms/my/quiz-attempts/${attemptId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  listLmsPaths: () =>
-    request<LmsLearningPath[]>("/lms/paths"),
-  getLmsPath: (id: string) =>
-    request<LearningPathWithCourses>(`/lms/paths/${id}`),
-  createLmsPath: (data: { code: string; title: string; description?: string; target_roles?: string[]; is_mandatory?: boolean }) =>
-    request<LmsLearningPath>("/lms/paths", { method: "POST", body: JSON.stringify(data) }),
+  listLmsPaths: () => request<LmsLearningPath[]>("/lms/paths"),
+  getLmsPath: (id: string) => request<LearningPathWithCourses>(`/lms/paths/${id}`),
+  createLmsPath: (data: {
+    code: string;
+    title: string;
+    description?: string;
+    target_roles?: string[];
+    is_mandatory?: boolean;
+  }) => request<LmsLearningPath>("/lms/paths", { method: "POST", body: JSON.stringify(data) }),
   updateLmsPath: (id: string, data: Record<string, unknown>) =>
     request<LmsLearningPath>(`/lms/paths/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  addLmsPathCourse: (pathId: string, data: { course_id: string; sort_order?: number; is_required?: boolean }) =>
-    request<LmsLearningPathCourse>(`/lms/paths/${pathId}/courses`, { method: "POST", body: JSON.stringify(data) }),
+  addLmsPathCourse: (
+    pathId: string,
+    data: { course_id: string; sort_order?: number; is_required?: boolean },
+  ) =>
+    request<LmsLearningPathCourse>(`/lms/paths/${pathId}/courses`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   removeLmsPathCourse: (pathId: string, courseId: string) =>
     request<{ deleted: boolean }>(`/lms/paths/${pathId}/courses/${courseId}`, { method: "DELETE" }),
 
@@ -11121,13 +11880,17 @@ export const api = {
     const q = qs.toString();
     return request<LmsCertificate[]>(`/lms/certificates${q ? `?${q}` : ""}`);
   },
-  myLmsCertificates: () =>
-    request<LmsCertificate[]>("/lms/my/certificates"),
-  issueLmsCertificate: (data: { user_id: string; course_id?: string; path_id?: string; enrollment_id?: string; expires_at?: string }) =>
+  myLmsCertificates: () => request<LmsCertificate[]>("/lms/my/certificates"),
+  issueLmsCertificate: (data: {
+    user_id: string;
+    course_id?: string;
+    path_id?: string;
+    enrollment_id?: string;
+    expires_at?: string;
+  }) =>
     request<LmsCertificate>("/lms/certificates", { method: "POST", body: JSON.stringify(data) }),
 
-  lmsComplianceOverview: () =>
-    request<LmsComplianceRow[]>("/lms/compliance"),
+  lmsComplianceOverview: () => request<LmsComplianceRow[]>("/lms/compliance"),
   lmsComplianceByCourse: (courseId: string) =>
     request<EnrollmentWithCourse[]>(`/lms/compliance/courses/${courseId}`),
   lmsComplianceByUser: (userId: string) =>
@@ -11163,8 +11926,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getPaymentStatus: (id: string) =>
-    request<PaymentStatusResponse>(`/payments/${id}/status`),
+  getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
       method: "POST",
@@ -11270,10 +12032,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getMyDay: () => request<MyDayResponse>("/doctors/me/dashboard"),
-  getMyPendingSignoffs: () =>
-    request<PendingSignoffEntry[]>("/doctors/me/pending-signoffs"),
+  getMyPendingSignoffs: () => request<PendingSignoffEntry[]>("/doctors/me/pending-signoffs"),
 
-  adminListSignatureCredentials: (params?: { doctor_user_id?: string; include_revoked?: boolean }) => {
+  adminListSignatureCredentials: (params?: {
+    doctor_user_id?: string;
+    include_revoked?: boolean;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.doctor_user_id) qs.set("doctor_user_id", params.doctor_user_id);
     if (params?.include_revoked) qs.set("include_revoked", "true");
@@ -11399,8 +12163,7 @@ export const api = {
     request<unknown>(`/nurse/mar/${id}/hold`, { method: "PUT", body: JSON.stringify(data) }),
   refuseMar: (id: string, data: { reason: string }) =>
     request<unknown>(`/nurse/mar/${id}/refuse`, { method: "PUT", body: JSON.stringify(data) }),
-  listMarForPatient: (patient_id: string) =>
-    request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
+  listMarForPatient: (patient_id: string) => request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {
@@ -11468,12 +12231,19 @@ export const api = {
   startCodeBlue: (data: Record<string, unknown>) =>
     request<unknown>("/nurse/code-blue", { method: "POST", body: JSON.stringify(data) }),
   appendCodeBlueEntry: (id: string, data: { field: string; entry: unknown }) =>
-    request<unknown>(`/nurse/code-blue/${id}/append`, { method: "PUT", body: JSON.stringify(data) }),
+    request<unknown>(`/nurse/code-blue/${id}/append`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   endCodeBlue: (id: string, data: { outcome: string; notes?: string }) =>
     request<unknown>(`/nurse/code-blue/${id}/end`, { method: "PUT", body: JSON.stringify(data) }),
 
   // Equipment checks
-  listEquipmentChecks: (params?: { location_id?: string; overdue_only?: boolean; limit?: number }) => {
+  listEquipmentChecks: (params?: {
+    location_id?: string;
+    overdue_only?: boolean;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.location_id) qs.set("location_id", params.location_id);
     if (params?.overdue_only) qs.set("overdue_only", "true");
@@ -11522,7 +12292,12 @@ export const api = {
   // ══════════════════════════════════════════════════════════════════
 
   // Cash drawer
-  listCashDrawers: (params?: { status?: string; cashier_user_id?: string; pharmacy_location_id?: string; limit?: number }) => {
+  listCashDrawers: (params?: {
+    status?: string;
+    cashier_user_id?: string;
+    pharmacy_location_id?: string;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set("status", params.status);
     if (params?.cashier_user_id) qs.set("cashier_user_id", params.cashier_user_id);
@@ -11533,10 +12308,15 @@ export const api = {
   },
   openCashDrawer: (data: { pharmacy_location_id: string; opening_float: number; notes?: string }) =>
     request<unknown>("/pharmacy/cash-drawers", { method: "POST", body: JSON.stringify(data) }),
-  closeCashDrawer: (id: string, data: { actual_close_amount: number; variance_reason?: string; notes?: string }) =>
-    request<unknown>(`/pharmacy/cash-drawers/${id}/close`, { method: "PUT", body: JSON.stringify(data) }),
-  getMyActiveCashDrawer: () =>
-    request<unknown | null>("/pharmacy/cash-drawers/me/active"),
+  closeCashDrawer: (
+    id: string,
+    data: { actual_close_amount: number; variance_reason?: string; notes?: string },
+  ) =>
+    request<unknown>(`/pharmacy/cash-drawers/${id}/close`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Petty cash
   listPettyCash: (params?: { status?: string; cash_drawer_id?: string; limit?: number }) => {
@@ -11550,13 +12330,18 @@ export const api = {
   createPettyCash: (data: Record<string, unknown>) =>
     request<unknown>("/pharmacy/petty-cash", { method: "POST", body: JSON.stringify(data) }),
   decidePettyCash: (id: string, data: { approved: boolean; notes?: string }) =>
-    request<unknown>(`/pharmacy/petty-cash/${id}/decide`, { method: "PUT", body: JSON.stringify(data) }),
+    request<unknown>(`/pharmacy/petty-cash/${id}/decide`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Cash float movements
-  listCashFloatMovements: () =>
-    request<unknown[]>("/pharmacy/cash-float-movements"),
+  listCashFloatMovements: () => request<unknown[]>("/pharmacy/cash-float-movements"),
   createCashFloatMovement: (data: Record<string, unknown>) =>
-    request<unknown>("/pharmacy/cash-float-movements", { method: "POST", body: JSON.stringify(data) }),
+    request<unknown>("/pharmacy/cash-float-movements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Free dispensings
   listFreeDispensings: (params?: { category?: string; from_date?: string; limit?: number }) => {
@@ -11571,7 +12356,11 @@ export const api = {
     request<unknown>("/pharmacy/free-dispensings", { method: "POST", body: JSON.stringify(data) }),
 
   // Cashier overrides
-  listCashierOverrides: (params?: { cashier_user_id?: string; override_type?: string; limit?: number }) => {
+  listCashierOverrides: (params?: {
+    cashier_user_id?: string;
+    override_type?: string;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.cashier_user_id) qs.set("cashier_user_id", params.cashier_user_id);
     if (params?.override_type) qs.set("override_type", params.override_type);
@@ -11583,7 +12372,12 @@ export const api = {
     request<unknown>("/pharmacy/cashier-overrides", { method: "POST", body: JSON.stringify(data) }),
 
   // Supplier payments (pharmacy-scoped — distinct from procurement supplier payments)
-  listPharmacySupplierPayments: (params?: { status?: string; supplier_id?: string; overdue_only?: boolean; limit?: number }) => {
+  listPharmacySupplierPayments: (params?: {
+    status?: string;
+    supplier_id?: string;
+    overdue_only?: boolean;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set("status", params.status);
     if (params?.supplier_id) qs.set("supplier_id", params.supplier_id);
@@ -11594,11 +12388,22 @@ export const api = {
   },
   createPharmacySupplierPayment: (data: Record<string, unknown>) =>
     request<unknown>("/pharmacy/supplier-payments", { method: "POST", body: JSON.stringify(data) }),
-  payPharmacySupplier: (id: string, data: { paid_amount: number; payment_mode: string; utr_number?: string }) =>
-    request<unknown>(`/pharmacy/supplier-payments/${id}/pay`, { method: "PUT", body: JSON.stringify(data) }),
+  payPharmacySupplier: (
+    id: string,
+    data: { paid_amount: number; payment_mode: string; utr_number?: string },
+  ) =>
+    request<unknown>(`/pharmacy/supplier-payments/${id}/pay`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Drug margins
-  listDrugMargins: (params?: { from_date?: string; to_date?: string; drug_id?: string; limit?: number }) => {
+  listDrugMargins: (params?: {
+    from_date?: string;
+    to_date?: string;
+    drug_id?: string;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.from_date) qs.set("from_date", params.from_date);
     if (params?.to_date) qs.set("to_date", params.to_date);
@@ -11613,15 +12418,17 @@ export const api = {
   // holds in Loro containers — used when the tenant is in REST mode.
 
   listClinicalHandoffEntries: (shiftId: string) =>
-    request<Array<{
-      id: string;
-      shift_id: string;
-      author_user_id: string;
-      author_name: string;
-      category: "alert" | "info" | "task";
-      note: string;
-      authored_at: string;
-    }>>(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`),
+    request<
+      Array<{
+        id: string;
+        shift_id: string;
+        author_user_id: string;
+        author_name: string;
+        category: "alert" | "info" | "task";
+        note: string;
+        authored_at: string;
+      }>
+    >(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`),
   createClinicalHandoffEntry: (
     shiftId: string,
     data: { category: "alert" | "info" | "task"; note: string; department_id?: string },
@@ -11632,16 +12439,18 @@ export const api = {
     }),
 
   listClinicalTriageEntries: (visitId: string) =>
-    request<Array<{
-      id: string;
-      er_visit_id: string;
-      author_user_id: string;
-      author_name: string;
-      esi_level: 1 | 2 | 3 | 4 | 5;
-      chief_complaint: string;
-      observation: string;
-      authored_at: string;
-    }>>(`/clinical/triage-entries/visits/${visitId}`),
+    request<
+      Array<{
+        id: string;
+        er_visit_id: string;
+        author_user_id: string;
+        author_name: string;
+        esi_level: 1 | 2 | 3 | 4 | 5;
+        chief_complaint: string;
+        observation: string;
+        authored_at: string;
+      }>
+    >(`/clinical/triage-entries/visits/${visitId}`),
   createClinicalTriageEntry: (
     visitId: string,
     data: { esi_level: 1 | 2 | 3 | 4 | 5; chief_complaint: string; observation?: string },
@@ -11660,10 +12469,7 @@ export const api = {
       last_edited_at: string | null;
       version: number;
     }>(`/clinical/patient-notes/${patientId}`),
-  updatePatientNotes: (
-    patientId: string,
-    data: { text: string; if_version?: number },
-  ) =>
+  updatePatientNotes: (patientId: string, data: { text: string; if_version?: number }) =>
     request<unknown>(`/clinical/patient-notes/${patientId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -11818,5 +12624,204 @@ export const api = {
   triggerStorageSweep: () =>
     request<{ status: string }>("/admin/storage/sweep-now", {
       method: "POST",
+    }),
+
+  // ── Contract coverage for backend-registered operational endpoints ──
+  addMyDashboardWidget: (data: Record<string, unknown>) =>
+    request<unknown>("/dashboards/my/widgets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeMyDashboardWidget: (widgetId: string) =>
+    request<unknown>(`/dashboards/my/widgets/${widgetId}`, { method: "DELETE" }),
+  toggleMyDashboardWidgetVisibility: (widgetId: string, data: Record<string, unknown>) =>
+    request<unknown>(`/dashboards/my/widgets/${widgetId}/visibility`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  listSetupBrandEntities: () => request<unknown>("/setup/brand-entities"),
+  createSetupBrandEntity: (data: Record<string, unknown>) =>
+    request<unknown>("/setup/brand-entities", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateSetupBrandEntity: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/setup/brand-entities/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteSetupBrandEntity: (id: string) =>
+    request<unknown>(`/setup/brand-entities/${id}`, { method: "DELETE" }),
+  listVisibleScreensForUser: (userId: string) =>
+    request<unknown>(`/setup/users/${userId}/visible-screens`),
+  fhirMetadata: () => request<unknown>("/fhir/metadata"),
+  readFhirPatient: (id: string) => request<unknown>(`/fhir/Patient/${id}`),
+  readFhirPatientEverything: (id: string) => request<unknown>(`/fhir/Patient/${id}/$everything`),
+  readFhirEncounter: (id: string) => request<unknown>(`/fhir/Encounter/${id}`),
+  debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
+  listAuthRevocations: () => request<unknown>("/auth/revocations"),
+  getAbdmHfr: () => request<unknown>("/abdm/hfr"),
+  createAbdmHfr: (data: Record<string, unknown>) =>
+    request<unknown>("/abdm/hfr", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getTenantAbdmHfr: () => request<unknown>("/abdm/hfr/tenant"),
+  receiveAbdmGatewayCallback: (data: Record<string, unknown>) =>
+    request<unknown>("/abdm/gateway/callback", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPendingAbdmGatewayCallbacks: () => request<unknown>("/abdm/gateway/callbacks/pending"),
+  acknowledgeAbdmGatewayCallback: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/abdm/gateway/callbacks/${id}/ack`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getLabAnalyzerWorklist: () => request<unknown>("/lab/analyzer-worklist"),
+  assignLabPhlebotomy: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/lab/phlebotomy/${id}/assign`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  bulkPrintLabReports: (data: Record<string, unknown>) =>
+    request<unknown>("/lab/reports/bulk-print", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getLabReportDeliveryConfig: () => request<unknown>("/lab/report-delivery-config"),
+  updateLabReportDeliveryConfig: (data: Record<string, unknown>) =>
+    request<unknown>("/lab/report-delivery-config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listLabReferralDoctors: () => request<unknown>("/lab/referral-doctors"),
+  createLabReferralDoctor: (data: Record<string, unknown>) =>
+    request<unknown>("/lab/referral-doctors", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateLabReferralDoctor: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/lab/referral-doctors/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listLabReferralPayouts: () => request<unknown>("/lab/referral-payouts"),
+  createLabReferralPayout: (data: Record<string, unknown>) =>
+    request<unknown>("/lab/referral-payouts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getLabB2bCreditSummary: () => request<unknown>("/lab/b2b-credit-summary"),
+  listRadiologyDicomStudies: () => request<unknown>("/radiology/dicom-studies"),
+  getPriorRadiologyDicomStudies: (id: string) =>
+    request<unknown>(`/radiology/dicom-studies/${id}/prior`),
+  createRadiologyShareLink: (data: Record<string, unknown>) =>
+    request<unknown>("/radiology/share-links", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getRadiologyPacsConfig: () => request<unknown>("/radiology/pacs-config"),
+  updateRadiologyPacsConfig: (data: Record<string, unknown>) =>
+    request<unknown>("/radiology/pacs-config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listRadiologyDosimetry: () => request<unknown>("/radiology/dosimetry"),
+  createRadiologyDosimetry: (data: Record<string, unknown>) =>
+    request<unknown>("/radiology/dosimetry", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  downloadRadiologyPackage: (id: string) => request<unknown>(`/radiology/download-package/${id}`),
+  getProcurementVendorLedger: (vendorId: string) =>
+    request<unknown>(`/procurement/vendors/${vendorId}/ledger`),
+  listSecurityIncidentsV2: () => request<unknown>("/security/incidents"),
+  createSecurityIncidentV2: (data: Record<string, unknown>) =>
+    request<unknown>("/security/incidents", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getSecurityIncidentV2: (id: string) => request<unknown>(`/security/incidents/${id}`),
+  updateSecurityIncidentV2: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/security/incidents/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getSystemStateAdmin: () => request<unknown>("/admin/system_state"),
+  updateSystemStateAdmin: (data: Record<string, unknown>) =>
+    request<unknown>("/admin/system_state", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDbTopologyAdmin: () => request<unknown>("/admin/db-topology"),
+  updateDbTopologyAdmin: (data: Record<string, unknown>) =>
+    request<unknown>("/admin/db-topology", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  exportAuditLog: () => request<unknown>("/audit/export"),
+  getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
+  getPublicAppointmentSlots: () => request<unknown>("/public/appointments/slots"),
+  bookPublicAppointment: (data: Record<string, unknown>) =>
+    request<unknown>("/public/appointments/book", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  publicKioskCheckin: (data: Record<string, unknown>) =>
+    request<unknown>("/public/kiosk/checkin", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getPublicRadiologyViewer: (id: string) => request<unknown>(`/public/radiology/viewer/${id}`),
+  registerBridge: (data: Record<string, unknown>) =>
+    request<unknown>("/bridge/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  postBridgeHeartbeat: (data: Record<string, unknown>) =>
+    request<unknown>("/bridge/heartbeat", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  ingestDevicePayload: (deviceId: string, data: Record<string, unknown>) =>
+    request<unknown>(`/device-ingest/${deviceId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  pairDevice: (data: Record<string, unknown>) =>
+    request<unknown>("/device-pairing/pair", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  receiveNhcxCallback: (data: Record<string, unknown>) =>
+    request<unknown>("/integrations/nhcx/callback", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  receiveRazorpayWebhook: (data: Record<string, unknown>) =>
+    request<unknown>("/webhooks/razorpay", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateItSecurityOnboardingProgress: (data: Record<string, unknown>) =>
+    request<unknown>("/it-onboarding/progress", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completeItSecurityOnboarding: () =>
+    request<unknown>("/it-onboarding/complete", {
+      method: "POST",
+    }),
+  getOpdAppointmentReminderConfig: () => request<unknown>("/opd/appointments/reminder-config"),
+  updateOpdAppointmentReminderConfig: (data: Record<string, unknown>) =>
+    request<unknown>("/opd/appointments/reminder-config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  cancelPharmacyPosSale: (saleId: string, data: Record<string, unknown>) =>
+    request<unknown>(`/pharmacy/pos/sales/${saleId}/cancel`, {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 };

@@ -134,34 +134,63 @@ pub async fn book_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let booked: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM appointments \
-         WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
-         AND status NOT IN ('cancelled', 'no_show')",
-    )
-    .bind(body.doctor_id)
-    .bind(body.appointment_date)
-    .bind(body.slot_start)
-    .fetch_one(&mut *tx)
-    .await?;
+    let appointment_type = body.appointment_type.unwrap_or(AppointmentType::NewVisit);
 
-    let day_of_week = body.appointment_date.weekday().num_days_from_sunday() as i32;
-    let max_patients: Option<i32> = sqlx::query_scalar(
-        "SELECT max_patients FROM doctor_schedules \
-         WHERE doctor_id = $1 AND day_of_week = $2 AND is_active = true",
+    // Slot-capacity gate. Two reasons we may skip it:
+    //
+    //   1. Follow-up visits — these are by definition continuity-of-care
+    //      from a prior encounter and should never be blocked by the
+    //      doctor's "new patient" cap. Operators routinely report being
+    //      unable to schedule a 1-week post-op review because the slot
+    //      is full of new walk-ins.
+    //
+    //   2. Tenant opted to treat schedules as advisory — by default the
+    //      cap is informational ("this slot is filling up") and the UI
+    //      surfaces a soft warning, not a hard rejection. Tenants that
+    //      want strict caps set `tenant_settings.appointment_enforce_slot_cap=true`.
+    //
+    // The schedule rows are still useful — they drive the slot picker UI,
+    // doctor availability calendars, and the analytics dashboard. They
+    // just don't gate booking.
+    let enforce_cap = sqlx::query_scalar::<_, Option<serde_json::Value>>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'appointments' AND key = 'enforce_slot_cap'",
     )
-    .bind(body.doctor_id)
-    .bind(day_of_week)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?;
+    .await?
+    .flatten()
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
 
-    if let Some(max) = max_patients {
-        if booked >= i64::from(max) {
+    if enforce_cap && appointment_type != AppointmentType::FollowUp {
+        let booked: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM appointments \
+             WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
+             AND status NOT IN ('cancelled', 'no_show')",
+        )
+        .bind(body.doctor_id)
+        .bind(body.appointment_date)
+        .bind(body.slot_start)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let day_of_week = body.appointment_date.weekday().num_days_from_sunday() as i32;
+        let max_patients: Option<i32> = sqlx::query_scalar(
+            "SELECT max_patients FROM doctor_schedules \
+             WHERE doctor_id = $1 AND day_of_week = $2 AND is_active = true",
+        )
+        .bind(body.doctor_id)
+        .bind(day_of_week)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(max) = max_patients
+            && booked >= i64::from(max)
+        {
             return Err(AppError::Conflict("This time slot is fully booked".into()));
         }
     }
-
-    let appointment_type = body.appointment_type.unwrap_or(AppointmentType::NewVisit);
     let recurrence_group_id = body.recurrence_pattern.as_ref().map(|_| Uuid::new_v4());
     let count = if body.recurrence_pattern.is_some() {
         body.recurrence_count.unwrap_or(4).clamp(1, 12)
@@ -299,8 +328,10 @@ pub async fn check_in_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // token_number column is INTEGER (INT4) — cast result so sqlx
+    // can decode into i64 cleanly.
     let token: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(token_number), 0) + 1 FROM appointments \
+        "SELECT (COALESCE(MAX(token_number), 0) + 1)::BIGINT FROM appointments \
          WHERE appointment_date = CURRENT_DATE AND token_number IS NOT NULL",
     )
     .fetch_one(&mut *tx)

@@ -14,8 +14,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use spicedb_rs_proto::authzed::api::v1::{
-    self as v1,
-    permissions_service_client::PermissionsServiceClient,
+    self as v1, permissions_service_client::PermissionsServiceClient,
     relationship_update::Operation as TupleOp,
 };
 use tonic::{
@@ -38,16 +37,25 @@ pub struct SpiceDbBackend {
     client: Arc<PermissionsServiceClient<InterceptedService<Channel, BearerAuth>>>,
 }
 
+impl std::fmt::Debug for SpiceDbBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpiceDbBackend").finish_non_exhaustive()
+    }
+}
+
 #[derive(Clone)]
 pub struct BearerAuth {
     token: MetadataValue<tonic::metadata::Ascii>,
 }
 
+impl std::fmt::Debug for BearerAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BearerAuth").finish_non_exhaustive()
+    }
+}
+
 impl Interceptor for BearerAuth {
-    fn call(
-        &mut self,
-        mut req: tonic::Request<()>,
-    ) -> Result<tonic::Request<()>, tonic::Status> {
+    fn call(&mut self, mut req: Request<()>) -> Result<Request<()>, tonic::Status> {
         req.metadata_mut()
             .insert("authorization", self.token.clone());
         Ok(req)
@@ -239,7 +247,7 @@ impl AuthzBackend for SpiceDbBackend {
         let _ = permission;
         Ok(matches!(
             Permissionship::try_from(resp.permissionship),
-            Ok(Permissionship::HasPermission | Permissionship::ConditionalPermission)
+            Ok(Permissionship::HasPermission)
         ))
     }
 
@@ -323,6 +331,12 @@ impl AuthzBackend for SpiceDbBackend {
             .await
             .map_err(|e| AuthzError::Other(format!("lookup_resources stream: {e}")))?
         {
+            if !matches!(
+                v1::LookupPermissionship::try_from(msg.permissionship),
+                Ok(v1::LookupPermissionship::HasPermission)
+            ) {
+                continue;
+            }
             if let Ok(uuid) = Uuid::parse_str(&msg.resource_object_id) {
                 out.push(uuid);
             }
@@ -355,15 +369,17 @@ impl AuthzBackend for SpiceDbBackend {
         // SpiceDB documents that response.pairs ordering matches request items.
         let req_items: Vec<v1::CheckBulkPermissionsRequestItem> = items
             .iter()
-            .map(|(object_type, relation, id)| v1::CheckBulkPermissionsRequestItem {
-                resource: Some(v1::ObjectReference {
-                    object_type: object_type.clone(),
-                    object_id: id.to_string(),
-                }),
-                permission: relation_to_permission(*relation).to_owned(),
-                subject: Some(subject.clone()),
-                context: None,
-            })
+            .map(
+                |(object_type, relation, id)| v1::CheckBulkPermissionsRequestItem {
+                    resource: Some(v1::ObjectReference {
+                        object_type: object_type.clone(),
+                        object_id: id.to_string(),
+                    }),
+                    permission: relation_to_permission(*relation).to_owned(),
+                    subject: Some(subject.clone()),
+                    context: None,
+                },
+            )
             .collect();
 
         let req = v1::CheckBulkPermissionsRequest {
@@ -389,7 +405,7 @@ impl AuthzBackend for SpiceDbBackend {
             let allowed = match pair.response {
                 Some(v1::check_bulk_permissions_pair::Response::Item(item)) => matches!(
                     Permissionship::try_from(item.permissionship),
-                    Ok(Permissionship::HasPermission | Permissionship::ConditionalPermission)
+                    Ok(Permissionship::HasPermission)
                 ),
                 _ => false,
             };
@@ -408,6 +424,13 @@ impl AuthzBackend for SpiceDbBackend {
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
         _reason: Option<String>,
     ) -> Result<Uuid, AuthzError> {
+        if matches!(subject, Subject::Role(_)) {
+            return Err(AuthzError::Other(
+                "SpiceDB role-subject grants are disabled until role#member tuples are modeled"
+                    .to_owned(),
+            ));
+        }
+
         let optional_expires_at = expires_at.map(|t| prost_types::Timestamp {
             seconds: t.timestamp(),
             nanos: t.timestamp_subsec_nanos() as i32,
@@ -442,7 +465,12 @@ impl AuthzBackend for SpiceDbBackend {
         // SpiceDB tuples don't have a sortable id; the caller usually
         // doesn't need one back, but the trait demands a Uuid so we
         // return a deterministic hash of the (object,relation,subject).
-        Ok(synthetic_tuple_id(object_type, object_id, &relation, &subject))
+        Ok(synthetic_tuple_id(
+            object_type,
+            object_id,
+            &relation,
+            &subject,
+        ))
     }
 
     async fn revoke_specific(
@@ -482,11 +510,7 @@ impl AuthzBackend for SpiceDbBackend {
         Ok(())
     }
 
-    async fn revoke_tuple(
-        &self,
-        _ctx: &AuthzContext,
-        _tuple_id: Uuid,
-    ) -> Result<(), AuthzError> {
+    async fn revoke_tuple(&self, _ctx: &AuthzContext, _tuple_id: Uuid) -> Result<(), AuthzError> {
         // SpiceDB doesn't have tuple-id-based deletes — the client
         // identifies tuples by (resource, relation, subject). Callers
         // who need to revoke must use `revoke_specific` below; the
@@ -501,7 +525,7 @@ impl AuthzBackend for SpiceDbBackend {
 
 impl SpiceDbBackend {
     /// Write a tuple with an explicit relation name. Used by backfill
-    /// + sharing-API code paths that need access to relations the
+    /// and sharing-API code paths that need access to relations the
     /// `Relation` enum doesn't model (e.g. `dept_member`, `ward_member`,
     /// `group_member`).
     pub async fn write_raw(
@@ -512,6 +536,13 @@ impl SpiceDbBackend {
         subject: Subject,
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<(), AuthzError> {
+        if matches!(subject, Subject::Role(_)) {
+            return Err(AuthzError::Other(
+                "SpiceDB role-subject grants are disabled until role#member tuples are modeled"
+                    .to_owned(),
+            ));
+        }
+
         let optional_expires_at = expires_at.map(|t| prost_types::Timestamp {
             seconds: t.timestamp(),
             nanos: t.timestamp_subsec_nanos() as i32,
@@ -592,7 +623,12 @@ fn relationship_to_tuple(rel: v1::Relationship) -> Option<RelationTuple> {
     let subject = subject_ref_to_subject(&subject_obj.object_type, &subject_obj.object_id);
 
     Some(RelationTuple {
-        tuple_id: _synthetic_tuple_id_str(&resource.object_type, object_id, &rel.relation, &subject),
+        tuple_id: _synthetic_tuple_id_str(
+            &resource.object_type,
+            object_id,
+            &rel.relation,
+            &subject,
+        ),
         // SpiceDB's tenancy lives in object_id prefix (we use bare uuids,
         // so tenant context is implicit in the AuthzContext).
         tenant_id: Uuid::nil(),
@@ -616,14 +652,12 @@ fn relationship_to_tuple(rel: v1::Relationship) -> Option<RelationTuple> {
 
 fn subject_ref_to_subject(object_type: &str, object_id: &str) -> Subject {
     match object_type {
-        "user" => Uuid::parse_str(object_id).map_or_else(
-            |_| Subject::Role(object_id.to_owned()),
-            Subject::User,
-        ),
+        "user" => Uuid::parse_str(object_id)
+            .map_or_else(|_| Subject::Role(object_id.to_owned()), Subject::User),
         "role" => Subject::Role(object_id.to_owned()),
-        "department" => Subject::Department(
-            Uuid::parse_str(object_id).unwrap_or_else(|_| Uuid::nil()),
-        ),
+        "department" => {
+            Subject::Department(Uuid::parse_str(object_id).unwrap_or_else(|_| Uuid::nil()))
+        }
         "access_group" => {
             Subject::Group(Uuid::parse_str(object_id).unwrap_or_else(|_| Uuid::nil()))
         }
@@ -649,7 +683,10 @@ fn synthetic_tuple_id(
         Subject::Group(id) => format!("group:{id}"),
         Subject::TupleSet(s) => format!("set:{s}"),
     };
-    let key = format!("{object_type}:{object_id}#{}@{subject_str}", relation.as_code());
+    let key = format!(
+        "{object_type}:{object_id}#{}@{subject_str}",
+        relation.as_code()
+    );
     let digest = Sha256::digest(key.as_bytes());
     Uuid::from_slice(&digest[0..16]).unwrap_or_else(|_| Uuid::nil())
 }

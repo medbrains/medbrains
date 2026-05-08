@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Button,
@@ -10,22 +11,16 @@ import {
   Title,
 } from "@mantine/core";
 import { api, setCsrfToken } from "@medbrains/api";
+import type { OnboardingInitInput } from "@medbrains/schemas";
 import { onboardingInitSchema } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
 import type { HospitalType } from "@medbrains/types";
 import { applyServerErrors } from "@medbrains/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconBuildingHospital, IconLock, IconMail, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import type { OnboardingInitInput } from "@medbrains/schemas";
-import {
-  IconBuildingHospital,
-  IconLock,
-  IconMail,
-  IconUser,
-} from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -113,8 +108,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
 
   const password = form.watch("admin_password");
   const strength = getPasswordStrength(password);
-  const strengthColor =
-    strength < 40 ? "danger" : strength < 70 ? "warning" : "success";
+  const strengthColor = strength < 40 ? "danger" : strength < 70 ? "warning" : "success";
 
   // If already authenticated (init was successful), just navigate forward
   const handleSubmit = form.handleSubmit((data) => {
@@ -131,15 +125,12 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
         {/* ── Section 1: Hospital Information ─────────────── */}
         <div>
           <Title order={5} mb={4}>
-            <IconBuildingHospital
-              size={18}
-              style={{ verticalAlign: "middle", marginRight: 8 }}
-            />
+            <IconBuildingHospital size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />
             Hospital Information
           </Title>
           <Text size="sm" c="dimmed" mb="md">
-            Enter your hospital&apos;s identity. This cannot be changed later
-            without admin intervention.
+            Enter your hospital&apos;s identity. This cannot be changed later without admin
+            intervention.
           </Text>
           <div className={classes.formGrid}>
             <TextInput
@@ -151,10 +142,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
                   if (!codeManuallyEdited) {
                     const code = e.currentTarget.value
                       .split(/\s+/)
-                      .filter(
-                        (w: string) =>
-                          w.length > 1 && !/^(and|the|of|for|&)$/i.test(w),
-                      )
+                      .filter((w: string) => w.length > 1 && !/^(and|the|of|for|&)$/i.test(w))
                       .map((w: string) => w[0])
                       .join("")
                       .toUpperCase()
@@ -173,10 +161,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
               description="Auto-generated from name, or type your own"
               {...form.register("hospital_code", {
                 onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-                  form.setValue(
-                    "hospital_code",
-                    e.currentTarget.value.toUpperCase(),
-                  );
+                  form.setValue("hospital_code", e.currentTarget.value.toUpperCase());
                   setCodeManuallyEdited(true);
                 },
               })}
@@ -199,24 +184,17 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
           </div>
         </div>
 
-        <Divider
-          label="Super Admin Credentials"
-          labelPosition="center"
-          my="xs"
-        />
+        <Divider label="Super Admin Credentials" labelPosition="center" my="xs" />
 
         {/* ── Section 2: Admin Credentials ────────────────── */}
         <div>
           <Title order={5} mb={4}>
-            <IconLock
-              size={18}
-              style={{ verticalAlign: "middle", marginRight: 8 }}
-            />
+            <IconLock size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />
             Super Admin Account
           </Title>
           <Text size="sm" c="dimmed" mb="md">
-            This account will have full access to the system. Keep these
-            credentials safe — this is how we identify who set up the hospital.
+            This account will have full access to the system. Keep these credentials safe — this is
+            how we identify who set up the hospital.
           </Text>
           <div className={classes.formGrid}>
             <TextInput
@@ -256,23 +234,17 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
                 error={form.formState.errors.admin_password?.message}
               />
               {password.length > 0 && (
-                <Progress
-                  value={strength}
-                  color={strengthColor}
-                  size="xs"
-                  mt={4}
-                />
+                <Progress value={strength} color={strengthColor} size="xs" mt={4} />
               )}
             </div>
           </div>
         </div>
 
-        {initMutation.isError &&
-          !Object.keys(form.formState.errors).length && (
-            <Alert color="danger" variant="light">
-              {initMutation.error.message}
-            </Alert>
-          )}
+        {initMutation.isError && !Object.keys(form.formState.errors).length && (
+          <Alert color="danger" variant="light">
+            {initMutation.error.message}
+          </Alert>
+        )}
 
         <div className={classes.navButtons}>
           <Button variant="default" onClick={onBack}>

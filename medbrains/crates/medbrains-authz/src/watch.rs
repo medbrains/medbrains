@@ -35,17 +35,13 @@ where
             }
             Err(e) => {
                 let msg = e.to_string();
-                // SpiceDB v1.39 doesn't expose WatchService at all. The
-                // proto we generated references it but the server returns
-                // "unknown service authzed.api.v1.WatchService". Without
-                // Watch, perm_version invalidation falls back to natural
-                // JWT expiry (15 min). That's acceptable for dev; in
-                // prod, deploy SpiceDB ≥ v1.46 which exposes WatchService.
+                // Some SpiceDB builds do not expose WatchService. Authz checks
+                // still work; only near-real-time JWT invalidation falls back
+                // to normal token expiry.
                 if msg.contains("unknown service") || msg.contains("Unimplemented") {
-                    tracing::warn!(
+                    tracing::info!(
                         error = %e,
-                        "watch: SpiceDB build doesn't expose WatchService — exiting consumer. \
-                         JWT expiry remains the only invalidation path until SpiceDB upgrade."
+                        "watch: SpiceDB WatchService unavailable; consumer disabled for this boot"
                     );
                     return;
                 }
@@ -65,7 +61,7 @@ where
     F: FnMut(Vec<Uuid>) -> Fut,
     Fut: Future<Output = ()>,
 {
-    use spicedb_rs_proto::authzed::api::v1 as v1;
+    use spicedb_rs_proto::authzed::api::v1;
     use spicedb_rs_proto::authzed::api::v1::watch_service_client::WatchServiceClient;
     use tonic::Request;
     use tonic::transport::Endpoint;

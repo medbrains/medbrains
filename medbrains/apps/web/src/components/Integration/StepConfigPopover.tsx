@@ -1,14 +1,7 @@
-import {
-  ActionIcon,
-  Badge,
-  Group,
-  Popover,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Badge, Group, Popover, Stack, Text } from "@mantine/core";
 import type { MappingOperationConfig, TransformStep } from "@medbrains/types";
-import { useState, type ReactNode } from "react";
+import { IconTrash } from "@tabler/icons-react";
+import { type ReactNode, useState } from "react";
 import { OperationConfig } from "./OperationConfig";
 import { getDescriptor } from "./operationRegistry";
 
@@ -27,12 +20,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   conversion: "danger",
 };
 
-export function StepConfigPopover({
-  step,
-  onUpdate,
-  onDelete,
-  children,
-}: StepConfigPopoverProps) {
+export function StepConfigPopover({ step, onUpdate, onDelete, children }: StepConfigPopoverProps) {
   const [opened, setOpened] = useState(false);
   const descriptor = getDescriptor(step.operation);
   const categoryColor = CATEGORY_COLORS[descriptor?.category ?? ""] ?? "slate";
@@ -83,11 +71,7 @@ export function StepConfigPopover({
           )}
 
           {descriptor?.hasConfig && (
-            <OperationConfig
-              operation={step.operation}
-              config={step.config}
-              onChange={onUpdate}
-            />
+            <OperationConfig operation={step.operation} config={step.config} onChange={onUpdate} />
           )}
         </Stack>
       </Popover.Dropdown>

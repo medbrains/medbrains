@@ -28,8 +28,7 @@ pub fn encrypt_for_payer(
     let encrypter = RSA_OAEP_256
         .encrypter_from_pem(public_key_pem)
         .map_err(|_| CryptoError::InvalidKey)?;
-    jwt::encode_with_encrypter(&jwt_payload, &header, &encrypter)
-        .map_err(|_| CryptoError::Encrypt)
+    jwt::encode_with_encrypter(&jwt_payload, &header, &encrypter).map_err(|_| CryptoError::Encrypt)
 }
 
 pub fn decrypt_from_payer(

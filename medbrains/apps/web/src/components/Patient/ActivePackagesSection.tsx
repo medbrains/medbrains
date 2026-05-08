@@ -22,15 +22,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { InclusionBalance, SubscriptionWithBalance } from "@medbrains/types";
-import {
-  IconPackage,
-  IconPlus,
-  IconRefresh,
-  IconShoppingBag,
-} from "@tabler/icons-react";
+import { IconPackage, IconPlus, IconRefresh, IconShoppingBag } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 interface ActivePackagesSectionProps {
@@ -49,7 +44,11 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
   const refund = useMutation({
     mutationFn: (subId: string) => api.refundPackage(subId),
     onSuccess: () => {
-      notifications.show({ title: "Refunded", message: "Subscription marked refunded.", color: "success" });
+      notifications.show({
+        title: "Refunded",
+        message: "Subscription marked refunded.",
+        color: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] });
     },
     onError: (err: Error) =>
@@ -63,21 +62,23 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
     <Stack gap="md">
       <Group justify="space-between">
         <div>
-          <Text fw={600} size="sm">Active subscriptions ({active.length})</Text>
+          <Text fw={600} size="sm">
+            Active subscriptions ({active.length})
+          </Text>
           <Text size="xs" c="dimmed">
             Bundle pricing — chronic care plans, follow-up packs, etc.
           </Text>
         </div>
-        <Button
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={subscribeHandlers.open}
-        >
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={subscribeHandlers.open}>
           Subscribe to package
         </Button>
       </Group>
 
-      {isLoading && <Text size="sm" c="dimmed">Loading…</Text>}
+      {isLoading && (
+        <Text size="sm" c="dimmed">
+          Loading…
+        </Text>
+      )}
 
       <Stack gap="sm">
         {active.map((s) => (
@@ -113,8 +114,12 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
                 <Group justify="space-between">
                   <Stack gap={2}>
                     <Group gap="xs">
-                      <Badge size="xs" color={statusColor(s.status)}>{s.status}</Badge>
-                      <Text size="sm" fw={500}>{s.package_name ?? s.package_id.slice(0, 8)}</Text>
+                      <Badge size="xs" color={statusColor(s.status)}>
+                        {s.status}
+                      </Badge>
+                      <Text size="sm" fw={500}>
+                        {s.package_name ?? s.package_id.slice(0, 8)}
+                      </Text>
                     </Group>
                     <Text size="xs" c="dimmed">
                       Purchased {new Date(s.purchased_at).toLocaleDateString()} • ₹{s.total_paid}
@@ -182,7 +187,9 @@ function SubscriptionCard({
             <Text fw={600} size="sm">
               {sub.package_name ?? sub.package_id.slice(0, 8)}
             </Text>
-            <Badge size="xs" color="primary">Active</Badge>
+            <Badge size="xs" color="primary">
+              Active
+            </Badge>
           </Group>
           <Text size="xs" c="dimmed">
             ₹{sub.total_paid} • Valid until {validUntil.toLocaleDateString()} ({daysLeft}d left)
@@ -208,7 +215,9 @@ function SubscriptionCard({
           />
         ))}
         {sub.balances.length === 0 && (
-          <Text size="xs" c="dimmed">No inclusions defined for this package.</Text>
+          <Text size="xs" c="dimmed">
+            No inclusions defined for this package.
+          </Text>
         )}
       </Stack>
     </Card>
@@ -224,15 +233,18 @@ function BalanceBar({
   isConsuming: boolean;
   onConsume: () => void;
 }) {
-  const pct = balance.included_quantity > 0
-    ? Math.round((balance.consumed_quantity / balance.included_quantity) * 100)
-    : 0;
+  const pct =
+    balance.included_quantity > 0
+      ? Math.round((balance.consumed_quantity / balance.included_quantity) * 100)
+      : 0;
   const exhausted = balance.remaining <= 0;
   return (
     <div>
       <Group justify="space-between" mb={4}>
         <Group gap="xs">
-          <Badge size="xs" variant="light">{balance.inclusion_type}</Badge>
+          <Badge size="xs" variant="light">
+            {balance.inclusion_type}
+          </Badge>
           <Text size="xs">
             {balance.consumed_quantity}/{balance.included_quantity} used
           </Text>
@@ -328,7 +340,9 @@ function SubscribeModal({
           required
         />
         {selectedPackage?.description && (
-          <Text size="xs" c="dimmed">{selectedPackage.description}</Text>
+          <Text size="xs" c="dimmed">
+            {selectedPackage.description}
+          </Text>
         )}
         <TextInput
           label="Notes (optional)"
@@ -336,7 +350,9 @@ function SubscribeModal({
           onChange={(e) => setNotes(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>Cancel</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             loading={subscribe.isPending}
             disabled={!packageId || totalPaid === ""}
@@ -353,11 +369,17 @@ function SubscribeModal({
 
 function statusColor(s: string): string {
   switch (s) {
-    case "active": return "primary";
-    case "exhausted": return "gray";
-    case "expired": return "orange";
-    case "refunded": return "red";
-    case "suspended": return "yellow";
-    default: return "gray";
+    case "active":
+      return "primary";
+    case "exhausted":
+      return "gray";
+    case "expired":
+      return "orange";
+    case "refunded":
+      return "red";
+    case "suspended":
+      return "yellow";
+    default:
+      return "gray";
   }
 }

@@ -14,12 +14,9 @@
  * handoff routes ship.
  */
 
-import { useCallback } from "react";
+import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  useAppendOnlyCrdtList,
-  type CrdtConnectionStatus,
-} from "@medbrains/crdt";
+import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
 
 export interface HandoffEntry extends Record<string, unknown> {
@@ -55,11 +52,9 @@ interface HandoffApi {
   create: (shiftId: string, entry: HandoffEntryInput) => Promise<HandoffEntry>;
 }
 
-
 const handoffApiStub: HandoffApi = {
   list: async () => [],
-  create: async (_id, e) =>
-    ({ ts: Date.now(), author: "stub", ...e } as HandoffEntry),
+  create: async (_id, e) => ({ ts: Date.now(), author: "stub", ...e }) as HandoffEntry,
 };
 
 function useHandoffRest(shiftId: string, _authorName: string): HandoffSourceResult {
@@ -70,14 +65,10 @@ function useHandoffRest(shiftId: string, _authorName: string): HandoffSourceResu
     enabled: !!shiftId,
   });
   const mutation = useMutation({
-    mutationFn: (e: HandoffEntryInput) =>
-      handoffApiStub.create(shiftId, e),
+    mutationFn: (e: HandoffEntryInput) => handoffApiStub.create(shiftId, e),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["handoff", shiftId] }),
   });
-  const append = useCallback(
-    (e: HandoffEntryInput) => mutation.mutate(e),
-    [mutation],
-  );
+  const append = useCallback((e: HandoffEntryInput) => mutation.mutate(e), [mutation]);
   return {
     entries: (query.data ?? []).slice().sort((a, b) => b.ts - a.ts),
     append,

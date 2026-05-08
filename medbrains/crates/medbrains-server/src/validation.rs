@@ -93,6 +93,20 @@ pub fn validate_name(errors: &mut ValidationErrors, field: &str, value: &str) {
     }
 }
 
+// Person names accept single-character initials (common in South Indian
+// naming conventions where surnames are often a single initial like
+// "S" for Subramaniam, "K" for Krishnan). Use this for patient and
+// contact names rather than `validate_name`, which has a 2-char floor
+// suited to org/dept names.
+pub fn validate_person_name(errors: &mut ValidationErrors, field: &str, value: &str) {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        errors.add(field, "Name is required");
+    } else if trimmed.chars().count() > 100 {
+        errors.add(field, "Name must be at most 100 characters");
+    }
+}
+
 pub fn validate_username(errors: &mut ValidationErrors, field: &str, value: &str) {
     if value.len() < 3 {
         errors.add(field, "Username must be at least 3 characters");

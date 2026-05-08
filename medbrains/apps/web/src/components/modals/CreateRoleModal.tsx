@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Button, Group, Modal, Stack, TextInput, Textarea } from "@mantine/core";
+import { Button, Group, Modal, Stack, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { CustomRole } from "@medbrains/types";
+import { IconCheck } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface CreateRoleModalProps {
   opened: boolean;
@@ -12,11 +12,7 @@ interface CreateRoleModalProps {
   onCreated?: (role: CustomRole) => void;
 }
 
-export function CreateRoleModal({
-  opened,
-  onClose,
-  onCreated,
-}: CreateRoleModalProps) {
+export function CreateRoleModal({ opened, onClose, onCreated }: CreateRoleModalProps) {
   const queryClient = useQueryClient();
 
   const [code, setCode] = useState("");

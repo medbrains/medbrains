@@ -18,19 +18,19 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { PageHeader } from "../../components";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 interface PairingToken {
   id: string;
@@ -90,11 +90,7 @@ export function PairedDevicesPage() {
       <PageHeader
         title="Paired devices"
         subtitle="Mobile, TV, and vendor devices paired into this tenant via QR + mTLS."
-        actions={
-          canMintToken ? (
-            <Button onClick={openMint}>Mint pairing token</Button>
-          ) : undefined
-        }
+        actions={canMintToken ? <Button onClick={openMint}>Mint pairing token</Button> : undefined}
       />
 
       {isLoading && <Loader />}
@@ -135,9 +131,7 @@ export function PairedDevicesPage() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs" ff="monospace">
-                      {row.last_seen_at
-                        ? new Date(row.last_seen_at).toLocaleString()
-                        : "—"}
+                      {row.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : "—"}
                     </Text>
                   </Table.Td>
                   <Table.Td>
@@ -154,9 +148,7 @@ export function PairedDevicesPage() {
                         color="red"
                         variant="outline"
                         loading={revokeMutation.isPending}
-                        onClick={() =>
-                          revokeMutation.mutate({ id: row.id })
-                        }
+                        onClick={() => revokeMutation.mutate({ id: row.id })}
                       >
                         Revoke
                       </Button>
@@ -256,13 +248,7 @@ function MintTokenForm({
   );
 }
 
-function PairingTokenView({
-  token,
-  onDone,
-}: {
-  token: PairingToken;
-  onDone: () => void;
-}) {
+function PairingTokenView({ token, onDone }: { token: PairingToken; onDone: () => void }) {
   const expiresIn = Math.max(
     0,
     Math.floor((new Date(token.expires_at).getTime() - Date.now()) / 1000),
@@ -270,8 +256,8 @@ function PairingTokenView({
   return (
     <Stack>
       <Alert color="green" title="Token minted">
-        Show this QR / payload to the device. The token expires in {expiresIn} seconds and
-        is single-use.
+        Show this QR / payload to the device. The token expires in {expiresIn} seconds and is
+        single-use.
       </Alert>
       <Title order={4}>QR payload</Title>
       <Text ff="monospace" size="sm" style={{ wordBreak: "break-all" }}>

@@ -1,63 +1,63 @@
-import { useState } from "react";
+import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Drawer,
   Group,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
-  Card,
-  SimpleGrid,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconFirstAidKit,
-  IconUsers,
-  IconStethoscope,
-  IconCalendarCheck,
-  IconChartBar,
-  IconPencil,
-  IconCheck,
-  IconPlayerPlay,
-  IconX,
-  IconTrash,
-} from "@tabler/icons-react";
-import { BarChart } from "@mantine/charts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   Camp,
-  CampTeamMember,
-  CampRegistration,
-  CampScreening,
-  CampLabSample,
-  CampFollowup,
-  CreateCampRequest,
-  CreateCampRegistrationRequest,
-  CreateCampScreeningRequest,
-  CreateCampLabSampleRequest,
-  CreateCampFollowupRequest,
-  UpdateCampFollowupRequest,
   CampAnalytics as CampAnalyticsType,
+  CampFollowup,
+  CampLabSample,
+  CampRegistration,
   CampReport as CampReportType,
+  CampScreening,
+  CampTeamMember,
+  CreateCampFollowupRequest,
+  CreateCampLabSampleRequest,
+  CreateCampRegistrationRequest,
+  CreateCampRequest,
+  CreateCampScreeningRequest,
+  UpdateCampFollowupRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconCalendarCheck,
+  IconChartBar,
+  IconCheck,
+  IconFirstAidKit,
+  IconPencil,
+  IconPlayerPlay,
+  IconPlus,
+  IconStethoscope,
+  IconTrash,
+  IconUsers,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
+import type { Column } from "../components/DataTable";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-import type { Column } from "../components/DataTable";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -195,8 +195,7 @@ function CampsTab() {
 
   const { data: camps = [], isLoading } = useQuery({
     queryKey: ["camps", statusFilter],
-    queryFn: () =>
-      api.listCamps(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () => api.listCamps(statusFilter ? { status: statusFilter } : undefined),
   });
 
   // Create form state
@@ -212,7 +211,11 @@ function CampsTab() {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       createHandlers.close();
       setForm({ name: "", camp_type: "general_health", scheduled_date: "" });
-      notifications.show({ title: "Camp Created", message: "Camp planned successfully", color: "success" });
+      notifications.show({
+        title: "Camp Created",
+        message: "Camp planned successfully",
+        color: "success",
+      });
     },
   });
 
@@ -236,7 +239,11 @@ function CampsTab() {
     mutationFn: (id: string) => api.completeCamp(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
-      notifications.show({ title: "Completed", message: "Camp marked as completed", color: "teal" });
+      notifications.show({
+        title: "Completed",
+        message: "Camp marked as completed",
+        color: "teal",
+      });
     },
   });
 
@@ -249,7 +256,15 @@ function CampsTab() {
   });
 
   const columns: Column<Camp>[] = [
-    { key: "camp_code", label: "Code", render: (r) => <Text size="sm" fw={500}>{r.camp_code}</Text> },
+    {
+      key: "camp_code",
+      label: "Code",
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.camp_code}
+        </Text>
+      ),
+    },
     { key: "name", label: "Name", render: (r) => r.name },
     {
       key: "camp_type",
@@ -375,32 +390,127 @@ function CampsTab() {
       <DataTable columns={columns} data={camps} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Plan New Camp" position="right" size="xl">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Plan New Camp"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Camp Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
-          <Select label="Camp Type" required data={CAMP_TYPES} value={form.camp_type} onChange={(v) => setForm({ ...form, camp_type: v ?? "general_health" })} />
-          <DateInput label="Scheduled Date" required value={form.scheduled_date ? new Date(form.scheduled_date) : null} onChange={(d) => setForm({ ...form, scheduled_date: d ? new Date(d).toISOString().slice(0, 10) : "" })} />
-          <TextInput label="Start Time" placeholder="09:00" value={form.start_time ?? ""} onChange={(e) => setForm({ ...form, start_time: e.currentTarget.value || undefined })} />
-          <TextInput label="End Time" placeholder="17:00" value={form.end_time ?? ""} onChange={(e) => setForm({ ...form, end_time: e.currentTarget.value || undefined })} />
-          <TextInput label="Venue Name" value={form.venue_name ?? ""} onChange={(e) => setForm({ ...form, venue_name: e.currentTarget.value || undefined })} />
-          <TextInput label="Venue Address" value={form.venue_address ?? ""} onChange={(e) => setForm({ ...form, venue_address: e.currentTarget.value || undefined })} />
+          <TextInput
+            label="Camp Name"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          />
+          <Select
+            label="Camp Type"
+            required
+            data={CAMP_TYPES}
+            value={form.camp_type}
+            onChange={(v) => setForm({ ...form, camp_type: v ?? "general_health" })}
+          />
+          <DateInput
+            label="Scheduled Date"
+            required
+            value={form.scheduled_date ? new Date(form.scheduled_date) : null}
+            onChange={(d) =>
+              setForm({ ...form, scheduled_date: d ? new Date(d).toISOString().slice(0, 10) : "" })
+            }
+          />
+          <TextInput
+            label="Start Time"
+            placeholder="09:00"
+            value={form.start_time ?? ""}
+            onChange={(e) => setForm({ ...form, start_time: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="End Time"
+            placeholder="17:00"
+            value={form.end_time ?? ""}
+            onChange={(e) => setForm({ ...form, end_time: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Venue Name"
+            value={form.venue_name ?? ""}
+            onChange={(e) => setForm({ ...form, venue_name: e.currentTarget.value || undefined })}
+          />
+          <TextInput
+            label="Venue Address"
+            value={form.venue_address ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, venue_address: e.currentTarget.value || undefined })
+            }
+          />
           <Group grow>
-            <TextInput label="City" value={form.venue_city ?? ""} onChange={(e) => setForm({ ...form, venue_city: e.currentTarget.value || undefined })} />
-            <TextInput label="State" value={form.venue_state ?? ""} onChange={(e) => setForm({ ...form, venue_state: e.currentTarget.value || undefined })} />
-            <TextInput label="Pincode" value={form.venue_pincode ?? ""} onChange={(e) => setForm({ ...form, venue_pincode: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="City"
+              value={form.venue_city ?? ""}
+              onChange={(e) => setForm({ ...form, venue_city: e.currentTarget.value || undefined })}
+            />
+            <TextInput
+              label="State"
+              value={form.venue_state ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, venue_state: e.currentTarget.value || undefined })
+              }
+            />
+            <TextInput
+              label="Pincode"
+              value={form.venue_pincode ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, venue_pincode: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
-          <NumberInput label="Expected Participants" min={0} value={form.expected_participants ?? ""} onChange={(v) => setForm({ ...form, expected_participants: typeof v === "number" ? v : undefined })} />
-          <NumberInput label="Budget Allocated" min={0} decimalScale={2} value={form.budget_allocated ?? ""} onChange={(v) => setForm({ ...form, budget_allocated: typeof v === "number" ? v : undefined })} />
-          <Switch label="Free Camp" checked={form.is_free !== false} onChange={(e) => setForm({ ...form, is_free: e.currentTarget.checked })} />
-          <Textarea label="Logistics Notes" value={form.logistics_notes ?? ""} onChange={(e) => setForm({ ...form, logistics_notes: e.currentTarget.value || undefined })} />
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending} disabled={!form.name || !form.scheduled_date}>
+          <NumberInput
+            label="Expected Participants"
+            min={0}
+            value={form.expected_participants ?? ""}
+            onChange={(v) =>
+              setForm({ ...form, expected_participants: typeof v === "number" ? v : undefined })
+            }
+          />
+          <NumberInput
+            label="Budget Allocated"
+            min={0}
+            decimalScale={2}
+            value={form.budget_allocated ?? ""}
+            onChange={(v) =>
+              setForm({ ...form, budget_allocated: typeof v === "number" ? v : undefined })
+            }
+          />
+          <Switch
+            label="Free Camp"
+            checked={form.is_free !== false}
+            onChange={(e) => setForm({ ...form, is_free: e.currentTarget.checked })}
+          />
+          <Textarea
+            label="Logistics Notes"
+            value={form.logistics_notes ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, logistics_notes: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            onClick={() => createMut.mutate()}
+            loading={createMut.isPending}
+            disabled={!form.name || !form.scheduled_date}
+          >
             Create Camp
           </Button>
         </Stack>
       </Drawer>
 
       {/* Detail Drawer */}
-      <Drawer opened={detailOpen} onClose={detailHandlers.close} title={selectedCamp?.name ?? "Camp Detail"} position="right" size="lg">
+      <Drawer
+        opened={detailOpen}
+        onClose={detailHandlers.close}
+        title={selectedCamp?.name ?? "Camp Detail"}
+        position="right"
+        size="lg"
+      >
         {selectedCamp && <CampDetail camp={selectedCamp} />}
       </Drawer>
     </>
@@ -445,14 +555,37 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const teamCols: Column<CampTeamMember>[] = [
     { key: "employee_id", label: "Employee ID", render: (r) => r.employee_id.slice(0, 8) },
-    { key: "role_in_camp", label: "Role", render: (r) => TEAM_ROLES.find((t) => t.value === r.role_in_camp)?.label ?? r.role_in_camp },
-    { key: "is_confirmed", label: "Confirmed", render: (r) => r.is_confirmed ? <Badge color="success" size="xs">Yes</Badge> : <Badge color="slate" size="xs">No</Badge> },
+    {
+      key: "role_in_camp",
+      label: "Role",
+      render: (r) => TEAM_ROLES.find((t) => t.value === r.role_in_camp)?.label ?? r.role_in_camp,
+    },
+    {
+      key: "is_confirmed",
+      label: "Confirmed",
+      render: (r) =>
+        r.is_confirmed ? (
+          <Badge color="success" size="xs">
+            Yes
+          </Badge>
+        ) : (
+          <Badge color="slate" size="xs">
+            No
+          </Badge>
+        ),
+    },
     {
       key: "actions",
       label: "",
       render: (r) =>
         canUpdate ? (
-          <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeMut.mutate(r.id)} aria-label="Delete">
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            size="sm"
+            onClick={() => removeMut.mutate(r.id)}
+            aria-label="Delete"
+          >
             <IconTrash size={14} />
           </ActionIcon>
         ) : null,
@@ -485,11 +618,30 @@ function CampDetail({ camp }: { camp: Camp }) {
 
       <DataTable columns={teamCols} data={team} rowKey={(r) => r.id} />
 
-      <Drawer opened={addOpen} onClose={addHandlers.close} title="Add Team Member" position="right" size="sm">
+      <Drawer
+        opened={addOpen}
+        onClose={addHandlers.close}
+        title="Add Team Member"
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <EmployeeSearchSelect value={teamForm.employee_id} onChange={(id) => setTeamForm({ ...teamForm, employee_id: id })} required />
-          <Select label="Role" data={TEAM_ROLES} value={teamForm.role_in_camp} onChange={(v) => setTeamForm({ ...teamForm, role_in_camp: v ?? "volunteer" })} />
-          <Button onClick={() => addMut.mutate()} loading={addMut.isPending} disabled={!teamForm.employee_id}>
+          <EmployeeSearchSelect
+            value={teamForm.employee_id}
+            onChange={(id) => setTeamForm({ ...teamForm, employee_id: id })}
+            required
+          />
+          <Select
+            label="Role"
+            data={TEAM_ROLES}
+            value={teamForm.role_in_camp}
+            onChange={(v) => setTeamForm({ ...teamForm, role_in_camp: v ?? "volunteer" })}
+          />
+          <Button
+            onClick={() => addMut.mutate()}
+            loading={addMut.isPending}
+            disabled={!teamForm.employee_id}
+          >
             Add
           </Button>
         </Stack>
@@ -501,8 +653,13 @@ function CampDetail({ camp }: { camp: Camp }) {
 function StatCard({ label, value, prefix }: { label: string; value: number; prefix?: string }) {
   return (
     <Card withBorder p="sm">
-      <Text size="xs" c="dimmed">{label}</Text>
-      <Text size="lg" fw={700}>{prefix}{value}</Text>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="lg" fw={700}>
+        {prefix}
+        {value}
+      </Text>
     </Card>
   );
 }
@@ -539,12 +696,24 @@ function RegistrationsTab() {
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       createHandlers.close();
       setForm({ camp_id: "", person_name: "" });
-      notifications.show({ title: "Registered", message: "Participant registered", color: "success" });
+      notifications.show({
+        title: "Registered",
+        message: "Participant registered",
+        color: "success",
+      });
     },
   });
 
   const columns: Column<CampRegistration>[] = [
-    { key: "registration_number", label: "Reg #", render: (r) => <Text size="sm" fw={500}>{r.registration_number}</Text> },
+    {
+      key: "registration_number",
+      label: "Reg #",
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.registration_number}
+        </Text>
+      ),
+    },
     { key: "person_name", label: "Name", render: (r) => r.person_name },
     { key: "age", label: "Age", render: (r) => r.age?.toString() ?? "—" },
     { key: "gender", label: "Gender", render: (r) => r.gender ?? "—" },
@@ -582,25 +751,89 @@ function RegistrationsTab() {
       {selectedCampId ? (
         <DataTable columns={columns} data={regs} loading={isLoading} rowKey={(r) => r.id} />
       ) : (
-        <Text c="dimmed" ta="center" mt="xl">Select a camp to view registrations</Text>
+        <Text c="dimmed" ta="center" mt="xl">
+          Select a camp to view registrations
+        </Text>
       )}
 
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Register Participant" position="right" size="xl">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Register Participant"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Person Name" required value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.currentTarget.value })} />
+          <TextInput
+            label="Person Name"
+            required
+            value={form.person_name}
+            onChange={(e) => setForm({ ...form, person_name: e.currentTarget.value })}
+          />
           <Group grow>
-            <NumberInput label="Age" min={0} max={150} value={form.age ?? ""} onChange={(v) => setForm({ ...form, age: typeof v === "number" ? v : undefined })} />
-            <Select label="Gender" data={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} value={form.gender ?? null} onChange={(v) => setForm({ ...form, gender: v ?? undefined })} />
+            <NumberInput
+              label="Age"
+              min={0}
+              max={150}
+              value={form.age ?? ""}
+              onChange={(v) => setForm({ ...form, age: typeof v === "number" ? v : undefined })}
+            />
+            <Select
+              label="Gender"
+              data={[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+                { value: "other", label: "Other" },
+              ]}
+              value={form.gender ?? null}
+              onChange={(v) => setForm({ ...form, gender: v ?? undefined })}
+            />
           </Group>
-          <TextInput label="Phone" value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })} />
-          <Textarea label="Address" value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.currentTarget.value || undefined })} />
+          <TextInput
+            label="Phone"
+            value={form.phone ?? ""}
+            onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })}
+          />
+          <Textarea
+            label="Address"
+            value={form.address ?? ""}
+            onChange={(e) => setForm({ ...form, address: e.currentTarget.value || undefined })}
+          />
           <Group grow>
-            <Select label="ID Proof Type" data={ID_PROOF_TYPES} placeholder="Select ID type" value={form.id_proof_type ?? null} onChange={(v) => setForm({ ...form, id_proof_type: v || undefined })} clearable searchable />
-            <TextInput label="ID Proof Number" value={form.id_proof_number ?? ""} onChange={(e) => setForm({ ...form, id_proof_number: e.currentTarget.value || undefined })} />
+            <Select
+              label="ID Proof Type"
+              data={ID_PROOF_TYPES}
+              placeholder="Select ID type"
+              value={form.id_proof_type ?? null}
+              onChange={(v) => setForm({ ...form, id_proof_type: v || undefined })}
+              clearable
+              searchable
+            />
+            <TextInput
+              label="ID Proof Number"
+              value={form.id_proof_number ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, id_proof_number: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
-          <Textarea label="Chief Complaint" value={form.chief_complaint ?? ""} onChange={(e) => setForm({ ...form, chief_complaint: e.currentTarget.value || undefined })} />
-          <Switch label="Walk-in" checked={form.is_walk_in !== false} onChange={(e) => setForm({ ...form, is_walk_in: e.currentTarget.checked })} />
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending} disabled={!form.person_name}>
+          <Textarea
+            label="Chief Complaint"
+            value={form.chief_complaint ?? ""}
+            onChange={(e) =>
+              setForm({ ...form, chief_complaint: e.currentTarget.value || undefined })
+            }
+          />
+          <Switch
+            label="Walk-in"
+            checked={form.is_walk_in !== false}
+            onChange={(e) => setForm({ ...form, is_walk_in: e.currentTarget.checked })}
+          />
+          <Button
+            onClick={() => createMut.mutate()}
+            loading={createMut.isPending}
+            disabled={!form.person_name}
+          >
             Register
           </Button>
         </Stack>
@@ -639,7 +872,10 @@ function ScreeningsTab() {
   });
 
   const [scrForm, setScrForm] = useState<CreateCampScreeningRequest>({ registration_id: "" });
-  const [labForm, setLabForm] = useState<CreateCampLabSampleRequest>({ registration_id: "", sample_type: "blood" });
+  const [labForm, setLabForm] = useState<CreateCampLabSampleRequest>({
+    registration_id: "",
+    sample_type: "blood",
+  });
 
   const scrMut = useMutation({
     mutationFn: () => api.createCampScreening(scrForm),
@@ -647,7 +883,11 @@ function ScreeningsTab() {
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
       scrHandlers.close();
       setScrForm({ registration_id: "" });
-      notifications.show({ title: "Screening Recorded", message: "Screening saved", color: "success" });
+      notifications.show({
+        title: "Screening Recorded",
+        message: "Screening saved",
+        color: "success",
+      });
     },
   });
 
@@ -657,16 +897,28 @@ function ScreeningsTab() {
       void qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
       labHandlers.close();
       setLabForm({ registration_id: "", sample_type: "blood" });
-      notifications.show({ title: "Sample Recorded", message: "Lab sample recorded", color: "success" });
+      notifications.show({
+        title: "Sample Recorded",
+        message: "Lab sample recorded",
+        color: "success",
+      });
     },
   });
 
   const scrCols: Column<CampScreening>[] = [
     { key: "registration_id", label: "Reg ID", render: (r) => r.registration_id.slice(0, 8) },
-    { key: "bp", label: "BP", render: (r) => r.bp_systolic && r.bp_diastolic ? `${r.bp_systolic}/${r.bp_diastolic}` : "—" },
+    {
+      key: "bp",
+      label: "BP",
+      render: (r) => (r.bp_systolic && r.bp_diastolic ? `${r.bp_systolic}/${r.bp_diastolic}` : "—"),
+    },
     { key: "pulse_rate", label: "Pulse", render: (r) => r.pulse_rate?.toString() ?? "—" },
-    { key: "spo2", label: "SpO2", render: (r) => r.spo2 ? `${r.spo2}%` : "—" },
-    { key: "blood_sugar_random", label: "BSR", render: (r) => r.blood_sugar_random?.toString() ?? "—" },
+    { key: "spo2", label: "SpO2", render: (r) => (r.spo2 ? `${r.spo2}%` : "—") },
+    {
+      key: "blood_sugar_random",
+      label: "BSR",
+      render: (r) => r.blood_sugar_random?.toString() ?? "—",
+    },
     { key: "bmi", label: "BMI", render: (r) => r.bmi?.toString() ?? "—" },
     { key: "findings", label: "Findings", render: (r) => r.findings ?? "—" },
     {
@@ -674,9 +926,13 @@ function ScreeningsTab() {
       label: "Referred",
       render: (r) =>
         r.referred_to_hospital ? (
-          <Badge color="orange" size="sm">{r.referral_urgency ?? "Yes"}</Badge>
+          <Badge color="orange" size="sm">
+            {r.referral_urgency ?? "Yes"}
+          </Badge>
         ) : (
-          <Text size="sm" c="dimmed">No</Text>
+          <Text size="sm" c="dimmed">
+            No
+          </Text>
         ),
     },
   ];
@@ -691,9 +947,13 @@ function ScreeningsTab() {
       label: "Sent to Lab",
       render: (r) =>
         r.sent_to_lab ? (
-          <Badge color="success" size="sm">Yes</Badge>
+          <Badge color="success" size="sm">
+            Yes
+          </Badge>
         ) : (
-          <Badge color="slate" size="sm">No</Badge>
+          <Badge color="slate" size="sm">
+            No
+          </Badge>
         ),
     },
     { key: "result_summary", label: "Result", render: (r) => r.result_summary ?? "—" },
@@ -714,77 +974,248 @@ function ScreeningsTab() {
       {selectedCampId ? (
         <Stack>
           <Group justify="space-between">
-            <Text fw={600} size="lg">Screenings</Text>
+            <Text fw={600} size="lg">
+              Screenings
+            </Text>
             {canManageScreenings && (
               <Button size="xs" leftSection={<IconPlus size={14} />} onClick={scrHandlers.open}>
                 Record Screening
               </Button>
             )}
           </Group>
-          <DataTable columns={scrCols} data={screenings} loading={scrLoading} rowKey={(r) => r.id} />
+          <DataTable
+            columns={scrCols}
+            data={screenings}
+            loading={scrLoading}
+            rowKey={(r) => r.id}
+          />
 
           <Group justify="space-between" mt="lg">
-            <Text fw={600} size="lg">Lab Samples</Text>
+            <Text fw={600} size="lg">
+              Lab Samples
+            </Text>
             {canManageLab && (
               <Button size="xs" leftSection={<IconPlus size={14} />} onClick={labHandlers.open}>
                 Record Sample
               </Button>
             )}
           </Group>
-          <DataTable columns={labCols} data={labSamples} loading={labLoading} rowKey={(r) => r.id} />
+          <DataTable
+            columns={labCols}
+            data={labSamples}
+            loading={labLoading}
+            rowKey={(r) => r.id}
+          />
         </Stack>
       ) : (
-        <Text c="dimmed" ta="center" mt="xl">Select a camp to view screenings and lab samples</Text>
+        <Text c="dimmed" ta="center" mt="xl">
+          Select a camp to view screenings and lab samples
+        </Text>
       )}
 
       {/* Screening Drawer */}
-      <Drawer opened={scrOpen} onClose={scrHandlers.close} title="Record Screening" position="right" size="xl">
+      <Drawer
+        opened={scrOpen}
+        onClose={scrHandlers.close}
+        title="Record Screening"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Registration ID" required value={scrForm.registration_id} onChange={(e) => setScrForm({ ...scrForm, registration_id: e.currentTarget.value })} />
+          <TextInput
+            label="Registration ID"
+            required
+            value={scrForm.registration_id}
+            onChange={(e) => setScrForm({ ...scrForm, registration_id: e.currentTarget.value })}
+          />
           <Group grow>
-            <NumberInput label="BP Systolic" value={scrForm.bp_systolic ?? ""} onChange={(v) => setScrForm({ ...scrForm, bp_systolic: typeof v === "number" ? v : undefined })} />
-            <NumberInput label="BP Diastolic" value={scrForm.bp_diastolic ?? ""} onChange={(v) => setScrForm({ ...scrForm, bp_diastolic: typeof v === "number" ? v : undefined })} />
+            <NumberInput
+              label="BP Systolic"
+              value={scrForm.bp_systolic ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, bp_systolic: typeof v === "number" ? v : undefined })
+              }
+            />
+            <NumberInput
+              label="BP Diastolic"
+              value={scrForm.bp_diastolic ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, bp_diastolic: typeof v === "number" ? v : undefined })
+              }
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Pulse Rate" value={scrForm.pulse_rate ?? ""} onChange={(v) => setScrForm({ ...scrForm, pulse_rate: typeof v === "number" ? v : undefined })} />
-            <NumberInput label="SpO2 (%)" value={scrForm.spo2 ?? ""} onChange={(v) => setScrForm({ ...scrForm, spo2: typeof v === "number" ? v : undefined })} />
+            <NumberInput
+              label="Pulse Rate"
+              value={scrForm.pulse_rate ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, pulse_rate: typeof v === "number" ? v : undefined })
+              }
+            />
+            <NumberInput
+              label="SpO2 (%)"
+              value={scrForm.spo2 ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, spo2: typeof v === "number" ? v : undefined })
+              }
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Temperature" decimalScale={1} value={scrForm.temperature ?? ""} onChange={(v) => setScrForm({ ...scrForm, temperature: typeof v === "number" ? v : undefined })} />
-            <NumberInput label="Blood Sugar (Random)" decimalScale={1} value={scrForm.blood_sugar_random ?? ""} onChange={(v) => setScrForm({ ...scrForm, blood_sugar_random: typeof v === "number" ? v : undefined })} />
+            <NumberInput
+              label="Temperature"
+              decimalScale={1}
+              value={scrForm.temperature ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, temperature: typeof v === "number" ? v : undefined })
+              }
+            />
+            <NumberInput
+              label="Blood Sugar (Random)"
+              decimalScale={1}
+              value={scrForm.blood_sugar_random ?? ""}
+              onChange={(v) =>
+                setScrForm({
+                  ...scrForm,
+                  blood_sugar_random: typeof v === "number" ? v : undefined,
+                })
+              }
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Height (cm)" decimalScale={1} value={scrForm.height_cm ?? ""} onChange={(v) => setScrForm({ ...scrForm, height_cm: typeof v === "number" ? v : undefined })} />
-            <NumberInput label="Weight (kg)" decimalScale={1} value={scrForm.weight_kg ?? ""} onChange={(v) => setScrForm({ ...scrForm, weight_kg: typeof v === "number" ? v : undefined })} />
+            <NumberInput
+              label="Height (cm)"
+              decimalScale={1}
+              value={scrForm.height_cm ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, height_cm: typeof v === "number" ? v : undefined })
+              }
+            />
+            <NumberInput
+              label="Weight (kg)"
+              decimalScale={1}
+              value={scrForm.weight_kg ?? ""}
+              onChange={(v) =>
+                setScrForm({ ...scrForm, weight_kg: typeof v === "number" ? v : undefined })
+              }
+            />
           </Group>
           <Group grow>
-            <TextInput label="Visual Acuity (L)" value={scrForm.visual_acuity_left ?? ""} onChange={(e) => setScrForm({ ...scrForm, visual_acuity_left: e.currentTarget.value || undefined })} />
-            <TextInput label="Visual Acuity (R)" value={scrForm.visual_acuity_right ?? ""} onChange={(e) => setScrForm({ ...scrForm, visual_acuity_right: e.currentTarget.value || undefined })} />
+            <TextInput
+              label="Visual Acuity (L)"
+              value={scrForm.visual_acuity_left ?? ""}
+              onChange={(e) =>
+                setScrForm({ ...scrForm, visual_acuity_left: e.currentTarget.value || undefined })
+              }
+            />
+            <TextInput
+              label="Visual Acuity (R)"
+              value={scrForm.visual_acuity_right ?? ""}
+              onChange={(e) =>
+                setScrForm({ ...scrForm, visual_acuity_right: e.currentTarget.value || undefined })
+              }
+            />
           </Group>
-          <Textarea label="Findings" value={scrForm.findings ?? ""} onChange={(e) => setScrForm({ ...scrForm, findings: e.currentTarget.value || undefined })} />
-          <Textarea label="Diagnosis" value={scrForm.diagnosis ?? ""} onChange={(e) => setScrForm({ ...scrForm, diagnosis: e.currentTarget.value || undefined })} />
-          <Textarea label="Advice" value={scrForm.advice ?? ""} onChange={(e) => setScrForm({ ...scrForm, advice: e.currentTarget.value || undefined })} />
-          <Switch label="Referred to Hospital" checked={scrForm.referred_to_hospital === true} onChange={(e) => setScrForm({ ...scrForm, referred_to_hospital: e.currentTarget.checked })} />
+          <Textarea
+            label="Findings"
+            value={scrForm.findings ?? ""}
+            onChange={(e) =>
+              setScrForm({ ...scrForm, findings: e.currentTarget.value || undefined })
+            }
+          />
+          <Textarea
+            label="Diagnosis"
+            value={scrForm.diagnosis ?? ""}
+            onChange={(e) =>
+              setScrForm({ ...scrForm, diagnosis: e.currentTarget.value || undefined })
+            }
+          />
+          <Textarea
+            label="Advice"
+            value={scrForm.advice ?? ""}
+            onChange={(e) => setScrForm({ ...scrForm, advice: e.currentTarget.value || undefined })}
+          />
+          <Switch
+            label="Referred to Hospital"
+            checked={scrForm.referred_to_hospital === true}
+            onChange={(e) =>
+              setScrForm({ ...scrForm, referred_to_hospital: e.currentTarget.checked })
+            }
+          />
           {scrForm.referred_to_hospital && (
             <Group grow>
-              <TextInput label="Referral Department" value={scrForm.referral_department ?? ""} onChange={(e) => setScrForm({ ...scrForm, referral_department: e.currentTarget.value || undefined })} />
-              <Select label="Urgency" data={[{ value: "routine", label: "Routine" }, { value: "urgent", label: "Urgent" }, { value: "emergency", label: "Emergency" }]} value={scrForm.referral_urgency ?? null} onChange={(v) => setScrForm({ ...scrForm, referral_urgency: v ?? undefined })} />
+              <TextInput
+                label="Referral Department"
+                value={scrForm.referral_department ?? ""}
+                onChange={(e) =>
+                  setScrForm({
+                    ...scrForm,
+                    referral_department: e.currentTarget.value || undefined,
+                  })
+                }
+              />
+              <Select
+                label="Urgency"
+                data={[
+                  { value: "routine", label: "Routine" },
+                  { value: "urgent", label: "Urgent" },
+                  { value: "emergency", label: "Emergency" },
+                ]}
+                value={scrForm.referral_urgency ?? null}
+                onChange={(v) => setScrForm({ ...scrForm, referral_urgency: v ?? undefined })}
+              />
             </Group>
           )}
-          <Button onClick={() => scrMut.mutate()} loading={scrMut.isPending} disabled={!scrForm.registration_id}>
+          <Button
+            onClick={() => scrMut.mutate()}
+            loading={scrMut.isPending}
+            disabled={!scrForm.registration_id}
+          >
             Save Screening
           </Button>
         </Stack>
       </Drawer>
 
       {/* Lab Sample Drawer */}
-      <Drawer opened={labOpen} onClose={labHandlers.close} title="Record Lab Sample" position="right" size="sm">
+      <Drawer
+        opened={labOpen}
+        onClose={labHandlers.close}
+        title="Record Lab Sample"
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <TextInput label="Registration ID" required value={labForm.registration_id} onChange={(e) => setLabForm({ ...labForm, registration_id: e.currentTarget.value })} />
-          <Select label="Sample Type" required data={SAMPLE_TYPES} value={labForm.sample_type} onChange={(v) => setLabForm({ ...labForm, sample_type: v ?? "blood" })} />
-          <TextInput label="Test Requested" value={labForm.test_requested ?? ""} onChange={(e) => setLabForm({ ...labForm, test_requested: e.currentTarget.value || undefined })} />
-          <TextInput label="Barcode" value={labForm.barcode ?? ""} onChange={(e) => setLabForm({ ...labForm, barcode: e.currentTarget.value || undefined })} />
-          <Button onClick={() => labMut.mutate()} loading={labMut.isPending} disabled={!labForm.registration_id}>
+          <TextInput
+            label="Registration ID"
+            required
+            value={labForm.registration_id}
+            onChange={(e) => setLabForm({ ...labForm, registration_id: e.currentTarget.value })}
+          />
+          <Select
+            label="Sample Type"
+            required
+            data={SAMPLE_TYPES}
+            value={labForm.sample_type}
+            onChange={(v) => setLabForm({ ...labForm, sample_type: v ?? "blood" })}
+          />
+          <TextInput
+            label="Test Requested"
+            value={labForm.test_requested ?? ""}
+            onChange={(e) =>
+              setLabForm({ ...labForm, test_requested: e.currentTarget.value || undefined })
+            }
+          />
+          <TextInput
+            label="Barcode"
+            value={labForm.barcode ?? ""}
+            onChange={(e) =>
+              setLabForm({ ...labForm, barcode: e.currentTarget.value || undefined })
+            }
+          />
+          <Button
+            onClick={() => labMut.mutate()}
+            loading={labMut.isPending}
+            disabled={!labForm.registration_id}
+          >
             Save Sample
           </Button>
         </Stack>
@@ -833,7 +1264,11 @@ function FollowupsTab() {
       void qc.invalidateQueries({ queryKey: ["camp-stats"] });
       createHandlers.close();
       setForm({ registration_id: "", followup_date: "", followup_type: "phone_call" });
-      notifications.show({ title: "Follow-up Created", message: "Follow-up scheduled", color: "success" });
+      notifications.show({
+        title: "Follow-up Created",
+        message: "Follow-up scheduled",
+        color: "success",
+      });
     },
   });
 
@@ -849,7 +1284,12 @@ function FollowupsTab() {
   const columns: Column<CampFollowup>[] = [
     { key: "registration_id", label: "Reg ID", render: (r) => r.registration_id.slice(0, 8) },
     { key: "followup_date", label: "Date", render: (r) => r.followup_date },
-    { key: "followup_type", label: "Type", render: (r) => FOLLOWUP_TYPES.find((t) => t.value === r.followup_type)?.label ?? r.followup_type },
+    {
+      key: "followup_type",
+      label: "Type",
+      render: (r) =>
+        FOLLOWUP_TYPES.find((t) => t.value === r.followup_type)?.label ?? r.followup_type,
+    },
     {
       key: "status",
       label: "Status",
@@ -864,9 +1304,13 @@ function FollowupsTab() {
       label: "Converted",
       render: (r) =>
         r.converted_to_patient ? (
-          <Badge color="success" size="sm">Yes</Badge>
+          <Badge color="success" size="sm">
+            Yes
+          </Badge>
         ) : (
-          <Text size="sm" c="dimmed">No</Text>
+          <Text size="sm" c="dimmed">
+            No
+          </Text>
         ),
     },
     { key: "outcome", label: "Outcome", render: (r) => r.outcome ?? "—" },
@@ -881,9 +1325,7 @@ function FollowupsTab() {
                 variant="subtle"
                 color="success"
                 size="sm"
-                onClick={() =>
-                  completeMut.mutate({ id: r.id, data: { status: "completed" } })
-                }
+                onClick={() => completeMut.mutate({ id: r.id, data: { status: "completed" } })}
                 aria-label="Confirm"
               >
                 <IconCheck size={14} />
@@ -894,9 +1336,7 @@ function FollowupsTab() {
                 variant="subtle"
                 color="danger"
                 size="sm"
-                onClick={() =>
-                  completeMut.mutate({ id: r.id, data: { status: "missed" } })
-                }
+                onClick={() => completeMut.mutate({ id: r.id, data: { status: "missed" } })}
                 aria-label="Close"
               >
                 <IconX size={14} />
@@ -946,16 +1386,49 @@ function FollowupsTab() {
       {selectedCampId ? (
         <DataTable columns={columns} data={followups} loading={isLoading} rowKey={(r) => r.id} />
       ) : (
-        <Text c="dimmed" ta="center" mt="xl">Select a camp to view follow-ups</Text>
+        <Text c="dimmed" ta="center" mt="xl">
+          Select a camp to view follow-ups
+        </Text>
       )}
 
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Schedule Follow-up" position="right" size="sm">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Schedule Follow-up"
+        position="right"
+        size="sm"
+      >
         <Stack>
-          <TextInput label="Registration ID" required value={form.registration_id} onChange={(e) => setForm({ ...form, registration_id: e.currentTarget.value })} />
-          <DateInput label="Follow-up Date" required value={form.followup_date ? new Date(form.followup_date) : null} onChange={(d) => setForm({ ...form, followup_date: d ? new Date(d).toISOString().slice(0, 10) : "" })} />
-          <Select label="Follow-up Type" data={FOLLOWUP_TYPES} value={form.followup_type} onChange={(v) => setForm({ ...form, followup_type: v ?? "phone_call" })} />
-          <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })} />
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending} disabled={!form.registration_id || !form.followup_date}>
+          <TextInput
+            label="Registration ID"
+            required
+            value={form.registration_id}
+            onChange={(e) => setForm({ ...form, registration_id: e.currentTarget.value })}
+          />
+          <DateInput
+            label="Follow-up Date"
+            required
+            value={form.followup_date ? new Date(form.followup_date) : null}
+            onChange={(d) =>
+              setForm({ ...form, followup_date: d ? new Date(d).toISOString().slice(0, 10) : "" })
+            }
+          />
+          <Select
+            label="Follow-up Type"
+            data={FOLLOWUP_TYPES}
+            value={form.followup_type}
+            onChange={(v) => setForm({ ...form, followup_type: v ?? "phone_call" })}
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          />
+          <Button
+            onClick={() => createMut.mutate()}
+            loading={createMut.isPending}
+            disabled={!form.registration_id || !form.followup_date}
+          >
             Schedule
           </Button>
         </Stack>
@@ -999,8 +1472,14 @@ function CampAnalyticsTab() {
 
   return (
     <Stack>
-      <Text fw={600} size="lg">Camp Analytics</Text>
-      {analyticsLoading && <Text size="sm" c="dimmed">Loading analytics...</Text>}
+      <Text fw={600} size="lg">
+        Camp Analytics
+      </Text>
+      {analyticsLoading && (
+        <Text size="sm" c="dimmed">
+          Loading analytics...
+        </Text>
+      )}
 
       {stats && (
         <>
@@ -1008,14 +1487,28 @@ function CampAnalyticsTab() {
             <StatCard label="Total Camps" value={stats.total_camps} />
             <StatCard label="Total Registrations" value={stats.total_registrations} />
             <StatCard label="Total Screenings" value={stats.total_screenings} />
-            <StatCard label="Conversion Rate" value={Math.round(stats.conversion_rate * 100)} prefix="" />
-            <StatCard label="Avg Cost/Patient" value={Math.round(stats.avg_cost_per_patient)} prefix="₹" />
-            <StatCard label="Followup Compliance" value={Math.round(stats.followup_compliance * 100)} prefix="" />
+            <StatCard
+              label="Conversion Rate"
+              value={Math.round(stats.conversion_rate * 100)}
+              prefix=""
+            />
+            <StatCard
+              label="Avg Cost/Patient"
+              value={Math.round(stats.avg_cost_per_patient)}
+              prefix="₹"
+            />
+            <StatCard
+              label="Followup Compliance"
+              value={Math.round(stats.followup_compliance * 100)}
+              prefix=""
+            />
           </SimpleGrid>
 
           {chartData.length > 0 && (
             <Card withBorder p="md" mt="md">
-              <Text fw={600} size="sm" mb="md">Camps by Type</Text>
+              <Text fw={600} size="sm" mb="md">
+                Camps by Type
+              </Text>
               <BarChart
                 h={250}
                 data={chartData}
@@ -1027,7 +1520,9 @@ function CampAnalyticsTab() {
         </>
       )}
 
-      <Text fw={600} size="lg" mt="lg">Per-Camp Report</Text>
+      <Text fw={600} size="lg" mt="lg">
+        Per-Camp Report
+      </Text>
       <Select
         placeholder="Select a camp for detailed report"
         data={camps.map((c) => ({ value: c.id, label: `${c.camp_code} — ${c.name}` }))}

@@ -97,7 +97,8 @@ pub async fn update_tenant(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let tenant = sqlx::query_as::<_, TenantSummary>(
         "UPDATE tenants SET \
@@ -197,7 +198,8 @@ pub async fn create_compliance(
     Json(body): Json<CreateComplianceRequest>,
 ) -> Result<Json<ComplianceRow>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, ComplianceRow>(
         "INSERT INTO facility_regulatory_compliance \
@@ -228,7 +230,8 @@ pub async fn list_facilities(
 ) -> Result<Json<Vec<Facility>>, AppError> {
     require_permission(&claims, permissions::admin::settings::facilities::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, Facility>(
         "SELECT * FROM facilities WHERE tenant_id = $1 ORDER BY created_at",
@@ -287,7 +290,8 @@ pub async fn create_facility(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let code_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM facilities WHERE tenant_id = $1 AND code = $2)",
@@ -340,7 +344,8 @@ pub async fn update_facility(
 ) -> Result<Json<Facility>, AppError> {
     require_permission(&claims, permissions::admin::settings::facilities::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let facility = sqlx::query_as::<_, Facility>(
         "UPDATE facilities SET \
@@ -384,7 +389,8 @@ pub async fn delete_facility(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::facilities::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM facilities WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -416,7 +422,8 @@ pub async fn list_locations(
 ) -> Result<Json<Vec<LocationRow>>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, LocationRow>(
         "SELECT id, tenant_id, parent_id, level::text, code, name, is_active \
@@ -464,7 +471,8 @@ pub async fn create_location(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let code_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM locations WHERE tenant_id = $1 AND code = $2)",
@@ -491,6 +499,18 @@ pub async fn create_location(
     .fetch_one(&mut *tx)
     .await?;
 
+    if body.level == "bed" {
+        sqlx::query!(
+            "INSERT INTO bed_states (tenant_id, location_id) \
+             VALUES ($1, $2) \
+             ON CONFLICT (tenant_id, location_id) DO NOTHING",
+            claims.tenant_id,
+            row.id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
 
     Ok(Json(row))
@@ -504,7 +524,8 @@ pub async fn update_location(
 ) -> Result<Json<LocationRow>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, LocationRow>(
         "UPDATE locations SET parent_id = $1, level = $2::location_level, code = $3, name = $4 \
@@ -532,7 +553,8 @@ pub async fn delete_location(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM locations WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -565,7 +587,8 @@ pub async fn list_departments(
 ) -> Result<Json<Vec<DepartmentRow>>, AppError> {
     require_permission(&claims, permissions::admin::settings::departments::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, working_hours, is_active \
@@ -616,7 +639,8 @@ pub async fn create_department(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let code_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM departments WHERE tenant_id = $1 AND code = $2)",
@@ -661,7 +685,8 @@ pub async fn update_department(
 ) -> Result<Json<DepartmentRow>, AppError> {
     require_permission(&claims, permissions::admin::settings::departments::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let wh = body
         .working_hours
@@ -695,7 +720,8 @@ pub async fn delete_department(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::departments::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM departments WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -716,7 +742,8 @@ pub async fn list_roles(
 ) -> Result<Json<Vec<CustomRole>>, AppError> {
     require_permission(&claims, permissions::admin::roles::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, CustomRole>(
         "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name",
@@ -752,7 +779,8 @@ pub async fn create_role(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CustomRole>(
         "INSERT INTO roles (tenant_id, code, name, description, permissions) \
@@ -797,7 +825,8 @@ pub async fn list_users(
 ) -> Result<Json<Vec<SetupUserRow>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SetupUserRow>(
         "SELECT id, tenant_id, username, email, full_name, role::text, \
@@ -821,7 +850,8 @@ pub async fn list_doctors(
 ) -> Result<Json<Vec<SetupUserRow>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SetupUserRow>(
         "SELECT id, tenant_id, username, email, full_name, role::text, \
@@ -859,7 +889,7 @@ pub struct CreateUserRequest {
     /// Per-screen / per-permission overrides on top of the role's grants.
     /// Shape: `{ "extra": ["perm.code", ...], "denied": ["perm.code", ...] }`.
     /// Stored in `users.access_matrix` JSONB. Default = `{}`.
-    pub access_matrix: Option<serde_json::Value>,
+    pub access_matrix: Option<Value>,
 }
 
 pub async fn create_user(
@@ -887,7 +917,8 @@ pub async fn create_user(
         .to_string();
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let existing_username: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
@@ -980,7 +1011,13 @@ pub async fn create_user(
     if let Some(spicedb) = downcast_spicedb(&state.authz) {
         for d in dept_ids {
             if let Err(e) = spicedb
-                .write_raw("department", *d, "member", medbrains_authz::Subject::User(row.id), None)
+                .write_raw(
+                    "department",
+                    *d,
+                    "member",
+                    medbrains_authz::Subject::User(row.id),
+                    None,
+                )
                 .await
             {
                 tracing::warn!(error = %e, user = %row.id, dept = %d,
@@ -989,7 +1026,13 @@ pub async fn create_user(
         }
         for g in group_ids {
             if let Err(e) = spicedb
-                .write_raw("access_group", *g, "member", medbrains_authz::Subject::User(row.id), None)
+                .write_raw(
+                    "access_group",
+                    *g,
+                    "member",
+                    medbrains_authz::Subject::User(row.id),
+                    None,
+                )
                 .await
             {
                 tracing::warn!(error = %e, user = %row.id, group = %g,
@@ -1025,7 +1068,8 @@ pub async fn update_user(
 ) -> Result<Json<SetupUserRow>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let fee = body
         .consultation_fee
@@ -1084,7 +1128,8 @@ pub async fn delete_user(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM users WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1105,7 +1150,8 @@ pub async fn update_role(
 ) -> Result<Json<CustomRole>, AppError> {
     require_permission(&claims, permissions::admin::roles::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, CustomRole>(
         "UPDATE roles SET code = $1, name = $2, description = $3, \
@@ -1134,7 +1180,8 @@ pub async fn delete_role(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::roles::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false")
         .bind(id)
@@ -1162,7 +1209,8 @@ pub async fn update_role_permissions(
 ) -> Result<Json<CustomRole>, AppError> {
     require_permission(&claims, permissions::admin::roles::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Store permissions as a JSON array
     let perms_json = Value::Array(
@@ -1211,6 +1259,19 @@ pub struct UpdateUserAccessMatrixRequest {
     pub widget_access: Option<std::collections::HashMap<String, String>>,
 }
 
+fn validate_field_access_map(
+    field_access: &std::collections::HashMap<String, String>,
+) -> Result<(), AppError> {
+    for (field_code, level) in field_access {
+        if !matches!(level.as_str(), "edit" | "view" | "hidden") {
+            return Err(AppError::BadRequest(format!(
+                "Invalid field_access level for {field_code}: {level}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub async fn update_user_access_matrix(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1219,7 +1280,8 @@ pub async fn update_user_access_matrix(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut matrix = serde_json::json!({
         "extra": body.extra_permissions,
@@ -1227,6 +1289,7 @@ pub async fn update_user_access_matrix(
     });
 
     if let Some(fa) = &body.field_access {
+        validate_field_access_map(fa)?;
         matrix["field_access"] =
             serde_json::to_value(fa).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
@@ -1265,8 +1328,11 @@ pub async fn update_role_field_access(
     Json(body): Json<UpdateRoleFieldAccessRequest>,
 ) -> Result<Json<CustomRole>, AppError> {
     require_permission(&claims, permissions::admin::roles::UPDATE)?;
+    validate_field_access_map(&body.field_access)?;
+
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let fa_json = serde_json::to_value(&body.field_access)
         .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
@@ -1315,7 +1381,8 @@ pub async fn update_role_widget_access(
 ) -> Result<Json<CustomRole>, AppError> {
     require_permission(&claims, permissions::admin::roles::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let wa_json = serde_json::to_value(&body.widget_access)
         .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
@@ -1356,7 +1423,8 @@ pub async fn list_modules(
 ) -> Result<Json<Vec<ModuleConfig>>, AppError> {
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, ModuleConfig>(
         "SELECT * FROM module_config WHERE tenant_id = $1 ORDER BY name",
@@ -1383,7 +1451,8 @@ pub async fn update_module(
 ) -> Result<Json<ModuleConfig>, AppError> {
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, ModuleConfig>(
         "UPDATE module_config SET status = $1::module_status \
@@ -1419,7 +1488,8 @@ pub async fn list_sequences(
 ) -> Result<Json<Vec<SequenceRow>>, AppError> {
     require_permission(&claims, permissions::admin::settings::sequences::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SequenceRow>(
         "SELECT id, tenant_id, seq_type, prefix, current_val, pad_width \
@@ -1459,7 +1529,8 @@ pub async fn update_sequence(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SequenceRow>(
         "UPDATE sequences SET \
@@ -1487,7 +1558,8 @@ pub async fn get_branding(
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
     require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
@@ -1530,7 +1602,8 @@ pub async fn update_branding(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TenantSettings>(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -1576,7 +1649,8 @@ pub async fn create_sequence(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, SequenceRow>(
         "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
@@ -1604,7 +1678,8 @@ pub async fn delete_sequence(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::sequences::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM sequences WHERE tenant_id = $1 AND seq_type = $2")
         .bind(claims.tenant_id)
@@ -1638,7 +1713,8 @@ pub async fn list_services(
 ) -> Result<Json<Vec<ServiceRow>>, AppError> {
     require_permission(&claims, permissions::admin::settings::services::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, ServiceRow>(
         "SELECT id, tenant_id, code, name, service_type::text, base_price, department_id, description, is_active \
@@ -1677,7 +1753,8 @@ pub async fn create_service(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let price = body
         .base_price
@@ -1712,7 +1789,8 @@ pub async fn update_service(
 ) -> Result<Json<ServiceRow>, AppError> {
     require_permission(&claims, permissions::admin::settings::services::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let price = body
         .base_price
@@ -1748,7 +1826,8 @@ pub async fn delete_service(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::services::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM services WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1773,7 +1852,8 @@ pub async fn list_bed_types(
 ) -> Result<Json<Vec<BedType>>, AppError> {
     require_permission(&claims, permissions::admin::settings::bed_types::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows =
         sqlx::query_as::<_, BedType>("SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name")
@@ -1810,7 +1890,8 @@ pub async fn create_bed_type(
     let rate = rust_decimal::Decimal::try_from(body.daily_rate).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, BedType>(
         "INSERT INTO bed_types (tenant_id, code, name, daily_rate, description) \
@@ -1839,7 +1920,8 @@ pub async fn update_bed_type(
     let rate = rust_decimal::Decimal::try_from(body.daily_rate).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, BedType>(
         "UPDATE bed_types SET code = $1, name = $2, daily_rate = $3, description = $4 \
@@ -1866,7 +1948,8 @@ pub async fn delete_bed_type(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::bed_types::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM bed_types WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1887,7 +1970,8 @@ pub async fn list_tax_categories(
 ) -> Result<Json<Vec<TaxCategory>>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, TaxCategory>(
         "SELECT * FROM tax_categories WHERE tenant_id = $1 ORDER BY name",
@@ -1926,7 +2010,8 @@ pub async fn create_tax_category(
     let rate = rust_decimal::Decimal::try_from(body.rate_percent).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TaxCategory>(
         "INSERT INTO tax_categories (tenant_id, code, name, rate_percent, applicability, description) \
@@ -1956,7 +2041,8 @@ pub async fn update_tax_category(
     let rate = rust_decimal::Decimal::try_from(body.rate_percent).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TaxCategory>(
         "UPDATE tax_categories SET code = $1, name = $2, rate_percent = $3, \
@@ -1985,7 +2071,8 @@ pub async fn delete_tax_category(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM tax_categories WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -2006,7 +2093,8 @@ pub async fn list_payment_methods(
 ) -> Result<Json<Vec<PaymentMethod>>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PaymentMethod>(
         "SELECT * FROM payment_methods WHERE tenant_id = $1 ORDER BY name",
@@ -2041,7 +2129,8 @@ pub async fn create_payment_method(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PaymentMethod>(
         "INSERT INTO payment_methods (tenant_id, code, name, is_default) \
@@ -2067,7 +2156,8 @@ pub async fn update_payment_method(
 ) -> Result<Json<PaymentMethod>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PaymentMethod>(
         "UPDATE payment_methods SET code = $1, name = $2, is_default = COALESCE($3, is_default) \
@@ -2093,7 +2183,8 @@ pub async fn delete_payment_method(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::billing_tax::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("DELETE FROM payment_methods WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -2119,7 +2210,8 @@ pub async fn get_settings(
     Query(params): Query<SettingsQuery>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = $2 \
@@ -2148,7 +2240,8 @@ pub async fn update_setting(
     Json(body): Json<UpdateSettingRequest>,
 ) -> Result<Json<TenantSettings>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TenantSettings>(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -2318,7 +2411,8 @@ pub async fn get_secure_device_settings(
     require_permission(&claims, permissions::integration::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings \
@@ -2356,7 +2450,8 @@ pub async fn update_secure_device_setting(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let existing = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings \
@@ -2681,7 +2776,8 @@ pub async fn update_tenant_geo_with_presets(
     Json(body): Json<UpdateTenantGeoRequest>,
 ) -> Result<Json<Value>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Save geo IDs
     sqlx::query(
@@ -3144,7 +3240,8 @@ pub async fn list_insurance_providers(
         permissions::admin::settings::clinical_masters::LIST,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, MasterInsuranceProvider>(
         "SELECT * FROM master_insurance_providers ORDER BY name",
@@ -3174,7 +3271,8 @@ pub async fn create_insurance_provider(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MasterInsuranceProvider>(
         "INSERT INTO master_insurance_providers \
@@ -3207,7 +3305,8 @@ pub async fn update_insurance_provider(
         permissions::admin::settings::clinical_masters::UPDATE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MasterInsuranceProvider>(
         "UPDATE master_insurance_providers SET \
@@ -3247,7 +3346,8 @@ pub async fn delete_insurance_provider(
         permissions::admin::settings::clinical_masters::DELETE,
     )?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let result = sqlx::query("DELETE FROM master_insurance_providers WHERE id = $1")
         .bind(id)
@@ -3278,7 +3378,8 @@ pub async fn seed_module_masters(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut seeded: Vec<String> = Vec::new();
 
@@ -3549,7 +3650,8 @@ pub async fn import_locations(
 ) -> Result<Json<CsvImportResult>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let col_idx = |name: &str| -> Option<usize> {
         body.headers
@@ -3665,7 +3767,8 @@ pub async fn import_departments(
 ) -> Result<Json<CsvImportResult>, AppError> {
     require_permission(&claims, permissions::admin::settings::departments::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let col_idx = |name: &str| -> Option<usize> {
         body.headers
@@ -3786,7 +3889,8 @@ pub async fn import_users(
 ) -> Result<Json<CsvImportResult>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let col_idx = |name: &str| -> Option<usize> {
         body.headers
@@ -3914,7 +4018,8 @@ pub async fn get_print_templates(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT id, tenant_id, category, key, value, created_at, updated_at \
@@ -3970,7 +4075,8 @@ pub async fn upsert_print_template(
     });
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -4020,7 +4126,8 @@ pub async fn list_user_facilities(
 ) -> Result<Json<Vec<UserFacilityAssignment>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, UserFacilityAssignment>(
         "SELECT id, tenant_id, user_id, facility_id, is_primary, assigned_at \
@@ -4048,7 +4155,8 @@ pub async fn assign_user_facilities(
 ) -> Result<Json<Vec<UserFacilityAssignment>>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify user belongs to this tenant
     let exists: bool =
@@ -4112,7 +4220,8 @@ pub async fn auto_create_compliance(
 ) -> Result<Json<Vec<ComplianceRow>>, AppError> {
     require_permission(&claims, permissions::admin::settings::facilities::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Verify facility belongs to this tenant
     let exists: bool = sqlx::query_scalar(
@@ -4204,7 +4313,8 @@ pub async fn bulk_create_users(
     require_permission(&claims, permissions::admin::users::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut created: i64 = 0;
     let mut errors: Vec<String> = Vec::new();
@@ -4305,7 +4415,8 @@ pub async fn seed_department_template(
     require_permission(&claims, permissions::admin::settings::departments::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let templates: Vec<(&str, &str, &str)> = vec![
         ("EMERGENCY", "Emergency", "clinical"),
@@ -4385,7 +4496,8 @@ pub async fn completeness_check(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let (dept_count,): (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM departments WHERE tenant_id = $1")
@@ -4449,7 +4561,8 @@ pub async fn system_health(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let (user_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE tenant_id = $1")
         .bind(claims.tenant_id)
@@ -4509,7 +4622,8 @@ pub async fn export_config(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let departments = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, \
@@ -4575,7 +4689,8 @@ pub async fn import_config(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut departments_created: i64 = 0;
     let mut roles_created: i64 = 0;
@@ -4649,7 +4764,8 @@ pub async fn list_brand_entities(
 ) -> Result<Json<Vec<Value>>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<
         _,
@@ -4692,7 +4808,8 @@ pub async fn create_brand_entity(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO brand_entities (tenant_id, code, name, short_name, logo_url, address, phone, email, registration_no, is_default) \
@@ -4723,7 +4840,8 @@ pub async fn update_brand_entity(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query(
         "UPDATE brand_entities SET \
@@ -4757,7 +4875,8 @@ pub async fn delete_brand_entity(
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     sqlx::query("UPDATE brand_entities SET is_active = false WHERE id = $1")
         .bind(id)
@@ -4788,7 +4907,8 @@ pub async fn list_access_groups(
 ) -> Result<Json<Vec<AccessGroupRow>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, AccessGroupRow>(
         "SELECT id, tenant_id, code, name, description, is_active \
@@ -4816,7 +4936,8 @@ pub async fn create_access_group(
 ) -> Result<Json<AccessGroupRow>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, AccessGroupRow>(
         "INSERT INTO access_groups (tenant_id, code, name, description, is_active) \
          VALUES ($1, $2, $3, $4, true) \
@@ -4835,12 +4956,13 @@ pub async fn create_access_group(
 pub async fn update_access_group(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path(id): axum::extract::Path<Uuid>,
+    Path(id): Path<Uuid>,
     Json(body): Json<UpsertAccessGroupRequest>,
 ) -> Result<Json<AccessGroupRow>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, AccessGroupRow>(
         "UPDATE access_groups SET name = $3, description = $4, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
@@ -4860,11 +4982,12 @@ pub async fn update_access_group(
 pub async fn delete_access_group(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path(id): axum::extract::Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     sqlx::query(
         "UPDATE access_groups SET is_active = false, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2",
@@ -4889,11 +5012,12 @@ pub struct AccessGroupMemberRow {
 pub async fn list_access_group_members(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+    Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<AccessGroupMemberRow>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let rows = sqlx::query_as::<_, AccessGroupMemberRow>(
         "SELECT u.id AS user_id, u.username, u.full_name, u.role::text AS role, m.expires_at \
          FROM access_group_members m \
@@ -4918,12 +5042,13 @@ pub struct AddAccessGroupMemberRequest {
 pub async fn add_access_group_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path(group_id): axum::extract::Path<Uuid>,
+    Path(group_id): Path<Uuid>,
     Json(body): Json<AddAccessGroupMemberRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     sqlx::query(
         "INSERT INTO access_group_members (group_id, user_id, expires_at) \
          VALUES ($1, $2, $3) \
@@ -4980,18 +5105,17 @@ pub struct VisibleScreen {
 pub async fn list_visible_screens(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path(user_id): axum::extract::Path<Uuid>,
+    Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<VisibleScreen>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
 
     // Pull the target user's role to resolve the effective permission set.
-    let target_role: Option<String> = sqlx::query_scalar(
-        "SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(user_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let target_role: Option<String> =
+        sqlx::query_scalar("SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(user_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await?;
     let role = target_role.ok_or(AppError::NotFound)?;
 
     // Bypass roles see everything.
@@ -5032,11 +5156,12 @@ pub async fn list_visible_screens(
 pub async fn remove_access_group_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Path((group_id, user_id)): axum::extract::Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path((group_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     sqlx::query("DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2")
         .bind(group_id)
         .bind(user_id)

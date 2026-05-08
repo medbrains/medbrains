@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import type { Vital } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -16,7 +16,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { VitalInput, VITAL_CONFIGS } from "../../components";
+import { VITAL_CONFIGS, VitalInput } from "../../components";
 
 interface VitalsEntryScreenProps {
   route: {

@@ -134,7 +134,10 @@ async fn sms_400_dlqs() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Permanent");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Permanent");
     match err {
         HandlerError::Permanent(msg) => {
             assert!(msg.contains("400"), "expected 400 in error: {msg}");
@@ -158,7 +161,10 @@ async fn sms_401_dlqs() {
     let handler = SmsSendHandler::with_api_base("sms.otp", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Permanent");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Permanent");
     assert!(matches!(err, HandlerError::Permanent(_)));
 }
 
@@ -177,7 +183,10 @@ async fn sms_500_retries() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Transient");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Transient");
     assert!(matches!(err, HandlerError::Transient(_)));
 }
 
@@ -196,7 +205,10 @@ async fn sms_429_retries() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Transient");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Transient");
     assert!(matches!(err, HandlerError::Transient(_)));
 }
 
@@ -215,12 +227,17 @@ async fn sms_timeout_retries() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Transient");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Transient");
     match err {
         HandlerError::Transient(msg) => {
             assert!(msg.contains("network") || msg.contains("reqwest"));
         }
-        HandlerError::Permanent(msg) => panic!("expected Transient for timeout, got Permanent: {msg}"),
+        HandlerError::Permanent(msg) => {
+            panic!("expected Transient for timeout, got Permanent: {msg}")
+        }
     }
 }
 
@@ -231,7 +248,10 @@ async fn sms_missing_secret_retries() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Transient");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Transient");
     match err {
         HandlerError::Transient(msg) => assert!(msg.contains("twilio-account-sid")),
         other => panic!("expected Transient for missing secret, got {other:?}"),
@@ -245,7 +265,10 @@ async fn sms_missing_payload_dlqs() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Permanent");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Permanent");
     assert!(matches!(err, HandlerError::Permanent(_)));
 }
 
@@ -256,7 +279,10 @@ async fn sms_non_e164_payload_dlqs() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": "919876543210", "body": SAMPLE_BODY });
 
-    let err = handler.handle(&ctx, &payload).await.expect_err("expected Permanent");
+    let err = handler
+        .handle(&ctx, &payload)
+        .await
+        .expect_err("expected Permanent");
     match err {
         HandlerError::Permanent(msg) => assert!(msg.contains("E.164")),
         other => panic!("expected Permanent, got {other:?}"),

@@ -341,7 +341,5 @@ pub async fn trigger_sweep(
     // same DB; we just write a marker that it picks up on its next
     // tick. (For environments without the in-process sweeper, run
     // the `medbrains-archive` binary directly via systemd.)
-    Ok(Json(SweepAck {
-        status: "queued",
-    }))
+    Ok(Json(SweepAck { status: "queued" }))
 }

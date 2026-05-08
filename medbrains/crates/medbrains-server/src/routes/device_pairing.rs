@@ -164,7 +164,7 @@ pub async fn pair_device(
     // Look up the token globally — no tenant_context yet because the
     // device hasn't authenticated. Once we resolve the tenant we set
     // it and proceed.
-    let token_row: Option<(
+    type PairingTokenRow = (
         Uuid,
         Uuid,
         String,
@@ -173,7 +173,8 @@ pub async fn pair_device(
         Uuid,
         DateTime<Utc>,
         Option<DateTime<Utc>>,
-    )> = sqlx::query_as(
+    );
+    let token_row: Option<PairingTokenRow> = sqlx::query_as(
         "SELECT id, tenant_id, intended_device_label, intended_app_variant, \
                 intended_user_id, issued_by_user_id, expires_at, used_at \
          FROM device_pairing_tokens WHERE token = $1",
@@ -182,8 +183,16 @@ pub async fn pair_device(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some((token_id, tenant_id, _label, app_variant, intended_user, issued_by, expires_at, used_at)) =
-        token_row
+    let Some((
+        token_id,
+        tenant_id,
+        _label,
+        app_variant,
+        intended_user,
+        issued_by,
+        expires_at,
+        used_at,
+    )) = token_row
     else {
         return Err(AppError::NotFound);
     };

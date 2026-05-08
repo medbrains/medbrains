@@ -1,7 +1,7 @@
 import { Badge, Progress, Stack, Text } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { DischargeReadinessRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { readinessColor } from "./shared";
@@ -14,16 +14,30 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
   });
 
   const columns: Column<DischargeReadinessRow>[] = [
-    { key: "patient_name", label: "Patient", render: (row) => <Text size="sm">{row.patient_name}</Text> },
+    {
+      key: "patient_name",
+      label: "Patient",
+      render: (row) => <Text size="sm">{row.patient_name}</Text>,
+    },
     { key: "uhid", label: "UHID", render: (row) => <Text size="sm">{row.uhid}</Text> },
-    { key: "bed_name", label: "Bed", render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text> },
-    { key: "ward_name", label: "Ward", render: (row) => <Text size="sm">{row.ward_name ?? "—"}</Text> },
+    {
+      key: "bed_name",
+      label: "Bed",
+      render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text>,
+    },
+    {
+      key: "ward_name",
+      label: "Ward",
+      render: (row) => <Text size="sm">{row.ward_name ?? "—"}</Text>,
+    },
     {
       key: "expected_discharge_date",
       label: "Expected Discharge",
       render: (row) => (
         <Text size="sm">
-          {row.expected_discharge_date ? new Date(row.expected_discharge_date).toLocaleDateString() : "—"}
+          {row.expected_discharge_date
+            ? new Date(row.expected_discharge_date).toLocaleDateString()
+            : "—"}
         </Text>
       ),
     },
@@ -86,5 +100,12 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
     },
   ];
 
-  return <DataTable columns={columns} data={data ?? []} loading={isLoading} rowKey={(row) => row.admission_id} />;
+  return (
+    <DataTable
+      columns={columns}
+      data={data ?? []}
+      loading={isLoading}
+      rowKey={(row) => row.admission_id}
+    />
+  );
 }

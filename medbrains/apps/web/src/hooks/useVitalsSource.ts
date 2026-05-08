@@ -11,14 +11,11 @@
  * height_cm) so the visual rendering in opd.tsx works either way.
  */
 
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
+import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import type { CreateVitalRequest, Vital } from "@medbrains/types";
-import {
-  useAppendOnlyCrdtList,
-  type CrdtConnectionStatus,
-} from "@medbrains/crdt";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
 
 export type VitalsSourceMode = "rest" | "crdt";
@@ -63,10 +60,7 @@ function useVitalsRest(encounterId: string): VitalsSourceResult {
       qc.invalidateQueries({ queryKey: ["vitals", encounterId] });
     },
   });
-  const append = useCallback(
-    (data: CreateVitalRequest) => mutation.mutate(data),
-    [mutation],
-  );
+  const append = useCallback((data: CreateVitalRequest) => mutation.mutate(data), [mutation]);
 
   let status: VitalsSourceResult["status"];
   if (query.isLoading) status = "loading";

@@ -1,17 +1,11 @@
-import { useMemo } from "react";
-import {
-  Group,
-  Loader,
-  Radio,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Group, Loader, Radio, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconRuler2 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useLocaleStore } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { IconCheck, IconRuler2 } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 export function UnitsLocaleSettings() {
   const queryClient = useQueryClient();
@@ -64,7 +58,10 @@ export function UnitsLocaleSettings() {
         key: data.key,
         value: data.value,
       }),
-    onSuccess: (_: TenantSettingsRow, variables: { category: string; key: string; value: string }) => {
+    onSuccess: (
+      _: TenantSettingsRow,
+      variables: { category: string; key: string; value: string },
+    ) => {
       notifications.show({
         title: "Setting saved",
         message: `${variables.key.replace(/_/g, " ")} updated`,
@@ -129,9 +126,8 @@ export function UnitsLocaleSettings() {
           </Text>
         </Group>
         <Text size="sm" c="dimmed" mb="md">
-          Configure measurement units and locale preferences. These settings are
-          auto-configured when you change the country in Geography settings but
-          can be overridden here.
+          Configure measurement units and locale preferences. These settings are auto-configured
+          when you change the country in Geography settings but can be overridden here.
         </Text>
       </div>
 

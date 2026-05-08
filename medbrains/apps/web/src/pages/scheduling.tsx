@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
@@ -14,13 +14,28 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { BarChart } from "@mantine/charts";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AutoFillResult,
+  CreateBlockRequest,
+  CreateOverbookingRuleRequest,
+  CreateRecurringRequest,
+  CreateWaitlistRequest,
+  NoshowPredictionScore,
+  NoshowRateRow,
+  SchedulingConflict,
+  SchedulingOverbookingRule,
+  SchedulingWaitlistEntry,
+  UpdateOverbookingRuleRequest,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBrain,
@@ -37,25 +52,10 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  CreateBlockRequest,
-  CreateOverbookingRuleRequest,
-  CreateRecurringRequest,
-  CreateWaitlistRequest,
-  NoshowPredictionScore,
-  NoshowRateRow,
-  SchedulingConflict,
-  SchedulingOverbookingRule,
-  SchedulingWaitlistEntry,
-  UpdateOverbookingRuleRequest,
-  AutoFillResult,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -203,8 +203,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
   });
 
   const scoreOneMut = useMutation({
-    mutationFn: (appointmentId: string) =>
-      api.scoreAppointment({ appointment_id: appointmentId }),
+    mutationFn: (appointmentId: string) => api.scoreAppointment({ appointment_id: appointmentId }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
       notifications.show({
@@ -325,13 +324,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
 //  Tab 2 — Waitlist
 // ══════════════════════════════════════════════════════════
 
-function WaitlistTab({
-  canManage,
-  canAutoFill,
-}: {
-  canManage: boolean;
-  canAutoFill: boolean;
-}) {
+function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFill: boolean }) {
   const qc = useQueryClient();
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [offerOpened, { open: openOffer, close: closeOffer }] = useDisclosure(false);
@@ -374,7 +367,11 @@ function WaitlistTab({
       closeOffer();
       setOfferTarget(null);
       setOfferedAppointmentId("");
-      notifications.show({ title: "Offered", message: "Slot offered to patient", color: "primary" });
+      notifications.show({
+        title: "Offered",
+        message: "Slot offered to patient",
+        color: "primary",
+      });
     },
   });
 
@@ -595,7 +592,13 @@ function WaitlistTab({
       />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add to Waitlist" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Add to Waitlist"
+        position="right"
+        size="xl"
+      >
         <Stack gap="md">
           <TextInput
             label="Patient ID"
@@ -618,11 +621,7 @@ function WaitlistTab({
             value={createDateFrom}
             onChange={setCreateDateFrom}
           />
-          <DateInput
-            label="Preferred Date To"
-            value={createDateTo}
-            onChange={setCreateDateTo}
-          />
+          <DateInput label="Preferred Date To" value={createDateTo} onChange={setCreateDateTo} />
           <Select
             label="Priority"
             data={[
@@ -646,7 +645,13 @@ function WaitlistTab({
       </Drawer>
 
       {/* Offer Slot Drawer */}
-      <Drawer opened={offerOpened} onClose={closeOffer} title="Offer Slot" position="right" size="sm">
+      <Drawer
+        opened={offerOpened}
+        onClose={closeOffer}
+        title="Offer Slot"
+        position="right"
+        size="sm"
+      >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
             Patient: {offerTarget?.patient_id ? truncateId(offerTarget.patient_id) : "—"}
@@ -694,7 +699,11 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
       resetForm();
-      notifications.show({ title: "Created", message: "Overbooking rule created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Overbooking rule created",
+        color: "success",
+      });
     },
   });
 
@@ -706,7 +715,11 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       close();
       setEditing(null);
       resetForm();
-      notifications.show({ title: "Updated", message: "Overbooking rule updated", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "Overbooking rule updated",
+        color: "success",
+      });
     },
   });
 
@@ -714,7 +727,11 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
     mutationFn: (id: string) => api.deleteOverbookingRule(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
-      notifications.show({ title: "Deleted", message: "Overbooking rule removed", color: "danger" });
+      notifications.show({
+        title: "Deleted",
+        message: "Overbooking rule removed",
+        color: "danger",
+      });
     },
   });
 
@@ -813,7 +830,13 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             label: "Actions",
             render: (r: SchedulingOverbookingRule) => (
               <Group gap="xs" wrap="nowrap">
-                <ActionIcon variant="subtle" color="primary" size="sm" onClick={() => openEdit(r)} aria-label="Edit">
+                <ActionIcon
+                  variant="subtle"
+                  color="primary"
+                  size="sm"
+                  onClick={() => openEdit(r)}
+                  aria-label="Edit"
+                >
                   <IconPencil size={14} />
                 </ActionIcon>
                 <ActionIcon
@@ -915,10 +938,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
               onChange={(e) => setFormIsActive(e.currentTarget.checked)}
             />
           )}
-          <Button
-            onClick={handleSave}
-            loading={createMut.isPending || updateMut.isPending}
-          >
+          <Button onClick={handleSave} loading={createMut.isPending || updateMut.isPending}>
             {editing ? "Update Rule" : "Create Rule"}
           </Button>
         </Stack>
@@ -941,7 +961,11 @@ function ConflictsTab() {
     {
       key: "resource_name",
       label: "Resource",
-      render: (r) => <Text size="sm" fw={500}>{r.resource_name}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={500}>
+          {r.resource_name}
+        </Text>
+      ),
     },
     {
       key: "resource_id",
@@ -1098,7 +1122,9 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
     <Stack gap="lg">
       {/* Waitlist Promotion */}
       <Card withBorder p="md">
-        <Text fw={600} size="sm" mb="sm">Promote Waitlist Entry</Text>
+        <Text fw={600} size="sm" mb="sm">
+          Promote Waitlist Entry
+        </Text>
         <Text size="xs" c="dimmed" mb="sm">
           Enter a slot ID that has become available. The system will attempt to promote the
           highest-priority waitlist entry to fill it.
@@ -1123,10 +1149,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
       {/* Action Buttons */}
       {canManage && (
         <Group gap="sm">
-          <Button
-            leftSection={<IconCalendarPlus size={16} />}
-            onClick={openRecurring}
-          >
+          <Button leftSection={<IconCalendarPlus size={16} />} onClick={openRecurring}>
             Create Recurring Slots
           </Button>
           <Button
@@ -1190,7 +1213,9 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
             min={1}
             max={52}
             value={recForm.repeat_count}
-            onChange={(v) => setRecForm({ ...recForm, repeat_count: typeof v === "number" ? v : 4 })}
+            onChange={(v) =>
+              setRecForm({ ...recForm, repeat_count: typeof v === "number" ? v : 4 })
+            }
           />
           <TextInput
             label="Start Date"
@@ -1210,12 +1235,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
       </Modal>
 
       {/* Block Schedule Modal */}
-      <Modal
-        opened={blockOpen}
-        onClose={closeBlock}
-        title="Block Schedule"
-        size="md"
-      >
+      <Modal opened={blockOpen} onClose={closeBlock} title="Block Schedule" size="md">
         <Stack gap="md">
           <TextInput
             label="Resource ID"
@@ -1258,7 +1278,12 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
             color="danger"
             onClick={() => blockMut.mutate()}
             loading={blockMut.isPending}
-            disabled={!blockForm.resource_id || !blockForm.start_time || !blockForm.end_time || !blockForm.block_reason}
+            disabled={
+              !blockForm.resource_id ||
+              !blockForm.start_time ||
+              !blockForm.end_time ||
+              !blockForm.block_reason
+            }
           >
             Create Block
           </Button>
@@ -1293,10 +1318,11 @@ function AnalyticsTab() {
 
   const { data: schedAnalytics } = useQuery({
     queryKey: ["scheduling-analytics-schedule", dateFrom, dateTo],
-    queryFn: () => api.scheduleAnalytics({
-      from: dateFrom || undefined,
-      to: dateTo || undefined,
-    }),
+    queryFn: () =>
+      api.scheduleAnalytics({
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+      }),
   });
 
   const rateColumns: Column<NoshowRateRow>[] = [
@@ -1417,7 +1443,11 @@ function AnalyticsTab() {
             <StatCard label="Booked" value={waitlistStatsData.total_booked} color="success" />
             <StatCard
               label="Avg Wait (days)"
-              value={waitlistStatsData.avg_wait_days != null ? waitlistStatsData.avg_wait_days.toFixed(1) : "—"}
+              value={
+                waitlistStatsData.avg_wait_days != null
+                  ? waitlistStatsData.avg_wait_days.toFixed(1)
+                  : "—"
+              }
               color="slate"
             />
           </SimpleGrid>

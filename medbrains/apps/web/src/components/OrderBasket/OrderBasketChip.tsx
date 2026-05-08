@@ -1,6 +1,6 @@
 import { Badge, Button } from "@mantine/core";
-import { IconShoppingCart } from "@tabler/icons-react";
 import { useOrderBasketStore } from "@medbrains/stores";
+import { IconShoppingCart } from "@tabler/icons-react";
 
 interface OrderBasketChipProps {
   onClick: () => void;

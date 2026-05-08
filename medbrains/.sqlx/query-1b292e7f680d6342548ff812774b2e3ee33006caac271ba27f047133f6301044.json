@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO biowaste_records (tenant_id, department_id, waste_category, record_date, weight_kg, container_count, notes, recorded_by) VALUES ($1, $2, 'white_translucent'::waste_category, CURRENT_DATE, 0, $3, $4, $5) RETURNING id, tenant_id, department_id, waste_category::text AS waste_category, weight_kg, record_date, container_count, disposal_vendor, manifest_number, notes, recorded_by, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "department_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "waste_category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "weight_kg",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "record_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "container_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "disposal_vendor",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "manifest_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "recorded_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1b292e7f680d6342548ff812774b2e3ee33006caac271ba27f047133f6301044"
+}

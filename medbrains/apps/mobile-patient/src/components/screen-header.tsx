@@ -3,10 +3,10 @@
  * screens within a module to return to the module home.
  */
 
+import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Text } from "react-native-paper";
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useModuleRouter } from "./module-router.js";
 
 export interface ScreenHeaderProps {
@@ -54,10 +54,7 @@ export function ScreenHeader({
             {title}
           </Text>
           {description && (
-            <Text
-              variant="bodySmall"
-              style={{ color: COLORS.ink, opacity: 0.7, marginTop: 2 }}
-            >
+            <Text variant="bodySmall" style={{ color: COLORS.ink, opacity: 0.7, marginTop: 2 }}>
               {description}
             </Text>
           )}

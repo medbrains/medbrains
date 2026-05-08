@@ -21,16 +21,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
-async fn author_display_name(
-    pool: &sqlx::PgPool,
-    user_id: Uuid,
-) -> Result<String, AppError> {
+async fn author_display_name(pool: &sqlx::PgPool, user_id: Uuid) -> Result<String, AppError> {
     let row: Option<(String, Option<String>)> =
         sqlx::query_as("SELECT email, display_name FROM users WHERE id = $1")
             .bind(user_id)
@@ -67,7 +64,8 @@ pub async fn list_handoff_entries(
 ) -> Result<Json<Vec<HandoffEntry>>, AppError> {
     require_permission(&claims, permissions::nurse::handoff_entries::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let rows = sqlx::query_as::<_, HandoffEntry>(
         "SELECT id, shift_id, author_user_id, author_name, category, note, authored_at \
          FROM nurse_shift_handoff_entries \
@@ -101,7 +99,8 @@ pub async fn create_handoff_entry(
 
     let author = author_display_name(&state.db, claims.sub).await?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, HandoffEntry>(
         "INSERT INTO nurse_shift_handoff_entries \
             (tenant_id, department_id, shift_id, author_user_id, author_name, category, note) \
@@ -149,7 +148,8 @@ pub async fn list_triage_entries(
 ) -> Result<Json<Vec<TriageEntry>>, AppError> {
     require_permission(&claims, permissions::emergency::triage::LIST)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let rows = sqlx::query_as::<_, TriageEntry>(
         "SELECT id, er_visit_id, author_user_id, author_name, esi_level, chief_complaint, \
                 observation, authored_at \
@@ -181,7 +181,8 @@ pub async fn create_triage_entry(
 
     let author = author_display_name(&state.db, claims.sub).await?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, TriageEntry>(
         "INSERT INTO ed_triage_entries \
             (tenant_id, er_visit_id, author_user_id, author_name, esi_level, chief_complaint, observation) \
@@ -229,7 +230,8 @@ pub async fn get_patient_notes(
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, PatientNotes>(
         "SELECT patient_id, text, last_author_id, last_author_name, last_edited_at, version \
          FROM patient_clinical_notes WHERE patient_id = $1",
@@ -259,15 +261,15 @@ pub async fn update_patient_notes(
     let author = author_display_name(&state.db, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     if let Some(expected) = body.if_version {
-        let current: Option<(i64,)> = sqlx::query_as(
-            "SELECT version FROM patient_clinical_notes WHERE patient_id = $1",
-        )
-        .bind(patient_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let current: Option<(i64,)> =
+            sqlx::query_as("SELECT version FROM patient_clinical_notes WHERE patient_id = $1")
+                .bind(patient_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         if let Some((cur,)) = current {
             if cur > expected {
                 return Err(AppError::Conflict(format!(
@@ -326,7 +328,8 @@ pub async fn get_nursing_shift_notes(
 ) -> Result<Json<NursingShiftNotes>, AppError> {
     require_permission(&claims, permissions::nurse::shift_notes::VIEW)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let row = sqlx::query_as::<_, NursingShiftNotes>(
         "SELECT shift_id, text, last_author_id, last_author_name, last_edited_at, version \
          FROM nursing_shift_notes WHERE shift_id = $1",
@@ -356,15 +359,15 @@ pub async fn update_nursing_shift_notes(
     let author = author_display_name(&state.db, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     if let Some(expected) = body.if_version {
-        let current: Option<(i64,)> = sqlx::query_as(
-            "SELECT version FROM nursing_shift_notes WHERE shift_id = $1",
-        )
-        .bind(&shift_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let current: Option<(i64,)> =
+            sqlx::query_as("SELECT version FROM nursing_shift_notes WHERE shift_id = $1")
+                .bind(&shift_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         if let Some((cur,)) = current {
             if cur > expected {
                 return Err(AppError::Conflict(format!(

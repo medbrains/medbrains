@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -17,55 +16,57 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   ThemeIcon,
   Title,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { BedSelect } from "../components/BedSelect";
-import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconBuildingHospital,
-  IconPlus,
-  IconUrgent,
-  IconHeartbeat,
-  IconAlertTriangle,
-  IconGavel,
-  IconUsers,
-  IconCheck,
-  IconBell,
-  IconClock,
-  IconShieldCheck,
-  IconFileText,
-  IconScale,
-  IconAlertOctagon,
-  IconFirstAidKit,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import type {
-  ErVisit,
-  ErCodeActivation,
-  MlcCase,
-  MlcDocument,
-  MassCasualtyEvent,
-  CreateErVisitRequest,
+  AdmitFromErRequest,
   CreateCodeActivationRequest,
+  CreateErVisitRequest,
+  CreateMassCasualtyEventRequest,
   CreateMlcCaseRequest,
   CreateMlcDocumentRequest,
-  CreateMassCasualtyEventRequest,
-  AdmitFromErRequest,
+  ErCodeActivation,
+  ErVisit,
+  MassCasualtyEvent,
+  MlcCase,
+  MlcDocument,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import {
+  IconAlertOctagon,
+  IconAlertTriangle,
+  IconBell,
+  IconBuildingHospital,
+  IconCheck,
+  IconClock,
+  IconFileText,
+  IconFirstAidKit,
+  IconGavel,
+  IconHeartbeat,
+  IconPlus,
+  IconScale,
+  IconShieldCheck,
+  IconUrgent,
+  IconUsers,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "../components";
+import { BedSelect } from "../components/BedSelect";
 import { TriagePanel } from "../components/crdt/TriagePanel";
+import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -127,28 +128,45 @@ interface TriageInfo {
 
 function triageInfo(level: string | null): TriageInfo {
   switch (level) {
-    case "immediate": return { color: "danger", label: "RED - Immediate", level: 1 };
-    case "emergent": return { color: "orange", label: "ORANGE - Emergent", level: 2 };
-    case "urgent": return { color: "warning", label: "YELLOW - Urgent", level: 3 };
-    case "less_urgent": return { color: "success", label: "GREEN - Delayed", level: 4 };
-    case "non_urgent": return { color: "primary", label: "BLUE - Non-Urgent", level: 5 };
-    case "expectant": return { color: "dark", label: "BLACK - Expectant", level: 6 };
-    default: return { color: "slate", label: "Unassigned", level: 0 };
+    case "immediate":
+      return { color: "danger", label: "RED - Immediate", level: 1 };
+    case "emergent":
+      return { color: "orange", label: "ORANGE - Emergent", level: 2 };
+    case "urgent":
+      return { color: "warning", label: "YELLOW - Urgent", level: 3 };
+    case "less_urgent":
+      return { color: "success", label: "GREEN - Delayed", level: 4 };
+    case "non_urgent":
+      return { color: "primary", label: "BLUE - Non-Urgent", level: 5 };
+    case "expectant":
+      return { color: "dark", label: "BLACK - Expectant", level: 6 };
+    default:
+      return { color: "slate", label: "Unassigned", level: 0 };
   }
 }
 
 function statusColor(status: string): string {
   switch (status) {
-    case "registered": return "primary";
-    case "triaged": return "cyan";
-    case "in_treatment": return "orange";
-    case "observation": return "warning";
-    case "admitted": return "teal";
-    case "discharged": return "success";
-    case "transferred": return "violet";
-    case "lama": return "danger";
-    case "deceased": return "dark";
-    default: return "gray";
+    case "registered":
+      return "primary";
+    case "triaged":
+      return "cyan";
+    case "in_treatment":
+      return "orange";
+    case "observation":
+      return "warning";
+    case "admitted":
+      return "teal";
+    case "discharged":
+      return "success";
+    case "transferred":
+      return "violet";
+    case "lama":
+      return "danger";
+    case "deceased":
+      return "dark";
+    default:
+      return "gray";
   }
 }
 
@@ -205,10 +223,21 @@ function useTimer(startTime: string | null, endIndicator: number | null): string
 
 // ── Inline Timer Component ────────────────────────────
 
-function WaitTimeBadge({ arrivalTime, doorToDoctorMins }: { arrivalTime: string; doorToDoctorMins: number | null }) {
+function WaitTimeBadge({
+  arrivalTime,
+  doorToDoctorMins,
+}: {
+  arrivalTime: string;
+  doorToDoctorMins: number | null;
+}) {
   const display = useTimer(arrivalTime, doorToDoctorMins);
 
-  if (!display) return <Text size="sm" c="dimmed">--</Text>;
+  if (!display)
+    return (
+      <Text size="sm" c="dimmed">
+        --
+      </Text>
+    );
 
   if (doorToDoctorMins !== null && doorToDoctorMins !== undefined) {
     return (
@@ -246,18 +275,38 @@ export function EmergencyPage() {
       />
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
-          <Tabs.Tab value="visits" leftSection={<IconUrgent size={16} />}>{t("erVisits")}</Tabs.Tab>
-          <Tabs.Tab value="triage" leftSection={<IconHeartbeat size={16} />}>Triage Log</Tabs.Tab>
-          <Tabs.Tab value="codes" leftSection={<IconHeartbeat size={16} />}>{t("codeActivations")}</Tabs.Tab>
-          <Tabs.Tab value="mlc" leftSection={<IconGavel size={16} />}>{t("mlcCases")}</Tabs.Tab>
-          <Tabs.Tab value="mass-casualty" leftSection={<IconUsers size={16} />}>{t("massCasualty")}</Tabs.Tab>
+          <Tabs.Tab value="visits" leftSection={<IconUrgent size={16} />}>
+            {t("erVisits")}
+          </Tabs.Tab>
+          <Tabs.Tab value="triage" leftSection={<IconHeartbeat size={16} />}>
+            Triage Log
+          </Tabs.Tab>
+          <Tabs.Tab value="codes" leftSection={<IconHeartbeat size={16} />}>
+            {t("codeActivations")}
+          </Tabs.Tab>
+          <Tabs.Tab value="mlc" leftSection={<IconGavel size={16} />}>
+            {t("mlcCases")}
+          </Tabs.Tab>
+          <Tabs.Tab value="mass-casualty" leftSection={<IconUsers size={16} />}>
+            {t("massCasualty")}
+          </Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="visits"><VisitsTab canCreate={canCreateVisit} /></Tabs.Panel>
-        <Tabs.Panel value="triage" pt="md"><TriageLogTab /></Tabs.Panel>
-        <Tabs.Panel value="codes"><CodesTab canCreate={canCreateCode} /></Tabs.Panel>
-        <Tabs.Panel value="mlc"><MlcTab canCreate={canCreateMlc} /></Tabs.Panel>
-        <Tabs.Panel value="mass-casualty"><MassCasualtyTab canCreate={canCreateMassCasualty} /></Tabs.Panel>
+        <Tabs.Panel value="visits">
+          <VisitsTab canCreate={canCreateVisit} />
+        </Tabs.Panel>
+        <Tabs.Panel value="triage" pt="md">
+          <TriageLogTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="codes">
+          <CodesTab canCreate={canCreateCode} />
+        </Tabs.Panel>
+        <Tabs.Panel value="mlc">
+          <MlcTab canCreate={canCreateMlc} />
+        </Tabs.Panel>
+        <Tabs.Panel value="mass-casualty">
+          <MassCasualtyTab canCreate={canCreateMassCasualty} />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );
@@ -295,7 +344,9 @@ function TriageLogTab() {
       {visitId ? (
         <TriagePanel visitId={visitId} />
       ) : (
-        <Text size="sm" c="dimmed">Pick a visit to record or review triage entries.</Text>
+        <Text size="sm" c="dimmed">
+          Pick a visit to record or review triage entries.
+        </Text>
       )}
     </Stack>
   );
@@ -309,12 +360,19 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
   const [admitVisitId, setAdmitVisitId] = useState<string | null>(null);
   const canAdmit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["er-visits"], queryFn: () => api.listErVisits() });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["er-visits"],
+    queryFn: () => api.listErVisits(),
+  });
 
   const [form, setForm] = useState<CreateErVisitRequest>({ patient_id: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateErVisitRequest) => api.createErVisit(d),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["er-visits"] }); close(); notifications.show({ title: "Success", message: "ER visit registered" }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["er-visits"] });
+      close();
+      notifications.show({ title: "Success", message: "ER visit registered" });
+    },
   });
 
   // Admit from ER
@@ -324,7 +382,11 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
       api.admitFromEr(visitId, d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
-      notifications.show({ title: "Patient Admitted", message: "Patient has been admitted to IPD from ER", color: "success" });
+      notifications.show({
+        title: "Patient Admitted",
+        message: "Patient has been admitted to IPD from ER",
+        color: "success",
+      });
       setAdmitForm({});
       setAdmitVisitId(null);
       admitHandlers.close();
@@ -338,17 +400,33 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
   };
 
   const columns = [
-    { key: "visit_number", label: "Visit #", render: (r: ErVisit) => <Text fw={600}>{r.visit_number}</Text> },
-    { key: "arrival_time", label: "Arrival", render: (r: ErVisit) => new Date(r.arrival_time).toLocaleString() },
+    {
+      key: "visit_number",
+      label: "Visit #",
+      render: (r: ErVisit) => <Text fw={600}>{r.visit_number}</Text>,
+    },
+    {
+      key: "arrival_time",
+      label: "Arrival",
+      render: (r: ErVisit) => new Date(r.arrival_time).toLocaleString(),
+    },
     { key: "arrival_mode", label: "Mode", render: (r: ErVisit) => r.arrival_mode ?? "---" },
-    { key: "chief_complaint", label: "Chief Complaint", render: (r: ErVisit) => r.chief_complaint ?? "---" },
+    {
+      key: "chief_complaint",
+      label: "Chief Complaint",
+      render: (r: ErVisit) => r.chief_complaint ?? "---",
+    },
     {
       key: "triage_level",
       label: "Triage",
       render: (r: ErVisit) => {
         const info = triageInfo(r.triage_level);
         if (!r.triage_level) {
-          return <Badge color="slate" size="lg" variant="outline">Unassigned</Badge>;
+          return (
+            <Badge color="slate" size="lg" variant="outline">
+              Unassigned
+            </Badge>
+          );
         }
         return (
           <Badge
@@ -357,7 +435,9 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
             variant="filled"
             leftSection={
               <ThemeIcon color={info.color} size="xs" radius="xl" variant="white">
-                <Text size="xs" fw={900}>{info.level}</Text>
+                <Text size="xs" fw={900}>
+                  {info.level}
+                </Text>
               </ThemeIcon>
             }
           >
@@ -366,19 +446,39 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
         );
       },
     },
-    { key: "status", label: "Status", render: (r: ErVisit) => <Badge color={statusColor(r.status)} size="sm">{r.status}</Badge> },
-    { key: "is_mlc", label: "MLC", render: (r: ErVisit) => r.is_mlc ? <Badge color="danger" size="sm">MLC</Badge> : null },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: ErVisit) => (
+        <Badge color={statusColor(r.status)} size="sm">
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "is_mlc",
+      label: "MLC",
+      render: (r: ErVisit) =>
+        r.is_mlc ? (
+          <Badge color="danger" size="sm">
+            MLC
+          </Badge>
+        ) : null,
+    },
     { key: "bay_number", label: "Bay", render: (r: ErVisit) => r.bay_number ?? "---" },
     {
       key: "wait_time",
       label: "Wait Time",
-      render: (r: ErVisit) => <WaitTimeBadge arrivalTime={r.arrival_time} doorToDoctorMins={r.door_to_doctor_mins} />,
+      render: (r: ErVisit) => (
+        <WaitTimeBadge arrivalTime={r.arrival_time} doorToDoctorMins={r.door_to_doctor_mins} />
+      ),
     },
     {
       key: "actions",
       label: "",
       render: (r: ErVisit) => {
-        const canShowAdmit = canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(r.status);
+        const canShowAdmit =
+          canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(r.status);
         if (!canShowAdmit) return null;
         return (
           <Tooltip label="Admit to IPD">
@@ -401,27 +501,65 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>Register ER Visit</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Register ER Visit
+          </Button>
         </Group>
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
       <Drawer opened={opened} onClose={close} title="Register ER Visit" position="right" size="xl">
         <Stack>
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
-          <Select label="Arrival Mode" data={ARRIVAL_MODES} value={form.arrival_mode ?? null} onChange={(v) => setForm({ ...form, arrival_mode: v ?? undefined })} />
-          <TextInput label="Chief Complaint" value={form.chief_complaint ?? ""} onChange={(e) => setForm({ ...form, chief_complaint: e.currentTarget.value })} />
-          <TextInput label="Bay Number" value={form.bay_number ?? ""} onChange={(e) => setForm({ ...form, bay_number: e.currentTarget.value })} />
-          <Select label="MLC" data={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} value={form.is_mlc ? "true" : "false"} onChange={(v) => setForm({ ...form, is_mlc: v === "true" })} />
-          <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
-          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>Register</Button>
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
+          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
+          <Select
+            label="Arrival Mode"
+            data={ARRIVAL_MODES}
+            value={form.arrival_mode ?? null}
+            onChange={(v) => setForm({ ...form, arrival_mode: v ?? undefined })}
+          />
+          <TextInput
+            label="Chief Complaint"
+            value={form.chief_complaint ?? ""}
+            onChange={(e) => setForm({ ...form, chief_complaint: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Bay Number"
+            value={form.bay_number ?? ""}
+            onChange={(e) => setForm({ ...form, bay_number: e.currentTarget.value })}
+          />
+          <Select
+            label="MLC"
+            data={[
+              { value: "true", label: "Yes" },
+              { value: "false", label: "No" },
+            ]}
+            value={form.is_mlc ? "true" : "false"}
+            onChange={(v) => setForm({ ...form, is_mlc: v === "true" })}
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          />
+          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+            Register
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Admit to IPD Modal */}
       <Modal
         opened={admitOpen}
-        onClose={() => { admitHandlers.close(); setAdmitVisitId(null); setAdmitForm({}); }}
+        onClose={() => {
+          admitHandlers.close();
+          setAdmitVisitId(null);
+          setAdmitForm({});
+        }}
         title="Admit Patient to IPD"
         size="md"
       >
@@ -511,7 +649,10 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [selectedCode, setSelectedCode] = useState<ErCodeActivation | null>(null);
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["er-codes"], queryFn: () => api.listCodeActivations() });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["er-codes"],
+    queryFn: () => api.listCodeActivations(),
+  });
 
   const [form, setForm] = useState<CreateCodeActivationRequest>({ code_type: "" });
   const [crashCart, setCrashCart] = useState<Record<string, boolean>>({});
@@ -522,13 +663,20 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
       void qc.invalidateQueries({ queryKey: ["er-codes"] });
       close();
       setCrashCart({});
-      notifications.show({ title: "Code Activated", message: `${form.code_type.toUpperCase()} activated`, color: "danger" });
+      notifications.show({
+        title: "Code Activated",
+        message: `${form.code_type.toUpperCase()} activated`,
+        color: "danger",
+      });
     },
   });
 
   const deactivateMut = useMutation({
     mutationFn: (id: string) => api.deactivateCode(id, {}),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["er-codes"] }); notifications.show({ title: "Code Deactivated", message: "Code has been deactivated" }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["er-codes"] });
+      notifications.show({ title: "Code Deactivated", message: "Code has been deactivated" });
+    },
   });
 
   const handleCreate = () => {
@@ -546,15 +694,52 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
   };
 
   const columns = [
-    { key: "code_type", label: "Code", render: (r: ErCodeActivation) => <Badge color={r.code_type === "blue" ? "primary" : r.code_type === "yellow" ? "warning" : "orange"} size="lg">CODE {r.code_type.toUpperCase()}</Badge> },
-    { key: "activated_at", label: "Activated", render: (r: ErCodeActivation) => new Date(r.activated_at).toLocaleString() },
+    {
+      key: "code_type",
+      label: "Code",
+      render: (r: ErCodeActivation) => (
+        <Badge
+          color={
+            r.code_type === "blue" ? "primary" : r.code_type === "yellow" ? "warning" : "orange"
+          }
+          size="lg"
+        >
+          CODE {r.code_type.toUpperCase()}
+        </Badge>
+      ),
+    },
+    {
+      key: "activated_at",
+      label: "Activated",
+      render: (r: ErCodeActivation) => new Date(r.activated_at).toLocaleString(),
+    },
     { key: "location", label: "Location", render: (r: ErCodeActivation) => r.location ?? "---" },
     { key: "outcome", label: "Outcome", render: (r: ErCodeActivation) => r.outcome ?? "---" },
-    { key: "deactivated_at", label: "Status", render: (r: ErCodeActivation) => r.deactivated_at ? <Badge color="success" size="sm">Resolved</Badge> : <Badge color="danger" size="sm">Active</Badge> },
     {
-      key: "crash_cart", label: "Crash Cart", render: (r: ErCodeActivation) => {
+      key: "deactivated_at",
+      label: "Status",
+      render: (r: ErCodeActivation) =>
+        r.deactivated_at ? (
+          <Badge color="success" size="sm">
+            Resolved
+          </Badge>
+        ) : (
+          <Badge color="danger" size="sm">
+            Active
+          </Badge>
+        ),
+    },
+    {
+      key: "crash_cart",
+      label: "Crash Cart",
+      render: (r: ErCodeActivation) => {
         const checklist = r.crash_cart_checklist as Record<string, boolean> | null;
-        if (!checklist) return <Text size="sm" c="dimmed">Not checked</Text>;
+        if (!checklist)
+          return (
+            <Text size="sm" c="dimmed">
+              Not checked
+            </Text>
+          );
         const checked = Object.values(checklist).filter(Boolean).length;
         const total = CRASH_CART_ITEMS.length;
         return (
@@ -565,7 +750,9 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
       },
     },
     {
-      key: "actions", label: "", render: (r: ErCodeActivation) => (
+      key: "actions",
+      label: "",
+      render: (r: ErCodeActivation) => (
         <Group gap="xs">
           <Tooltip label="View Details">
             <ActionIcon variant="light" onClick={() => handleViewDetail(r)}>
@@ -574,7 +761,11 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
           </Tooltip>
           {!r.deactivated_at && canCreate && (
             <Tooltip label="Deactivate">
-              <ActionIcon color="success" variant="light" onClick={() => deactivateMut.mutate(r.id)}>
+              <ActionIcon
+                color="success"
+                variant="light"
+                onClick={() => deactivateMut.mutate(r.id)}
+              >
                 <IconCheck size={16} />
               </ActionIcon>
             </Tooltip>
@@ -590,25 +781,58 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconAlertTriangle size={16} />} color="danger" onClick={open}>Activate Code</Button>
+          <Button leftSection={<IconAlertTriangle size={16} />} color="danger" onClick={open}>
+            Activate Code
+          </Button>
         </Group>
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Code Drawer */}
-      <Drawer opened={opened} onClose={() => { close(); setCrashCart({}); }} title="Activate Emergency Code" position="right" size="lg">
+      <Drawer
+        opened={opened}
+        onClose={() => {
+          close();
+          setCrashCart({});
+        }}
+        title="Activate Emergency Code"
+        position="right"
+        size="lg"
+      >
         <Stack>
-          <Select label="Code Type" required data={CODE_TYPES} value={form.code_type || null} onChange={(v) => setForm({ ...form, code_type: v ?? "" })} />
-          <TextInput label="Location" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.currentTarget.value })} />
-          <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
+          <Select
+            label="Code Type"
+            required
+            data={CODE_TYPES}
+            value={form.code_type || null}
+            onChange={(v) => setForm({ ...form, code_type: v ?? "" })}
+          />
+          <TextInput
+            label="Location"
+            value={form.location ?? ""}
+            onChange={(e) => setForm({ ...form, location: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          />
           <Divider />
           <CrashCartChecklist value={crashCart} onChange={setCrashCart} />
-          <Button color="danger" onClick={handleCreate} loading={createMut.isPending}>Activate Code</Button>
+          <Button color="danger" onClick={handleCreate} loading={createMut.isPending}>
+            Activate Code
+          </Button>
         </Stack>
       </Drawer>
 
       {/* Code Detail Drawer */}
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Code Activation Details" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Code Activation Details"
+        position="right"
+        size="lg"
+      >
         {selectedCode && (
           <Stack>
             <Group>
@@ -616,23 +840,52 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
                 CODE {selectedCode.code_type.toUpperCase()}
               </Badge>
               {selectedCode.deactivated_at ? (
-                <Badge color="success" size="lg">Resolved</Badge>
+                <Badge color="success" size="lg">
+                  Resolved
+                </Badge>
               ) : (
-                <Badge color="danger" size="lg">Active</Badge>
+                <Badge color="danger" size="lg">
+                  Active
+                </Badge>
               )}
             </Group>
-            <Text size="sm"><Text span fw={600}>Activated:</Text> {new Date(selectedCode.activated_at).toLocaleString()}</Text>
+            <Text size="sm">
+              <Text span fw={600}>
+                Activated:
+              </Text>{" "}
+              {new Date(selectedCode.activated_at).toLocaleString()}
+            </Text>
             {selectedCode.deactivated_at && (
-              <Text size="sm"><Text span fw={600}>Deactivated:</Text> {new Date(selectedCode.deactivated_at).toLocaleString()}</Text>
+              <Text size="sm">
+                <Text span fw={600}>
+                  Deactivated:
+                </Text>{" "}
+                {new Date(selectedCode.deactivated_at).toLocaleString()}
+              </Text>
             )}
             {selectedCode.location && (
-              <Text size="sm"><Text span fw={600}>Location:</Text> {selectedCode.location}</Text>
+              <Text size="sm">
+                <Text span fw={600}>
+                  Location:
+                </Text>{" "}
+                {selectedCode.location}
+              </Text>
             )}
             {selectedCode.outcome && (
-              <Text size="sm"><Text span fw={600}>Outcome:</Text> {selectedCode.outcome}</Text>
+              <Text size="sm">
+                <Text span fw={600}>
+                  Outcome:
+                </Text>{" "}
+                {selectedCode.outcome}
+              </Text>
             )}
             {selectedCode.notes && (
-              <Text size="sm"><Text span fw={600}>Notes:</Text> {selectedCode.notes}</Text>
+              <Text size="sm">
+                <Text span fw={600}>
+                  Notes:
+                </Text>{" "}
+                {selectedCode.notes}
+              </Text>
             )}
 
             <Divider />
@@ -643,17 +896,25 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
                   {CRASH_CART_ITEMS.map((item) => (
                     <Group key={item.key} gap="xs">
                       {selectedChecklist[item.key] ? (
-                        <ThemeIcon color="success" size="sm" radius="xl"><IconCheck size={12} /></ThemeIcon>
+                        <ThemeIcon color="success" size="sm" radius="xl">
+                          <IconCheck size={12} />
+                        </ThemeIcon>
                       ) : (
-                        <ThemeIcon color="danger" size="sm" radius="xl" variant="light"><IconAlertTriangle size={12} /></ThemeIcon>
+                        <ThemeIcon color="danger" size="sm" radius="xl" variant="light">
+                          <IconAlertTriangle size={12} />
+                        </ThemeIcon>
                       )}
-                      <Text size="sm" c={selectedChecklist[item.key] ? undefined : "danger"}>{item.label}</Text>
+                      <Text size="sm" c={selectedChecklist[item.key] ? undefined : "danger"}>
+                        {item.label}
+                      </Text>
                     </Group>
                   ))}
                 </Stack>
               </Card>
             ) : (
-              <Text size="sm" c="dimmed">No crash cart checklist was recorded for this activation.</Text>
+              <Text size="sm" c="dimmed">
+                No crash cart checklist was recorded for this activation.
+              </Text>
             )}
           </Stack>
         )}
@@ -696,15 +957,29 @@ interface CourtSummonsForm {
 }
 
 const EMPTY_SBAR: SbarForm = { situation: "", background: "", assessment: "", recommendation: "" };
-const EMPTY_AGE_EST: AgeEstimationForm = { ossification_center_findings: "", dental_examination: "", secondary_sexual_characteristics: "", estimated_age_range: "", examiner_opinion: "" };
-const EMPTY_POCSO: PocsoReportForm = { child_age: "", guardian_details: "", statement_summary: "", injuries_documented: "", psych_assessment_needed: false };
-const EMPTY_SUMMONS: CourtSummonsForm = { date: "", court_name: "", case_number: "", status: "pending", notes: "" };
+const EMPTY_AGE_EST: AgeEstimationForm = {
+  ossification_center_findings: "",
+  dental_examination: "",
+  secondary_sexual_characteristics: "",
+  estimated_age_range: "",
+  examiner_opinion: "",
+};
+const EMPTY_POCSO: PocsoReportForm = {
+  child_age: "",
+  guardian_details: "",
+  statement_summary: "",
+  injuries_documented: "",
+  psych_assessment_needed: false,
+};
+const EMPTY_SUMMONS: CourtSummonsForm = {
+  date: "",
+  court_name: "",
+  case_number: "",
+  status: "pending",
+  notes: "",
+};
 
-function MlcCaseDetail({
-  mlcCase,
-}: {
-  mlcCase: MlcCase;
-}) {
+function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
   const qc = useQueryClient();
 
   // Sub-drawer state
@@ -794,7 +1069,9 @@ function MlcCaseDetail({
             icon={<IconAlertOctagon size={20} />}
             title="POCSO Case"
           >
-            This is a POCSO (Protection of Children from Sexual Offences) case. All documentation must comply with POCSO Act, 2012. Ensure child-friendly procedures and mandatory reporting to police/SJPU within 24 hours.
+            This is a POCSO (Protection of Children from Sexual Offences) case. All documentation
+            must comply with POCSO Act, 2012. Ensure child-friendly procedures and mandatory
+            reporting to police/SJPU within 24 hours.
           </Alert>
         )}
 
@@ -803,26 +1080,90 @@ function MlcCaseDetail({
           <Group justify="space-between" mb="xs">
             <Title order={5}>{mlcCase.mlc_number}</Title>
             <Group gap="xs">
-              {mlcCase.is_pocso && <Badge color="danger" size="lg">POCSO</Badge>}
-              {mlcCase.is_death_case && <Badge color="dark" size="lg">Death Case</Badge>}
-              <Badge color={mlcCase.status === "closed" ? "success" : "orange"} size="lg">{mlcCase.status}</Badge>
+              {mlcCase.is_pocso && (
+                <Badge color="danger" size="lg">
+                  POCSO
+                </Badge>
+              )}
+              {mlcCase.is_death_case && (
+                <Badge color="dark" size="lg">
+                  Death Case
+                </Badge>
+              )}
+              <Badge color={mlcCase.status === "closed" ? "success" : "orange"} size="lg">
+                {mlcCase.status}
+              </Badge>
             </Group>
           </Group>
-          <Text size="sm"><Text span fw={600}>Type:</Text> {mlcCase.case_type ?? "---"}</Text>
-          <Text size="sm"><Text span fw={600}>Registered:</Text> {new Date(mlcCase.registered_at).toLocaleString()}</Text>
-          {mlcCase.fir_number && <Text size="sm"><Text span fw={600}>FIR #:</Text> {mlcCase.fir_number}</Text>}
-          {mlcCase.police_station && <Text size="sm"><Text span fw={600}>Police Station:</Text> {mlcCase.police_station}</Text>}
-          {mlcCase.history_of_incident && <Text size="sm"><Text span fw={600}>History:</Text> {mlcCase.history_of_incident}</Text>}
+          <Text size="sm">
+            <Text span fw={600}>
+              Type:
+            </Text>{" "}
+            {mlcCase.case_type ?? "---"}
+          </Text>
+          <Text size="sm">
+            <Text span fw={600}>
+              Registered:
+            </Text>{" "}
+            {new Date(mlcCase.registered_at).toLocaleString()}
+          </Text>
+          {mlcCase.fir_number && (
+            <Text size="sm">
+              <Text span fw={600}>
+                FIR #:
+              </Text>{" "}
+              {mlcCase.fir_number}
+            </Text>
+          )}
+          {mlcCase.police_station && (
+            <Text size="sm">
+              <Text span fw={600}>
+                Police Station:
+              </Text>{" "}
+              {mlcCase.police_station}
+            </Text>
+          )}
+          {mlcCase.history_of_incident && (
+            <Text size="sm">
+              <Text span fw={600}>
+                History:
+              </Text>{" "}
+              {mlcCase.history_of_incident}
+            </Text>
+          )}
         </Card>
 
         {/* Action Buttons */}
         <Group>
-          <Button leftSection={<IconShieldCheck size={16} />} variant="light" onClick={openSbar}>SBAR Handover</Button>
-          <Button leftSection={<IconScale size={16} />} variant="light" color="violet" onClick={openAgeEst}>Age Estimation</Button>
+          <Button leftSection={<IconShieldCheck size={16} />} variant="light" onClick={openSbar}>
+            SBAR Handover
+          </Button>
+          <Button
+            leftSection={<IconScale size={16} />}
+            variant="light"
+            color="violet"
+            onClick={openAgeEst}
+          >
+            Age Estimation
+          </Button>
           {mlcCase.is_pocso && (
-            <Button leftSection={<IconAlertOctagon size={16} />} variant="light" color="danger" onClick={openPocso}>POCSO Report</Button>
+            <Button
+              leftSection={<IconAlertOctagon size={16} />}
+              variant="light"
+              color="danger"
+              onClick={openPocso}
+            >
+              POCSO Report
+            </Button>
           )}
-          <Button leftSection={<IconGavel size={16} />} variant="light" color="warning" onClick={openSummons}>Add Court Summons</Button>
+          <Button
+            leftSection={<IconGavel size={16} />}
+            variant="light"
+            color="warning"
+            onClick={openSummons}
+          >
+            Add Court Summons
+          </Button>
         </Group>
 
         <Divider />
@@ -830,17 +1171,41 @@ function MlcCaseDetail({
         {/* SBAR Handover Documents */}
         {sbarDocs.length > 0 && (
           <Box>
-            <Title order={6} mb="xs">SBAR Handover Records</Title>
+            <Title order={6} mb="xs">
+              SBAR Handover Records
+            </Title>
             <Stack gap="xs">
               {sbarDocs.map((doc) => {
                 const c = doc.content as Record<string, string>;
                 return (
                   <Card key={doc.id} withBorder p="sm">
-                    <Text size="xs" c="dimmed" mb="xs">{new Date(doc.created_at).toLocaleString()}</Text>
-                    <Text size="sm"><Text span fw={600}>S:</Text> {c.situation || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>B:</Text> {c.background || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>A:</Text> {c.assessment || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>R:</Text> {c.recommendation || "---"}</Text>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {new Date(doc.created_at).toLocaleString()}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        S:
+                      </Text>{" "}
+                      {c.situation || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        B:
+                      </Text>{" "}
+                      {c.background || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        A:
+                      </Text>{" "}
+                      {c.assessment || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        R:
+                      </Text>{" "}
+                      {c.recommendation || "---"}
+                    </Text>
                   </Card>
                 );
               })}
@@ -851,18 +1216,47 @@ function MlcCaseDetail({
         {/* Age Estimation Documents */}
         {ageEstDocs.length > 0 && (
           <Box>
-            <Title order={6} mb="xs">Age Estimation Reports</Title>
+            <Title order={6} mb="xs">
+              Age Estimation Reports
+            </Title>
             <Stack gap="xs">
               {ageEstDocs.map((doc) => {
                 const c = doc.content as Record<string, string>;
                 return (
                   <Card key={doc.id} withBorder p="sm">
-                    <Text size="xs" c="dimmed" mb="xs">{new Date(doc.created_at).toLocaleString()}</Text>
-                    <Text size="sm"><Text span fw={600}>Ossification:</Text> {c.ossification_center_findings || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>Dental:</Text> {c.dental_examination || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>Secondary Sexual:</Text> {c.secondary_sexual_characteristics || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>Estimated Range:</Text> {c.estimated_age_range || "---"}</Text>
-                    <Text size="sm"><Text span fw={600}>Opinion:</Text> {c.examiner_opinion || "---"}</Text>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {new Date(doc.created_at).toLocaleString()}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Ossification:
+                      </Text>{" "}
+                      {c.ossification_center_findings || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Dental:
+                      </Text>{" "}
+                      {c.dental_examination || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Secondary Sexual:
+                      </Text>{" "}
+                      {c.secondary_sexual_characteristics || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Estimated Range:
+                      </Text>{" "}
+                      {c.estimated_age_range || "---"}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Opinion:
+                      </Text>{" "}
+                      {c.examiner_opinion || "---"}
+                    </Text>
                   </Card>
                 );
               })}
@@ -873,18 +1267,47 @@ function MlcCaseDetail({
         {/* POCSO Reports */}
         {pocsoDocs.length > 0 && (
           <Box>
-            <Title order={6} mb="xs">POCSO Reports</Title>
+            <Title order={6} mb="xs">
+              POCSO Reports
+            </Title>
             <Stack gap="xs">
               {pocsoDocs.map((doc) => {
                 const c = doc.content as Record<string, unknown>;
                 return (
                   <Card key={doc.id} withBorder p="sm">
-                    <Text size="xs" c="dimmed" mb="xs">{new Date(doc.created_at).toLocaleString()}</Text>
-                    <Text size="sm"><Text span fw={600}>Child Age:</Text> {String(c.child_age || "---")}</Text>
-                    <Text size="sm"><Text span fw={600}>Guardian:</Text> {String(c.guardian_details || "---")}</Text>
-                    <Text size="sm"><Text span fw={600}>Statement:</Text> {String(c.statement_summary || "---")}</Text>
-                    <Text size="sm"><Text span fw={600}>Injuries:</Text> {String(c.injuries_documented || "---")}</Text>
-                    <Text size="sm"><Text span fw={600}>Psych Assessment Needed:</Text> {c.psych_assessment_needed ? "Yes" : "No"}</Text>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {new Date(doc.created_at).toLocaleString()}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Child Age:
+                      </Text>{" "}
+                      {String(c.child_age || "---")}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Guardian:
+                      </Text>{" "}
+                      {String(c.guardian_details || "---")}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Statement:
+                      </Text>{" "}
+                      {String(c.statement_summary || "---")}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Injuries:
+                      </Text>{" "}
+                      {String(c.injuries_documented || "---")}
+                    </Text>
+                    <Text size="sm">
+                      <Text span fw={600}>
+                        Psych Assessment Needed:
+                      </Text>{" "}
+                      {c.psych_assessment_needed ? "Yes" : "No"}
+                    </Text>
                   </Card>
                 );
               })}
@@ -932,8 +1355,19 @@ function MlcCaseDetail({
                     render: (d: MlcDocument) => {
                       const c = d.content as Record<string, string>;
                       const s = c.status || "pending";
-                      const color = s === "attended" ? "success" : s === "adjourned" ? "warning" : s === "pending" ? "primary" : "slate";
-                      return <Badge color={color} size="sm">{s}</Badge>;
+                      const color =
+                        s === "attended"
+                          ? "success"
+                          : s === "adjourned"
+                            ? "warning"
+                            : s === "pending"
+                              ? "primary"
+                              : "slate";
+                      return (
+                        <Badge color={color} size="sm">
+                          {s}
+                        </Badge>
+                      );
                     },
                   },
                   {
@@ -948,16 +1382,28 @@ function MlcCaseDetail({
               />
             </Paper>
           ) : (
-            <Text size="sm" c="dimmed">No court summons recorded.</Text>
+            <Text size="sm" c="dimmed">
+              No court summons recorded.
+            </Text>
           )}
         </Box>
       </Stack>
 
       {/* SBAR Handover Drawer */}
-      <Drawer opened={sbarOpened} onClose={() => { closeSbar(); setSbarForm({ ...EMPTY_SBAR }); }} title="SBAR Handover" position="right" size="lg">
+      <Drawer
+        opened={sbarOpened}
+        onClose={() => {
+          closeSbar();
+          setSbarForm({ ...EMPTY_SBAR });
+        }}
+        title="SBAR Handover"
+        position="right"
+        size="lg"
+      >
         <Stack>
           <Alert color="primary" variant="light" icon={<IconShieldCheck size={16} />}>
-            SBAR (Situation-Background-Assessment-Recommendation) is a standardized communication tool for clinical handovers as recommended by WHO and NABH.
+            SBAR (Situation-Background-Assessment-Recommendation) is a standardized communication
+            tool for clinical handovers as recommended by WHO and NABH.
           </Alert>
           <Textarea
             label="Situation"
@@ -994,7 +1440,12 @@ function MlcCaseDetail({
           <Button
             onClick={handleSbarSubmit}
             loading={createDocMut.isPending}
-            disabled={!sbarForm.situation || !sbarForm.background || !sbarForm.assessment || !sbarForm.recommendation}
+            disabled={
+              !sbarForm.situation ||
+              !sbarForm.background ||
+              !sbarForm.assessment ||
+              !sbarForm.recommendation
+            }
           >
             Save SBAR Handover
           </Button>
@@ -1002,16 +1453,28 @@ function MlcCaseDetail({
       </Drawer>
 
       {/* Age Estimation Drawer */}
-      <Drawer opened={ageEstOpened} onClose={() => { closeAgeEst(); setAgeEstForm({ ...EMPTY_AGE_EST }); }} title="Age Estimation Documentation" position="right" size="lg">
+      <Drawer
+        opened={ageEstOpened}
+        onClose={() => {
+          closeAgeEst();
+          setAgeEstForm({ ...EMPTY_AGE_EST });
+        }}
+        title="Age Estimation Documentation"
+        position="right"
+        size="lg"
+      >
         <Stack>
           <Alert color="violet" variant="light" icon={<IconScale size={16} />}>
-            Age estimation is a medico-legal procedure. Document all findings carefully. Ensure the examination is conducted by an authorized medical officer.
+            Age estimation is a medico-legal procedure. Document all findings carefully. Ensure the
+            examination is conducted by an authorized medical officer.
           </Alert>
           <Textarea
             label="Ossification Center Findings"
             description="X-ray findings of wrist, elbow, pelvis, and other ossification centers"
             value={ageEstForm.ossification_center_findings}
-            onChange={(e) => setAgeEstForm({ ...ageEstForm, ossification_center_findings: e.currentTarget.value })}
+            onChange={(e) =>
+              setAgeEstForm({ ...ageEstForm, ossification_center_findings: e.currentTarget.value })
+            }
             minRows={3}
             required
           />
@@ -1019,7 +1482,9 @@ function MlcCaseDetail({
             label="Dental Examination"
             description="Eruption of teeth, third molar status, dental age assessment"
             value={ageEstForm.dental_examination}
-            onChange={(e) => setAgeEstForm({ ...ageEstForm, dental_examination: e.currentTarget.value })}
+            onChange={(e) =>
+              setAgeEstForm({ ...ageEstForm, dental_examination: e.currentTarget.value })
+            }
             minRows={3}
             required
           />
@@ -1027,7 +1492,12 @@ function MlcCaseDetail({
             label="Secondary Sexual Characteristics"
             description="Development stage as per Tanner staging"
             value={ageEstForm.secondary_sexual_characteristics}
-            onChange={(e) => setAgeEstForm({ ...ageEstForm, secondary_sexual_characteristics: e.currentTarget.value })}
+            onChange={(e) =>
+              setAgeEstForm({
+                ...ageEstForm,
+                secondary_sexual_characteristics: e.currentTarget.value,
+              })
+            }
             minRows={3}
             required
           />
@@ -1035,14 +1505,18 @@ function MlcCaseDetail({
             label="Estimated Age Range"
             description="e.g., 16-18 years"
             value={ageEstForm.estimated_age_range}
-            onChange={(e) => setAgeEstForm({ ...ageEstForm, estimated_age_range: e.currentTarget.value })}
+            onChange={(e) =>
+              setAgeEstForm({ ...ageEstForm, estimated_age_range: e.currentTarget.value })
+            }
             required
           />
           <Textarea
             label="Examiner Opinion"
             description="Final opinion on probable age with reasoning"
             value={ageEstForm.examiner_opinion}
-            onChange={(e) => setAgeEstForm({ ...ageEstForm, examiner_opinion: e.currentTarget.value })}
+            onChange={(e) =>
+              setAgeEstForm({ ...ageEstForm, examiner_opinion: e.currentTarget.value })
+            }
             minRows={3}
             required
           />
@@ -1063,10 +1537,20 @@ function MlcCaseDetail({
       </Drawer>
 
       {/* POCSO Report Drawer */}
-      <Drawer opened={pocsoOpened} onClose={() => { closePocso(); setPocsoForm({ ...EMPTY_POCSO }); }} title="POCSO Report" position="right" size="lg">
+      <Drawer
+        opened={pocsoOpened}
+        onClose={() => {
+          closePocso();
+          setPocsoForm({ ...EMPTY_POCSO });
+        }}
+        title="POCSO Report"
+        position="right"
+        size="lg"
+      >
         <Stack>
           <Alert color="danger" variant="filled" icon={<IconAlertOctagon size={16} />}>
-            POCSO Act, 2012 mandates mandatory reporting. This report is a legal document. Ensure child-friendly language and procedures throughout.
+            POCSO Act, 2012 mandates mandatory reporting. This report is a legal document. Ensure
+            child-friendly language and procedures throughout.
           </Alert>
           <TextInput
             label="Child Age"
@@ -1079,7 +1563,9 @@ function MlcCaseDetail({
             label="Guardian Details"
             description="Name, relation, contact of guardian/parent accompanying the child"
             value={pocsoForm.guardian_details}
-            onChange={(e) => setPocsoForm({ ...pocsoForm, guardian_details: e.currentTarget.value })}
+            onChange={(e) =>
+              setPocsoForm({ ...pocsoForm, guardian_details: e.currentTarget.value })
+            }
             minRows={2}
             required
           />
@@ -1087,7 +1573,9 @@ function MlcCaseDetail({
             label="Statement Summary"
             description="Summary of statement in the child's own words (do not lead or suggest)"
             value={pocsoForm.statement_summary}
-            onChange={(e) => setPocsoForm({ ...pocsoForm, statement_summary: e.currentTarget.value })}
+            onChange={(e) =>
+              setPocsoForm({ ...pocsoForm, statement_summary: e.currentTarget.value })
+            }
             minRows={4}
             required
           />
@@ -1095,14 +1583,18 @@ function MlcCaseDetail({
             label="Injuries Documented"
             description="Clinical findings: injuries, marks, physical examination findings"
             value={pocsoForm.injuries_documented}
-            onChange={(e) => setPocsoForm({ ...pocsoForm, injuries_documented: e.currentTarget.value })}
+            onChange={(e) =>
+              setPocsoForm({ ...pocsoForm, injuries_documented: e.currentTarget.value })
+            }
             minRows={3}
             required
           />
           <Checkbox
             label="Psychological assessment needed"
             checked={pocsoForm.psych_assessment_needed}
-            onChange={(e) => setPocsoForm({ ...pocsoForm, psych_assessment_needed: e.currentTarget.checked })}
+            onChange={(e) =>
+              setPocsoForm({ ...pocsoForm, psych_assessment_needed: e.currentTarget.checked })
+            }
           />
           <Button
             color="danger"
@@ -1121,7 +1613,16 @@ function MlcCaseDetail({
       </Drawer>
 
       {/* Court Summons Drawer */}
-      <Drawer opened={summonsOpened} onClose={() => { closeSummons(); setSummonsForm({ ...EMPTY_SUMMONS }); }} title="Add Court Summons" position="right" size="md">
+      <Drawer
+        opened={summonsOpened}
+        onClose={() => {
+          closeSummons();
+          setSummonsForm({ ...EMPTY_SUMMONS });
+        }}
+        title="Add Court Summons"
+        position="right"
+        size="md"
+      >
         <Stack>
           <TextInput
             label="Date"
@@ -1177,22 +1678,35 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [selectedCase, setSelectedCase] = useState<MlcCase | null>(null);
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["mlc-cases"], queryFn: () => api.listMlcCases() });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["mlc-cases"],
+    queryFn: () => api.listMlcCases(),
+  });
 
   const [form, setForm] = useState<CreateMlcCaseRequest>({ patient_id: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateMlcCaseRequest) => api.createMlcCase(d),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mlc-cases"] }); close(); notifications.show({ title: "Success", message: "MLC case registered" }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["mlc-cases"] });
+      close();
+      notifications.show({ title: "Success", message: "MLC case registered" });
+    },
   });
 
   const mlcStatusColor = (s: string) => {
     switch (s) {
-      case "registered": return "primary";
-      case "under_investigation": return "orange";
-      case "opinion_given": return "teal";
-      case "court_pending": return "warning";
-      case "closed": return "success";
-      default: return "gray";
+      case "registered":
+        return "primary";
+      case "under_investigation":
+        return "orange";
+      case "opinion_given":
+        return "teal";
+      case "court_pending":
+        return "warning";
+      case "closed":
+        return "success";
+      default:
+        return "gray";
     }
   };
 
@@ -1202,16 +1716,56 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
   };
 
   const columns = [
-    { key: "mlc_number", label: "MLC #", render: (r: MlcCase) => <Text fw={600}>{r.mlc_number}</Text> },
-    { key: "registered_at", label: "Registered", render: (r: MlcCase) => new Date(r.registered_at).toLocaleString() },
-    { key: "case_type", label: "Type", render: (r: MlcCase) => r.case_type ?? "---" },
-    { key: "status", label: "Status", render: (r: MlcCase) => <Badge color={mlcStatusColor(r.status)} size="sm">{r.status}</Badge> },
-    { key: "fir_number", label: "FIR #", render: (r: MlcCase) => r.fir_number ?? "---" },
-    { key: "police_station", label: "Police Station", render: (r: MlcCase) => r.police_station ?? "---" },
-    { key: "is_pocso", label: "POCSO", render: (r: MlcCase) => r.is_pocso ? <Badge color="danger" size="sm">POCSO</Badge> : null },
-    { key: "is_death_case", label: "Death", render: (r: MlcCase) => r.is_death_case ? <Badge color="dark" size="sm">Death</Badge> : null },
     {
-      key: "actions", label: "", render: (r: MlcCase) => (
+      key: "mlc_number",
+      label: "MLC #",
+      render: (r: MlcCase) => <Text fw={600}>{r.mlc_number}</Text>,
+    },
+    {
+      key: "registered_at",
+      label: "Registered",
+      render: (r: MlcCase) => new Date(r.registered_at).toLocaleString(),
+    },
+    { key: "case_type", label: "Type", render: (r: MlcCase) => r.case_type ?? "---" },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: MlcCase) => (
+        <Badge color={mlcStatusColor(r.status)} size="sm">
+          {r.status}
+        </Badge>
+      ),
+    },
+    { key: "fir_number", label: "FIR #", render: (r: MlcCase) => r.fir_number ?? "---" },
+    {
+      key: "police_station",
+      label: "Police Station",
+      render: (r: MlcCase) => r.police_station ?? "---",
+    },
+    {
+      key: "is_pocso",
+      label: "POCSO",
+      render: (r: MlcCase) =>
+        r.is_pocso ? (
+          <Badge color="danger" size="sm">
+            POCSO
+          </Badge>
+        ) : null,
+    },
+    {
+      key: "is_death_case",
+      label: "Death",
+      render: (r: MlcCase) =>
+        r.is_death_case ? (
+          <Badge color="dark" size="sm">
+            Death
+          </Badge>
+        ) : null,
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (r: MlcCase) => (
         <Tooltip label="View Details & Documents">
           <ActionIcon variant="light" onClick={() => handleViewCase(r)}>
             <IconFileText size={16} />
@@ -1225,7 +1779,9 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>Register MLC Case</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            Register MLC Case
+          </Button>
         </Group>
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
@@ -1233,32 +1789,96 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
       {/* Create MLC Drawer */}
       <Drawer opened={opened} onClose={close} title="Register MLC Case" position="right" size="lg">
         <Stack>
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
-          <Select label="Case Type" data={MLC_CASE_TYPES} value={form.case_type ?? null} onChange={(v) => setForm({ ...form, case_type: v ?? undefined })} />
-          <TextInput label="FIR Number" value={form.fir_number ?? ""} onChange={(e) => setForm({ ...form, fir_number: e.currentTarget.value })} />
-          <TextInput label="Police Station" value={form.police_station ?? ""} onChange={(e) => setForm({ ...form, police_station: e.currentTarget.value })} />
-          <Select label="Brought By" data={[{ value: "police", label: "Police" }, { value: "ambulance", label: "Ambulance" }, { value: "bystander", label: "Bystander" }, { value: "self", label: "Self" }]} value={form.brought_by ?? null} onChange={(v) => setForm({ ...form, brought_by: v ?? undefined })} />
-          <TextInput label="Informant Name" value={form.informant_name ?? ""} onChange={(e) => setForm({ ...form, informant_name: e.currentTarget.value })} />
-          <TextInput label="Informant Relation" value={form.informant_relation ?? ""} onChange={(e) => setForm({ ...form, informant_relation: e.currentTarget.value })} />
-          <TextInput label="Informant Contact" value={form.informant_contact ?? ""} onChange={(e) => setForm({ ...form, informant_contact: e.currentTarget.value })} />
-          <Textarea label="History of Incident" value={form.history_of_incident ?? ""} onChange={(e) => setForm({ ...form, history_of_incident: e.currentTarget.value })} minRows={3} />
-          <Select label="POCSO Case" data={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} value={form.is_pocso ? "true" : "false"} onChange={(v) => setForm({ ...form, is_pocso: v === "true" })} />
-          <Select label="Death Case" data={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} value={form.is_death_case ? "true" : "false"} onChange={(v) => setForm({ ...form, is_death_case: v === "true" })} />
-          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>Register MLC Case</Button>
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
+          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
+          <Select
+            label="Case Type"
+            data={MLC_CASE_TYPES}
+            value={form.case_type ?? null}
+            onChange={(v) => setForm({ ...form, case_type: v ?? undefined })}
+          />
+          <TextInput
+            label="FIR Number"
+            value={form.fir_number ?? ""}
+            onChange={(e) => setForm({ ...form, fir_number: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Police Station"
+            value={form.police_station ?? ""}
+            onChange={(e) => setForm({ ...form, police_station: e.currentTarget.value })}
+          />
+          <Select
+            label="Brought By"
+            data={[
+              { value: "police", label: "Police" },
+              { value: "ambulance", label: "Ambulance" },
+              { value: "bystander", label: "Bystander" },
+              { value: "self", label: "Self" },
+            ]}
+            value={form.brought_by ?? null}
+            onChange={(v) => setForm({ ...form, brought_by: v ?? undefined })}
+          />
+          <TextInput
+            label="Informant Name"
+            value={form.informant_name ?? ""}
+            onChange={(e) => setForm({ ...form, informant_name: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Informant Relation"
+            value={form.informant_relation ?? ""}
+            onChange={(e) => setForm({ ...form, informant_relation: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Informant Contact"
+            value={form.informant_contact ?? ""}
+            onChange={(e) => setForm({ ...form, informant_contact: e.currentTarget.value })}
+          />
+          <Textarea
+            label="History of Incident"
+            value={form.history_of_incident ?? ""}
+            onChange={(e) => setForm({ ...form, history_of_incident: e.currentTarget.value })}
+            minRows={3}
+          />
+          <Select
+            label="POCSO Case"
+            data={[
+              { value: "true", label: "Yes" },
+              { value: "false", label: "No" },
+            ]}
+            value={form.is_pocso ? "true" : "false"}
+            onChange={(v) => setForm({ ...form, is_pocso: v === "true" })}
+          />
+          <Select
+            label="Death Case"
+            data={[
+              { value: "true", label: "Yes" },
+              { value: "false", label: "No" },
+            ]}
+            value={form.is_death_case ? "true" : "false"}
+            onChange={(v) => setForm({ ...form, is_death_case: v === "true" })}
+          />
+          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+            Register MLC Case
+          </Button>
         </Stack>
       </Drawer>
 
       {/* MLC Detail Drawer */}
       <Drawer
         opened={detailOpened}
-        onClose={() => { closeDetail(); setSelectedCase(null); }}
+        onClose={() => {
+          closeDetail();
+          setSelectedCase(null);
+        }}
         title={selectedCase ? `MLC Case: ${selectedCase.mlc_number}` : "MLC Case Details"}
         position="right"
         size="xl"
       >
-        {selectedCase && (
-          <MlcCaseDetail mlcCase={selectedCase} />
-        )}
+        {selectedCase && <MlcCaseDetail mlcCase={selectedCase} />}
       </Drawer>
     </Stack>
   );
@@ -1269,31 +1889,71 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
 function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
   const [opened, { open, close }] = useDisclosure(false);
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["mass-casualty"], queryFn: () => api.listMassCasualtyEvents() });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["mass-casualty"],
+    queryFn: () => api.listMassCasualtyEvents(),
+  });
 
   const [form, setForm] = useState<CreateMassCasualtyEventRequest>({ event_name: "" });
   const mutation = useMutation({
     mutationFn: (d: CreateMassCasualtyEventRequest) => api.createMassCasualtyEvent(d),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["mass-casualty"] }); close(); notifications.show({ title: "Code Yellow", message: "Mass casualty event activated", color: "danger" }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["mass-casualty"] });
+      close();
+      notifications.show({
+        title: "Code Yellow",
+        message: "Mass casualty event activated",
+        color: "danger",
+      });
+    },
   });
 
   const mcStatusColor = (s: string) => {
     switch (s) {
-      case "activated": return "danger";
-      case "ongoing": return "orange";
-      case "scaling_down": return "warning";
-      case "deactivated": return "success";
-      default: return "gray";
+      case "activated":
+        return "danger";
+      case "ongoing":
+        return "orange";
+      case "scaling_down":
+        return "warning";
+      case "deactivated":
+        return "success";
+      default:
+        return "gray";
     }
   };
 
   const columns = [
-    { key: "event_name", label: "Event", render: (r: MassCasualtyEvent) => <Text fw={600}>{r.event_name}</Text> },
+    {
+      key: "event_name",
+      label: "Event",
+      render: (r: MassCasualtyEvent) => <Text fw={600}>{r.event_name}</Text>,
+    },
     { key: "event_type", label: "Type", render: (r: MassCasualtyEvent) => r.event_type ?? "---" },
-    { key: "status", label: "Status", render: (r: MassCasualtyEvent) => <Badge color={mcStatusColor(r.status)} size="sm">{r.status}</Badge> },
-    { key: "activated_at", label: "Activated", render: (r: MassCasualtyEvent) => new Date(r.activated_at).toLocaleString() },
-    { key: "estimated_casualties", label: "Est. Casualties", render: (r: MassCasualtyEvent) => r.estimated_casualties ?? "---" },
-    { key: "actual_casualties", label: "Actual", render: (r: MassCasualtyEvent) => r.actual_casualties ?? "---" },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: MassCasualtyEvent) => (
+        <Badge color={mcStatusColor(r.status)} size="sm">
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "activated_at",
+      label: "Activated",
+      render: (r: MassCasualtyEvent) => new Date(r.activated_at).toLocaleString(),
+    },
+    {
+      key: "estimated_casualties",
+      label: "Est. Casualties",
+      render: (r: MassCasualtyEvent) => r.estimated_casualties ?? "---",
+    },
+    {
+      key: "actual_casualties",
+      label: "Actual",
+      render: (r: MassCasualtyEvent) => r.actual_casualties ?? "---",
+    },
     { key: "location", label: "Location", render: (r: MassCasualtyEvent) => r.location ?? "---" },
   ];
 
@@ -1301,19 +1961,53 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconBell size={16} />} color="danger" onClick={open}>Activate Mass Casualty</Button>
+          <Button leftSection={<IconBell size={16} />} color="danger" onClick={open}>
+            Activate Mass Casualty
+          </Button>
         </Group>
       )}
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Activate Mass Casualty Event" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Activate Mass Casualty Event"
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <TextInput label="Event Name" required value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.currentTarget.value })} />
-          <Select label="Event Type" data={MASS_CASUALTY_TYPES} value={form.event_type ?? null} onChange={(v) => setForm({ ...form, event_type: v ?? undefined })} />
-          <TextInput label="Location" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.currentTarget.value })} />
-          <NumberInput label="Estimated Casualties" value={form.estimated_casualties ?? ""} onChange={(v) => setForm({ ...form, estimated_casualties: typeof v === "number" ? v : undefined })} />
-          <Textarea label="Notes" value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })} />
-          <Button color="danger" onClick={() => mutation.mutate(form)} loading={mutation.isPending}>Activate Mass Casualty</Button>
+          <TextInput
+            label="Event Name"
+            required
+            value={form.event_name}
+            onChange={(e) => setForm({ ...form, event_name: e.currentTarget.value })}
+          />
+          <Select
+            label="Event Type"
+            data={MASS_CASUALTY_TYPES}
+            value={form.event_type ?? null}
+            onChange={(v) => setForm({ ...form, event_type: v ?? undefined })}
+          />
+          <TextInput
+            label="Location"
+            value={form.location ?? ""}
+            onChange={(e) => setForm({ ...form, location: e.currentTarget.value })}
+          />
+          <NumberInput
+            label="Estimated Casualties"
+            value={form.estimated_casualties ?? ""}
+            onChange={(v) =>
+              setForm({ ...form, estimated_casualties: typeof v === "number" ? v : undefined })
+            }
+          />
+          <Textarea
+            label="Notes"
+            value={form.notes ?? ""}
+            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          />
+          <Button color="danger" onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+            Activate Mass Casualty
+          </Button>
         </Stack>
       </Drawer>
     </Stack>

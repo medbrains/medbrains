@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -14,29 +13,13 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Timeline,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertTriangle,
-  IconChartBar,
-  IconCheck,
-  IconClipboardList,
-  IconEye,
-  IconHeart,
-  IconPackage,
-  IconPill,
-  IconPlus,
-  IconSend,
-  IconTruckDelivery,
-  IconX,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
@@ -58,8 +41,8 @@ import type {
   InventoryValuationRow,
   IssueToPatientRequest,
   PatientConsumableIssue,
-  PurchaseOrder,
   PurchaseConsumptionTrendRow,
+  PurchaseOrder,
   ResolvedSidecar,
   StoreCatalog,
   StoreStockMovement,
@@ -68,7 +51,31 @@ import type {
   VedAnalysisRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { ClinicalEventProvider, useClinicalEmit, DataTable, PageHeader, StatusDot } from "../components";
+import {
+  IconAlertTriangle,
+  IconChartBar,
+  IconCheck,
+  IconClipboardList,
+  IconEye,
+  IconHeart,
+  IconPackage,
+  IconPill,
+  IconPlus,
+  IconSend,
+  IconTruckDelivery,
+  IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  PageHeader,
+  StatusDot,
+  useClinicalEmit,
+} from "../components";
+import { PatientNameCell } from "../components/PatientNameCell";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Status colors ─────────────────────────────────────────
@@ -128,11 +135,7 @@ function statusToStep(status: string): number {
   return map[status] ?? 0;
 }
 
-const indentWorkflowEvents = [
-  "indent.submitted",
-  "indent.approved",
-  "indent.issued",
-] as const;
+const indentWorkflowEvents = ["indent.submitted", "indent.approved", "indent.issued"] as const;
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -177,26 +180,44 @@ function IndentPageInner() {
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="my-indents" leftSection={<IconClipboardList size={16} />}>My Indents</Tabs.Tab>
+          <Tabs.Tab value="my-indents" leftSection={<IconClipboardList size={16} />}>
+            My Indents
+          </Tabs.Tab>
           {canApprove && (
-            <Tabs.Tab value="pending-approval" leftSection={<IconCheck size={16} />}>Pending Approval</Tabs.Tab>
+            <Tabs.Tab value="pending-approval" leftSection={<IconCheck size={16} />}>
+              Pending Approval
+            </Tabs.Tab>
           )}
-          <Tabs.Tab value="all-indents" leftSection={<IconClipboardList size={16} />}>All Indents</Tabs.Tab>
-          <Tabs.Tab value="flow-tracker" leftSection={<IconTruckDelivery size={16} />}>Flow Tracker</Tabs.Tab>
+          <Tabs.Tab value="all-indents" leftSection={<IconClipboardList size={16} />}>
+            All Indents
+          </Tabs.Tab>
+          <Tabs.Tab value="flow-tracker" leftSection={<IconTruckDelivery size={16} />}>
+            Flow Tracker
+          </Tabs.Tab>
           {canStock && (
             <>
-              <Tabs.Tab value="catalog" leftSection={<IconPackage size={16} />}>Store Catalog</Tabs.Tab>
-              <Tabs.Tab value="stock" leftSection={<IconTruckDelivery size={16} />}>Stock</Tabs.Tab>
+              <Tabs.Tab value="catalog" leftSection={<IconPackage size={16} />}>
+                Store Catalog
+              </Tabs.Tab>
+              <Tabs.Tab value="stock" leftSection={<IconTruckDelivery size={16} />}>
+                Stock
+              </Tabs.Tab>
             </>
           )}
           {canAnalytics && (
-            <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>Analytics</Tabs.Tab>
+            <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+              Analytics
+            </Tabs.Tab>
           )}
           {canConsumables && (
-            <Tabs.Tab value="patient-consumables" leftSection={<IconPill size={16} />}>Patient Consumables</Tabs.Tab>
+            <Tabs.Tab value="patient-consumables" leftSection={<IconPill size={16} />}>
+              Patient Consumables
+            </Tabs.Tab>
           )}
           {canImplants && (
-            <Tabs.Tab value="assets-implants" leftSection={<IconHeart size={16} />}>Assets &amp; Implants</Tabs.Tab>
+            <Tabs.Tab value="assets-implants" leftSection={<IconHeart size={16} />}>
+              Assets &amp; Implants
+            </Tabs.Tab>
           )}
         </Tabs.List>
 
@@ -272,11 +293,17 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
   });
 
   const columns = [
-    { key: "indent_number", label: "Indent #", render: (row: IndentRequisition) => <Text fw={600}>{row.indent_number}</Text> },
+    {
+      key: "indent_number",
+      label: "Indent #",
+      render: (row: IndentRequisition) => <Text fw={600}>{row.indent_number}</Text>,
+    },
     {
       key: "indent_type",
       label: "Type",
-      render: (row: IndentRequisition) => <Badge variant="light">{indentTypeLabels[row.indent_type] ?? row.indent_type}</Badge>,
+      render: (row: IndentRequisition) => (
+        <Badge variant="light">{indentTypeLabels[row.indent_type] ?? row.indent_type}</Badge>
+      ),
     },
     {
       key: "priority",
@@ -289,11 +316,23 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
       key: "status",
       label: "Status",
       render: (row: IndentRequisition) => (
-        <StatusDot color={statusColors[row.status] ?? "slate"} label={row.status.replace(/_/g, " ")} size="sm" />
+        <StatusDot
+          color={statusColors[row.status] ?? "slate"}
+          label={row.status.replace(/_/g, " ")}
+          size="sm"
+        />
       ),
     },
-    { key: "total_amount", label: "Amount", render: (row: IndentRequisition) => `₹${row.total_amount}` },
-    { key: "created_at", label: "Created", render: (row: IndentRequisition) => new Date(row.created_at).toLocaleDateString() },
+    {
+      key: "total_amount",
+      label: "Amount",
+      render: (row: IndentRequisition) => `₹${row.total_amount}`,
+    },
+    {
+      key: "created_at",
+      label: "Created",
+      render: (row: IndentRequisition) => new Date(row.created_at).toLocaleDateString(),
+    },
     {
       key: "actions",
       label: "",
@@ -327,7 +366,13 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
         emptyTitle="No indent requisitions found"
       />
 
-      <Drawer opened={detailOpened} onClose={closeDetail} title="Indent Details" position="right" size="lg">
+      <Drawer
+        opened={detailOpened}
+        onClose={closeDetail}
+        title="Indent Details"
+        position="right"
+        size="lg"
+      >
         {detailId && <IndentDetailView id={detailId} onClose={closeDetail} />}
       </Drawer>
     </>
@@ -354,7 +399,11 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   const submitMutation = useMutation({
     mutationFn: () => api.submitIndentRequisition(id),
     onSuccess: () => {
-      notifications.show({ title: "Submitted", message: "Indent submitted for approval", color: "success" });
+      notifications.show({
+        title: "Submitted",
+        message: "Indent submitted for approval",
+        color: "success",
+      });
       emit("indent.submitted", { requisition_id: id });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
@@ -402,10 +451,14 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
         <Badge color={priorityColors[requisition.priority] ?? "slate"} variant="outline">
           {requisition.priority}
         </Badge>
-        <Badge variant="light">{indentTypeLabels[requisition.indent_type] ?? requisition.indent_type}</Badge>
+        <Badge variant="light">
+          {indentTypeLabels[requisition.indent_type] ?? requisition.indent_type}
+        </Badge>
       </Group>
 
-      <Text size="sm" c="dimmed">Indent #{requisition.indent_number}</Text>
+      <Text size="sm" c="dimmed">
+        Indent #{requisition.indent_number}
+      </Text>
       {requisition.notes && <Text size="sm">{requisition.notes}</Text>}
 
       <Table striped highlightOnHover>
@@ -470,9 +523,8 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
           </>
         )}
 
-        {["approved", "partially_approved", "partially_issued"].includes(requisition.status) && canStock && (
-          <IssueButton requisitionId={id} items={items} />
-        )}
+        {["approved", "partially_approved", "partially_issued"].includes(requisition.status) &&
+          canStock && <IssueButton requisitionId={id} items={items} />}
       </Group>
     </Stack>
   );
@@ -516,11 +568,19 @@ function ApproveButton({
       <Button leftSection={<IconCheck size={16} />} color="success" onClick={open}>
         Approve
       </Button>
-      <Drawer opened={opened} onClose={close} title="Approve Indent Items" position="right" size="xl">
+      <Drawer
+        opened={opened}
+        onClose={close}
+        title="Approve Indent Items"
+        position="right"
+        size="xl"
+      >
         <Stack>
           {items.map((item) => (
             <Group key={item.id}>
-              <Text size="sm" style={{ flex: 1 }}>{item.item_name}</Text>
+              <Text size="sm" style={{ flex: 1 }}>
+                {item.item_name}
+              </Text>
               <NumberInput
                 size="xs"
                 w={80}
@@ -529,7 +589,9 @@ function ApproveButton({
                 value={approvals[item.id] ?? item.quantity_requested}
                 onChange={(v) => setApprovals((prev) => ({ ...prev, [item.id]: Number(v) }))}
               />
-              <Text size="xs" c="dimmed">/ {item.quantity_requested}</Text>
+              <Text size="xs" c="dimmed">
+                / {item.quantity_requested}
+              </Text>
             </Group>
           ))}
           <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
@@ -566,7 +628,11 @@ function IssueButton({
       return api.issueIndentRequisition(requisitionId, { items: issueItems });
     },
     onSuccess: () => {
-      notifications.show({ title: "Issued", message: "Items issued and stock updated", color: "success" });
+      notifications.show({
+        title: "Issued",
+        message: "Items issued and stock updated",
+        color: "success",
+      });
       emit("indent.issued", { requisition_id: requisitionId });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
@@ -585,7 +651,9 @@ function IssueButton({
             const remaining = item.quantity_approved - item.quantity_issued;
             return (
               <Group key={item.id}>
-                <Text size="sm" style={{ flex: 1 }}>{item.item_name}</Text>
+                <Text size="sm" style={{ flex: 1 }}>
+                  {item.item_name}
+                </Text>
                 <NumberInput
                   size="xs"
                   w={80}
@@ -594,7 +662,9 @@ function IssueButton({
                   value={issues[item.id] ?? remaining}
                   onChange={(v) => setIssues((prev) => ({ ...prev, [item.id]: Number(v) }))}
                 />
-                <Text size="xs" c="dimmed">/ {remaining} remaining</Text>
+                <Text size="xs" c="dimmed">
+                  / {remaining} remaining
+                </Text>
               </Group>
             );
           })}
@@ -635,9 +705,7 @@ function FlowTrackerPanel() {
       {/* Recent indents for quick selection */}
       <RecentIndentsList onSelect={setSelectedId} searchTerm={indentNumber} />
 
-      {selectedId && detailQuery.data && (
-        <IndentTimeline data={detailQuery.data} />
-      )}
+      {selectedId && detailQuery.data && <IndentTimeline data={detailQuery.data} />}
     </Stack>
   );
 }
@@ -660,7 +728,9 @@ function RecentIndentsList({
 
   if (!filtered.length) {
     return searchTerm.trim() ? (
-      <Text size="sm" c="dimmed">No indents match that number yet.</Text>
+      <Text size="sm" c="dimmed">
+        No indents match that number yet.
+      </Text>
     ) : null;
   }
 
@@ -678,12 +748,28 @@ function RecentIndentsList({
       <Table.Tbody>
         {filtered.map((req) => (
           <Table.Tr key={req.id} style={{ cursor: "pointer" }} onClick={() => onSelect(req.id)}>
-            <Table.Td><Text fw={600} size="sm">{req.indent_number}</Text></Table.Td>
-            <Table.Td><Badge variant="light" size="sm">{indentTypeLabels[req.indent_type]}</Badge></Table.Td>
-            <Table.Td><Badge color={statusColors[req.status]} variant="filled" size="sm">{req.status.replace(/_/g, " ")}</Badge></Table.Td>
-            <Table.Td><Text size="sm">{new Date(req.created_at).toLocaleDateString()}</Text></Table.Td>
             <Table.Td>
-              <ActionIcon variant="subtle" size="sm" aria-label="View details"><IconEye size={14} /></ActionIcon>
+              <Text fw={600} size="sm">
+                {req.indent_number}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              <Badge variant="light" size="sm">
+                {indentTypeLabels[req.indent_type]}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Badge color={statusColors[req.status]} variant="filled" size="sm">
+                {req.status.replace(/_/g, " ")}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{new Date(req.created_at).toLocaleDateString()}</Text>
+            </Table.Td>
+            <Table.Td>
+              <ActionIcon variant="subtle" size="sm" aria-label="View details">
+                <IconEye size={14} />
+              </ActionIcon>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -696,29 +782,61 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
   const { requisition, items } = data;
   const relatedPurchaseOrdersQuery = useQuery({
     queryKey: ["purchase-orders", "indent-link", requisition.id],
-    queryFn: () => api.listPurchaseOrders({ indent_requisition_id: requisition.id, page: "1", per_page: "10" }),
+    queryFn: () =>
+      api.listPurchaseOrders({ indent_requisition_id: requisition.id, page: "1", per_page: "10" }),
     staleTime: 30_000,
   });
   const sidecarsQuery = { data: [] as ResolvedSidecar[] };
 
   const timelineItems = [
-    { title: "Created", description: `Indent ${requisition.indent_number} created`, date: requisition.created_at, active: true },
+    {
+      title: "Created",
+      description: `Indent ${requisition.indent_number} created`,
+      date: requisition.created_at,
+      active: true,
+    },
     ...(requisition.status !== "draft"
-      ? [{ title: "Submitted", description: "Submitted for approval", date: requisition.updated_at, active: true }]
+      ? [
+          {
+            title: "Submitted",
+            description: "Submitted for approval",
+            date: requisition.updated_at,
+            active: true,
+          },
+        ]
       : []),
     ...(requisition.approved_at
-      ? [{
-          title: requisition.status === "rejected" ? "Rejected" : "Approved",
-          description: requisition.status === "rejected" ? "Requisition rejected" : `Approved${requisition.status === "partially_approved" ? " (partial)" : ""}`,
-          date: requisition.approved_at,
-          active: true,
-        }]
+      ? [
+          {
+            title: requisition.status === "rejected" ? "Rejected" : "Approved",
+            description:
+              requisition.status === "rejected"
+                ? "Requisition rejected"
+                : `Approved${requisition.status === "partially_approved" ? " (partial)" : ""}`,
+            date: requisition.approved_at,
+            active: true,
+          },
+        ]
       : []),
     ...(["issued", "partially_issued", "closed"].includes(requisition.status)
-      ? [{ title: "Issued", description: `Items ${requisition.status === "partially_issued" ? "partially " : ""}issued`, date: requisition.updated_at, active: true }]
+      ? [
+          {
+            title: "Issued",
+            description: `Items ${requisition.status === "partially_issued" ? "partially " : ""}issued`,
+            date: requisition.updated_at,
+            active: true,
+          },
+        ]
       : []),
     ...(requisition.status === "closed"
-      ? [{ title: "Closed", description: "Requisition closed", date: requisition.updated_at, active: true }]
+      ? [
+          {
+            title: "Closed",
+            description: "Requisition closed",
+            date: requisition.updated_at,
+            active: true,
+          },
+        ]
       : []),
   ];
 
@@ -735,8 +853,12 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
       <Timeline active={timelineItems.length - 1} bulletSize={24} lineWidth={2}>
         {timelineItems.map((item, idx) => (
           <Timeline.Item key={idx} title={item.title}>
-            <Text c="dimmed" size="sm">{item.description}</Text>
-            <Text size="xs" mt={4}>{new Date(item.date).toLocaleString()}</Text>
+            <Text c="dimmed" size="sm">
+              {item.description}
+            </Text>
+            <Text size="xs" mt={4}>
+              {new Date(item.date).toLocaleString()}
+            </Text>
           </Timeline.Item>
         ))}
       </Timeline>
@@ -788,7 +910,8 @@ function WorkflowSidecarPanel({ sidecars }: { sidecars: ResolvedSidecar[] }) {
 
       {relevantSidecars.length === 0 ? (
         <Text size="sm" c="dimmed">
-          No module sidecars are configured for indent events yet. Add a pipeline or inline action from the screen builder to automate this flow.
+          No module sidecars are configured for indent events yet. Add a pipeline or inline action
+          from the screen builder to automate this flow.
         </Text>
       ) : (
         <Table striped>
@@ -810,11 +933,17 @@ function WorkflowSidecarPanel({ sidecars }: { sidecars: ResolvedSidecar[] }) {
                 <Table.Td>{sidecar.name}</Table.Td>
                 <Table.Td>
                   {sidecar.pipeline_id ? (
-                    <Badge color="violet" variant="outline">Pipeline</Badge>
+                    <Badge color="violet" variant="outline">
+                      Pipeline
+                    </Badge>
                   ) : sidecar.inline_action ? (
-                    <Badge color="teal" variant="outline">Inline Action</Badge>
+                    <Badge color="teal" variant="outline">
+                      Inline Action
+                    </Badge>
                   ) : (
-                    <Badge color="slate" variant="outline">Passive</Badge>
+                    <Badge color="slate" variant="outline">
+                      Passive
+                    </Badge>
                   )}
                 </Table.Td>
               </Table.Tr>
@@ -844,7 +973,8 @@ function LinkedPurchaseOrdersPanel({
 
       {purchaseOrders.length === 0 ? (
         <Text size="sm" c="dimmed">
-          No purchase orders are linked to this indent yet. Create a PO from Procurement and select this indent to continue the chain.
+          No purchase orders are linked to this indent yet. Create a PO from Procurement and select
+          this indent to continue the chain.
         </Text>
       ) : (
         <Table striped highlightOnHover>
@@ -860,10 +990,16 @@ function LinkedPurchaseOrdersPanel({
             {purchaseOrders.map((po) => (
               <Table.Tr key={`${requisitionId}-${po.id}`}>
                 <Table.Td>
-                  <Text fw={600} size="sm">{po.po_number}</Text>
+                  <Text fw={600} size="sm">
+                    {po.po_number}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={linkedPoStatusColors[po.status] ?? "slate"} variant="light" size="sm">
+                  <Badge
+                    color={linkedPoStatusColors[po.status] ?? "slate"}
+                    variant="light"
+                    size="sm"
+                  >
                     {po.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
@@ -912,7 +1048,11 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
         items,
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Indent requisition created", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Indent requisition created",
+        color: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       onDone();
     },
@@ -940,7 +1080,9 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
 
   return (
     <Stack mt="md">
-      <Text fw={600} size="lg">Create New Indent</Text>
+      <Text fw={600} size="lg">
+        Create New Indent
+      </Text>
 
       <Group grow>
         <Select
@@ -999,7 +1141,10 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
                 <Select
                   size="xs"
                   placeholder="From catalog"
-                  data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                  data={(catalog ?? []).map((c) => ({
+                    value: c.id,
+                    label: `${c.code} - ${c.name}`,
+                  }))}
                   value={item.catalog_item_id ?? null}
                   onChange={(v) => {
                     const cat = catalog?.find((c) => c.id === v);
@@ -1033,7 +1178,12 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
                 />
               </Table.Td>
               <Table.Td>
-                <ActionIcon variant="subtle" color="danger" onClick={() => removeItem(idx)} aria-label="Close">
+                <ActionIcon
+                  variant="subtle"
+                  color="danger"
+                  onClick={() => removeItem(idx)}
+                  aria-label="Close"
+                >
                   <IconX size={14} />
                 </ActionIcon>
               </Table.Td>
@@ -1042,7 +1192,13 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
         </Table.Tbody>
       </Table>
 
-      <Button variant="outline" size="xs" leftSection={<IconPlus size={14} />} onClick={addItem} w="fit-content">
+      <Button
+        variant="outline"
+        size="xs"
+        leftSection={<IconPlus size={14} />}
+        onClick={addItem}
+        w="fit-content"
+      >
         Add Item
       </Button>
 
@@ -1054,7 +1210,9 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
         >
           Create Indent
         </Button>
-        <Button variant="outline" onClick={onDone}>Cancel</Button>
+        <Button variant="outline" onClick={onDone}>
+          Cancel
+        </Button>
       </Group>
     </Stack>
   );
@@ -1085,17 +1243,31 @@ function CatalogPanel() {
       key: "current_stock",
       label: "Stock",
       render: (row: StoreCatalog) => (
-        <Badge color={row.current_stock <= row.reorder_level ? "danger" : "success"} variant="light">
+        <Badge
+          color={row.current_stock <= row.reorder_level ? "danger" : "success"}
+          variant="light"
+        >
           {row.current_stock}
         </Badge>
       ),
     },
-    { key: "reorder_level", label: "Reorder Level", render: (row: StoreCatalog) => row.reorder_level },
+    {
+      key: "reorder_level",
+      label: "Reorder Level",
+      render: (row: StoreCatalog) => row.reorder_level,
+    },
     {
       key: "actions",
       label: "",
       render: (row: StoreCatalog) => (
-        <ActionIcon variant="subtle" onClick={() => { setEditItem(row); openEdit(); }} aria-label="View details">
+        <ActionIcon
+          variant="subtle"
+          onClick={() => {
+            setEditItem(row);
+            openEdit();
+          }}
+          aria-label="View details"
+        >
           <IconEye size={16} />
         </ActionIcon>
       ),
@@ -1105,7 +1277,9 @@ function CatalogPanel() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Add Item</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          Add Item
+        </Button>
       </Group>
 
       <DataTable
@@ -1116,7 +1290,13 @@ function CatalogPanel() {
         emptyTitle="No catalog items"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Add Catalog Item" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Add Catalog Item"
+        position="right"
+        size="xl"
+      >
         <CatalogForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
@@ -1125,7 +1305,13 @@ function CatalogPanel() {
         />
       </Drawer>
 
-      <Drawer opened={editOpened} onClose={closeEdit} title="Edit Catalog Item" position="right" size="xl">
+      <Drawer
+        opened={editOpened}
+        onClose={closeEdit}
+        title="Edit Catalog Item"
+        position="right"
+        size="xl"
+      >
         {editItem && (
           <CatalogForm
             initial={editItem}
@@ -1169,7 +1355,7 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      api.updateStoreCatalogItem(initial!.id, {
+      api.updateStoreCatalogItem(initial?.id, {
         name,
         category: category || undefined,
         unit: unit || undefined,
@@ -1187,12 +1373,38 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
 
   return (
     <Stack>
-      <TextInput label="Code" value={code} onChange={(e) => setCode(e.currentTarget.value)} required disabled={!!initial} />
-      <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-      <TextInput label="Category" value={category} onChange={(e) => setCategory(e.currentTarget.value)} />
+      <TextInput
+        label="Code"
+        value={code}
+        onChange={(e) => setCode(e.currentTarget.value)}
+        required
+        disabled={!!initial}
+      />
+      <TextInput
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.currentTarget.value)}
+        required
+      />
+      <TextInput
+        label="Category"
+        value={category}
+        onChange={(e) => setCategory(e.currentTarget.value)}
+      />
       <TextInput label="Unit" value={unit} onChange={(e) => setUnit(e.currentTarget.value)} />
-      <NumberInput label="Base Price" value={basePrice} onChange={(v) => setBasePrice(Number(v))} decimalScale={2} min={0} />
-      <NumberInput label="Reorder Level" value={reorderLevel} onChange={(v) => setReorderLevel(Number(v))} min={0} />
+      <NumberInput
+        label="Base Price"
+        value={basePrice}
+        onChange={(v) => setBasePrice(Number(v))}
+        decimalScale={2}
+        min={0}
+      />
+      <NumberInput
+        label="Reorder Level"
+        value={reorderLevel}
+        onChange={(v) => setReorderLevel(Number(v))}
+        min={0}
+      />
       <Button
         loading={initial ? updateMutation.isPending : createMutation.isPending}
         onClick={() => (initial ? updateMutation.mutate() : createMutation.mutate())}
@@ -1223,7 +1435,9 @@ function StockPanel() {
       label: "Type",
       render: (row: StoreStockMovement) => (
         <Badge
-          color={row.movement_type === "receipt" || row.movement_type === "return" ? "success" : "danger"}
+          color={
+            row.movement_type === "receipt" || row.movement_type === "return" ? "success" : "danger"
+          }
           variant="light"
           size="sm"
         >
@@ -1232,15 +1446,25 @@ function StockPanel() {
       ),
     },
     { key: "quantity", label: "Qty", render: (row: StoreStockMovement) => row.quantity },
-    { key: "reference_type", label: "Reference", render: (row: StoreStockMovement) => row.reference_type ?? "-" },
+    {
+      key: "reference_type",
+      label: "Reference",
+      render: (row: StoreStockMovement) => row.reference_type ?? "-",
+    },
     { key: "notes", label: "Notes", render: (row: StoreStockMovement) => row.notes ?? "-" },
-    { key: "created_at", label: "Date", render: (row: StoreStockMovement) => new Date(row.created_at).toLocaleString() },
+    {
+      key: "created_at",
+      label: "Date",
+      render: (row: StoreStockMovement) => new Date(row.created_at).toLocaleString(),
+    },
   ];
 
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>Record Movement</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          Record Movement
+        </Button>
       </Group>
 
       <DataTable
@@ -1254,7 +1478,13 @@ function StockPanel() {
         emptyTitle="No stock movements"
       />
 
-      <Drawer opened={createOpened} onClose={closeCreate} title="Record Stock Movement" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Record Stock Movement"
+        position="right"
+        size="xl"
+      >
         <StockMovementForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
@@ -1287,7 +1517,11 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      notifications.show({ title: "Recorded", message: "Stock movement recorded", color: "success" });
+      notifications.show({
+        title: "Recorded",
+        message: "Stock movement recorded",
+        color: "success",
+      });
       onSuccess();
     },
     onError: (err: Error) => {
@@ -1300,7 +1534,10 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
       <Select
         label="Catalog Item"
         placeholder="Select item"
-        data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name} (Stock: ${c.current_stock})` }))}
+        data={(catalog ?? []).map((c) => ({
+          value: c.id,
+          label: `${c.code} - ${c.name} (Stock: ${c.current_stock})`,
+        }))}
         value={catalogItemId}
         onChange={(v) => setCatalogItemId(v ?? "")}
         searchable
@@ -1318,9 +1555,19 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
         value={movementType}
         onChange={(v) => setMovementType(v ?? "receipt")}
       />
-      <NumberInput label="Quantity" value={quantity} onChange={(v) => setQuantity(Number(v))} min={1} required />
+      <NumberInput
+        label="Quantity"
+        value={quantity}
+        onChange={(v) => setQuantity(Number(v))}
+        min={1}
+        required
+      />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!catalogItemId}>
+      <Button
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!catalogItemId}
+      >
         Record Movement
       </Button>
     </Stack>
@@ -1386,9 +1633,21 @@ function ConsumptionView() {
 
   const columns = [
     { key: "item_name", label: "Item", render: (row: ConsumptionAnalysisRow) => row.item_name },
-    { key: "department_name", label: "Department", render: (row: ConsumptionAnalysisRow) => row.department_name ?? "-" },
-    { key: "total_issued", label: "Total Issued", render: (row: ConsumptionAnalysisRow) => row.total_issued },
-    { key: "total_value", label: "Total Value", render: (row: ConsumptionAnalysisRow) => `\u20B9${row.total_value}` },
+    {
+      key: "department_name",
+      label: "Department",
+      render: (row: ConsumptionAnalysisRow) => row.department_name ?? "-",
+    },
+    {
+      key: "total_issued",
+      label: "Total Issued",
+      render: (row: ConsumptionAnalysisRow) => row.total_issued,
+    },
+    {
+      key: "total_value",
+      label: "Total Value",
+      render: (row: ConsumptionAnalysisRow) => `\u20B9${row.total_value}`,
+    },
   ];
 
   const departmentOptions = (departments ?? []).map((d) => ({ value: d.id, label: d.name }));
@@ -1444,8 +1703,16 @@ function AbcView() {
 
   const columns = [
     { key: "item_name", label: "Item", render: (row: AbcAnalysisRow) => row.item_name },
-    { key: "annual_value", label: "Annual Value", render: (row: AbcAnalysisRow) => `\u20B9${row.annual_value}` },
-    { key: "cumulative_pct", label: "Cumulative %", render: (row: AbcAnalysisRow) => `${row.cumulative_pct.toFixed(1)}%` },
+    {
+      key: "annual_value",
+      label: "Annual Value",
+      render: (row: AbcAnalysisRow) => `\u20B9${row.annual_value}`,
+    },
+    {
+      key: "cumulative_pct",
+      label: "Cumulative %",
+      render: (row: AbcAnalysisRow) => `${row.cumulative_pct.toFixed(1)}%`,
+    },
     {
       key: "abc_class",
       label: "Class",
@@ -1476,7 +1743,11 @@ function VedView() {
     queryFn: () => api.getVedAnalysis(),
   });
 
-  const vedColors: Record<string, string> = { vital: "danger", essential: "orange", desirable: "success" };
+  const vedColors: Record<string, string> = {
+    vital: "danger",
+    essential: "orange",
+    desirable: "success",
+  };
 
   const classified = (data ?? []).filter((r) => r.ved_class);
   const unclassified = (data ?? []).filter((r) => !r.ved_class);
@@ -1492,11 +1763,21 @@ function VedView() {
             {row.ved_class}
           </Badge>
         ) : (
-          <Text size="sm" c="dimmed">Unclassified</Text>
+          <Text size="sm" c="dimmed">
+            Unclassified
+          </Text>
         ),
     },
-    { key: "current_stock", label: "Current Stock", render: (row: VedAnalysisRow) => row.current_stock },
-    { key: "reorder_level", label: "Reorder Level", render: (row: VedAnalysisRow) => row.reorder_level },
+    {
+      key: "current_stock",
+      label: "Current Stock",
+      render: (row: VedAnalysisRow) => row.current_stock,
+    },
+    {
+      key: "reorder_level",
+      label: "Reorder Level",
+      render: (row: VedAnalysisRow) => row.reorder_level,
+    },
   ];
 
   return (
@@ -1539,14 +1820,19 @@ function FsnView() {
     queryFn: () => api.getFsnAnalysis(params),
   });
 
-  const fsnColors: Record<string, string> = { fast: "success", slow: "warning", non_moving: "danger" };
+  const fsnColors: Record<string, string> = {
+    fast: "success",
+    slow: "warning",
+    non_moving: "danger",
+  };
 
   const columns = [
     { key: "item_name", label: "Item", render: (row: FsnAnalysisRow) => row.item_name },
     {
       key: "last_issue_date",
       label: "Last Issue",
-      render: (row: FsnAnalysisRow) => row.last_issue_date ? new Date(row.last_issue_date).toLocaleDateString() : "Never",
+      render: (row: FsnAnalysisRow) =>
+        row.last_issue_date ? new Date(row.last_issue_date).toLocaleDateString() : "Never",
     },
     {
       key: "days_since_last_issue",
@@ -1607,11 +1893,16 @@ function DeadStockView() {
   const columns = [
     { key: "item_name", label: "Item", render: (row: DeadStockRow) => row.item_name },
     { key: "current_stock", label: "Stock", render: (row: DeadStockRow) => row.current_stock },
-    { key: "stock_value", label: "Value", render: (row: DeadStockRow) => `\u20B9${row.stock_value}` },
+    {
+      key: "stock_value",
+      label: "Value",
+      render: (row: DeadStockRow) => `\u20B9${row.stock_value}`,
+    },
     {
       key: "last_movement_date",
       label: "Last Movement",
-      render: (row: DeadStockRow) => row.last_movement_date ? new Date(row.last_movement_date).toLocaleDateString() : "Never",
+      render: (row: DeadStockRow) =>
+        row.last_movement_date ? new Date(row.last_movement_date).toLocaleDateString() : "Never",
     },
     { key: "days_idle", label: "Days Idle", render: (row: DeadStockRow) => row.days_idle ?? "-" },
   ];
@@ -1652,14 +1943,23 @@ function PurchaseConsumptionView() {
 
   const columns = [
     { key: "period", label: "Period", render: (row: PurchaseConsumptionTrendRow) => row.period },
-    { key: "total_purchased", label: "Purchased", render: (row: PurchaseConsumptionTrendRow) => row.total_purchased },
-    { key: "total_consumed", label: "Consumed", render: (row: PurchaseConsumptionTrendRow) => row.total_consumed },
+    {
+      key: "total_purchased",
+      label: "Purchased",
+      render: (row: PurchaseConsumptionTrendRow) => row.total_purchased,
+    },
+    {
+      key: "total_consumed",
+      label: "Consumed",
+      render: (row: PurchaseConsumptionTrendRow) => row.total_consumed,
+    },
     {
       key: "net_change",
       label: "Net Change",
       render: (row: PurchaseConsumptionTrendRow) => (
         <Text size="sm" c={row.net_change >= 0 ? "success" : "danger"} fw={600}>
-          {row.net_change >= 0 ? "+" : ""}{row.net_change}
+          {row.net_change >= 0 ? "+" : ""}
+          {row.net_change}
         </Text>
       ),
     },
@@ -1688,10 +1988,26 @@ function ValuationView() {
 
   const columns = [
     { key: "item_name", label: "Item", render: (row: InventoryValuationRow) => row.item_name },
-    { key: "category", label: "Category", render: (row: InventoryValuationRow) => row.category ?? "-" },
-    { key: "current_stock", label: "Stock", render: (row: InventoryValuationRow) => row.current_stock },
-    { key: "avg_unit_cost", label: "Avg Unit Cost", render: (row: InventoryValuationRow) => `\u20B9${row.avg_unit_cost}` },
-    { key: "total_value", label: "Total Value", render: (row: InventoryValuationRow) => `\u20B9${row.total_value}` },
+    {
+      key: "category",
+      label: "Category",
+      render: (row: InventoryValuationRow) => row.category ?? "-",
+    },
+    {
+      key: "current_stock",
+      label: "Stock",
+      render: (row: InventoryValuationRow) => row.current_stock,
+    },
+    {
+      key: "avg_unit_cost",
+      label: "Avg Unit Cost",
+      render: (row: InventoryValuationRow) => `\u20B9${row.avg_unit_cost}`,
+    },
+    {
+      key: "total_value",
+      label: "Total Value",
+      render: (row: InventoryValuationRow) => `\u20B9${row.total_value}`,
+    },
   ];
 
   return (
@@ -1706,7 +2022,8 @@ function ValuationView() {
       {(data ?? []).length > 0 && (
         <Group justify="flex-end">
           <Text fw={700} size="lg">
-            Grand Total: {"\u20B9"}{grandTotal.toFixed(2)}
+            Grand Total: {"\u20B9"}
+            {grandTotal.toFixed(2)}
           </Text>
         </Group>
       )}
@@ -1762,17 +2079,41 @@ function PatientConsumablesPanel() {
   });
 
   const columns = [
-    { key: "catalog_item_id", label: "Catalog Item", render: (row: PatientConsumableIssue) => <Text size="sm" truncate>{row.catalog_item_id}</Text> },
-    { key: "patient_id", label: "Patient", render: (row: PatientConsumableIssue) => <Text size="sm" truncate>{row.patient_id}</Text> },
+    {
+      key: "catalog_item_id",
+      label: "Catalog Item",
+      render: (row: PatientConsumableIssue) => (
+        <Text size="sm" truncate>
+          {row.catalog_item_id}
+        </Text>
+      ),
+    },
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (row: PatientConsumableIssue) => (
+        <PatientNameCell patientId={row.patient_id} showUhid={false} />
+      ),
+    },
     { key: "quantity", label: "Qty", render: (row: PatientConsumableIssue) => row.quantity },
-    { key: "returned_qty", label: "Returned", render: (row: PatientConsumableIssue) => row.returned_qty },
-    { key: "unit_price", label: "Unit Price", render: (row: PatientConsumableIssue) => `\u20B9${row.unit_price}` },
+    {
+      key: "returned_qty",
+      label: "Returned",
+      render: (row: PatientConsumableIssue) => row.returned_qty,
+    },
+    {
+      key: "unit_price",
+      label: "Unit Price",
+      render: (row: PatientConsumableIssue) => `\u20B9${row.unit_price}`,
+    },
     {
       key: "status",
       label: "Status",
       render: (row: PatientConsumableIssue) => (
         <Badge
-          color={row.status === "issued" ? "primary" : row.status === "returned" ? "orange" : "success"}
+          color={
+            row.status === "issued" ? "primary" : row.status === "returned" ? "orange" : "success"
+          }
           variant="light"
           size="sm"
         >
@@ -1785,9 +2126,13 @@ function PatientConsumablesPanel() {
       label: "Chargeable",
       render: (row: PatientConsumableIssue) =>
         row.is_chargeable ? (
-          <Badge color="violet" size="sm">Yes</Badge>
+          <Badge color="violet" size="sm">
+            Yes
+          </Badge>
         ) : (
-          <Text size="sm" c="dimmed">No</Text>
+          <Text size="sm" c="dimmed">
+            No
+          </Text>
         ),
     },
     {
@@ -1813,7 +2158,13 @@ function PatientConsumablesPanel() {
         rowKey={(row) => row.id}
         emptyTitle="No patient consumable issues"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Issue to Patient" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Issue to Patient"
+        position="right"
+        size="xl"
+      >
         <IssueToPatientForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["patient-consumables"] });
@@ -1849,7 +2200,11 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
       return api.issueToPatient(payload);
     },
     onSuccess: () => {
-      notifications.show({ title: "Issued", message: "Consumable issued to patient", color: "success" });
+      notifications.show({
+        title: "Issued",
+        message: "Consumable issued to patient",
+        color: "success",
+      });
       onSuccess();
     },
     onError: (err: Error) => {
@@ -1863,7 +2218,10 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
       <Select
         label="Catalog Item"
         placeholder="Select item"
-        data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name} (Stock: ${c.current_stock})` }))}
+        data={(catalog ?? []).map((c) => ({
+          value: c.id,
+          label: `${c.code} - ${c.name} (Stock: ${c.current_stock})`,
+        }))}
         value={catalogItemId}
         onChange={(v) => setCatalogItemId(v ?? "")}
         searchable
@@ -1881,11 +2239,7 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
         checked={isChargeable}
         onChange={(e) => setIsChargeable(e.currentTarget.checked)}
       />
-      <Textarea
-        label="Notes"
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
+      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
@@ -1933,21 +2287,52 @@ function ImplantRegistryView() {
   });
 
   const columns = [
-    { key: "catalog_item_id", label: "Catalog Item", render: (row: ImplantRegistryEntry) => <Text size="sm" truncate>{row.catalog_item_id}</Text> },
-    { key: "patient_id", label: "Patient", render: (row: ImplantRegistryEntry) => <Text size="sm" truncate>{row.patient_id}</Text> },
-    { key: "serial_number", label: "Serial #", render: (row: ImplantRegistryEntry) => row.serial_number ?? "-" },
+    {
+      key: "catalog_item_id",
+      label: "Catalog Item",
+      render: (row: ImplantRegistryEntry) => (
+        <Text size="sm" truncate>
+          {row.catalog_item_id}
+        </Text>
+      ),
+    },
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (row: ImplantRegistryEntry) => (
+        <PatientNameCell patientId={row.patient_id} showUhid={false} />
+      ),
+    },
+    {
+      key: "serial_number",
+      label: "Serial #",
+      render: (row: ImplantRegistryEntry) => row.serial_number ?? "-",
+    },
     {
       key: "implant_date",
       label: "Implant Date",
       render: (row: ImplantRegistryEntry) => new Date(row.implant_date).toLocaleDateString(),
     },
-    { key: "implant_site", label: "Site", render: (row: ImplantRegistryEntry) => row.implant_site ?? "-" },
-    { key: "manufacturer", label: "Manufacturer", render: (row: ImplantRegistryEntry) => row.manufacturer ?? "-" },
-    { key: "model_number", label: "Model", render: (row: ImplantRegistryEntry) => row.model_number ?? "-" },
+    {
+      key: "implant_site",
+      label: "Site",
+      render: (row: ImplantRegistryEntry) => row.implant_site ?? "-",
+    },
+    {
+      key: "manufacturer",
+      label: "Manufacturer",
+      render: (row: ImplantRegistryEntry) => row.manufacturer ?? "-",
+    },
+    {
+      key: "model_number",
+      label: "Model",
+      render: (row: ImplantRegistryEntry) => row.model_number ?? "-",
+    },
     {
       key: "warranty_expiry",
       label: "Warranty Expiry",
-      render: (row: ImplantRegistryEntry) => row.warranty_expiry ? new Date(row.warranty_expiry).toLocaleDateString() : "-",
+      render: (row: ImplantRegistryEntry) =>
+        row.warranty_expiry ? new Date(row.warranty_expiry).toLocaleDateString() : "-",
     },
   ];
 
@@ -1967,7 +2352,13 @@ function ImplantRegistryView() {
         rowKey={(row) => row.id}
         emptyTitle="No implant registry entries"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Register Implant" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Register Implant"
+        position="right"
+        size="xl"
+      >
         <CreateImplantForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["implant-registry"] });
@@ -2013,7 +2404,11 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
       return api.createImplantEntry(payload);
     },
     onSuccess: () => {
-      notifications.show({ title: "Registered", message: "Implant registered successfully", color: "success" });
+      notifications.show({
+        title: "Registered",
+        message: "Implant registered successfully",
+        color: "success",
+      });
       onSuccess();
     },
     onError: (err: Error) => {
@@ -2072,11 +2467,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
         value={warrantyExpiry}
         onChange={(e) => setWarrantyExpiry(e.currentTarget.value)}
       />
-      <Textarea
-        label="Notes"
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
+      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
@@ -2111,8 +2502,24 @@ function CondemnationsView() {
   };
 
   const columns = [
-    { key: "condemnation_number", label: "Number", render: (row: EquipmentCondemnation) => <Text fw={600} size="sm">{row.condemnation_number}</Text> },
-    { key: "catalog_item_id", label: "Catalog Item", render: (row: EquipmentCondemnation) => <Text size="sm" truncate>{row.catalog_item_id}</Text> },
+    {
+      key: "condemnation_number",
+      label: "Number",
+      render: (row: EquipmentCondemnation) => (
+        <Text fw={600} size="sm">
+          {row.condemnation_number}
+        </Text>
+      ),
+    },
+    {
+      key: "catalog_item_id",
+      label: "Catalog Item",
+      render: (row: EquipmentCondemnation) => (
+        <Text size="sm" truncate>
+          {row.catalog_item_id}
+        </Text>
+      ),
+    },
     {
       key: "status",
       label: "Status",
@@ -2122,9 +2529,25 @@ function CondemnationsView() {
         </Badge>
       ),
     },
-    { key: "reason", label: "Reason", render: (row: EquipmentCondemnation) => <Text size="sm" lineClamp={2}>{row.reason}</Text> },
-    { key: "current_value", label: "Current Value", render: (row: EquipmentCondemnation) => `\u20B9${row.current_value}` },
-    { key: "purchase_value", label: "Purchase Value", render: (row: EquipmentCondemnation) => `\u20B9${row.purchase_value}` },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: EquipmentCondemnation) => (
+        <Text size="sm" lineClamp={2}>
+          {row.reason}
+        </Text>
+      ),
+    },
+    {
+      key: "current_value",
+      label: "Current Value",
+      render: (row: EquipmentCondemnation) => `\u20B9${row.current_value}`,
+    },
+    {
+      key: "purchase_value",
+      label: "Purchase Value",
+      render: (row: EquipmentCondemnation) => `\u20B9${row.purchase_value}`,
+    },
     {
       key: "created_at",
       label: "Date",
@@ -2165,7 +2588,13 @@ function CondemnationsView() {
         rowKey={(row) => row.id}
         emptyTitle="No condemnation records"
       />
-      <Drawer opened={createOpened} onClose={closeCreate} title="Initiate Condemnation" position="right" size="xl">
+      <Drawer
+        opened={createOpened}
+        onClose={closeCreate}
+        title="Initiate Condemnation"
+        position="right"
+        size="xl"
+      >
         <CreateCondemnationForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["condemnations"] });
@@ -2173,7 +2602,13 @@ function CondemnationsView() {
           }}
         />
       </Drawer>
-      <Drawer opened={statusOpened} onClose={closeStatus} title="Update Condemnation Status" position="right" size="xl">
+      <Drawer
+        opened={statusOpened}
+        onClose={closeStatus}
+        title="Update Condemnation Status"
+        position="right"
+        size="xl"
+      >
         {statusItem && (
           <UpdateCondemnationStatusForm
             item={statusItem}
@@ -2254,11 +2689,7 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
         min={0}
         prefix={"\u20B9"}
       />
-      <Textarea
-        label="Notes"
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
+      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
@@ -2298,7 +2729,11 @@ function UpdateCondemnationStatusForm({
       return api.updateCondemnationStatus(item.id, payload);
     },
     onSuccess: () => {
-      notifications.show({ title: "Updated", message: "Condemnation status updated", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "Condemnation status updated",
+        color: "success",
+      });
       onSuccess();
     },
     onError: (err: Error) => {
@@ -2309,7 +2744,10 @@ function UpdateCondemnationStatusForm({
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Current status: <Badge color="primary" size="sm">{item.status.replace(/_/g, " ")}</Badge>
+        Current status:{" "}
+        <Badge color="primary" size="sm">
+          {item.status.replace(/_/g, " ")}
+        </Badge>
       </Text>
       <Text size="sm">Condemnation #{item.condemnation_number}</Text>
       <Text size="sm">Reason: {item.reason}</Text>
@@ -2340,11 +2778,7 @@ function UpdateCondemnationStatusForm({
           onChange={(v) => setDisposalMethod(v ?? "")}
         />
       )}
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!newStatus}
-      >
+      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!newStatus}>
         Update Status
       </Button>
     </Stack>

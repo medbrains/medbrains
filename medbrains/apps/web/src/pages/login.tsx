@@ -10,10 +10,10 @@ import {
 } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
+import { IconLock, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
-import { IconLock, IconUser } from "@tabler/icons-react";
 import classes from "./login.module.scss";
 
 export function LoginPage() {
@@ -44,7 +44,13 @@ export function LoginPage() {
       {/* Left — dark forest manifesto panel */}
       <div className={classes.manifesto}>
         <div className={classes.manifestoLogo}>
-          <img src="/logo/medbrains-mark.svg" alt="" width={36} height={36} style={{ borderRadius: 8 }} />
+          <img
+            src="/logo/medbrains-mark.svg"
+            alt=""
+            width={36}
+            height={36}
+            style={{ borderRadius: 8 }}
+          />
           <span className={classes.manifestoLogoText}>MedBrains</span>
         </div>
 
@@ -53,8 +59,8 @@ export function LoginPage() {
         </h1>
 
         <p className={classes.manifestoBody}>
-          From OPD to ICU, pharmacy to billing — one platform that runs
-          the entire hospital. Open source, multi-tenant, compliance-ready.
+          From OPD to ICU, pharmacy to billing — one platform that runs the entire hospital. Open
+          source, multi-tenant, compliance-ready.
         </p>
 
         <div className={classes.manifestoStats}>
@@ -73,7 +79,12 @@ export function LoginPage() {
         </div>
 
         {/* Subtle ECG line */}
-        <svg className={classes.manifestoEcg} viewBox="0 0 600 40" fill="none" preserveAspectRatio="none">
+        <svg
+          className={classes.manifestoEcg}
+          viewBox="0 0 600 40"
+          fill="none"
+          preserveAspectRatio="none"
+        >
           <polyline
             stroke="#ffffff"
             strokeWidth="2"
@@ -148,12 +159,7 @@ export function LoginPage() {
                 </Alert>
               )}
 
-              <Button
-                type="submit"
-                fullWidth
-                loading={loginMutation.isPending}
-                size="md"
-              >
+              <Button type="submit" fullWidth loading={loginMutation.isPending} size="md">
                 Sign In
               </Button>
             </Stack>
@@ -161,8 +167,7 @@ export function LoginPage() {
 
           <div className={classes.footer}>
             <div className={classes.onboardingLink}>
-              New installation?{" "}
-              <Link to="/onboarding">Set up now &rarr;</Link>
+              New installation? <Link to="/onboarding">Set up now &rarr;</Link>
             </div>
 
             <div className={classes.devHelper}>

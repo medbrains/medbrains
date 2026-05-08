@@ -400,6 +400,9 @@ pub async fn create_gas_reading(
     .fetch_one(&mut *tx)
     .await?;
 
+    crate::routes::nabh_evidence::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
+        .await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -755,6 +758,9 @@ pub async fn create_fire_drill(
     .bind(&body.notes)
     .fetch_one(&mut *tx)
     .await?;
+
+    crate::routes::nabh_evidence::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))

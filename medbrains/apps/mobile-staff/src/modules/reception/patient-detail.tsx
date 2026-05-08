@@ -4,10 +4,10 @@
  * in a future iteration.
  */
 
+import { Card, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Text } from "react-native-paper";
-import { Card, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { PatientRow } from "../../api/patients.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 
@@ -19,11 +19,7 @@ export function PatientDetailScreen({ patient }: PatientDetailScreenProps): Reac
   const fullName = `${patient.prefix ? `${patient.prefix} ` : ""}${patient.first_name} ${patient.last_name}`;
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
-      <ScreenHeader
-        eyebrow="PATIENT"
-        title={fullName}
-        description={`UHID ${patient.uhid}`}
-      />
+      <ScreenHeader eyebrow="PATIENT" title={fullName} description={`UHID ${patient.uhid}`} />
       <View style={{ padding: SPACING.md }}>
         <Card eyebrow="DEMOGRAPHICS" title="Profile">
           <Field label="UHID" value={patient.uhid} mono />

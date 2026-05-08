@@ -1,6 +1,6 @@
 import { Box, Card, Group, Text, ThemeIcon } from "@mantine/core";
 import { IconCircleFilled, IconTransform } from "@tabler/icons-react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, type NodeProps, Position } from "@xyflow/react";
 
 interface TransformNodeData {
   label?: string;
@@ -37,7 +37,9 @@ export function TransformNode({ data, selected }: NodeProps) {
         radius="md"
         withBorder
         style={{
-          borderColor: selected ? `var(--mantine-color-${color}-5)` : `var(--mantine-color-${color}-2)`,
+          borderColor: selected
+            ? `var(--mantine-color-${color}-5)`
+            : `var(--mantine-color-${color}-2)`,
           borderWidth: selected ? 2 : 1,
           minWidth: 200,
         }}

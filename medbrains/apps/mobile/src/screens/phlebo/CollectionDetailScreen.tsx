@@ -1,7 +1,6 @@
 import { api } from "@medbrains/api";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -97,14 +96,19 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
 
   const isPending = collection.status === "scheduled" || collection.status === "assigned";
   const statusColor = getStatusColor(collection.status);
-  const addressParts = [collection.address_line, collection.city, collection.pincode].filter(Boolean);
+  const addressParts = [collection.address_line, collection.city, collection.pincode].filter(
+    Boolean,
+  );
   const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Status Banner */}
-        <Surface style={[styles.statusBanner, { backgroundColor: `${statusColor}20` }]} elevation={0}>
+        <Surface
+          style={[styles.statusBanner, { backgroundColor: `${statusColor}20` }]}
+          elevation={0}
+        >
           <Avatar.Icon
             size={48}
             icon={collection.status === "collected" ? "check-circle" : "clock"}
@@ -131,7 +135,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             <View style={styles.infoRow}>
               <Avatar.Icon size={40} icon="identifier" style={styles.infoIcon} />
               <View style={styles.infoContent}>
-                <Text variant="labelSmall" style={styles.infoLabel}>Collection ID</Text>
+                <Text variant="labelSmall" style={styles.infoLabel}>
+                  Collection ID
+                </Text>
                 <Text variant="bodyMedium">{collection.id.slice(0, 8)}</Text>
               </View>
             </View>
@@ -139,7 +145,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             <View style={styles.infoRow}>
               <Avatar.Icon size={40} icon="calendar" style={styles.infoIcon} />
               <View style={styles.infoContent}>
-                <Text variant="labelSmall" style={styles.infoLabel}>Date</Text>
+                <Text variant="labelSmall" style={styles.infoLabel}>
+                  Date
+                </Text>
                 <Text variant="bodyMedium">{collection.scheduled_date}</Text>
               </View>
             </View>
@@ -147,7 +155,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             <View style={styles.infoRow}>
               <Avatar.Icon size={40} icon="clock" style={styles.infoIcon} />
               <View style={styles.infoContent}>
-                <Text variant="labelSmall" style={styles.infoLabel}>Time Slot</Text>
+                <Text variant="labelSmall" style={styles.infoLabel}>
+                  Time Slot
+                </Text>
                 <Text variant="bodyMedium">{collection.scheduled_time_slot || "Flexible"}</Text>
               </View>
             </View>
@@ -235,9 +245,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             <Avatar.Icon size={32} icon="check-circle" style={styles.collectedIcon} />
             <View style={styles.collectedInfo}>
               <Text variant="labelMedium">Collected At</Text>
-              <Text variant="bodyMedium">
-                {new Date(collection.collected_at).toLocaleString()}
-              </Text>
+              <Text variant="bodyMedium">{new Date(collection.collected_at).toLocaleString()}</Text>
             </View>
           </Surface>
         )}

@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO invoice_items\n           (tenant_id, invoice_id, charge_code, description, source, source_id,\n            quantity, unit_price, tax_percent, total_price, gst_rate, gst_type,\n            cgst_amount, sgst_amount, igst_amount, hsn_sac_code, ordering_doctor_id,\n            department_id, pharmacy_order_id, pharmacy_batch_id, batch_number, expiry_date,\n            source_module, reversal_of_id, is_reversal, reversed_at, reversed_by,\n            reversal_reason, reversal_source_module, reversal_source_id)\n           VALUES ($1, $2, $3, $4, $5::text::charge_source, $6,\n                   $7, $8, $9, $10, $11, $12::text::gst_type,\n                   $13, $14, $15, $16, $17,\n                   $18, $19, $20, $21, $22,\n                   COALESCE($23, 'manual'), $24, true, now(), $25,\n                   $26, $27, $28)\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Int4",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Text",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "146be3af4c5ae645342c809863a1bce587bd52c3d1ba07cc34e068de2bbca4fb"
+}

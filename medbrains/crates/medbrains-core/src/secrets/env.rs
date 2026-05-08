@@ -46,10 +46,7 @@ mod tests {
             EnvSecretResolver::env_key("medbrains/dev/global/razorpay-hmac"),
             "MEDBRAINS_DEV_GLOBAL_RAZORPAY_HMAC"
         );
-        assert_eq!(
-            EnvSecretResolver::env_key("foo.bar.baz"),
-            "FOO_BAR_BAZ"
-        );
+        assert_eq!(EnvSecretResolver::env_key("foo.bar.baz"), "FOO_BAR_BAZ");
     }
 
     #[tokio::test]

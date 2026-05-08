@@ -3,15 +3,15 @@
  * Compliance bodies: PESO (gas), AERB (water), local fire NOC.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
-import { ModuleHome } from "../components/module-home.js";
-import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import type { ReactNode } from "react";
+import { listWorkOrders } from "../api/facilities.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
-import { listWorkOrders } from "../api/facilities.js";
+import { ModuleHome } from "../components/module-home.js";
+import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   open: "warn",

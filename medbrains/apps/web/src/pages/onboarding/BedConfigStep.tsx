@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Button,
@@ -8,14 +9,13 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createBedTypeSchema } from "@medbrains/schemas";
 import type { CreateBedTypeInput } from "@medbrains/schemas";
+import { createBedTypeSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingBedType } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconBed, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconBed, IconPlus, IconTrash } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -85,16 +85,12 @@ export function BedConfigStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        Configure bed types and daily rates for your hospital. These are used in
-        IPD billing and bed management.
+        Configure bed types and daily rates for your hospital. These are used in IPD billing and bed
+        management.
       </Text>
 
       <Group>
-        <Button
-          variant="light"
-          leftSection={<IconPlus size={16} />}
-          onClick={openModal}
-        >
+        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Bed Type
         </Button>
         <Button variant="subtle" onClick={addFromTemplate}>
@@ -130,11 +126,7 @@ export function BedConfigStep({ onNext, onBack }: Props) {
         </div>
       ))}
 
-      <Modal
-        opened={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Bed Type"
-      >
+      <Modal opened={showModal} onClose={() => setShowModal(false)} title="Add Bed Type">
         <form onSubmit={handleAdd}>
           <Stack gap="sm">
             <TextInput

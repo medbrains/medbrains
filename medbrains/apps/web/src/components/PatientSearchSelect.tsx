@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
+import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import type { Patient } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
+import { IconSearch, IconUserPlus } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { MiniRegisterPatient } from "./Patient/MiniRegisterPatient";
+import { SearchOrCreate } from "./SearchOrCreate";
 
 interface PatientSearchSelectProps {
   value: string;
@@ -24,7 +27,8 @@ function formatAge(dob: string | null): string {
   const now = new Date();
   const years = now.getFullYear() - birth.getFullYear();
   if (years < 1) {
-    const months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
+    const months =
+      (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
     return `${months}mo`;
   }
   return `${years}y`;
@@ -44,11 +48,11 @@ export function PatientSearchSelect({
   required,
   size = "sm",
   error,
+  excludeIds = [],
 }: PatientSearchSelectProps) {
-  const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const [search, setSearch] = useState("");
-  const [displayValue, setDisplayValue] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
+  const canCreatePatient = useHasPermission(P.PATIENTS.CREATE);
 
   const { data } = useQuery({
     queryKey: ["patient-search", debounced],
@@ -57,81 +61,56 @@ export function PatientSearchSelect({
     staleTime: 30_000,
   });
 
-  const patients = data?.patients ?? [];
-
-  const handleSelect = (patientId: string) => {
-    const patient = patients.find((p: Patient) => p.id === patientId);
-    if (patient) {
-      onChange(patient.id);
-      const display = `${patient.first_name} ${patient.last_name} (${patient.uhid})`;
-      setDisplayValue(display);
-      setSearch(display);
-    }
-    combobox.closeDropdown();
-  };
+  const patients = (data?.patients ?? []).filter((patient) => !excludeIds.includes(patient.id));
 
   return (
-    <Combobox store={combobox} onOptionSubmit={handleSelect}>
-      <Combobox.Target>
-        <InputBase
-          label={label}
-          placeholder={placeholder}
-          required={required}
-          size={size}
-          error={error}
-          leftSection={<IconSearch size={14} />}
-          value={search || displayValue}
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            setSearch(v);
-            if (!v) {
-              onChange("");
-              setDisplayValue("");
-            }
-            combobox.openDropdown();
-            combobox.updateSelectedOptionIndex();
-          }}
-          onFocus={() => {
-            if (search.length >= 2) combobox.openDropdown();
-          }}
-          onBlur={() => {
-            combobox.closeDropdown();
-            if (!value) setSearch("");
-            else setSearch(displayValue);
-          }}
-          rightSectionPointerEvents="none"
-        />
-      </Combobox.Target>
-      <Combobox.Dropdown>
-        <Combobox.Options>
-          {patients.length > 0 ? (
-            patients.map((p: Patient) => (
-              <Combobox.Option key={p.id} value={p.id}>
-                <Group gap={8} wrap="nowrap">
-                  <div style={{ flex: 1 }}>
-                    <Text size="sm" fw={500}>
-                      {p.first_name} {p.last_name}
-                    </Text>
-                    <Group gap={6}>
-                      <Text size="xs" c="primary" fw={600}>{p.uhid}</Text>
-                      {p.date_of_birth && (
-                        <Text size="xs" c="dimmed">{formatAge(p.date_of_birth)} · {genderShort(p.gender)}</Text>
-                      )}
-                      {p.phone && (
-                        <Text size="xs" c="dimmed">{p.phone}</Text>
-                      )}
-                    </Group>
-                  </div>
-                </Group>
-              </Combobox.Option>
-            ))
-          ) : debounced.length >= 2 ? (
-            <Combobox.Empty>No patients found</Combobox.Empty>
-          ) : (
-            <Combobox.Empty>Type at least 2 characters...</Combobox.Empty>
-          )}
-        </Combobox.Options>
-      </Combobox.Dropdown>
-    </Combobox>
+    <SearchOrCreate
+      value={value}
+      label={label}
+      placeholder={placeholder}
+      required={required}
+      size={size}
+      error={error}
+      leftSection={<IconSearch size={14} />}
+      items={patients}
+      searchText={search}
+      onSearchChange={setSearch}
+      getItemValue={(patient) => patient.id}
+      getItemDisplay={(patient) => `${patient.first_name} ${patient.last_name} (${patient.uhid})`}
+      onSelect={(patient) => onChange(patient.id)}
+      onClear={() => onChange("")}
+      emptyLabel="No patients found"
+      canCreate={canCreatePatient}
+      createButtonLabel="Register new patient"
+      createButtonIcon={<IconUserPlus size={14} />}
+      createModalTitle="Register new patient"
+      renderItem={(p) => (
+        <Group gap={8} wrap="nowrap">
+          <div style={{ flex: 1 }}>
+            <Text size="sm" fw={500}>
+              {p.first_name} {p.last_name}
+            </Text>
+            <Group gap={6}>
+              <Text size="xs" c="primary" fw={600}>
+                {p.uhid}
+              </Text>
+              {p.date_of_birth && (
+                <Text size="xs" c="dimmed">
+                  {formatAge(p.date_of_birth)} - {genderShort(p.gender)}
+                </Text>
+              )}
+              {p.phone && (
+                <Text size="xs" c="dimmed">
+                  {p.phone}
+                </Text>
+              )}
+            </Group>
+          </div>
+        </Group>
+      )}
+      renderCreateForm={({ searchText, close, selectItem }) => (
+        <MiniRegisterPatient searchText={searchText} onCancel={close} onCreated={selectItem} />
+      )}
+    />
   );
 }

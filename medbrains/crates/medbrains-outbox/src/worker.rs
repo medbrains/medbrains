@@ -14,7 +14,7 @@ use tokio::sync::watch;
 use tokio::time::interval;
 use uuid::Uuid;
 
-use crate::backoff::{next_retry_at, MAX_ATTEMPTS};
+use crate::backoff::{MAX_ATTEMPTS, next_retry_at};
 use crate::handler::{HandlerCtx, HandlerError, Registry};
 
 #[derive(Clone)]
@@ -46,7 +46,10 @@ impl std::fmt::Debug for WorkerConfig {
             .field("poll_interval", &self.poll_interval)
             .field("batch_size", &self.batch_size)
             .field("worker_id", &self.worker_id)
-            .field("stale_claim_sweep_interval", &self.stale_claim_sweep_interval)
+            .field(
+                "stale_claim_sweep_interval",
+                &self.stale_claim_sweep_interval,
+            )
             .field("stale_claim_threshold", &self.stale_claim_threshold)
             .finish_non_exhaustive()
     }
@@ -72,6 +75,7 @@ impl WorkerConfig {
 }
 
 /// Spawnable outbox worker.
+#[derive(Debug)]
 pub struct Worker {
     pool: PgPool,
     registry: Arc<Registry>,
@@ -80,7 +84,11 @@ pub struct Worker {
 
 impl Worker {
     pub fn new(pool: PgPool, registry: Arc<Registry>, config: WorkerConfig) -> Self {
-        Self { pool, registry, config }
+        Self {
+            pool,
+            registry,
+            config,
+        }
     }
 
     /// Spawn the worker on the current Tokio runtime. Returns a watch
@@ -109,20 +117,20 @@ impl Worker {
 /// Verify the connection role has BYPASSRLS — the worker must run as
 /// `medbrains_outbox_worker` (or another BYPASSRLS role). Crashes fast
 /// if not, so we don't silently filter rows under tenant RLS.
+/// Boot-time deployment guard.
+#[allow(clippy::panic)]
 pub async fn assert_bypass_rls(pool: &PgPool) -> Result<(), sqlx::Error> {
     // allow-raw-sql: privilege self-check at boot
-    let row: (bool,) = sqlx::query_as(
-        "SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user",
-    )
-    .fetch_one(pool)
-    .await?;
-    if !row.0 {
-        panic!(
-            "medbrains-outbox: connected as a non-BYPASSRLS role. \
-             Worker must connect as medbrains_outbox_worker (see migration 130). \
-             Refusing to start to prevent silent tenant filtering."
-        );
-    }
+    let row: (bool,) =
+        sqlx::query_as("SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user")
+            .fetch_one(pool)
+            .await?;
+    assert!(
+        row.0,
+        "medbrains-outbox: connected as a non-BYPASSRLS role. \
+         Worker must connect as medbrains_outbox_worker (see migration 130). \
+         Refusing to start to prevent silent tenant filtering."
+    );
     Ok(())
 }
 
@@ -150,6 +158,10 @@ async fn drain_loop(
     }
 }
 
+/// Row shape returned by the `claimed` CTE in [`drain_once`]:
+/// (event_id, tenant_id, event_type, payload, attempts, aggregate_id, actor_user_id).
+type ClaimedRow = (Uuid, Uuid, String, Value, i32, Option<Uuid>, Option<Uuid>);
+
 async fn drain_once(
     pool: &PgPool,
     registry: &Registry,
@@ -158,9 +170,8 @@ async fn drain_once(
     // Claim a batch of due rows atomically.
     // FOR UPDATE SKIP LOCKED lets multiple worker replicas run safely.
     let mut tx = pool.begin().await?;
-    let claimed: Vec<(Uuid, Uuid, String, Value, i32, Option<Uuid>, Option<Uuid>)> =
-        sqlx::query_as(
-            "WITH due AS ( \
+    let claimed: Vec<ClaimedRow> = sqlx::query_as(
+        "WITH due AS ( \
                  SELECT id FROM outbox_events \
                  WHERE status IN ('pending','retrying') \
                    AND next_retry_at <= now() \
@@ -178,11 +189,11 @@ async fn drain_once(
              RETURNING o.id, o.tenant_id, o.event_type, o.payload, o.attempts, \
                        o.aggregate_id, \
                        (o.payload->'actor_context'->>'user_id')::uuid",
-        )
-        .bind(config.batch_size)
-        .bind(&config.worker_id)
-        .fetch_all(&mut *tx)
-        .await?;
+    )
+    .bind(config.batch_size)
+    .bind(&config.worker_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     if claimed.is_empty() {
@@ -191,11 +202,13 @@ async fn drain_once(
 
     // Dispatch each — outside the lock tx — so handler latency doesn't
     // hold connection pool resources.
-    for (event_id, tenant_id, event_type, payload, attempts, _aggregate_id, actor_user_id) in claimed {
+    for (event_id, tenant_id, event_type, payload, attempts, _aggregate_id, actor_user_id) in
+        claimed
+    {
         let registry_clone = Arc::new(registry_lookup(registry, &event_type));
         let pool_clone = pool.clone();
         let worker_id = config.worker_id.clone();
-        let secret_resolver = config.secret_resolver.clone();
+        let secret_resolver = Arc::clone(&config.secret_resolver);
         let http_client = config.http_client.clone();
         tokio::spawn(async move {
             dispatch_one(
@@ -253,7 +266,7 @@ async fn dispatch_one(
     };
 
     let handler = match handler.as_ref() {
-        Some(h) => h.clone(),
+        Some(h) => Arc::clone(h),
         None => {
             // No registered handler + no fallback → permanent failure
             mark_dlq(&pool, event_id, attempts, "no handler registered").await;

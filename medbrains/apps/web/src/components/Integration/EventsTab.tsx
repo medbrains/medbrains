@@ -1,13 +1,4 @@
-import {
-  Accordion,
-  Badge,
-  Button,
-  Group,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Accordion, Badge, Button, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { EventRegistryRow } from "@medbrains/types";
 import { IconPlus, IconSearch } from "@tabler/icons-react";
@@ -40,10 +31,7 @@ export function EventsTab() {
 
   const { data } = useQuery({
     queryKey: ["orchestration", "events", moduleFilter],
-    queryFn: () =>
-      api.listOrchestrationEvents(
-        moduleFilter ? { module: moduleFilter } : undefined,
-      ),
+    queryFn: () => api.listOrchestrationEvents(moduleFilter ? { module: moduleFilter } : undefined),
   });
 
   const events = data?.events ?? [];
@@ -113,9 +101,7 @@ export function EventsTab() {
                     key={ev.id}
                     event={ev}
                     onCreatePipeline={() =>
-                      navigate(
-                        `/admin/integration-builder?event=${ev.event_code}`,
-                      )
+                      navigate(`/admin/integration-builder?event=${ev.event_code}`)
                     }
                   />
                 ))}
@@ -143,11 +129,7 @@ function EventRow({ event, onCreatePipeline }: EventRowProps) {
         <Text size="xs" c="dimmed">
           {event.description ?? `${event.entity}.${event.action}`}
         </Text>
-        <Badge
-          size="xs"
-          color={PHASE_COLORS[event.phase] ?? "gray"}
-          variant="dot"
-        >
+        <Badge size="xs" color={PHASE_COLORS[event.phase] ?? "gray"} variant="dot">
           {event.phase}
         </Badge>
         {event.is_blocking && (

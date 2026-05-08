@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -182,7 +182,11 @@ export function ProfileScreen() {
                 />
 
                 <View style={styles.editActions}>
-                  <Button mode="outlined" onPress={() => setEditMode(false)} style={styles.editButton}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setEditMode(false)}
+                    style={styles.editButton}
+                  >
                     Cancel
                   </Button>
                   <Button
@@ -277,7 +281,11 @@ export function ProfileScreen() {
               title="Allergies"
               description={patient?.no_known_allergies ? "No known allergies" : "View allergies"}
               left={(props) => <List.Icon {...props} icon="alert-circle" />}
-              right={!patient?.no_known_allergies ? (props) => <List.Icon {...props} icon="chevron-right" /> : undefined}
+              right={
+                !patient?.no_known_allergies
+                  ? (props) => <List.Icon {...props} icon="chevron-right" />
+                  : undefined
+              }
               onPress={patient?.no_known_allergies ? undefined : () => {}}
             />
           </Card.Content>

@@ -1,10 +1,10 @@
 import { ActionIcon, Badge, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type { MedAdminItem, NurseTaskItem } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@medbrains/api";
-import type { MedAdminItem, NurseTaskItem } from "@medbrains/types";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -42,8 +42,16 @@ export function MyTasksTab({ wardId, canManage }: { wardId: string | null; canMa
 
 function MedicationsTable({ items, loading }: { items: MedAdminItem[]; loading: boolean }) {
   const columns: Column<MedAdminItem>[] = [
-    { key: "patient_name", label: "Patient", render: (row) => <Text size="sm">{row.patient_name}</Text> },
-    { key: "bed_name", label: "Bed", render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text> },
+    {
+      key: "patient_name",
+      label: "Patient",
+      render: (row) => <Text size="sm">{row.patient_name}</Text>,
+    },
+    {
+      key: "bed_name",
+      label: "Bed",
+      render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text>,
+    },
     {
       key: "drug_name",
       label: "Drug",
@@ -80,7 +88,9 @@ function MedicationsTable({ items, loading }: { items: MedAdminItem[]; loading: 
     },
   ];
 
-  return <DataTable columns={columns} data={items} loading={loading} rowKey={(row) => row.mar_id} />;
+  return (
+    <DataTable columns={columns} data={items} loading={loading} rowKey={(row) => row.mar_id} />
+  );
 }
 
 function NursingTasksTable({
@@ -103,8 +113,16 @@ function NursingTasksTable({
   });
 
   const columns: Column<NurseTaskItem>[] = [
-    { key: "patient_name", label: "Patient", render: (row) => <Text size="sm">{row.patient_name}</Text> },
-    { key: "bed_name", label: "Bed", render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text> },
+    {
+      key: "patient_name",
+      label: "Patient",
+      render: (row) => <Text size="sm">{row.patient_name}</Text>,
+    },
+    {
+      key: "bed_name",
+      label: "Bed",
+      render: (row) => <Text size="sm">{row.bed_name ?? "—"}</Text>,
+    },
     {
       key: "description",
       label: "Task",
@@ -129,7 +147,9 @@ function NursingTasksTable({
       render: (row) => (
         <Badge
           size="xs"
-          color={row.priority === "stat" ? "danger" : row.priority === "urgent" ? "orange" : "slate"}
+          color={
+            row.priority === "stat" ? "danger" : row.priority === "urgent" ? "orange" : "slate"
+          }
         >
           {row.priority}
         </Badge>
@@ -176,5 +196,7 @@ function NursingTasksTable({
     });
   }
 
-  return <DataTable columns={columns} data={items} loading={loading} rowKey={(row) => row.task_id} />;
+  return (
+    <DataTable columns={columns} data={items} loading={loading} rowKey={(row) => row.task_id} />
+  );
 }

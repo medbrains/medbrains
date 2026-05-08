@@ -15,11 +15,8 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
-    signing,
-    state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    signing, state::AppState,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -72,7 +69,8 @@ pub async fn issue_credential(
         signing::generate_keypair().map_err(|e| AppError::Internal(format!("keygen: {e}")))?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     if body.make_default {
         // Unset any existing default for this doctor
@@ -129,7 +127,8 @@ pub async fn revoke_credential(
     require_permission(&claims, permissions::admin::signature_credentials::REVOKE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let updated = sqlx::query(
         "UPDATE doctor_signature_credentials \
@@ -164,7 +163,8 @@ pub async fn list_credentials(
     require_permission(&claims, permissions::admin::signature_credentials::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let include_revoked = q.include_revoked.unwrap_or(false);
 
@@ -241,7 +241,10 @@ pub async fn sign_record(
     require_permission(&claims, permissions::doctor::signature::SIGN)?;
 
     let signer_role = body.signer_role.as_deref().unwrap_or("primary");
-    if !matches!(signer_role, "primary" | "co_signer" | "attestor" | "witness") {
+    if !matches!(
+        signer_role,
+        "primary" | "co_signer" | "attestor" | "witness"
+    ) {
         return Err(AppError::BadRequest(format!(
             "invalid signer_role '{signer_role}'"
         )));
@@ -257,11 +260,12 @@ pub async fn sign_record(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Resolve credential — explicit id or doctor's default
-    let cred_row: Option<(Uuid, Option<Vec<u8>>, Option<String>, Option<String>)> = if let Some(cid) = body.credential_id
-    {
+    type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Option<String>);
+    let cred_row: Option<CredentialRow> = if let Some(cid) = body.credential_id {
         sqlx::query_as(
             "SELECT id, encrypted_private_key, display_image_url, display_font \
              FROM doctor_signature_credentials \
@@ -290,7 +294,8 @@ pub async fn sign_record(
 
     let (cred_id, priv_key_opt, display_image, display_font) = cred_row.ok_or_else(|| {
         AppError::BadRequest(
-            "no active default signature credential for this user — admin must issue one".to_owned(),
+            "no active default signature credential for this user — admin must issue one"
+                .to_owned(),
         )
     })?;
 
@@ -313,11 +318,15 @@ pub async fn sign_record(
     let display_block = format!(
         "Digitally signed by user {} on {} • Verify ref: {}",
         claims.sub,
-        signed.hash.iter().take(4).fold(String::new(), |mut acc, b| {
-            use std::fmt::Write;
-            let _ = write!(acc, "{b:02x}");
-            acc
-        }),
+        signed
+            .hash
+            .iter()
+            .take(4)
+            .fold(String::new(), |mut acc, b| {
+                use std::fmt::Write;
+                let _ = write!(acc, "{b:02x}");
+                acc
+            }),
         cred_id,
     );
 
@@ -350,7 +359,14 @@ pub async fn sign_record(
 
     // Best-effort flag update on source record. Different tables have
     // different shapes — only update is_signed where the column exists.
-    let _ = mark_source_signed(&mut tx, &claims.tenant_id, &body.record_type, body.record_id, row.id).await;
+    let _ = mark_source_signed(
+        &mut tx,
+        &claims.tenant_id,
+        &body.record_type,
+        body.record_id,
+        row.id,
+    )
+    .await;
 
     tx.commit().await?;
 
@@ -421,7 +437,8 @@ pub async fn list_signatures(
     require_permission(&claims, permissions::doctor::signature::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, SignedRecord>(
         "SELECT id, tenant_id, record_type, record_id, signer_user_id, \
@@ -471,7 +488,8 @@ pub async fn verify_signature(
     require_permission(&claims, permissions::doctor::signature::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row: (Vec<u8>, Vec<u8>, Option<Uuid>, Uuid, DateTime<Utc>) = sqlx::query_as(
         "SELECT payload_hash, signature_bytes, signer_credential_id, \
@@ -541,4 +559,3 @@ pub async fn verify_signature(
         credential_revoked,
     }))
 }
-

@@ -1,6 +1,6 @@
 import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,

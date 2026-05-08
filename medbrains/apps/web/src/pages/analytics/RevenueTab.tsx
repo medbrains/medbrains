@@ -1,28 +1,24 @@
-import { useState, useMemo } from "react";
-import {
-  Button,
-  Card,
-  Group,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
 import { BarChart } from "@mantine/charts";
+import { Button, Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
+import { DateInput } from "@mantine/dates";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type { AnalyticsDoctorRevenueRow, DeptRevenueRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconDownload } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import type { DeptRevenueRow, AnalyticsDoctorRevenueRow } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
+import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
 // ── Helpers ──────────────────────────────────────────────
 
 function fmt(value: number): string {
-  return value.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  return value.toLocaleString("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  });
 }
 
 function toIso(d: string | null): string | undefined {
@@ -41,10 +37,7 @@ export function RevenueTab() {
   const [view, setView] = useState("department");
   const canExport = useHasPermission(P.ANALYTICS.EXPORT);
 
-  const params = useMemo(
-    () => ({ from: toIso(from), to: toIso(to) }),
-    [from, to],
-  );
+  const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
   const deptQ = useQuery({
     queryKey: ["analytics", "dept-revenue", params],
@@ -59,10 +52,7 @@ export function RevenueTab() {
   const deptData = toRows(deptQ.data);
   const doctorData = toRows(doctorQ.data);
 
-  const totalRevenue = useMemo(
-    () => deptData.reduce((s, r) => s + r.revenue, 0),
-    [deptData],
-  );
+  const totalRevenue = useMemo(() => deptData.reduce((s, r) => s + r.revenue, 0), [deptData]);
   const totalInvoices = useMemo(
     () => deptData.reduce((s, r) => s + r.invoice_count, 0),
     [deptData],
@@ -76,15 +66,39 @@ export function RevenueTab() {
 
   const deptColumns: Column<DeptRevenueRow>[] = [
     { key: "dept", label: "Department", render: (r) => <Text size="sm">{r.department_name}</Text> },
-    { key: "revenue", label: "Revenue", render: (r) => <Text size="sm" fw={600}>{fmt(r.revenue)}</Text> },
-    { key: "invoices", label: "Invoices", render: (r) => <Text size="sm">{r.invoice_count.toLocaleString()}</Text> },
+    {
+      key: "revenue",
+      label: "Revenue",
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {fmt(r.revenue)}
+        </Text>
+      ),
+    },
+    {
+      key: "invoices",
+      label: "Invoices",
+      render: (r) => <Text size="sm">{r.invoice_count.toLocaleString()}</Text>,
+    },
   ];
 
   const doctorColumns: Column<AnalyticsDoctorRevenueRow>[] = [
     { key: "doctor", label: "Doctor", render: (r) => <Text size="sm">{r.doctor_name}</Text> },
     { key: "dept", label: "Department", render: (r) => <Text size="sm">{r.department_name}</Text> },
-    { key: "revenue", label: "Revenue", render: (r) => <Text size="sm" fw={600}>{fmt(r.revenue)}</Text> },
-    { key: "patients", label: "Patients", render: (r) => <Text size="sm">{r.patient_count.toLocaleString()}</Text> },
+    {
+      key: "revenue",
+      label: "Revenue",
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {fmt(r.revenue)}
+        </Text>
+      ),
+    },
+    {
+      key: "patients",
+      label: "Patients",
+      render: (r) => <Text size="sm">{r.patient_count.toLocaleString()}</Text>,
+    },
   ];
 
   // ── Chart data ────────────────────────────────────────
@@ -160,7 +174,9 @@ export function RevenueTab() {
       {/* Chart */}
       {view === "department" && deptChartData.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="sm">Top 10 Departments by Revenue</Text>
+          <Text fw={600} mb="sm">
+            Top 10 Departments by Revenue
+          </Text>
           <BarChart
             h={300}
             data={deptChartData}
@@ -172,7 +188,9 @@ export function RevenueTab() {
       )}
       {view === "doctor" && doctorChartData.length > 0 && (
         <Card withBorder>
-          <Text fw={600} mb="sm">Top 10 Doctors by Revenue</Text>
+          <Text fw={600} mb="sm">
+            Top 10 Doctors by Revenue
+          </Text>
           <BarChart
             h={300}
             data={doctorChartData}
@@ -208,8 +226,12 @@ export function RevenueTab() {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card withBorder p="lg">
-      <Text c="dimmed" size="sm">{label}</Text>
-      <Text fw={700} size="xl">{value}</Text>
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Text fw={700} size="xl">
+        {value}
+      </Text>
     </Card>
   );
 }

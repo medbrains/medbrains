@@ -1,0 +1,30 @@
+[Unit]
+Description=MedBrains Pingora edge proxy
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=network-online.target medbrains-server.service medbrains-edge.service
+Wants=network-online.target medbrains-edge.service
+Requires=medbrains-server.service
+
+[Service]
+Type=simple
+User=medbrains
+Group=medbrains
+Environment=RUST_LOG=medbrains_proxy=info,pingora=warn
+ExecStart=/usr/local/bin/medbrains-proxy --config /etc/medbrains/proxy.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=10s
+StandardOutput=journal
+StandardError=journal
+
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/medbrains
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

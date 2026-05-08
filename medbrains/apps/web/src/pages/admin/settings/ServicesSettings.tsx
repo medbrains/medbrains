@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -11,19 +10,15 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { DepartmentRow, ServiceRow } from "@medbrains/types";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const SERVICE_TYPE_OPTIONS = [
   { value: "consultation", label: "Consultation" },
@@ -100,10 +95,7 @@ function ServiceModal({
     }
   };
 
-  const updateField = <K extends keyof ServiceFormState>(
-    key: K,
-    value: ServiceFormState[K],
-  ) => {
+  const updateField = <K extends keyof ServiceFormState>(key: K, value: ServiceFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -143,7 +135,7 @@ function ServiceModal({
       base_price?: number;
       department_id?: string | null;
       description?: string;
-    }) => api.updateService(editingService!.id, data),
+    }) => api.updateService(editingService?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Service updated",
@@ -216,9 +208,7 @@ function ServiceModal({
           label="Service Type"
           data={SERVICE_TYPE_OPTIONS}
           value={form.service_type}
-          onChange={(value) =>
-            updateField("service_type", value ?? "consultation")
-          }
+          onChange={(value) => updateField("service_type", value ?? "consultation")}
           allowDeselect={false}
           required
         />
@@ -338,8 +328,7 @@ export function ServicesSettings() {
     return (
       <Stack align="center" py="xl">
         <Text c="danger">
-          Failed to load services:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load services: {error instanceof Error ? error.message : "Unknown error"}
         </Text>
       </Stack>
     );
@@ -351,11 +340,7 @@ export function ServicesSettings() {
         <Text fw={600} size="lg">
           Services
         </Text>
-        <Button
-          size="sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openCreate}
-        >
+        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Service
         </Button>
       </Group>
@@ -406,11 +391,7 @@ export function ServicesSettings() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={service.is_active ? "success" : "danger"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={service.is_active ? "success" : "danger"} variant="light" size="sm">
                     {service.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -472,11 +453,7 @@ export function ServicesSettings() {
             <Button variant="light" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
-            <Button
-              color="danger"
-              onClick={confirmDelete}
-              loading={deleteMutation.isPending}
-            >
+            <Button color="danger" onClick={confirmDelete} loading={deleteMutation.isPending}>
               Delete
             </Button>
           </Group>

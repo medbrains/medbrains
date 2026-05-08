@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_fire_safety_drills (tenant_id, drill_at, drill_type, location, scenario, participants_count, participating_departments, incident_commander, alarm_at, evacuation_started_at, evacuation_completed_at, issues_observed, corrective_actions, corrective_action_owner, corrective_action_due, corrective_actions_done, report_url, conducted_by, notes, source_module, source_record_id) SELECT d.tenant_id, COALESCE(d.start_time, d.drill_date::timestamptz), d.drill_type::text, COALESCE(f.name, 'Facility-wide'), d.scenario_description, d.participants_count, d.zones_covered, d.approved_by, d.start_time, d.start_time, CASE WHEN d.start_time IS NULL OR d.evacuation_time_seconds IS NULL THEN NULL ELSE d.start_time + (d.evacuation_time_seconds || ' seconds')::interval END, CASE WHEN d.findings IS NULL OR trim(d.findings) = '' THEN ARRAY[]::text[] ELSE ARRAY[d.findings] END, d.improvement_actions, d.approved_by, d.next_drill_due, d.improvement_actions IS NULL, d.drill_report_url, COALESCE(d.conducted_by, $3), d.notes, $4, d.id FROM fms_fire_drills d LEFT JOIN facilities f ON f.id = d.facility_id AND f.tenant_id = d.tenant_id WHERE d.id = $1 AND d.tenant_id = $2 ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET drill_at = EXCLUDED.drill_at, drill_type = EXCLUDED.drill_type, location = EXCLUDED.location, scenario = EXCLUDED.scenario, participants_count = EXCLUDED.participants_count, participating_departments = EXCLUDED.participating_departments, incident_commander = EXCLUDED.incident_commander, alarm_at = EXCLUDED.alarm_at, evacuation_started_at = EXCLUDED.evacuation_started_at, evacuation_completed_at = EXCLUDED.evacuation_completed_at, issues_observed = EXCLUDED.issues_observed, corrective_actions = EXCLUDED.corrective_actions, corrective_action_owner = EXCLUDED.corrective_action_owner, corrective_action_due = EXCLUDED.corrective_action_due, corrective_actions_done = EXCLUDED.corrective_actions_done, report_url = EXCLUDED.report_url, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d8c2633e3d74d612ee3ad1c3b73869734d4b7cf57a5e15ee4aa299b2d19b8a4c"
+}

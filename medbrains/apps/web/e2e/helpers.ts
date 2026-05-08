@@ -35,7 +35,11 @@ export async function routeApiDirect(page: Page) {
  * cookies so subsequent page navigations remain authenticated.
  */
 export async function ensureAuthenticated(page: Page) {
-  if (!page.url().includes("/login")) return;
+  const signInVisible = await page
+    .getByRole("button", { name: /^sign in$/i })
+    .isVisible({ timeout: 1_000 })
+    .catch(() => false);
+  if (!page.url().includes("/login") && !signInVisible) return;
 
   const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
     data: { username: "admin", password: "admin123" },
@@ -64,10 +68,10 @@ export async function ensureAuthenticated(page: Page) {
       if (!nameVal) return null;
       const eqIdx = nameVal.indexOf("=");
       if (eqIdx < 0) return null;
-      return {
+      return ["127.0.0.1", "localhost"].map((domain) => ({
         name: nameVal.slice(0, eqIdx),
         value: nameVal.slice(eqIdx + 1),
-        domain: "localhost",
+        domain,
         path:
           parts
             .find((p: string) => p.toLowerCase().startsWith("path="))
@@ -75,7 +79,7 @@ export async function ensureAuthenticated(page: Page) {
         httpOnly: parts.some((p: string) => p.toLowerCase() === "httponly"),
         secure: false,
         sameSite: "Lax" as const,
-      };
+      }));
     })
     .filter(Boolean) as Array<{
     name: string;
@@ -85,10 +89,12 @@ export async function ensureAuthenticated(page: Page) {
     httpOnly: boolean;
     secure: boolean;
     sameSite: "Lax";
-  }>;
+  }>[];
 
-  if (cookies.length > 0) {
-    await page.context().addCookies(cookies);
+  const flatCookies = cookies.flat();
+
+  if (flatCookies.length > 0) {
+    await page.context().addCookies(flatCookies);
   }
 }
 
@@ -144,7 +150,11 @@ export async function loginAsRole(
 export async function navigateTo(page: Page, path: string) {
   await page.goto(path);
   await ensureAuthenticated(page);
-  if (page.url().includes("/login")) {
+  const stillOnLogin = await page
+    .getByRole("button", { name: /^sign in$/i })
+    .isVisible({ timeout: 1_000 })
+    .catch(() => false);
+  if (page.url().includes("/login") || stillOnLogin) {
     await page.goto(path);
   }
 }

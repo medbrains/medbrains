@@ -10,6 +10,14 @@ terraform {
 variable "hostname" { type = string }
 variable "domain" { type = string }
 variable "admin_email" { type = string }
+variable "edge_proxy" {
+  type    = string
+  default = "pingora"
+  validation {
+    condition     = var.edge_proxy == "pingora"
+    error_message = "edge_proxy must be pingora."
+  }
+}
 variable "region" { type = string }
 variable "size" { type = string }
 variable "image" { type = string }
@@ -36,7 +44,7 @@ resource "digitalocean_droplet" "this" {
 }
 
 # Open the three ports MedBrains needs at the cloud-firewall layer.
-# Caddy + UFW on the host can tighten further if desired.
+# Pingora owns 80/443 on the host.
 resource "digitalocean_firewall" "this" {
   name        = "${var.hostname}-fw"
   droplet_ids = [digitalocean_droplet.this.id]
@@ -101,6 +109,9 @@ resource "null_resource" "bootstrap" {
     # by hashing each input directory.
     binaries_hash = filemd5("${var.binaries_dir}/medbrains-server")
     archive_hash  = filemd5("${var.binaries_dir}/medbrains-archive")
+    proxy_hash    = filemd5("${var.binaries_dir}/medbrains-proxy")
+    edge_hash     = filemd5("${var.binaries_dir}/medbrains-edge")
+    spa_hash      = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
   }
 
   connection {
@@ -120,6 +131,14 @@ resource "null_resource" "bootstrap" {
     source      = "${var.binaries_dir}/medbrains-archive"
     destination = "/tmp/medbrains-archive"
   }
+  provisioner "file" {
+    source      = "${var.binaries_dir}/medbrains-proxy"
+    destination = "/tmp/medbrains-proxy"
+  }
+  provisioner "file" {
+    source      = "${var.binaries_dir}/medbrains-edge"
+    destination = "/tmp/medbrains-edge"
+  }
 
   # Upload the SPA dist + the deploy kit.
   provisioner "file" {
@@ -134,8 +153,8 @@ resource "null_resource" "bootstrap" {
   # Run the installer.
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/standalone/install.sh",
-      "sudo bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email}",
+      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh",
+      "sudo bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} '' ${var.edge_proxy}",
     ]
   }
 

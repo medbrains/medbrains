@@ -16,11 +16,11 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { IconKey, IconPlus, IconShieldCheck, IconUserCog } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
@@ -88,10 +88,13 @@ export function AdminDoctorsPage() {
               <Table.Tr key={d.id}>
                 <Table.Td>
                   <Text fw={500} size="sm">
-                    {d.prefix ? `${d.prefix} ` : ""}{d.display_name}
+                    {d.prefix ? `${d.prefix} ` : ""}
+                    {d.display_name}
                   </Text>
                   {!d.is_active && (
-                    <Badge size="xs" color="red">Inactive</Badge>
+                    <Badge size="xs" color="red">
+                      Inactive
+                    </Badge>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -103,9 +106,13 @@ export function AdminDoctorsPage() {
                 <Table.Td>
                   <Group gap={4}>
                     {d.is_visiting ? (
-                      <Badge size="xs" color="warning">Visiting</Badge>
+                      <Badge size="xs" color="warning">
+                        Visiting
+                      </Badge>
                     ) : (
-                      <Badge size="xs" color="primary">Full-time</Badge>
+                      <Badge size="xs" color="primary">
+                        Full-time
+                      </Badge>
                     )}
                   </Group>
                 </Table.Td>
@@ -113,16 +120,21 @@ export function AdminDoctorsPage() {
                   <Group gap={4}>
                     {d.can_prescribe_schedule_x && <Badge size="xs">Sched X</Badge>}
                     {d.can_perform_surgery && <Badge size="xs">Surgery</Badge>}
-                    {d.can_sign_mlc && <Badge size="xs" color="red">MLC</Badge>}
-                    {d.can_sign_death_certificate && <Badge size="xs" color="red">Death</Badge>}
+                    {d.can_sign_mlc && (
+                      <Badge size="xs" color="red">
+                        MLC
+                      </Badge>
+                    )}
+                    {d.can_sign_death_certificate && (
+                      <Badge size="xs" color="red">
+                        Death
+                      </Badge>
+                    )}
                   </Group>
                 </Table.Td>
                 <Table.Td>
                   <Tooltip label="Manage signature credentials">
-                    <ActionIcon
-                      variant="subtle"
-                      onClick={() => setCredModalDoctor(d.user_id)}
-                    >
+                    <ActionIcon variant="subtle" onClick={() => setCredModalDoctor(d.user_id)}>
                       <IconKey size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -150,10 +162,7 @@ export function AdminDoctorsPage() {
       />
 
       {credModalDoctor && (
-        <CredentialsModal
-          doctorUserId={credModalDoctor}
-          onClose={() => setCredModalDoctor(null)}
-        />
+        <CredentialsModal doctorUserId={credModalDoctor} onClose={() => setCredModalDoctor(null)} />
       )}
     </div>
   );
@@ -197,7 +206,9 @@ function CreateDoctorModal({
           onChange={(e) => setMciNumber(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>Cancel</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             loading={submitting}
             disabled={!userId || !displayName}
@@ -270,7 +281,9 @@ function CredentialsModal({
     <Modal opened onClose={onClose} title="Signature credentials" size="lg">
       <Stack gap="md">
         <Card withBorder padding="sm">
-          <Text size="sm" fw={600} mb="xs">Issue new credential</Text>
+          <Text size="sm" fw={600} mb="xs">
+            Issue new credential
+          </Text>
           <TextInput
             size="sm"
             label="Display image URL (visual signature stamped on PDFs)"
@@ -293,7 +306,9 @@ function CredentialsModal({
         <Divider />
 
         <Group justify="space-between">
-          <Text size="sm" fw={600}>Existing credentials ({creds.length})</Text>
+          <Text size="sm" fw={600}>
+            Existing credentials ({creds.length})
+          </Text>
           <Switch
             size="xs"
             label="Include revoked"
@@ -309,9 +324,21 @@ function CredentialsModal({
                 <Stack gap={4}>
                   <Group gap="xs">
                     <Badge size="xs">{c.credential_type}</Badge>
-                    {c.is_default && <Badge size="xs" color="primary">Default</Badge>}
-                    {c.revoked_at && <Badge size="xs" color="red">Revoked</Badge>}
-                    {c.algorithm && <Badge size="xs" variant="outline">{c.algorithm}</Badge>}
+                    {c.is_default && (
+                      <Badge size="xs" color="primary">
+                        Default
+                      </Badge>
+                    )}
+                    {c.revoked_at && (
+                      <Badge size="xs" color="red">
+                        Revoked
+                      </Badge>
+                    )}
+                    {c.algorithm && (
+                      <Badge size="xs" variant="outline">
+                        {c.algorithm}
+                      </Badge>
+                    )}
                   </Group>
                   <Text size="xs" c="dimmed">
                     Issued {new Date(c.created_at).toLocaleString()}

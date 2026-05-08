@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_equipment_downtime_log (tenant_id, equipment_id, equipment_name, equipment_serial, equipment_category, location, downtime_start, downtime_end, reason, impact_level, impact_summary, reported_to_bme, reported_to_bme_at, workorder_ref, vendor_engaged, resolved_by, resolution_summary, parts_replaced, cost, notes, source_module, source_record_id) SELECT b.tenant_id, b.equipment_id, e.name, e.serial_number, e.category, e.location_description, COALESCE(b.downtime_start, b.reported_at), b.downtime_end, 'breakdown', CASE WHEN e.is_critical THEN 'critical' ELSE b.priority::text END, b.description, true, b.reported_at, b.id::text, b.vendor_visit_required, b.resolved_by, b.resolution_notes, b.spare_parts_used, COALESCE(b.total_repair_cost, b.vendor_cost + b.spare_parts_cost, b.vendor_cost, b.spare_parts_cost), b.notes, $3, b.id FROM bme_breakdowns b JOIN bme_equipment e ON e.id = b.equipment_id AND e.tenant_id = b.tenant_id WHERE b.id = $1 AND b.tenant_id = $2 ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET equipment_name = EXCLUDED.equipment_name, equipment_serial = EXCLUDED.equipment_serial, equipment_category = EXCLUDED.equipment_category, location = EXCLUDED.location, downtime_start = EXCLUDED.downtime_start, downtime_end = EXCLUDED.downtime_end, impact_level = EXCLUDED.impact_level, impact_summary = EXCLUDED.impact_summary, vendor_engaged = EXCLUDED.vendor_engaged, resolved_by = EXCLUDED.resolved_by, resolution_summary = EXCLUDED.resolution_summary, parts_replaced = EXCLUDED.parts_replaced, cost = EXCLUDED.cost, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c164af47f3468b1d8e4bd0847483e9bdb911a1bf823c813b827c459a03e33c0e"
+}

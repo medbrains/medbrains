@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   Badge,
   Button,
@@ -12,13 +11,6 @@ import {
   useCombobox,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconClock,
-  IconPlus,
-} from "@tabler/icons-react";
-import { useTranslation } from "react-i18next";
 import type {
   ComplianceSettings,
   FoodTiming,
@@ -26,6 +18,9 @@ import type {
   PrescriptionItemInput,
   TimeOfDay,
 } from "@medbrains/types";
+import { IconChevronDown, IconChevronUp, IconClock, IconPlus } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { serializeTiming } from "../../lib/medication-timing-utils";
 import { MedicationTimingPicker } from "./MedicationTimingPicker";
 
@@ -85,12 +80,12 @@ export function PrescriptionItemEntry({
     if (!drugSearch.trim()) return drugCatalog.filter((d) => d.is_active).slice(0, 20);
     const q = drugSearch.toLowerCase();
     return drugCatalog
-      .filter((d) =>
-        d.is_active && (
-          d.name.toLowerCase().includes(q) ||
-          d.code.toLowerCase().includes(q) ||
-          (d.generic_name?.toLowerCase().includes(q) ?? false)
-        )
+      .filter(
+        (d) =>
+          d.is_active &&
+          (d.name.toLowerCase().includes(q) ||
+            d.code.toLowerCase().includes(q) ||
+            (d.generic_name?.toLowerCase().includes(q) ?? false)),
       )
       .slice(0, 20);
   }, [drugCatalog, drugSearch]);
@@ -111,8 +106,7 @@ export function PrescriptionItemEntry({
         warnings.push("Schedule X \u2014 duplicate prescription required");
       if (drug.formulary_status === "non_formulary" && compliance.enforce_formulary)
         warnings.push("Non-formulary drug \u2014 DTC approval may be required");
-      if (drug.black_box_warning)
-        warnings.push(drug.black_box_warning);
+      if (drug.black_box_warning) warnings.push(drug.black_box_warning);
       setDrugWarning(warnings.length > 0 ? warnings.join(" \u2022 ") : null);
     }
     combobox.closeDropdown();
@@ -182,7 +176,10 @@ export function PrescriptionItemEntry({
                 combobox.updateSelectedOptionIndex();
               }}
               onFocus={() => combobox.openDropdown()}
-              onBlur={() => { combobox.closeDropdown(); setDrugSearch(drugName); }}
+              onBlur={() => {
+                combobox.closeDropdown();
+                setDrugSearch(drugName);
+              }}
               onKeyDown={handleKeyDown}
               rightSectionPointerEvents="none"
               style={{ flex: 1 }}
@@ -202,18 +199,55 @@ export function PrescriptionItemEntry({
             </Combobox.Options>
           </Combobox.Dropdown>
         </Combobox>
-        <TextInput placeholder={t("prescription.dosage")} value={dosage} onChange={(e) => setDosage(e.currentTarget.value)} onKeyDown={handleKeyDown} w={100} size="sm" />
-        <Select placeholder={t("prescription.frequency")} data={FREQUENCIES} value={frequency} onChange={setFrequency} w={160} size="sm" searchable />
-        <TextInput placeholder={t("prescription.duration")} value={duration} onChange={(e) => setDuration(e.currentTarget.value)} onKeyDown={handleKeyDown} w={100} size="sm" />
-        <Select placeholder={t("prescription.route")} data={ROUTES} value={route} onChange={setRoute} w={120} size="sm" clearable />
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={handleAddItem} disabled={!canAddItem}>
+        <TextInput
+          placeholder={t("prescription.dosage")}
+          value={dosage}
+          onChange={(e) => setDosage(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
+          w={100}
+          size="sm"
+        />
+        <Select
+          placeholder={t("prescription.frequency")}
+          data={FREQUENCIES}
+          value={frequency}
+          onChange={setFrequency}
+          w={160}
+          size="sm"
+          searchable
+        />
+        <TextInput
+          placeholder={t("prescription.duration")}
+          value={duration}
+          onChange={(e) => setDuration(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
+          w={100}
+          size="sm"
+        />
+        <Select
+          placeholder={t("prescription.route")}
+          data={ROUTES}
+          value={route}
+          onChange={setRoute}
+          w={120}
+          size="sm"
+          clearable
+        />
+        <Button
+          size="sm"
+          leftSection={<IconPlus size={14} />}
+          onClick={handleAddItem}
+          disabled={!canAddItem}
+        >
           {t("common:add")}
         </Button>
       </Group>
 
       {/* Drug warning */}
       {drugWarning && (
-        <Text size="xs" c="danger" fw={500}>{"\u26A0"} {drugWarning}</Text>
+        <Text size="xs" c="danger" fw={500}>
+          {"\u26A0"} {drugWarning}
+        </Text>
       )}
 
       {/* Timing picker toggle + panel */}
@@ -243,36 +277,72 @@ export function PrescriptionItemEntry({
 }
 
 /** Drug catalog dropdown option with regulatory badges */
-function DrugOption({ drug, compliance }: { drug: PharmacyCatalog; compliance: ComplianceSettings }) {
+function DrugOption({
+  drug,
+  compliance,
+}: {
+  drug: PharmacyCatalog;
+  compliance: ComplianceSettings;
+}) {
   return (
     <Combobox.Option value={drug.id}>
       <Group gap={4} wrap="nowrap">
         <div style={{ flex: 1 }}>
-          <Text size="sm" fw={500}>{drug.name}</Text>
+          <Text size="sm" fw={500}>
+            {drug.name}
+          </Text>
           {drug.generic_name && (
             <Text size="xs" c="dimmed">
               {drug.generic_name}
-              {drug.inn_name && drug.inn_name !== drug.generic_name ? ` (INN: ${drug.inn_name})` : ""}
+              {drug.inn_name && drug.inn_name !== drug.generic_name
+                ? ` (INN: ${drug.inn_name})`
+                : ""}
             </Text>
           )}
         </div>
         <Group gap={2}>
           {compliance.show_schedule_badges && drug.drug_schedule && (
-            <Badge size="xs" variant="light" color={drug.drug_schedule === "X" || drug.drug_schedule === "NDPS" ? "danger" : drug.drug_schedule === "H1" ? "orange" : "primary"}>
+            <Badge
+              size="xs"
+              variant="light"
+              color={
+                drug.drug_schedule === "X" || drug.drug_schedule === "NDPS"
+                  ? "danger"
+                  : drug.drug_schedule === "H1"
+                    ? "orange"
+                    : "primary"
+              }
+            >
               Sch-{drug.drug_schedule}
             </Badge>
           )}
           {compliance.show_controlled_warnings && drug.is_controlled && (
-            <Badge size="xs" variant="filled" color="danger">CTRL</Badge>
+            <Badge size="xs" variant="filled" color="danger">
+              CTRL
+            </Badge>
           )}
           {compliance.show_formulary_status && drug.formulary_status === "restricted" && (
-            <Badge size="xs" variant="light" color="warning">Restricted</Badge>
+            <Badge size="xs" variant="light" color="warning">
+              Restricted
+            </Badge>
           )}
           {compliance.show_formulary_status && drug.formulary_status === "non_formulary" && (
-            <Badge size="xs" variant="light" color="slate">Non-Formulary</Badge>
+            <Badge size="xs" variant="light" color="slate">
+              Non-Formulary
+            </Badge>
           )}
           {compliance.show_aware_category && drug.aware_category && (
-            <Badge size="xs" variant="light" color={drug.aware_category === "reserve" ? "danger" : drug.aware_category === "watch" ? "orange" : "success"}>
+            <Badge
+              size="xs"
+              variant="light"
+              color={
+                drug.aware_category === "reserve"
+                  ? "danger"
+                  : drug.aware_category === "watch"
+                    ? "orange"
+                    : "success"
+              }
+            >
               {drug.aware_category.charAt(0).toUpperCase() + drug.aware_category.slice(1)}
             </Badge>
           )}

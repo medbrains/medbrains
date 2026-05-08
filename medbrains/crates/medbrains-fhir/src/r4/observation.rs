@@ -35,7 +35,11 @@ pub struct Observation {
     #[serde(skip_serializing_if = "Option::is_none", rename = "valueString")]
     pub value_string: Option<String>,
 
-    #[serde(skip_serializing_if = "Vec::is_empty", default, rename = "interpretation")]
+    #[serde(
+        skip_serializing_if = "Vec::is_empty",
+        default,
+        rename = "interpretation"
+    )]
     pub interpretation: Vec<CodeableConcept>,
 }
 

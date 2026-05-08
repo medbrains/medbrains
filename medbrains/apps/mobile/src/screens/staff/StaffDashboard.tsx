@@ -1,15 +1,5 @@
-import React from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import {
-  Avatar,
-  Badge,
-  Card,
-  Chip,
-  FAB,
-  Surface,
-  Text,
-  useTheme,
-} from "react-native-paper";
+import { Avatar, Badge, Card, Chip, FAB, Surface, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface QueuePatient {
@@ -61,8 +51,12 @@ function StatCardItem({ stat }: { stat: StatCard }) {
 
 function QueueItem({ patient, onCall }: { patient: QueuePatient; onCall: () => void }) {
   const isWaiting = patient.status === "waiting";
-  const statusColor = patient.status === "in_consultation" ? "#40c057" :
-    patient.status === "called" ? "#228be6" : "#868e96";
+  const statusColor =
+    patient.status === "in_consultation"
+      ? "#40c057"
+      : patient.status === "called"
+        ? "#228be6"
+        : "#868e96";
 
   return (
     <Card style={styles.queueCard}>
@@ -108,10 +102,38 @@ export function StaffDashboard() {
   const staffName = "Dr. Sarah Smith";
   const department = "Cardiology";
   const queuePatients: QueuePatient[] = [
-    { id: "1", token_number: 23, patient_name: "John Doe", uhid: "UHID001", status: "in_consultation", wait_time_minutes: 0 },
-    { id: "2", token_number: 24, patient_name: "Jane Smith", uhid: "UHID002", status: "called", wait_time_minutes: 5 },
-    { id: "3", token_number: 25, patient_name: "Robert Brown", uhid: "UHID003", status: "waiting", wait_time_minutes: 15 },
-    { id: "4", token_number: 26, patient_name: "Emily Davis", uhid: "UHID004", status: "waiting", wait_time_minutes: 22 },
+    {
+      id: "1",
+      token_number: 23,
+      patient_name: "John Doe",
+      uhid: "UHID001",
+      status: "in_consultation",
+      wait_time_minutes: 0,
+    },
+    {
+      id: "2",
+      token_number: 24,
+      patient_name: "Jane Smith",
+      uhid: "UHID002",
+      status: "called",
+      wait_time_minutes: 5,
+    },
+    {
+      id: "3",
+      token_number: 25,
+      patient_name: "Robert Brown",
+      uhid: "UHID003",
+      status: "waiting",
+      wait_time_minutes: 15,
+    },
+    {
+      id: "4",
+      token_number: 26,
+      patient_name: "Emily Davis",
+      uhid: "UHID004",
+      status: "waiting",
+      wait_time_minutes: 22,
+    },
   ];
 
   const handleCallPatient = (_patientId: string) => {
@@ -186,12 +208,7 @@ export function StaffDashboard() {
         </View>
       </ScrollView>
 
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => {}}
-        label="Register"
-      />
+      <FAB icon="plus" style={styles.fab} onPress={() => {}} label="Register" />
     </SafeAreaView>
   );
 }

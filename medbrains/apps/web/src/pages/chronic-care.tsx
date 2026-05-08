@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
@@ -14,49 +14,49 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { LineChart } from "@mantine/charts";
-import {
-  IconPlus,
-  IconReportMedical,
-  IconUsers,
-  IconHeartRateMonitor,
-  IconPencil,
-  IconTrash,
-  IconTimeline,
-  IconFileText,
-  IconArrowUp,
-  IconArrowDown,
-  IconMinus,
-  IconPrinter,
-  IconTargetArrow,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  ChronicProgram,
-  ChronicEnrollmentRow,
-  CreateChronicProgramRequest,
-  CreateChronicEnrollmentRequest,
   AdherenceSummaryResponse,
+  ChronicEnrollmentRow,
+  ChronicProgram,
+  CreateChronicEnrollmentRequest,
+  CreateChronicProgramRequest,
   DrugTimelineWithLabsResponse,
   MedicationTimelineEvent,
-  TreatmentSummaryResponse,
   OutcomeDashboardResponse,
   OutcomeTargetWithActual,
+  TreatmentSummaryResponse,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconFileText,
+  IconHeartRateMonitor,
+  IconMinus,
+  IconPencil,
+  IconPlus,
+  IconPrinter,
+  IconReportMedical,
+  IconTargetArrow,
+  IconTimeline,
+  IconTrash,
+  IconUsers,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -109,7 +109,10 @@ export function ChronicCarePage() {
 
   return (
     <div>
-      <PageHeader title="Chronic Care" subtitle="Disease management programs, enrollment tracking, and outcomes" />
+      <PageHeader
+        title="Chronic Care"
+        subtitle="Disease management programs, enrollment tracking, and outcomes"
+      />
       <Tabs defaultValue="enrollments">
         <Tabs.List>
           <Tabs.Tab value="programs" leftSection={<IconReportMedical size={14} />}>
@@ -197,7 +200,11 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
       void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
       close();
       setEditing(null);
-      notifications.show({ title: "Program saved", message: "Chronic program created", color: "success" });
+      notifications.show({
+        title: "Program saved",
+        message: "Chronic program created",
+        color: "success",
+      });
     },
   });
 
@@ -216,18 +223,28 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
       key: "program_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light">{PROGRAM_TYPES.find((t) => t.value === r.program_type)?.label ?? r.program_type}</Badge>
+        <Badge variant="light">
+          {PROGRAM_TYPES.find((t) => t.value === r.program_type)?.label ?? r.program_type}
+        </Badge>
       ),
     },
     {
       key: "duration",
       label: "Duration",
-      render: (r) => <Text size="sm">{r.default_duration_months ? `${r.default_duration_months} months` : "—"}</Text>,
+      render: (r) => (
+        <Text size="sm">
+          {r.default_duration_months ? `${r.default_duration_months} months` : "—"}
+        </Text>
+      ),
     },
     {
       key: "is_active",
       label: "Status",
-      render: (r) => <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Active" : "Inactive"}</Badge>,
+      render: (r) => (
+        <Badge color={r.is_active ? "success" : "slate"}>
+          {r.is_active ? "Active" : "Inactive"}
+        </Badge>
+      ),
     },
     {
       key: "actions",
@@ -249,7 +266,13 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Delete">
-              <ActionIcon variant="subtle" size="sm" color="danger" onClick={() => deleteMut.mutate(r.id)} aria-label="Delete">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                color="danger"
+                onClick={() => deleteMut.mutate(r.id)}
+                aria-label="Delete"
+              >
                 <IconTrash size={14} />
               </ActionIcon>
             </Tooltip>
@@ -343,11 +366,37 @@ function ProgramDrawer({
       size="md"
     >
       <Stack gap="sm">
-        <TextInput label="Program Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <TextInput label="Code" required value={code} onChange={(e) => setCode(e.currentTarget.value)} disabled={!!editing} />
-        <Select label="Program Type" required data={PROGRAM_TYPES} value={programType} onChange={setProgramType} />
-        <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
-        <NumberInput label="Default Duration (months)" value={duration} onChange={setDuration} min={1} />
+        <TextInput
+          label="Program Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Code"
+          required
+          value={code}
+          onChange={(e) => setCode(e.currentTarget.value)}
+          disabled={!!editing}
+        />
+        <Select
+          label="Program Type"
+          required
+          data={PROGRAM_TYPES}
+          value={programType}
+          onChange={setProgramType}
+        />
+        <Textarea
+          label="Description"
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+        />
+        <NumberInput
+          label="Default Duration (months)"
+          value={duration}
+          onChange={setDuration}
+          min={1}
+        />
         <Button
           onClick={() =>
             onSave({
@@ -394,12 +443,20 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
       label: "Patient",
       render: (r) => (
         <div>
-          <Text fw={500} size="sm">{r.patient_name}</Text>
-          <Text size="xs" c="dimmed">{r.uhid}</Text>
+          <Text fw={500} size="sm">
+            {r.patient_name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {r.uhid}
+          </Text>
         </div>
       ),
     },
-    { key: "program_name", label: "Program", render: (r) => <Text size="sm">{r.program_name}</Text> },
+    {
+      key: "program_name",
+      label: "Program",
+      render: (r) => <Text size="sm">{r.program_name}</Text>,
+    },
     {
       key: "program_type",
       label: "Type",
@@ -409,11 +466,17 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
         </Badge>
       ),
     },
-    { key: "enrollment_date", label: "Enrolled", render: (r) => <Text size="sm">{r.enrollment_date}</Text> },
+    {
+      key: "enrollment_date",
+      label: "Enrolled",
+      render: (r) => <Text size="sm">{r.enrollment_date}</Text>,
+    },
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={STATUS_COLORS[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>,
+      render: (r) => (
+        <Badge color={STATUS_COLORS[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+      ),
     },
     {
       key: "doctor",
@@ -423,7 +486,11 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "icd",
       label: "ICD",
-      render: (r) => <Text size="xs" c="dimmed">{r.icd_code ?? "—"}</Text>,
+      render: (r) => (
+        <Text size="xs" c="dimmed">
+          {r.icd_code ?? "—"}
+        </Text>
+      ),
     },
   ];
 
@@ -498,7 +565,11 @@ function EnrollDrawer({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chronic-enrollments"] });
       onClose();
-      notifications.show({ title: "Enrolled", message: "Patient enrolled in program", color: "success" });
+      notifications.show({
+        title: "Enrolled",
+        message: "Patient enrolled in program",
+        color: "success",
+      });
     },
   });
 
@@ -514,7 +585,11 @@ function EnrollDrawer({
           onChange={setProgramId}
           searchable
         />
-        <TextInput label="ICD Code" value={icdCode} onChange={(e) => setIcdCode(e.currentTarget.value)} />
+        <TextInput
+          label="ICD Code"
+          value={icdCode}
+          onChange={(e) => setIcdCode(e.currentTarget.value)}
+        />
         <DateInput label="Enrollment Date" value={enrollDate} onChange={setEnrollDate} />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
         <Button
@@ -580,7 +655,9 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Dose Adherence</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Dose Adherence
+          </Text>
           <Text fw={700} size="xl">
             {totalDoses > 0 ? `${Math.round(Number(summary.dose_adherence_pct))}%` : "N/A"}
           </Text>
@@ -591,41 +668,73 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
           />
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Doses</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Doses
+          </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">{summary.doses_taken} taken</Badge>
-            <Badge color="danger" variant="light">{summary.doses_missed} missed</Badge>
-            <Badge color="warning" variant="light">{summary.doses_late} late</Badge>
+            <Badge color="success" variant="light">
+              {summary.doses_taken} taken
+            </Badge>
+            <Badge color="danger" variant="light">
+              {summary.doses_missed} missed
+            </Badge>
+            <Badge color="warning" variant="light">
+              {summary.doses_late} late
+            </Badge>
           </Group>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Refills</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Refills
+          </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">{summary.refills_on_time} on time</Badge>
-            <Badge color="orange" variant="light">{summary.refills_late} late</Badge>
-            <Badge color="danger" variant="light">{summary.refills_missed} missed</Badge>
+            <Badge color="success" variant="light">
+              {summary.refills_on_time} on time
+            </Badge>
+            <Badge color="orange" variant="light">
+              {summary.refills_late} late
+            </Badge>
+            <Badge color="danger" variant="light">
+              {summary.refills_missed} missed
+            </Badge>
           </Group>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Appointments</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Appointments
+          </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">{summary.appointments_attended} attended</Badge>
-            <Badge color="danger" variant="light">{summary.appointments_missed} missed</Badge>
+            <Badge color="success" variant="light">
+              {summary.appointments_attended} attended
+            </Badge>
+            <Badge color="danger" variant="light">
+              {summary.appointments_missed} missed
+            </Badge>
           </Group>
         </Card>
       </SimpleGrid>
 
       {summary.by_month.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="sm">Monthly Dose Adherence</Text>
+          <Text fw={500} mb="sm">
+            Monthly Dose Adherence
+          </Text>
           {summary.by_month.map((m) => {
             const total = m.taken + m.missed + m.late;
             const pct = total > 0 ? Math.round((m.taken / total) * 100) : 0;
             return (
               <Group key={m.month} mb="xs">
-                <Text size="sm" w={80}>{m.month}</Text>
-                <Progress value={pct} color={pct >= 80 ? "success" : "danger"} style={{ flex: 1 }} />
-                <Text size="sm" w={40}>{pct}%</Text>
+                <Text size="sm" w={80}>
+                  {m.month}
+                </Text>
+                <Progress
+                  value={pct}
+                  color={pct >= 80 ? "success" : "danger"}
+                  style={{ flex: 1 }}
+                />
+                <Text size="sm" w={40}>
+                  {pct}%
+                </Text>
               </Group>
             );
           })}
@@ -674,15 +783,25 @@ function OutcomesTab() {
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Total Active Enrollments</Text>
-          <Text fw={700} size="xl">{totalEnrolled}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Total Active Enrollments
+          </Text>
+          <Text fw={700} size="xl">
+            {totalEnrolled}
+          </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Programs with Enrollments</Text>
-          <Text fw={700} size="xl">{Object.keys(byType).length}</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Programs with Enrollments
+          </Text>
+          <Text fw={700} size="xl">
+            {Object.keys(byType).length}
+          </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Breakdown by Type</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Breakdown by Type
+          </Text>
           <Stack gap={4} mt="xs">
             {Object.entries(byType).map(([type, count]) => (
               <Group key={type} justify="space-between">
@@ -710,7 +829,11 @@ function OutcomesTab() {
 
 function TrendArrow({ atTarget }: { atTarget: boolean | null }) {
   if (atTarget === null) return <IconMinus size={14} color="slate" />;
-  return atTarget ? <IconArrowUp size={14} color="success" /> : <IconArrowDown size={14} color="danger" />;
+  return atTarget ? (
+    <IconArrowUp size={14} color="success" />
+  ) : (
+    <IconArrowDown size={14} color="danger" />
+  );
 }
 
 function OutcomeDetailCards({ dashboard }: { dashboard: OutcomeDashboardResponse }) {
@@ -718,28 +841,49 @@ function OutcomeDetailCards({ dashboard }: { dashboard: OutcomeDashboardResponse
     <Stack gap="md">
       {dashboard.adherence_rate !== null && (
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">Overall Adherence</Text>
-          <Progress value={dashboard.adherence_rate} color={dashboard.adherence_rate >= 80 ? "success" : "danger"} mt="xs" />
-          <Text size="sm" mt={4}>{Math.round(dashboard.adherence_rate)}%</Text>
+          <Text size="xs" c="dimmed" tt="uppercase">
+            Overall Adherence
+          </Text>
+          <Progress
+            value={dashboard.adherence_rate}
+            color={dashboard.adherence_rate >= 80 ? "success" : "danger"}
+            mt="xs"
+          />
+          <Text size="sm" mt={4}>
+            {Math.round(dashboard.adherence_rate)}%
+          </Text>
         </Card>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
         {dashboard.targets.map((t: OutcomeTargetWithActual) => (
           <Card key={t.target.id} withBorder padding="md">
             <Group justify="space-between" mb="xs">
-              <Text size="sm" fw={500}>{t.target.parameter_name}</Text>
+              <Text size="sm" fw={500}>
+                {t.target.parameter_name}
+              </Text>
               <TrendArrow atTarget={t.at_target} />
             </Group>
             <Group gap="xs">
-              <Text size="xs" c="dimmed">Target: {t.target.comparison} {t.target.target_value} {t.target.unit}</Text>
+              <Text size="xs" c="dimmed">
+                Target: {t.target.comparison} {t.target.target_value} {t.target.unit}
+              </Text>
             </Group>
             <Group gap="xs" mt={4}>
-              <Text size="sm">Actual: {t.latest_value !== null ? `${t.latest_value} ${t.target.unit}` : "—"}</Text>
-              <Badge color={t.at_target ? "success" : t.at_target === false ? "danger" : "slate"} size="xs">
+              <Text size="sm">
+                Actual: {t.latest_value !== null ? `${t.latest_value} ${t.target.unit}` : "—"}
+              </Text>
+              <Badge
+                color={t.at_target ? "success" : t.at_target === false ? "danger" : "slate"}
+                size="xs"
+              >
                 {t.at_target ? "At target" : t.at_target === false ? "Off target" : "No data"}
               </Badge>
             </Group>
-            {t.latest_date && <Text size="xs" c="dimmed" mt={4}>Last: {new Date(t.latest_date).toLocaleDateString()}</Text>}
+            {t.latest_date && (
+              <Text size="xs" c="dimmed" mt={4}>
+                Last: {new Date(t.latest_date).toLocaleDateString()}
+              </Text>
+            )}
           </Card>
         ))}
       </SimpleGrid>
@@ -839,7 +983,9 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
       {/* Active Drugs Legend */}
       {data.active_drugs.length > 0 && (
         <Card withBorder padding="sm">
-          <Text fw={500} size="sm" mb="xs">Active Medications</Text>
+          <Text fw={500} size="sm" mb="xs">
+            Active Medications
+          </Text>
           <Group gap="xs">
             {data.active_drugs.map((d) => (
               <Badge key={d.drug_name} variant="light" color="primary" size="sm">
@@ -853,11 +999,15 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
       {/* Medication Timeline */}
       {drugGroups.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="sm">Medication Timeline</Text>
+          <Text fw={500} mb="sm">
+            Medication Timeline
+          </Text>
           <Stack gap="sm">
             {drugGroups.map(([drugName, events]) => (
               <Paper key={drugName} withBorder p="xs">
-                <Text size="sm" fw={500} mb={4}>{drugName}</Text>
+                <Text size="sm" fw={500} mb={4}>
+                  {drugName}
+                </Text>
                 <Group gap={4} wrap="wrap">
                   {events.map((ev) => (
                     <Tooltip
@@ -887,7 +1037,10 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
           <Text fw={500} size="sm" mb="xs">
             {chart.name} {chart.unit ? `(${chart.unit})` : ""}
             {chart.targetValue !== null && (
-              <Text span c="dimmed" size="xs"> — Target: {chart.targetValue}</Text>
+              <Text span c="dimmed" size="xs">
+                {" "}
+                — Target: {chart.targetValue}
+              </Text>
             )}
           </Text>
           <LineChart
@@ -896,7 +1049,11 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
             dataKey="date"
             series={[{ name: "value", color: "primary" }]}
             curveType="monotone"
-            referenceLines={chart.targetValue !== null ? [{ y: chart.targetValue, color: "red.5", label: "Target" }] : undefined}
+            referenceLines={
+              chart.targetValue !== null
+                ? [{ y: chart.targetValue, color: "red.5", label: "Target" }]
+                : undefined
+            }
           />
         </Card>
       ))}
@@ -904,7 +1061,9 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
       {/* Vitals Mini Charts */}
       {vitalGroups.map(([param, points]) => (
         <Card key={param} withBorder padding="md">
-          <Text fw={500} size="sm" mb="xs">{param}</Text>
+          <Text fw={500} size="sm" mb="xs">
+            {param}
+          </Text>
           <LineChart
             h={150}
             data={points}
@@ -916,7 +1075,9 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
       ))}
 
       {drugGroups.length === 0 && data.lab_series.length === 0 && (
-        <Text c="dimmed" ta="center">No timeline data available for this patient.</Text>
+        <Text c="dimmed" ta="center">
+          No timeline data available for this patient.
+        </Text>
       )}
     </Stack>
   );
@@ -986,23 +1147,41 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
     <Stack gap="md" className="print-area">
       {/* Patient Demographics */}
       <Card withBorder padding="md">
-        <Text fw={600} size="lg">{summary.patient_name}</Text>
+        <Text fw={600} size="lg">
+          {summary.patient_name}
+        </Text>
         <Group gap="md" mt={4}>
-          <Text size="sm" c="dimmed">UHID: {summary.uhid}</Text>
-          {summary.date_of_birth && <Text size="sm" c="dimmed">DOB: {summary.date_of_birth}</Text>}
-          {summary.gender && <Text size="sm" c="dimmed">Gender: {summary.gender}</Text>}
+          <Text size="sm" c="dimmed">
+            UHID: {summary.uhid}
+          </Text>
+          {summary.date_of_birth && (
+            <Text size="sm" c="dimmed">
+              DOB: {summary.date_of_birth}
+            </Text>
+          )}
+          {summary.gender && (
+            <Text size="sm" c="dimmed">
+              Gender: {summary.gender}
+            </Text>
+          )}
         </Group>
       </Card>
 
       {/* Active Diagnoses */}
       {summary.active_diagnoses.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Active Diagnoses</Text>
+          <Text fw={500} mb="xs">
+            Active Diagnoses
+          </Text>
           <Stack gap={4}>
             {summary.active_diagnoses.map((d, i) => (
               <Group key={i} gap="xs">
                 <Text size="sm">{d.diagnosis_name}</Text>
-                {d.icd_code && <Badge variant="light" size="xs">{d.icd_code}</Badge>}
+                {d.icd_code && (
+                  <Badge variant="light" size="xs">
+                    {d.icd_code}
+                  </Badge>
+                )}
               </Group>
             ))}
           </Stack>
@@ -1012,13 +1191,23 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
       {/* Current Medications */}
       {summary.current_medications.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Current Medications</Text>
+          <Text fw={500} mb="xs">
+            Current Medications
+          </Text>
           <Stack gap={4}>
             {summary.current_medications.map((m) => (
               <Group key={m.drug_name} gap="xs">
-                <Text size="sm" fw={500}>{m.drug_name}</Text>
-                {m.generic_name && <Text size="xs" c="dimmed">({m.generic_name})</Text>}
-                <Text size="sm">{m.dosage} {m.frequency} {m.route}</Text>
+                <Text size="sm" fw={500}>
+                  {m.drug_name}
+                </Text>
+                {m.generic_name && (
+                  <Text size="xs" c="dimmed">
+                    ({m.generic_name})
+                  </Text>
+                )}
+                <Text size="sm">
+                  {m.dosage} {m.frequency} {m.route}
+                </Text>
               </Group>
             ))}
           </Stack>
@@ -1028,12 +1217,16 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
       {/* Outcome Targets */}
       {summary.targets.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Outcome Targets</Text>
+          <Text fw={500} mb="xs">
+            Outcome Targets
+          </Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             {summary.targets.map((t) => (
               <Paper key={t.target.id} withBorder p="xs">
                 <Group justify="space-between">
-                  <Text size="sm" fw={500}>{t.target.parameter_name}</Text>
+                  <Text size="sm" fw={500}>
+                    {t.target.parameter_name}
+                  </Text>
                   <Badge
                     color={t.at_target ? "success" : t.at_target === false ? "danger" : "slate"}
                     size="xs"
@@ -1054,31 +1247,35 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
       {/* Lab Trend Sparklines */}
       {summary.lab_trends.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Lab Trends</Text>
+          <Text fw={500} mb="xs">
+            Lab Trends
+          </Text>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            {summary.lab_trends.filter((s) => s.data_points.length > 0).map((series) => (
-              <Paper key={series.parameter_name} withBorder p="xs">
-                <Text size="sm" fw={500} mb={4}>
-                  {series.parameter_name} {series.unit ? `(${series.unit})` : ""}
-                </Text>
-                <LineChart
-                  h={100}
-                  data={series.data_points.map((p) => ({
-                    date: new Date(p.result_date).toLocaleDateString(),
-                    value: p.numeric_value ?? 0,
-                  }))}
-                  dataKey="date"
-                  series={[{ name: "value", color: "primary" }]}
-                  curveType="monotone"
-                  withDots={false}
-                  referenceLines={
-                    series.target_value !== null
-                      ? [{ y: series.target_value, color: "red.5", label: "Target" }]
-                      : undefined
-                  }
-                />
-              </Paper>
-            ))}
+            {summary.lab_trends
+              .filter((s) => s.data_points.length > 0)
+              .map((series) => (
+                <Paper key={series.parameter_name} withBorder p="xs">
+                  <Text size="sm" fw={500} mb={4}>
+                    {series.parameter_name} {series.unit ? `(${series.unit})` : ""}
+                  </Text>
+                  <LineChart
+                    h={100}
+                    data={series.data_points.map((p) => ({
+                      date: new Date(p.result_date).toLocaleDateString(),
+                      value: p.numeric_value ?? 0,
+                    }))}
+                    dataKey="date"
+                    series={[{ name: "value", color: "primary" }]}
+                    curveType="monotone"
+                    withDots={false}
+                    referenceLines={
+                      series.target_value !== null
+                        ? [{ y: series.target_value, color: "red.5", label: "Target" }]
+                        : undefined
+                    }
+                  />
+                </Paper>
+              ))}
           </SimpleGrid>
         </Card>
       )}
@@ -1086,25 +1283,33 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
       {/* Adherence Rate */}
       {summary.adherence_rate !== null && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Overall Adherence Rate</Text>
+          <Text fw={500} mb="xs">
+            Overall Adherence Rate
+          </Text>
           <Progress
             value={summary.adherence_rate}
             color={summary.adherence_rate >= 80 ? "success" : "danger"}
             size="lg"
           />
-          <Text size="sm" mt={4}>{Math.round(summary.adherence_rate)}%</Text>
+          <Text size="sm" mt={4}>
+            {Math.round(summary.adherence_rate)}%
+          </Text>
         </Card>
       )}
 
       {/* Enrollment History */}
       {summary.enrollments.length > 0 && (
         <Card withBorder padding="md">
-          <Text fw={500} mb="xs">Enrollment History</Text>
+          <Text fw={500} mb="xs">
+            Enrollment History
+          </Text>
           <Stack gap={4}>
             {summary.enrollments.map((e, i) => (
               <Group key={i} gap="xs">
                 <Text size="sm">{e.program_name}</Text>
-                <Text size="xs" c="dimmed">Enrolled: {e.enrollment_date}</Text>
+                <Text size="xs" c="dimmed">
+                  Enrolled: {e.enrollment_date}
+                </Text>
                 <Badge color={STATUS_COLORS[e.status] ?? "slate"} size="xs">
                   {e.status.replace(/_/g, " ")}
                 </Badge>

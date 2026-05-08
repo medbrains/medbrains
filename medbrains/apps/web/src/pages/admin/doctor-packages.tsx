@@ -15,16 +15,16 @@ import {
   Switch,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { CreateInclusionRequest } from "@medbrains/types";
 import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
@@ -38,12 +38,16 @@ export function AdminDoctorPackagesPage() {
 
   const { data: packages = [] } = useQuery({
     queryKey: ["admin-doctor-packages", showInactive],
-    queryFn: () =>
-      api.adminListDoctorPackages({ is_active: showInactive ? undefined : true }),
+    queryFn: () => api.adminListDoctorPackages({ is_active: showInactive ? undefined : true }),
   });
 
   const create = useMutation({
-    mutationFn: (data: { code: string; name: string; total_price: string; validity_days: number }) =>
+    mutationFn: (data: {
+      code: string;
+      name: string;
+      total_price: string;
+      validity_days: number;
+    }) =>
       api.adminCreateDoctorPackage({
         code: data.code,
         name: data.name,
@@ -51,7 +55,11 @@ export function AdminDoctorPackagesPage() {
         validity_days: data.validity_days,
       }),
     onSuccess: () => {
-      notifications.show({ title: "Package created", message: "Add inclusions next.", color: "success" });
+      notifications.show({
+        title: "Package created",
+        message: "Add inclusions next.",
+        color: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: ["admin-doctor-packages"] });
       createHandlers.close();
     },
@@ -96,16 +104,24 @@ export function AdminDoctorPackagesPage() {
             {packages.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Td>
-                  <Text size="sm" fw={500} ff="monospace">{p.code}</Text>
+                  <Text size="sm" fw={500} ff="monospace">
+                    {p.code}
+                  </Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{p.name}</Text>
                   {p.description && (
-                    <Text size="xs" c="dimmed" lineClamp={1}>{p.description}</Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {p.description}
+                    </Text>
                   )}
                 </Table.Td>
-                <Table.Td><Text size="sm">₹{p.total_price}</Text></Table.Td>
-                <Table.Td><Text size="sm">{p.validity_days}d</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm">₹{p.total_price}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{p.validity_days}d</Text>
+                </Table.Td>
                 <Table.Td>
                   <Badge size="sm" color={p.is_active ? "primary" : "gray"}>
                     {p.is_active ? "Active" : "Inactive"}
@@ -141,10 +157,7 @@ export function AdminDoctorPackagesPage() {
       />
 
       {editPackageId && (
-        <InclusionsDrawer
-          packageId={editPackageId}
-          onClose={() => setEditPackageId(null)}
-        />
+        <InclusionsDrawer packageId={editPackageId} onClose={() => setEditPackageId(null)} />
       )}
     </div>
   );
@@ -158,7 +171,12 @@ function CreatePackageDrawer({
 }: {
   opened: boolean;
   onClose: () => void;
-  onSubmit: (data: { code: string; name: string; total_price: string; validity_days: number }) => void;
+  onSubmit: (data: {
+    code: string;
+    name: string;
+    total_price: string;
+    validity_days: number;
+  }) => void;
   submitting: boolean;
 }) {
   const [code, setCode] = useState("");
@@ -169,8 +187,18 @@ function CreatePackageDrawer({
   return (
     <Drawer opened={opened} onClose={onClose} title="New doctor package" position="right" size="md">
       <Stack gap="sm">
-        <TextInput label="Code" value={code} onChange={(e) => setCode(e.currentTarget.value)} required />
-        <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+        <TextInput
+          label="Code"
+          value={code}
+          onChange={(e) => setCode(e.currentTarget.value)}
+          required
+        />
+        <TextInput
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          required
+        />
         <NumberInput
           label="Total price (₹)"
           value={price}
@@ -187,7 +215,9 @@ function CreatePackageDrawer({
           required
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>Cancel</Button>
+          <Button variant="subtle" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             loading={submitting}
             disabled={!code || !name || price === ""}
@@ -245,7 +275,9 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
     >
       <Stack gap="md">
         <Card padding="sm" withBorder>
-          <Text size="sm" fw={600} mb="xs">Add inclusion</Text>
+          <Text size="sm" fw={600} mb="xs">
+            Add inclusion
+          </Text>
           <Stack gap="xs">
             <Select
               size="sm"
@@ -300,9 +332,15 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
                 <Stack gap={2}>
                   <Group gap="xs">
                     <Badge size="xs">{inc.inclusion_type}</Badge>
-                    <Text size="sm" fw={500}>× {inc.included_quantity}</Text>
+                    <Text size="sm" fw={500}>
+                      × {inc.included_quantity}
+                    </Text>
                   </Group>
-                  {inc.notes && <Text size="xs" c="dimmed">{inc.notes}</Text>}
+                  {inc.notes && (
+                    <Text size="xs" c="dimmed">
+                      {inc.notes}
+                    </Text>
+                  )}
                 </Stack>
                 <ActionIcon
                   variant="subtle"

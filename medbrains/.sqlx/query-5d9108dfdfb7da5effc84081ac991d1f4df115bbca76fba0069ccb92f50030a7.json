@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)::bigint AS \"count!\"\n            FROM pharmacy_orders po\n            JOIN pharmacy_order_items poi\n              ON poi.order_id = po.id AND poi.tenant_id = po.tenant_id\n            WHERE po.tenant_id = $1\n              AND po.patient_id = $2\n              AND po.status = 'ordered'\n              AND (\n                    ($3::uuid IS NOT NULL AND poi.catalog_item_id = $3)\n                    OR ($3::uuid IS NULL AND lower(poi.drug_name) = lower($4))\n                  )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5d9108dfdfb7da5effc84081ac991d1f4df115bbca76fba0069ccb92f50030a7"
+}

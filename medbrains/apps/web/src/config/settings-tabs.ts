@@ -32,6 +32,7 @@ import type { ComponentType } from "react";
 import { BedTypesSettings } from "../pages/admin/settings/BedTypesSettings";
 import { BillingTaxSettings } from "../pages/admin/settings/BillingTaxSettings";
 import { BrandingSettings } from "../pages/admin/settings/BrandingSettings";
+import { ClinicalConfigSettings } from "../pages/admin/settings/ClinicalConfigSettings";
 import { ClinicalMastersSettings } from "../pages/admin/settings/ClinicalMastersSettings";
 import { ClinicalProtocolsSettings } from "../pages/admin/settings/ClinicalProtocolsSettings";
 import { ComplianceSettingsTab } from "../pages/admin/settings/ComplianceSettings";
@@ -48,6 +49,7 @@ import { LocationsSettings } from "../pages/admin/settings/LocationsSettings";
 import { LocationTreeSettings } from "../pages/admin/settings/LocationTreeSettings";
 import { MasterDataStatusSettings } from "../pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "../pages/admin/settings/ModulesSettings";
+import { OfflineModeSettings } from "../pages/admin/settings/OfflineModeSettings";
 import { PrintTemplateSettings } from "../pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "../pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "../pages/admin/settings/ServicesSettings";
@@ -55,8 +57,6 @@ import { SetupWizardSettings } from "../pages/admin/settings/SetupWizardSettings
 import { SystemHealthSettings } from "../pages/admin/settings/SystemHealthSettings";
 import { UnitsLocaleSettings } from "../pages/admin/settings/UnitsLocaleSettings";
 import { UsersRolesSettings } from "../pages/admin/settings/UsersRolesSettings";
-import { ClinicalConfigSettings } from "../pages/admin/settings/ClinicalConfigSettings";
-import { OfflineModeSettings } from "../pages/admin/settings/OfflineModeSettings";
 
 export interface SettingsTabConfig {
   value: string;

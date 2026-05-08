@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
-import type { PrescriptionWithItems, PharmacyCatalog } from "@medbrains/types";
+import type { PharmacyCatalog, PrescriptionWithItems } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ActivityIndicator,
@@ -46,9 +46,27 @@ interface PrescriptionItem {
   instructions?: string;
 }
 
-const FREQUENCIES = ["Once daily", "Twice daily", "Three times daily", "Four times daily", "As needed", "Before meals", "After meals", "At bedtime"];
+const FREQUENCIES = [
+  "Once daily",
+  "Twice daily",
+  "Three times daily",
+  "Four times daily",
+  "As needed",
+  "Before meals",
+  "After meals",
+  "At bedtime",
+];
 const ROUTES = ["Oral", "Topical", "IV", "IM", "SC", "Inhalation", "Sublingual", "Rectal"];
-const DURATIONS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month", "3 months", "Continuous"];
+const DURATIONS = [
+  "3 days",
+  "5 days",
+  "7 days",
+  "10 days",
+  "14 days",
+  "1 month",
+  "3 months",
+  "Continuous",
+];
 
 export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProps) {
   const theme = useTheme();
@@ -216,10 +234,18 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 />
               </View>
               <View style={styles.itemDetails}>
-                <Chip compact icon="pill">{item.dosage}</Chip>
-                <Chip compact icon="clock">{item.frequency}</Chip>
-                <Chip compact icon="calendar">{item.duration}</Chip>
-                <Chip compact icon="routes">{item.route}</Chip>
+                <Chip compact icon="pill">
+                  {item.dosage}
+                </Chip>
+                <Chip compact icon="clock">
+                  {item.frequency}
+                </Chip>
+                <Chip compact icon="calendar">
+                  {item.duration}
+                </Chip>
+                <Chip compact icon="routes">
+                  {item.route}
+                </Chip>
               </View>
               {item.instructions && (
                 <Text variant="bodySmall" style={styles.instructions}>
@@ -257,12 +283,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
       </ScrollView>
 
       {/* Add FAB */}
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => setShowAddDialog(true)}
-        label="Add Drug"
-      />
+      <FAB icon="plus" style={styles.fab} onPress={() => setShowAddDialog(true)} label="Add Drug" />
 
       {/* Add Drug Dialog */}
       <Portal>
@@ -281,10 +302,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
               {drugList.length > 0 && (
                 <View style={styles.drugResults}>
                   {drugList.map((drug) => (
-                    <TouchableOpacity
-                      key={drug.id}
-                      onPress={() => handleSelectDrug(drug)}
-                    >
+                    <TouchableOpacity key={drug.id} onPress={() => handleSelectDrug(drug)}>
                       <List.Item
                         title={drug.name}
                         description={drug.generic_name || undefined}
@@ -317,7 +335,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 style={styles.dialogInput}
               />
 
-              <Text variant="labelMedium" style={styles.dialogLabel}>Frequency</Text>
+              <Text variant="labelMedium" style={styles.dialogLabel}>
+                Frequency
+              </Text>
               <View style={styles.chipGroup}>
                 {FREQUENCIES.slice(0, 4).map((freq) => (
                   <Chip
@@ -331,7 +351,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 ))}
               </View>
 
-              <Text variant="labelMedium" style={styles.dialogLabel}>Duration</Text>
+              <Text variant="labelMedium" style={styles.dialogLabel}>
+                Duration
+              </Text>
               <View style={styles.chipGroup}>
                 {DURATIONS.slice(0, 4).map((dur) => (
                   <Chip
@@ -345,7 +367,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 ))}
               </View>
 
-              <Text variant="labelMedium" style={styles.dialogLabel}>Route</Text>
+              <Text variant="labelMedium" style={styles.dialogLabel}>
+                Route
+              </Text>
               <View style={styles.chipGroup}>
                 {ROUTES.slice(0, 4).map((rt) => (
                   <Chip

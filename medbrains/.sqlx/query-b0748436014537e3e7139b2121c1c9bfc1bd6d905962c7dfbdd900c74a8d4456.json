@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(ABS(quantity)), 0)::BIGINT\n         FROM invoice_items\n         WHERE tenant_id = $1 AND reversal_of_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "coalesce",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b0748436014537e3e7139b2121c1c9bfc1bd6d905962c7dfbdd900c74a8d4456"
+}

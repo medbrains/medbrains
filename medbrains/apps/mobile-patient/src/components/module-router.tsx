@@ -8,8 +8,8 @@
  * navigator handles inter-module navigation; this handles within.
  */
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export interface RouteState<P = unknown> {
   id: string;
@@ -57,12 +57,9 @@ export function ModuleRouter({ initial, screens }: ModuleRouterProps): ReactNode
   );
 
   const screen = screens[current.id];
-  const rendered =
-    typeof screen === "function" ? screen(current.payload ?? undefined) : screen;
+  const rendered = typeof screen === "function" ? screen(current.payload ?? undefined) : screen;
 
-  return (
-    <RouterContext.Provider value={api}>{rendered ?? null}</RouterContext.Provider>
-  );
+  return <RouterContext.Provider value={api}>{rendered ?? null}</RouterContext.Provider>;
 }
 
 export function useModuleRouter(): ModuleRouterApi {

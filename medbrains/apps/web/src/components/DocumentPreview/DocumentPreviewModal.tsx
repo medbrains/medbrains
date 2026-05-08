@@ -1,25 +1,11 @@
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Text,
-} from "@mantine/core";
-import {
-  IconDownload,
-  IconPrinter,
-  IconBan,
-  IconSignature,
-} from "@tabler/icons-react";
+import { ActionIcon, Badge, Button, Group, Loader, Modal, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import type { DocumentOutput } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { IconBan, IconDownload, IconPrinter, IconSignature } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
 interface DocumentPreviewModalProps {
@@ -125,8 +111,7 @@ export function DocumentPreviewModal({
   };
 
   const voidMutation = useMutation({
-    mutationFn: (id: string) =>
-      api.voidDocumentOutput(id, { reason: "Voided by user" }),
+    mutationFn: (id: string) => api.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({
@@ -153,10 +138,7 @@ export function DocumentPreviewModal({
             {doc && (
               <>
                 <Badge variant="light">{doc.document_number}</Badge>
-                <Badge
-                  color={doc.status === "voided" ? "danger" : "success"}
-                  variant="light"
-                >
+                <Badge color={doc.status === "voided" ? "danger" : "success"} variant="light">
                   {doc.status}
                 </Badge>
                 {doc.print_count > 0 && (
@@ -224,7 +206,7 @@ export function DocumentPreviewModal({
           </Stack>
         )}
 
-        {doc && doc.context_snapshot && (
+        {doc?.context_snapshot && (
           <div
             style={{
               border: "1px solid var(--mantine-color-gray-3)",

@@ -14,11 +14,14 @@ export interface FetchState<T> {
   refetch: () => void;
 }
 
-export function useFetch<T>(fn: () => Promise<T>, deps: ReadonlyArray<unknown> = []): FetchState<T> {
+export function useFetch<T>(
+  fn: () => Promise<T>,
+  _deps: ReadonlyArray<unknown> = [],
+): FetchState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const [_tick, setTick] = useState(0);
 
   const run = useCallback(() => {
     let cancelled = false;
@@ -42,7 +45,7 @@ export function useFetch<T>(fn: () => Promise<T>, deps: ReadonlyArray<unknown> =
     // The dependency list is forwarded by the caller; effect
     // re-runs when any of those change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick]);
+  }, [fn]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => run(), [run]);

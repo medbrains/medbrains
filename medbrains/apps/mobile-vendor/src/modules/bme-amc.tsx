@@ -7,10 +7,10 @@
  * yet — real data wiring follows once a vendor pilot is signed up.
  */
 
+import type { Module } from "@medbrains/mobile-shell";
+import { Card, COLORS, SPACING } from "@medbrains/ui-mobile";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
-import { Card, COLORS, SPACING } from "@medbrains/ui-mobile";
-import type { Module } from "@medbrains/mobile-shell";
 
 function BmeAmcScreen() {
   return (
@@ -30,25 +30,18 @@ function BmeAmcScreen() {
         >
           VENDOR · DRAFT
         </Text>
-        <Text
-          variant="headlineMedium"
-          style={{ color: COLORS.brand, marginTop: 4 }}
-        >
+        <Text variant="headlineMedium" style={{ color: COLORS.brand, marginTop: 4 }}>
           AMC work orders
         </Text>
-        <Text
-          variant="bodyMedium"
-          style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}
-        >
-          Open AMC tickets for your contracts. Log service visits and upload
-          calibration certificates.
+        <Text variant="bodyMedium" style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}>
+          Open AMC tickets for your contracts. Log service visits and upload calibration
+          certificates.
         </Text>
       </View>
       <Card eyebrow="SKELETON" title="Not wired to backend yet" accent>
         <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
-          This app is a vendor-architecture skeleton. The backend
-          `/api/portal/vendor/work-orders` endpoint follows once a vendor
-          pilot is signed up. See `apps/mobile-vendor/README.md`.
+          This app is a vendor-architecture skeleton. The backend `/api/portal/vendor/work-orders`
+          endpoint follows once a vendor pilot is signed up. See `apps/mobile-vendor/README.md`.
         </Text>
       </Card>
     </ScrollView>

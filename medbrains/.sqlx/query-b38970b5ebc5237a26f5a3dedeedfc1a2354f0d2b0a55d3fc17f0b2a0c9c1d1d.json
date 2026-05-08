@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM invoice_items\n         WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b38970b5ebc5237a26f5a3dedeedfc1a2354f0d2b0a55d3fc17f0b2a0c9c1d1d"
+}

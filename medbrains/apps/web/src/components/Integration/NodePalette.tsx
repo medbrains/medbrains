@@ -9,6 +9,8 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
+import { api } from "@medbrains/api";
+import type { IntegrationNodeTemplate, PipelineNodeType } from "@medbrains/types";
 import {
   IconBolt,
   IconClock,
@@ -18,10 +20,8 @@ import {
   IconSearch,
   IconTransform,
 } from "@tabler/icons-react";
-import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
-import type { IntegrationNodeTemplate, PipelineNodeType } from "@medbrains/types";
-import { useMemo, useState, type DragEvent } from "react";
+import { type DragEvent, useMemo, useState } from "react";
 
 const NODE_TYPE_ICONS: Record<PipelineNodeType, typeof IconBolt> = {
   trigger: IconBolt,
@@ -156,7 +156,8 @@ export function NodePalette() {
                     }}
                     className="palette-node"
                     onMouseDown={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.12)";
+                      (e.currentTarget as HTMLElement).style.boxShadow =
+                        "0 2px 8px rgba(0,0,0,0.12)";
                     }}
                     onMouseUp={(e) => {
                       (e.currentTarget as HTMLElement).style.boxShadow = "none";
@@ -166,12 +167,7 @@ export function NodePalette() {
                     }}
                   >
                     <IconGripVertical size={12} color="var(--mantine-color-gray-4)" />
-                    <ThemeIcon
-                      variant="light"
-                      color={nodeColor}
-                      size="md"
-                      radius="md"
-                    >
+                    <ThemeIcon variant="light" color={nodeColor} size="md" radius="md">
                       <Icon size={14} />
                     </ThemeIcon>
                     <Box style={{ flex: 1, minWidth: 0 }}>

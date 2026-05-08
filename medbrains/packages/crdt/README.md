@@ -41,6 +41,7 @@ function VitalsCard({ encounterId }: { encounterId: string }) {
       hr: 80,
       spo2: 98,
     });
+    doc.commit({ origin: "local" });
   };
 
   return (

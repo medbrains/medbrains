@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -9,14 +10,13 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { createServiceSchema } from "@medbrains/schemas";
 import type { CreateServiceInput } from "@medbrains/schemas";
+import { createServiceSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingService, ServiceType } from "@medbrains/types";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -33,13 +33,48 @@ const serviceTypes = [
   { value: "other", label: "Other" },
 ];
 
-const templateServices: Array<{ code: string; name: string; service_type: ServiceType; description?: string }> = [
-  { code: "GEN-CONSULT", name: "General Consultation", service_type: "consultation", description: "General outpatient consultation" },
-  { code: "SPEC-CONSULT", name: "Specialist Consultation", service_type: "consultation", description: "Specialist outpatient consultation" },
-  { code: "LAB-INV", name: "Lab Investigation", service_type: "investigation", description: "Laboratory diagnostic tests" },
-  { code: "RAD-INV", name: "Radiology", service_type: "investigation", description: "Imaging and radiology services" },
-  { code: "NURSING-CARE", name: "Nursing Care", service_type: "nursing", description: "General nursing services" },
-  { code: "ROOM-CHARGES", name: "Room Charges", service_type: "other", description: "Room and bed charges" },
+const templateServices: Array<{
+  code: string;
+  name: string;
+  service_type: ServiceType;
+  description?: string;
+}> = [
+  {
+    code: "GEN-CONSULT",
+    name: "General Consultation",
+    service_type: "consultation",
+    description: "General outpatient consultation",
+  },
+  {
+    code: "SPEC-CONSULT",
+    name: "Specialist Consultation",
+    service_type: "consultation",
+    description: "Specialist outpatient consultation",
+  },
+  {
+    code: "LAB-INV",
+    name: "Lab Investigation",
+    service_type: "investigation",
+    description: "Laboratory diagnostic tests",
+  },
+  {
+    code: "RAD-INV",
+    name: "Radiology",
+    service_type: "investigation",
+    description: "Imaging and radiology services",
+  },
+  {
+    code: "NURSING-CARE",
+    name: "Nursing Care",
+    service_type: "nursing",
+    description: "General nursing services",
+  },
+  {
+    code: "ROOM-CHARGES",
+    name: "Room Charges",
+    service_type: "other",
+    description: "Room and bed charges",
+  },
 ];
 
 const typeColors: Record<string, string> = {
@@ -105,16 +140,12 @@ export function ServicesStep({ onNext, onBack }: Props) {
   return (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
-        Define the service categories your hospital offers. These are used for billing
-        and operational tracking.
+        Define the service categories your hospital offers. These are used for billing and
+        operational tracking.
       </Text>
 
       <Group>
-        <Button
-          variant="light"
-          leftSection={<IconPlus size={16} />}
-          onClick={openModal}
-        >
+        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Service
         </Button>
         <Button variant="subtle" onClick={addFromTemplate}>
@@ -147,11 +178,7 @@ export function ServicesStep({ onNext, onBack }: Props) {
         </div>
       ))}
 
-      <Modal
-        opened={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Service"
-      >
+      <Modal opened={showModal} onClose={() => setShowModal(false)} title="Add Service">
         <form onSubmit={handleAdd}>
           <Stack gap="sm">
             <TextInput

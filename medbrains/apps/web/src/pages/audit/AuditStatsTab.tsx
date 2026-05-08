@@ -1,7 +1,7 @@
 import { Badge, Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import type { ModuleCount, UserActionCount, ActionCount } from "@medbrains/types";
+import type { ActionCount, ModuleCount, UserActionCount } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -80,7 +80,11 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function ModuleTable({ data }: { data: ModuleCount[] }) {
   if (data.length === 0) {
-    return <Text c="dimmed" size="sm">No data</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No data
+      </Text>
+    );
   }
 
   return (
@@ -111,7 +115,11 @@ function ModuleTable({ data }: { data: ModuleCount[] }) {
 
 function UserTable({ data }: { data: UserActionCount[] }) {
   if (data.length === 0) {
-    return <Text c="dimmed" size="sm">No data</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No data
+      </Text>
+    );
   }
 
   return (
@@ -142,7 +150,11 @@ function UserTable({ data }: { data: UserActionCount[] }) {
 
 function ActionTable({ data }: { data: ActionCount[] }) {
   if (data.length === 0) {
-    return <Text c="dimmed" size="sm">No data</Text>;
+    return (
+      <Text c="dimmed" size="sm">
+        No data
+      </Text>
+    );
   }
 
   return (

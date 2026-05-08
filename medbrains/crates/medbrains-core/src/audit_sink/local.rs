@@ -23,7 +23,9 @@ impl LocalFsAuditSink {
     }
 
     fn segment_path(&self, tenant_id: Uuid, segment_id: Uuid) -> PathBuf {
-        self.base.join(tenant_id.to_string()).join(format!("{segment_id}.bin"))
+        self.base
+            .join(tenant_id.to_string())
+            .join(format!("{segment_id}.bin"))
     }
 }
 
@@ -85,14 +87,12 @@ impl AuditSink for LocalFsAuditSink {
         segment_id: Uuid,
     ) -> Result<Vec<u8>, AuditSinkError> {
         let path = self.segment_path(tenant_id, segment_id);
-        tokio::fs::read(&path)
-            .await
-            .map_err(|e| match e.kind() {
-                std::io::ErrorKind::NotFound => {
-                    AuditSinkError::Io(format!("segment {segment_id} not found"))
-                }
-                _ => AuditSinkError::Io(format!("read {}: {e}", path.display())),
-            })
+        tokio::fs::read(&path).await.map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => {
+                AuditSinkError::Io(format!("segment {segment_id} not found"))
+            }
+            _ => AuditSinkError::Io(format!("read {}: {e}", path.display())),
+        })
     }
 }
 
@@ -109,7 +109,10 @@ mod tests {
         let tenant = Uuid::new_v4();
         let seg = Uuid::new_v4();
         let bytes = b"sealed-segment-bytes".to_vec();
-        let path = sink.archive_segment(tenant, seg, bytes.clone()).await.unwrap();
+        let path = sink
+            .archive_segment(tenant, seg, bytes.clone())
+            .await
+            .unwrap();
         assert!(path.contains(&seg.to_string()));
         let back = sink.fetch_segment(tenant, seg).await.unwrap();
         assert_eq!(back, bytes);
@@ -122,7 +125,10 @@ mod tests {
         let tenant = Uuid::new_v4();
         let seg = Uuid::new_v4();
         let bytes = b"same".to_vec();
-        let p1 = sink.archive_segment(tenant, seg, bytes.clone()).await.unwrap();
+        let p1 = sink
+            .archive_segment(tenant, seg, bytes.clone())
+            .await
+            .unwrap();
         let p2 = sink.archive_segment(tenant, seg, bytes).await.unwrap();
         assert_eq!(p1, p2);
     }
@@ -133,7 +139,9 @@ mod tests {
         let sink = LocalFsAuditSink::new(dir.path());
         let tenant = Uuid::new_v4();
         let seg = Uuid::new_v4();
-        sink.archive_segment(tenant, seg, b"v1".to_vec()).await.unwrap();
+        sink.archive_segment(tenant, seg, b"v1".to_vec())
+            .await
+            .unwrap();
         let err = sink
             .archive_segment(tenant, seg, b"v2-tampered".to_vec())
             .await

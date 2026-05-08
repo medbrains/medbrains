@@ -5,6 +5,14 @@ terraform {
 variable "hostname" { type = string }
 variable "domain" { type = string }
 variable "admin_email" { type = string }
+variable "edge_proxy" {
+  type    = string
+  default = "pingora"
+  validation {
+    condition     = var.edge_proxy == "pingora"
+    error_message = "edge_proxy must be pingora."
+  }
+}
 variable "existing_ipv4" {
   type = string
   validation {
@@ -29,6 +37,9 @@ resource "null_resource" "bootstrap" {
     host_ip       = var.existing_ipv4
     binaries_hash = filemd5("${var.binaries_dir}/medbrains-server")
     archive_hash  = filemd5("${var.binaries_dir}/medbrains-archive")
+    proxy_hash    = filemd5("${var.binaries_dir}/medbrains-proxy")
+    edge_hash     = filemd5("${var.binaries_dir}/medbrains-edge")
+    spa_hash      = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
   }
 
   connection {
@@ -48,6 +59,14 @@ resource "null_resource" "bootstrap" {
     destination = "/tmp/medbrains-archive"
   }
   provisioner "file" {
+    source      = "${var.binaries_dir}/medbrains-proxy"
+    destination = "/tmp/medbrains-proxy"
+  }
+  provisioner "file" {
+    source      = "${var.binaries_dir}/medbrains-edge"
+    destination = "/tmp/medbrains-edge"
+  }
+  provisioner "file" {
     source      = var.spa_dist_dir
     destination = "/tmp/medbrains-web"
   }
@@ -58,8 +77,8 @@ resource "null_resource" "bootstrap" {
 
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/standalone/install.sh",
-      "sudo bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email}",
+      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh",
+      "sudo bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} '' ${var.edge_proxy}",
     ]
   }
 }

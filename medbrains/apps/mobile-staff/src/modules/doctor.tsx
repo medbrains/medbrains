@@ -4,14 +4,14 @@
  * `pages/opd.tsx` surface; handheld focus is fast consult intake.
  */
 
-import type { ReactNode } from "react";
-import { P } from "@medbrains/types";
 import type { Module } from "@medbrains/mobile-shell";
+import { P } from "@medbrains/types";
+import type { ReactNode } from "react";
+import type { QueueEntry } from "../api/opd.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
-import { QueueListScreen } from "./doctor/queue-list.js";
 import { QueueDetailScreen } from "./doctor/queue-detail.js";
-import type { QueueEntry } from "../api/opd.js";
+import { QueueListScreen } from "./doctor/queue-list.js";
 
 function DoctorHome(): ReactNode {
   const router = useModuleRouter();
@@ -68,9 +68,7 @@ function DoctorScreen(): ReactNode {
       screens={{
         home: <DoctorHome />,
         queue: <QueueListScreen />,
-        "queue-detail": (payload) => (
-          <QueueDetailScreen entry={payload as QueueEntry} />
-        ),
+        "queue-detail": (payload) => <QueueDetailScreen entry={payload as QueueEntry} />,
       }}
     />
   );

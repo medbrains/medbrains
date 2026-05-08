@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Accordion,
   ActionIcon,
@@ -23,8 +22,23 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  BulkCreateUsersRequest,
+  CustomRole,
+  DepartmentRow,
+  FieldAccessLevel,
+  FieldMasterFull,
+  PermissionGroup,
+  SetupUser,
+  WidgetAccessLevel,
+  WidgetTemplate,
+} from "@medbrains/types";
+import { buildPermissionTree, P, PERMISSIONS } from "@medbrains/types";
 import {
   IconCheck,
+  IconInfoCircle,
   IconLayout,
   IconPencil,
   IconPlus,
@@ -34,32 +48,21 @@ import {
   IconTrash,
   IconUpload,
   IconUsers,
-  IconInfoCircle,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  SetupUser,
-  CustomRole,
-  DepartmentRow,
-  FieldAccessLevel,
-  FieldMasterFull,
-  PermissionGroup,
-  WidgetAccessLevel,
-  WidgetTemplate,
-  BulkCreateUsersRequest,
-} from "@medbrains/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  P,
-  PERMISSIONS,
-  buildPermissionTree,
-} from "@medbrains/types";
-import { DataTable, PageHeader, SelectLabel, CreateRoleModal, CreateDepartmentModal, StatusDot } from "../../components";
+  CreateDepartmentModal,
+  CreateRoleModal,
+  DataTable,
+  PageHeader,
+  SelectLabel,
+  StatusDot,
+} from "../../components";
 import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
 import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { useCreateInline } from "../../hooks/useCreateInline";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -93,7 +96,10 @@ const ROLE_COLORS: Record<string, string> = {
 
 // ── Permission Tree Helpers ───────────────────────────────
 
-function countSelected(group: PermissionGroup, selected: Set<string>): { total: number; checked: number } {
+function countSelected(
+  group: PermissionGroup,
+  selected: Set<string>,
+): { total: number; checked: number } {
   let total = group.permissions.length;
   let checked = group.permissions.filter((p) => selected.has(p.code)).length;
   for (const child of group.children) {
@@ -132,8 +138,7 @@ function PermissionGroupNode({
     return allCodes.some((code) => {
       const perm = PERMISSIONS.find((p) => p.code === code);
       return (
-        code.toLowerCase().includes(lower) ||
-        (perm?.label.toLowerCase().includes(lower) ?? false)
+        code.toLowerCase().includes(lower) || (perm?.label.toLowerCase().includes(lower) ?? false)
       );
     });
   }, [filter, allCodes]);
@@ -157,7 +162,9 @@ function PermissionGroupNode({
             onClick={(e) => e.stopPropagation()}
             size="sm"
           />
-          <Text size="sm" fw={500}>{group.label}</Text>
+          <Text size="sm" fw={500}>
+            {group.label}
+          </Text>
           <Badge size="xs" variant="light" color={checked === total ? "success" : "slate"}>
             {checked}/{total}
           </Badge>
@@ -249,7 +256,7 @@ function UserModal({
 
   useEffect(() => {
     if (deptInline.pendingSelect) {
-      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect!.id]);
+      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id]);
       deptInline.clearPendingSelect();
     }
   }, [deptInline.pendingSelect, deptInline.clearPendingSelect]);
@@ -309,8 +316,7 @@ function UserModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) =>
-      api.createSetupUser(data),
+    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) => api.createSetupUser(data),
     onSuccess: () => {
       notifications.show({
         title: "User created",
@@ -331,8 +337,7 @@ function UserModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      api.updateSetupUser(editingUser!.id, data),
+    mutationFn: (data: Record<string, unknown>) => api.updateSetupUser(editingUser?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "User updated",
@@ -368,8 +373,7 @@ function UserModal({
             specialization: specialization || undefined,
             medical_registration_number: medRegNumber || undefined,
             qualification: qualification || undefined,
-            consultation_fee:
-              consultationFee !== "" ? Number(consultationFee) : undefined,
+            consultation_fee: consultationFee !== "" ? Number(consultationFee) : undefined,
             department_ids: departmentIds.length > 0 ? departmentIds : undefined,
           }
         : {};
@@ -557,11 +561,11 @@ function DeleteUserModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteSetupUser(user!.id),
+    mutationFn: () => api.deleteSetupUser(user?.id),
     onSuccess: () => {
       notifications.show({
         title: "User deleted",
-        message: `User "${user!.full_name}" has been deleted`,
+        message: `User "${user?.full_name}" has been deleted`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -621,8 +625,12 @@ function UserPermissionOverrideDrawer({
 
   const [extraPerms, setExtraPerms] = useState<Set<string>>(new Set());
   const [deniedPerms, setDeniedPerms] = useState<Set<string>>(new Set());
-  const [fieldAccessOverrides, setFieldAccessOverrides] = useState<Record<string, FieldAccessLevel>>({});
-  const [widgetAccessOverrides, setWidgetAccessOverrides] = useState<Record<string, WidgetAccessLevel>>({});
+  const [fieldAccessOverrides, setFieldAccessOverrides] = useState<
+    Record<string, FieldAccessLevel>
+  >({});
+  const [widgetAccessOverrides, setWidgetAccessOverrides] = useState<
+    Record<string, WidgetAccessLevel>
+  >({});
   const [extraFilter, setExtraFilter] = useState("");
   const [deniedFilter, setDeniedFilter] = useState("");
   const [fieldFilter, setFieldFilter] = useState("");
@@ -711,10 +719,7 @@ function UserPermissionOverrideDrawer({
     return filtered;
   }, [fieldsByModule, fieldFilter]);
 
-  const fieldAccordionValues = useMemo(
-    () => [...fieldsByModule.keys()],
-    [fieldsByModule],
-  );
+  const fieldAccordionValues = useMemo(() => [...fieldsByModule.keys()], [fieldsByModule]);
 
   const handleExtraToggle = useCallback((codes: string[], checked: boolean) => {
     setExtraPerms((prev) => {
@@ -794,9 +799,7 @@ function UserPermissionOverrideDrawer({
     const result: Record<string, WidgetTemplate[]> = {};
     for (const [cat, tmpls] of Object.entries(templatesByCategory)) {
       const matched = tmpls.filter(
-        (t) =>
-          t.name.toLowerCase().includes(lower) ||
-          cat.toLowerCase().includes(lower),
+        (t) => t.name.toLowerCase().includes(lower) || cat.toLowerCase().includes(lower),
       );
       if (matched.length > 0) result[cat] = matched;
     }
@@ -838,7 +841,8 @@ function UserPermissionOverrideDrawer({
         extra_permissions: [...extraPerms],
         denied_permissions: [...deniedPerms],
         field_access: Object.keys(fieldAccess).length > 0 ? fieldAccess : undefined,
-        widget_access: Object.keys(widgetAccessOverrides).length > 0 ? widgetAccessOverrides : undefined,
+        widget_access:
+          Object.keys(widgetAccessOverrides).length > 0 ? widgetAccessOverrides : undefined,
       });
     },
     onSuccess: () => {
@@ -873,7 +877,9 @@ function UserPermissionOverrideDrawer({
         <Group gap="sm">
           <IconShieldCheck size={20} />
           <div>
-            <Text fw={600} size="sm">{user?.full_name ?? "Permissions"}</Text>
+            <Text fw={600} size="sm">
+              {user?.full_name ?? "Permissions"}
+            </Text>
             {user && (
               <Badge size="xs" variant="light" color={ROLE_COLORS[user.role] ?? "slate"}>
                 {user.role.replace(/_/g, " ")}
@@ -887,15 +893,17 @@ function UserPermissionOverrideDrawer({
       padding="md"
     >
       <Stack gap="md" h="calc(100vh - 140px)">
-        <Alert
-          icon={<IconInfoCircle size={16} />}
-          variant="light"
-          color="primary"
-        >
+        <Alert icon={<IconInfoCircle size={16} />} variant="light" color="primary">
           <Text size="xs">
-            <Text span fw={600}>Extra permissions</Text> are granted to this user beyond
-            their role. <Text span fw={600}>Denied permissions</Text> are revoked from this
-            user despite their role. Effective permissions = (role permissions + extra) - denied.
+            <Text span fw={600}>
+              Extra permissions
+            </Text>{" "}
+            are granted to this user beyond their role.{" "}
+            <Text span fw={600}>
+              Denied permissions
+            </Text>{" "}
+            are revoked from this user despite their role. Effective permissions = (role permissions
+            + extra) - denied.
           </Text>
           <Text size="xs" mt={4} c="dimmed">
             Role provides {rolePerms.size} permissions. Effective: {effectiveCount} permissions.
@@ -908,7 +916,9 @@ function UserPermissionOverrideDrawer({
             <Box>
               <Group justify="space-between" mb="xs">
                 <Group gap="xs">
-                  <Text size="sm" fw={600} c="success">Extra Permissions</Text>
+                  <Text size="sm" fw={600} c="success">
+                    Extra Permissions
+                  </Text>
                   <Badge size="xs" variant="light" color="success">
                     {extraPerms.size}
                   </Badge>
@@ -953,7 +963,9 @@ function UserPermissionOverrideDrawer({
             <Box>
               <Group justify="space-between" mb="xs">
                 <Group gap="xs">
-                  <Text size="sm" fw={600} c="danger">Denied Permissions</Text>
+                  <Text size="sm" fw={600} c="danger">
+                    Denied Permissions
+                  </Text>
                   <Badge size="xs" variant="light" color="danger">
                     {deniedPerms.size}
                   </Badge>
@@ -998,7 +1010,9 @@ function UserPermissionOverrideDrawer({
             <Box>
               <Group justify="space-between" mb="xs">
                 <Group gap="xs">
-                  <Text size="sm" fw={600} c="orange">Field Access Overrides</Text>
+                  <Text size="sm" fw={600} c="orange">
+                    Field Access Overrides
+                  </Text>
                   <Badge size="xs" variant="light" color="orange">
                     {fieldOverrideCount}
                   </Badge>
@@ -1015,7 +1029,9 @@ function UserPermissionOverrideDrawer({
               {fieldsLoading ? (
                 <Group justify="center" py="md">
                   <Loader size="sm" />
-                  <Text size="sm" c="dimmed">Loading fields...</Text>
+                  <Text size="sm" c="dimmed">
+                    Loading fields...
+                  </Text>
                 </Group>
               ) : filteredFieldsByModule.size === 0 ? (
                 <Text size="sm" c="dimmed" ta="center" py="md">
@@ -1047,7 +1063,8 @@ function UserPermissionOverrideDrawer({
                             </Badge>
                             {moduleOverrideCount > 0 && (
                               <Badge size="xs" variant="light" color="orange">
-                                {moduleOverrideCount} {moduleOverrideCount === 1 ? "override" : "overrides"}
+                                {moduleOverrideCount}{" "}
+                                {moduleOverrideCount === 1 ? "override" : "overrides"}
                               </Badge>
                             )}
                           </Group>
@@ -1103,15 +1120,17 @@ function UserPermissionOverrideDrawer({
               <Group justify="space-between" mb="xs">
                 <Group gap="xs">
                   <IconLayout size={14} />
-                  <Text size="sm" fw={600} c="violet">Widget Access Overrides</Text>
+                  <Text size="sm" fw={600} c="violet">
+                    Widget Access Overrides
+                  </Text>
                   <Badge size="xs" variant="light" color="violet">
                     {widgetOverrideCount}
                   </Badge>
                 </Group>
               </Group>
               <Text size="xs" c="dimmed" mb="xs">
-                Override which dashboard widgets this user can see. "Default" inherits
-                from the user's role settings.
+                Override which dashboard widgets this user can see. "Default" inherits from the
+                user's role settings.
               </Text>
               <TextInput
                 placeholder="Filter widgets..."
@@ -1192,10 +1211,7 @@ function UserPermissionOverrideDrawer({
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={() => saveMutation.mutate()}
-            loading={saveMutation.isPending}
-          >
+          <Button onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
             Save Overrides
           </Button>
         </Group>
@@ -1206,13 +1222,7 @@ function UserPermissionOverrideDrawer({
 
 // ── Bulk Import Modal ─────────────────────────────────────
 
-function BulkImportModal({
-  opened,
-  onClose,
-}: {
-  opened: boolean;
-  onClose: () => void;
-}) {
+function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [jsonInput, setJsonInput] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
@@ -1284,9 +1294,26 @@ function BulkImportModal({
         <Alert icon={<IconInfoCircle size={16} />} variant="light" color="primary">
           <Text size="xs">
             Paste a JSON array of user objects. Each object needs:{" "}
-            <Text span fw={600}>username</Text>, <Text span fw={600}>email</Text>,{" "}
-            <Text span fw={600}>password</Text>, <Text span fw={600}>full_name</Text>,{" "}
-            <Text span fw={600}>role_id</Text>.
+            <Text span fw={600}>
+              username
+            </Text>
+            ,{" "}
+            <Text span fw={600}>
+              email
+            </Text>
+            ,{" "}
+            <Text span fw={600}>
+              password
+            </Text>
+            ,{" "}
+            <Text span fw={600}>
+              full_name
+            </Text>
+            ,{" "}
+            <Text span fw={600}>
+              role_id
+            </Text>
+            .
           </Text>
         </Alert>
         <Textarea
@@ -1393,19 +1420,13 @@ export function UsersPage() {
     {
       key: "email",
       label: "Email",
-      render: (row: SetupUser) => (
-        <Text size="sm">{row.email}</Text>
-      ),
+      render: (row: SetupUser) => <Text size="sm">{row.email}</Text>,
     },
     {
       key: "role",
       label: "Role",
       render: (row: SetupUser) => (
-        <Badge
-          size="sm"
-          variant="light"
-          color={ROLE_COLORS[row.role] ?? "slate"}
-        >
+        <Badge size="sm" variant="light" color={ROLE_COLORS[row.role] ?? "slate"}>
           {row.role.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1423,7 +1444,11 @@ export function UsersPage() {
       key: "status",
       label: "Status",
       render: (row: SetupUser) => (
-        <StatusDot color={row.is_active ? "success" : "danger"} label={row.is_active ? "Active" : "Inactive"} size="sm" />
+        <StatusDot
+          color={row.is_active ? "success" : "danger"}
+          label={row.is_active ? "Active" : "Inactive"}
+          size="sm"
+        />
       ),
     },
     {
@@ -1489,10 +1514,7 @@ export function UsersPage() {
               >
                 Bulk Import
               </Button>
-              <Button
-                leftSection={<IconPlus size={16} />}
-                onClick={openCreate}
-              >
+              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
                 Add User
               </Button>
             </Group>
@@ -1509,23 +1531,12 @@ export function UsersPage() {
         emptyIcon={<IconUsers size={32} />}
         emptyTitle="No users found"
         emptyDescription="No users have been created yet"
-        emptyAction={
-          canCreate
-            ? { label: "Add User", onClick: openCreate }
-            : undefined
-        }
+        emptyAction={canCreate ? { label: "Add User", onClick: openCreate } : undefined}
       />
 
-      <UserModal
-        opened={modalOpen}
-        onClose={() => setModalOpen(false)}
-        editingUser={editingUser}
-      />
+      <UserModal opened={modalOpen} onClose={() => setModalOpen(false)} editingUser={editingUser} />
 
-      <UserCreateDrawer
-        opened={createDrawerOpen}
-        onClose={() => setCreateDrawerOpen(false)}
-      />
+      <UserCreateDrawer opened={createDrawerOpen} onClose={() => setCreateDrawerOpen(false)} />
 
       <DeleteUserModal
         opened={deleteModalOpen}
@@ -1543,10 +1554,7 @@ export function UsersPage() {
         roles={roles ?? []}
       />
 
-      <BulkImportModal
-        opened={bulkImportOpen}
-        onClose={() => setBulkImportOpen(false)}
-      />
+      <BulkImportModal opened={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />
     </div>
   );
 }

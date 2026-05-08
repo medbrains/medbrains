@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -13,46 +12,47 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Timeline,
 } from "@mantine/core";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconPencil,
-  IconClipboardList,
-  IconBarrierBlock,
-  IconArrowRight,
-  IconChartBar,
-  IconCheck,
-  IconRobot,
-  IconAlertCircle,
-  IconCircleDot,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  CaseAssignment,
-  DischargeBarrier,
-  CaseReferral,
-  DispositionRow,
-  BarrierAnalyticsRow,
-  CreateCaseAssignmentRequest,
-  UpdateCaseAssignmentRequest,
   AutoAssignRequest,
-  CreateDischargeBarrierRequest,
+  BarrierAnalyticsRow,
+  CaseAssignment,
+  CaseReferral,
+  CreateCaseAssignmentRequest,
   CreateCaseReferralRequest,
+  CreateDischargeBarrierRequest,
+  DischargeBarrier,
+  DispositionRow,
+  UpdateCaseAssignmentRequest,
   UpdateCaseReferralRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconAlertCircle,
+  IconArrowRight,
+  IconBarrierBlock,
+  IconChartBar,
+  IconCheck,
+  IconCircleDot,
+  IconClipboardList,
+  IconPencil,
+  IconPlus,
+  IconRobot,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import type { Column } from "../components/DataTable";
+import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -128,8 +128,12 @@ function truncate(val: string | undefined | null, len: number): string {
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <Card withBorder p="sm">
-      <Text size="xs" c="dimmed">{label}</Text>
-      <Text size="lg" fw={700}>{value}</Text>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="lg" fw={700}>
+        {value}
+      </Text>
     </Card>
   );
 }
@@ -227,7 +231,11 @@ function CaseBoardTab() {
       void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       createHandlers.close();
       setForm({ admission_id: "", patient_id: "", case_manager_id: "" });
-      notifications.show({ title: "Case Assigned", message: "Case assignment created", color: "success" });
+      notifications.show({
+        title: "Case Assigned",
+        message: "Case assignment created",
+        color: "success",
+      });
     },
   });
 
@@ -242,7 +250,11 @@ function CaseBoardTab() {
       editHandlers.close();
       setEditing(null);
       setEditForm({});
-      notifications.show({ title: "Updated", message: "Case assignment updated", color: "success" });
+      notifications.show({
+        title: "Updated",
+        message: "Case assignment updated",
+        color: "success",
+      });
     },
   });
 
@@ -293,7 +305,7 @@ function CaseBoardTab() {
 
       if (a.notes) {
         const match = a.notes.match(/risk[:\s]+(\d+)/i);
-        if (match && match[1]) riskScore = parseInt(match[1], 10);
+        if (match?.[1]) riskScore = parseInt(match[1], 10);
       }
       if (riskScore > 0) {
         if (riskScore <= 3) {
@@ -318,8 +330,12 @@ function CaseBoardTab() {
     return enhancedAssignments.filter((a) => a.losStatus === losFilter);
   }, [enhancedAssignments, losFilter]);
 
-  const columns: Column<typeof enhancedAssignments[0]>[] = [
-    { key: "admission_id", label: "Admission", render: (r) => <Text size="sm">{truncate(r.admission_id, 8)}</Text> },
+  const columns: Column<(typeof enhancedAssignments)[0]>[] = [
+    {
+      key: "admission_id",
+      label: "Admission",
+      render: (r) => <Text size="sm">{truncate(r.admission_id, 8)}</Text>,
+    },
     {
       key: "patient_id",
       label: "Patient",
@@ -334,7 +350,11 @@ function CaseBoardTab() {
         </Group>
       ),
     },
-    { key: "case_manager_id", label: "Case Manager", render: (r) => <Text size="sm">{truncate(r.case_manager_id, 8)}</Text> },
+    {
+      key: "case_manager_id",
+      label: "Case Manager",
+      render: (r) => <Text size="sm">{truncate(r.case_manager_id, 8)}</Text>,
+    },
     {
       key: "status",
       label: "Status",
@@ -418,11 +438,19 @@ function CaseBoardTab() {
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} mb="md">
           {caseload.map((c) => (
             <Card withBorder p="sm" key={c.case_manager_id}>
-              <Text size="xs" c="dimmed">CM: {truncate(c.case_manager_id, 8)}</Text>
+              <Text size="xs" c="dimmed">
+                CM: {truncate(c.case_manager_id, 8)}
+              </Text>
               <Group gap="xs" mt={4}>
-                <Badge color="success" variant="light" size="xs">Active: {c.active_cases}</Badge>
-                <Badge color="orange" variant="light" size="xs">Pending: {c.pending_discharge}</Badge>
-                <Badge color="primary" variant="light" size="xs">Total: {c.total_cases}</Badge>
+                <Badge color="success" variant="light" size="xs">
+                  Active: {c.active_cases}
+                </Badge>
+                <Badge color="orange" variant="light" size="xs">
+                  Pending: {c.pending_discharge}
+                </Badge>
+                <Badge color="primary" variant="light" size="xs">
+                  Total: {c.total_cases}
+                </Badge>
               </Group>
             </Card>
           ))}
@@ -460,10 +488,21 @@ function CaseBoardTab() {
         </Group>
       </Group>
 
-      <DataTable columns={columns} data={filteredAssignments} loading={isLoading} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={filteredAssignments}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+      />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Assign Case" position="right" size="xl">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Assign Case"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <TextInput
             label="Admission ID"
@@ -471,7 +510,11 @@ function CaseBoardTab() {
             value={form.admission_id}
             onChange={(e) => setForm({ ...form, admission_id: e.currentTarget.value })}
           />
-          <PatientSearchSelect value={form.patient_id} onChange={(v) => setForm({ ...form, patient_id: v })} required />
+          <PatientSearchSelect
+            value={form.patient_id}
+            onChange={(v) => setForm({ ...form, patient_id: v })}
+            required
+          />
           <TextInput
             label="Case Manager ID"
             required
@@ -510,7 +553,13 @@ function CaseBoardTab() {
       </Drawer>
 
       {/* Auto-Assign Drawer */}
-      <Drawer opened={autoOpen} onClose={autoHandlers.close} title="Auto-Assign Case" position="right" size="sm">
+      <Drawer
+        opened={autoOpen}
+        onClose={autoHandlers.close}
+        title="Auto-Assign Case"
+        position="right"
+        size="sm"
+      >
         <Stack>
           <TextInput
             label="Admission ID"
@@ -518,7 +567,11 @@ function CaseBoardTab() {
             value={autoForm.admission_id}
             onChange={(e) => setAutoForm({ ...autoForm, admission_id: e.currentTarget.value })}
           />
-          <PatientSearchSelect value={autoForm.patient_id} onChange={(v) => setAutoForm({ ...autoForm, patient_id: v })} required />
+          <PatientSearchSelect
+            value={autoForm.patient_id}
+            onChange={(v) => setAutoForm({ ...autoForm, patient_id: v })}
+            required
+          />
           <Select
             label="Priority"
             data={PRIORITIES}
@@ -538,7 +591,13 @@ function CaseBoardTab() {
       </Drawer>
 
       {/* Edit Drawer */}
-      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Case Assignment" position="right" size="xl">
+      <Drawer
+        opened={editOpen}
+        onClose={editHandlers.close}
+        title="Edit Case Assignment"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <Select
             label="Status"
@@ -551,7 +610,10 @@ function CaseBoardTab() {
             ]}
             value={editForm.status ?? null}
             onChange={(v) =>
-              setEditForm({ ...editForm, status: (v as UpdateCaseAssignmentRequest["status"]) ?? undefined })
+              setEditForm({
+                ...editForm,
+                status: (v as UpdateCaseAssignmentRequest["status"]) ?? undefined,
+              })
             }
           />
           <Select
@@ -584,13 +646,18 @@ function CaseBoardTab() {
             label="Discharge Disposition"
             value={editForm.discharge_disposition ?? ""}
             onChange={(e) =>
-              setEditForm({ ...editForm, discharge_disposition: e.currentTarget.value || undefined })
+              setEditForm({
+                ...editForm,
+                discharge_disposition: e.currentTarget.value || undefined,
+              })
             }
           />
           <Textarea
             label="Notes"
             value={editForm.notes ?? ""}
-            onChange={(e) => setEditForm({ ...editForm, notes: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setEditForm({ ...editForm, notes: e.currentTarget.value || undefined })
+            }
           />
           <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
             Update Assignment
@@ -599,31 +666,48 @@ function CaseBoardTab() {
       </Drawer>
 
       {/* Case Detail Modal with Progress Tracking */}
-      <Modal opened={detailOpen} onClose={detailHandlers.close} title="Case Details & Progress" size="lg">
+      <Modal
+        opened={detailOpen}
+        onClose={detailHandlers.close}
+        title="Case Details & Progress"
+        size="lg"
+      >
         {editing && (
           <Stack gap="md">
             <SimpleGrid cols={2}>
               <div>
-                <Text size="xs" c="dimmed">Patient ID</Text>
+                <Text size="xs" c="dimmed">
+                  Patient ID
+                </Text>
                 <Text fw={600}>{editing.patient_id}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Admission ID</Text>
+                <Text size="xs" c="dimmed">
+                  Admission ID
+                </Text>
                 <Text fw={600}>{editing.admission_id}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Case Manager</Text>
+                <Text size="xs" c="dimmed">
+                  Case Manager
+                </Text>
                 <Text fw={600}>{editing.case_manager_id}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Priority</Text>
-                <Badge color={PRIORITY_COLORS[editing.priority] ?? "slate"}>{editing.priority}</Badge>
+                <Text size="xs" c="dimmed">
+                  Priority
+                </Text>
+                <Badge color={PRIORITY_COLORS[editing.priority] ?? "slate"}>
+                  {editing.priority}
+                </Badge>
               </div>
             </SimpleGrid>
 
             {/* Care Plan Progress */}
             <Card withBorder p="md">
-              <Text fw={600} mb="sm">Care Plan Progress</Text>
+              <Text fw={600} mb="sm">
+                Care Plan Progress
+              </Text>
               {(() => {
                 // Parse milestones from notes or create dummy data
                 const createdDate = editing.created_at ?? new Date().toISOString();
@@ -631,10 +715,37 @@ function CaseBoardTab() {
                 const actualDate = editing.actual_discharge_date ?? "";
 
                 const milestones = [
-                  { title: "Initial Assessment", target: createdDate, completed: createdDate, status: "completed" },
-                  { title: "Care Plan Development", target: targetDate, completed: editing.status === "active" ? new Date().toISOString().slice(0, 10) : "", status: editing.status === "active" ? "completed" : "pending" },
-                  { title: "Discharge Planning", target: targetDate, completed: editing.status === "pending_discharge" ? new Date().toISOString().slice(0, 10) : "", status: editing.status === "pending_discharge" || editing.status === "discharged" ? "completed" : "pending" },
-                  { title: "Discharge Execution", target: targetDate, completed: actualDate, status: editing.status === "discharged" ? "completed" : "pending" },
+                  {
+                    title: "Initial Assessment",
+                    target: createdDate,
+                    completed: createdDate,
+                    status: "completed",
+                  },
+                  {
+                    title: "Care Plan Development",
+                    target: targetDate,
+                    completed:
+                      editing.status === "active" ? new Date().toISOString().slice(0, 10) : "",
+                    status: editing.status === "active" ? "completed" : "pending",
+                  },
+                  {
+                    title: "Discharge Planning",
+                    target: targetDate,
+                    completed:
+                      editing.status === "pending_discharge"
+                        ? new Date().toISOString().slice(0, 10)
+                        : "",
+                    status:
+                      editing.status === "pending_discharge" || editing.status === "discharged"
+                        ? "completed"
+                        : "pending",
+                  },
+                  {
+                    title: "Discharge Execution",
+                    target: targetDate,
+                    completed: actualDate,
+                    status: editing.status === "discharged" ? "completed" : "pending",
+                  },
                 ];
 
                 const completedCount = milestones.filter((m) => m.status === "completed").length;
@@ -644,18 +755,35 @@ function CaseBoardTab() {
                   <>
                     <Progress value={progressPct} color="primary" size="lg" mb="md" />
                     <Text size="sm" c="dimmed" mb="md">
-                      {completedCount} of {milestones.length} milestones completed ({progressPct.toFixed(0)}%)
+                      {completedCount} of {milestones.length} milestones completed (
+                      {progressPct.toFixed(0)}%)
                     </Text>
                     <Timeline active={completedCount - 1} bulletSize={24} lineWidth={2}>
                       {milestones.map((m, idx) => (
                         <Timeline.Item
                           key={idx}
-                          bullet={m.status === "completed" ? <IconCheck size={12} /> : <IconAlertCircle size={12} />}
+                          bullet={
+                            m.status === "completed" ? (
+                              <IconCheck size={12} />
+                            ) : (
+                              <IconAlertCircle size={12} />
+                            )
+                          }
                           title={m.title}
                         >
-                          <Text size="xs" c="dimmed">Target: {m.target}</Text>
-                          {m.completed && <Text size="xs" c="teal">Completed: {m.completed}</Text>}
-                          <Badge color={m.status === "completed" ? "success" : "slate"} size="xs" mt={4}>
+                          <Text size="xs" c="dimmed">
+                            Target: {m.target}
+                          </Text>
+                          {m.completed && (
+                            <Text size="xs" c="teal">
+                              Completed: {m.completed}
+                            </Text>
+                          )}
+                          <Badge
+                            color={m.status === "completed" ? "success" : "slate"}
+                            size="xs"
+                            mt={4}
+                          >
                             {m.status}
                           </Badge>
                         </Timeline.Item>
@@ -668,7 +796,9 @@ function CaseBoardTab() {
 
             {editing.notes && (
               <Card withBorder p="sm">
-                <Text size="xs" fw={600} c="dimmed">Notes</Text>
+                <Text size="xs" fw={600} c="dimmed">
+                  Notes
+                </Text>
                 <Text size="sm">{editing.notes}</Text>
               </Card>
             )}
@@ -698,7 +828,7 @@ function DischargeBarriersTab() {
       api.listDischargeBarriers({
         case_assignment_id: filterAssignmentId || undefined,
         barrier_type: filterType ?? undefined,
-        is_resolved: filterResolved === "all" ? undefined : filterResolved ?? undefined,
+        is_resolved: filterResolved === "all" ? undefined : (filterResolved ?? undefined),
       }),
   });
 
@@ -714,7 +844,11 @@ function DischargeBarriersTab() {
       void qc.invalidateQueries({ queryKey: ["case-barriers"] });
       createHandlers.close();
       setForm({ case_assignment_id: "", barrier_type: "insurance_auth", description: "" });
-      notifications.show({ title: "Barrier Added", message: "Discharge barrier recorded", color: "success" });
+      notifications.show({
+        title: "Barrier Added",
+        message: "Discharge barrier recorded",
+        color: "success",
+      });
     },
   });
 
@@ -722,7 +856,11 @@ function DischargeBarriersTab() {
     mutationFn: (id: string) => api.updateDischargeBarrier(id, { is_resolved: true }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-barriers"] });
-      notifications.show({ title: "Resolved", message: "Barrier marked as resolved", color: "teal" });
+      notifications.show({
+        title: "Resolved",
+        message: "Barrier marked as resolved",
+        color: "teal",
+      });
     },
   });
 
@@ -756,9 +894,13 @@ function DischargeBarriersTab() {
       label: "Resolved",
       render: (r) =>
         r.is_resolved ? (
-          <Badge color="success" variant="filled" size="sm">Resolved</Badge>
+          <Badge color="success" variant="filled" size="sm">
+            Resolved
+          </Badge>
         ) : (
-          <Badge color="danger" variant="filled" size="sm">Unresolved</Badge>
+          <Badge color="danger" variant="filled" size="sm">
+            Unresolved
+          </Badge>
         ),
     },
     {
@@ -821,7 +963,13 @@ function DischargeBarriersTab() {
 
       <DataTable columns={columns} data={barriers} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Add Discharge Barrier" position="right" size="xl">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Add Discharge Barrier"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <TextInput
             label="Case Assignment ID"
@@ -837,7 +985,8 @@ function DischargeBarriersTab() {
             onChange={(v) =>
               setForm({
                 ...form,
-                barrier_type: (v as CreateDischargeBarrierRequest["barrier_type"]) ?? "insurance_auth",
+                barrier_type:
+                  (v as CreateDischargeBarrierRequest["barrier_type"]) ?? "insurance_auth",
               })
             }
           />
@@ -890,7 +1039,11 @@ function ReferralsTab() {
       void qc.invalidateQueries({ queryKey: ["case-referrals"] });
       createHandlers.close();
       setForm({ case_assignment_id: "", referral_type: "post_acute", referred_to: "" });
-      notifications.show({ title: "Referral Created", message: "Referral recorded", color: "success" });
+      notifications.show({
+        title: "Referral Created",
+        message: "Referral recorded",
+        color: "success",
+      });
     },
   });
 
@@ -976,7 +1129,13 @@ function ReferralsTab() {
       <DataTable columns={columns} data={referrals} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer opened={createOpen} onClose={createHandlers.close} title="Create Referral" position="right" size="xl">
+      <Drawer
+        opened={createOpen}
+        onClose={createHandlers.close}
+        title="Create Referral"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <TextInput
             label="Case Assignment ID"
@@ -1007,7 +1166,10 @@ function ReferralsTab() {
             onChange={(e) =>
               setForm({
                 ...form,
-                facility_details: { ...((form.facility_details as Record<string, unknown>) ?? {}), name: e.currentTarget.value || undefined },
+                facility_details: {
+                  ...((form.facility_details as Record<string, unknown>) ?? {}),
+                  name: e.currentTarget.value || undefined,
+                },
               })
             }
           />
@@ -1022,7 +1184,13 @@ function ReferralsTab() {
       </Drawer>
 
       {/* Edit Drawer */}
-      <Drawer opened={editOpen} onClose={editHandlers.close} title="Edit Referral" position="right" size="xl">
+      <Drawer
+        opened={editOpen}
+        onClose={editHandlers.close}
+        title="Edit Referral"
+        position="right"
+        size="xl"
+      >
         <Stack>
           <Select
             label="Status"
@@ -1039,7 +1207,9 @@ function ReferralsTab() {
           <Textarea
             label="Outcome"
             value={editForm.outcome ?? ""}
-            onChange={(e) => setEditForm({ ...editForm, outcome: e.currentTarget.value || undefined })}
+            onChange={(e) =>
+              setEditForm({ ...editForm, outcome: e.currentTarget.value || undefined })
+            }
           />
           <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
             Update Referral
@@ -1079,7 +1249,11 @@ function AnalyticsTab() {
     {
       key: "count",
       label: "Count",
-      render: (r) => <Text size="sm" fw={600}>{r.count}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {r.count}
+        </Text>
+      ),
     },
   ];
 
@@ -1096,7 +1270,11 @@ function AnalyticsTab() {
     {
       key: "count",
       label: "Count",
-      render: (r) => <Text size="sm" fw={600}>{r.count}</Text>,
+      render: (r) => (
+        <Text size="sm" fw={600}>
+          {r.count}
+        </Text>
+      ),
     },
     {
       key: "avg_days_open",
@@ -1119,7 +1297,8 @@ function AnalyticsTab() {
           <StatCard
             label="Avg Days to Discharge"
             value={
-              outcomes.avg_days_to_discharge !== undefined && outcomes.avg_days_to_discharge !== null
+              outcomes.avg_days_to_discharge !== undefined &&
+              outcomes.avg_days_to_discharge !== null
                 ? outcomes.avg_days_to_discharge.toFixed(1)
                 : "\u2014"
             }
@@ -1130,7 +1309,9 @@ function AnalyticsTab() {
       )}
 
       {/* Disposition Table */}
-      <Text fw={600} size="lg">Disposition Breakdown</Text>
+      <Text fw={600} size="lg">
+        Disposition Breakdown
+      </Text>
       <DataTable
         columns={dispositionCols}
         data={dispositions}
@@ -1139,7 +1320,9 @@ function AnalyticsTab() {
       />
 
       {/* Barrier Breakdown Table */}
-      <Text fw={600} size="lg">Barrier Breakdown</Text>
+      <Text fw={600} size="lg">
+        Barrier Breakdown
+      </Text>
       <DataTable
         columns={barrierCols}
         data={barrierData}

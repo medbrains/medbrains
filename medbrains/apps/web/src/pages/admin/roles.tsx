@@ -21,14 +21,15 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import type { CustomRole, FieldAccessLevel, FieldMasterFull, PermissionGroup, WidgetAccessLevel, WidgetTemplate } from "@medbrains/types";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import {
-  P,
-  PERMISSIONS,
-  ROLE_TEMPLATES,
-  buildPermissionTree,
+import type {
+  CustomRole,
+  FieldAccessLevel,
+  FieldMasterFull,
+  PermissionGroup,
+  WidgetAccessLevel,
+  WidgetTemplate,
 } from "@medbrains/types";
+import { buildPermissionTree, P, PERMISSIONS, ROLE_TEMPLATES } from "@medbrains/types";
 import {
   IconDots,
   IconEdit,
@@ -42,10 +43,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "../../components";
 import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 // ── Permission Tree Components ──────────────────────────────
 
-function countSelected(group: PermissionGroup, selected: Set<string>): { total: number; checked: number } {
+function countSelected(
+  group: PermissionGroup,
+  selected: Set<string>,
+): { total: number; checked: number } {
   let total = group.permissions.length;
   let checked = group.permissions.filter((p) => selected.has(p.code)).length;
   for (const child of group.children) {
@@ -85,8 +90,7 @@ function PermissionGroupNode({
     return allCodes.some((code) => {
       const perm = PERMISSIONS.find((p) => p.code === code);
       return (
-        code.toLowerCase().includes(lower) ||
-        (perm?.label.toLowerCase().includes(lower) ?? false)
+        code.toLowerCase().includes(lower) || (perm?.label.toLowerCase().includes(lower) ?? false)
       );
     });
   }, [filter, allCodes]);
@@ -110,7 +114,9 @@ function PermissionGroupNode({
             onClick={(e) => e.stopPropagation()}
             size="sm"
           />
-          <Text size="sm" fw={500}>{group.label}</Text>
+          <Text size="sm" fw={500}>
+            {group.label}
+          </Text>
           <Badge size="xs" variant="light" color={checked === total ? "success" : "slate"}>
             {checked}/{total}
           </Badge>
@@ -196,9 +202,7 @@ function PermissionEditor({
   if (role && role.id !== loadedRoleId) {
     setLoadedRoleId(role.id);
     // Parse permissions from the role's permissions field (JSON array)
-    const perms = Array.isArray(role.permissions)
-      ? (role.permissions as string[])
-      : [];
+    const perms = Array.isArray(role.permissions) ? (role.permissions as string[]) : [];
     setSelected(new Set(perms));
     setFilter("");
     // Initialize field access from role defaults
@@ -225,16 +229,13 @@ function PermissionEditor({
     });
   }, []);
 
-  const handleSelectAll = useCallback(
-    (checked: boolean) => {
-      if (checked) {
-        setSelected(new Set(PERMISSIONS.map((p) => p.code)));
-      } else {
-        setSelected(new Set());
-      }
-    },
-    [],
-  );
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelected(new Set(PERMISSIONS.map((p) => p.code)));
+    } else {
+      setSelected(new Set());
+    }
+  }, []);
 
   // Group fields by module (derived from db_table)
   const fieldsByModule = useMemo(() => {
@@ -308,9 +309,7 @@ function PermissionEditor({
     const result: Record<string, WidgetTemplate[]> = {};
     for (const [cat, tmpls] of Object.entries(templatesByCategory)) {
       const matched = tmpls.filter(
-        (t) =>
-          t.name.toLowerCase().includes(lower) ||
-          cat.toLowerCase().includes(lower),
+        (t) => t.name.toLowerCase().includes(lower) || cat.toLowerCase().includes(lower),
       );
       if (matched.length > 0) result[cat] = matched;
     }
@@ -353,10 +352,7 @@ function PermissionEditor({
   const someSelected = selected.size > 0 && !allSelected;
 
   // Build default open values for accordion
-  const accordionValues = useMemo(
-    () => tree.map((g) => g.key),
-    [tree],
-  );
+  const accordionValues = useMemo(() => tree.map((g) => g.key), [tree]);
 
   // Module accordion default values for field access
   const fieldModuleKeys = useMemo(
@@ -429,7 +425,9 @@ function PermissionEditor({
             my="lg"
             label={
               <Group gap="xs">
-                <Text size="sm" fw={600}>Field Access Defaults</Text>
+                <Text size="sm" fw={600}>
+                  Field Access Defaults
+                </Text>
                 {overrideCount > 0 && (
                   <Badge size="xs" variant="light" color="orange">
                     {overrideCount} override{overrideCount !== 1 ? "s" : ""}
@@ -521,7 +519,9 @@ function PermissionEditor({
             label={
               <Group gap="xs">
                 <IconLayout size={14} />
-                <Text size="sm" fw={600}>Widget Access Defaults</Text>
+                <Text size="sm" fw={600}>
+                  Widget Access Defaults
+                </Text>
                 {widgetOverrideCount > 0 && (
                   <Badge size="xs" variant="light" color="violet">
                     {widgetOverrideCount} set
@@ -533,8 +533,8 @@ function PermissionEditor({
           />
 
           <Text size="xs" c="dimmed" mb="sm">
-            Control which dashboard widgets this role can see. "Default" falls back to
-            the template's required permissions.
+            Control which dashboard widgets this role can see. "Default" falls back to the
+            template's required permissions.
           </Text>
 
           <TextInput
@@ -651,8 +651,7 @@ function EditRoleModal({
   }
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; description?: string }) =>
-      api.updateRole(role!.id, data),
+    mutationFn: (data: { name?: string; description?: string }) => api.updateRole(role?.id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["roles"] });
       setLoadedId(null);
@@ -713,13 +712,7 @@ function EditRoleModal({
 
 // ── Create Role Modal ──────────────────────────────────────
 
-function CreateRoleModal({
-  opened,
-  onClose,
-}: {
-  opened: boolean;
-  onClose: () => void;
-}) {
+function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -864,11 +857,7 @@ export function RolesPage() {
       <OfflineWriteBanner resource="role permission" />
 
       <Group justify="flex-end" mb="md">
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={openCreate}
-          disabled={!canCreate}
-        >
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreate} disabled={!canCreate}>
           Add Role
         </Button>
       </Group>
@@ -888,20 +877,26 @@ export function RolesPage() {
           {isLoading && (
             <Table.Tr>
               <Table.Td colSpan={6}>
-                <Text c="dimmed" size="sm" ta="center">Loading...</Text>
+                <Text c="dimmed" size="sm" ta="center">
+                  Loading...
+                </Text>
               </Table.Td>
             </Table.Tr>
           )}
           {roles.map((role) => (
             <Table.Tr key={role.id}>
               <Table.Td>
-                <Text size="sm" fw={500}>{role.code}</Text>
+                <Text size="sm" fw={500}>
+                  {role.code}
+                </Text>
               </Table.Td>
               <Table.Td>
                 <Group gap="xs">
                   <Text size="sm">{role.name}</Text>
                   {role.is_system && (
-                    <Badge size="xs" variant="light" color="primary">System</Badge>
+                    <Badge size="xs" variant="light" color="primary">
+                      System
+                    </Badge>
                   )}
                 </Group>
               </Table.Td>
@@ -922,11 +917,7 @@ export function RolesPage() {
                 </Badge>
               </Table.Td>
               <Table.Td>
-                <Badge
-                  size="sm"
-                  variant="light"
-                  color={role.is_active ? "success" : "danger"}
-                >
+                <Badge size="sm" variant="light" color={role.is_active ? "success" : "danger"}>
                   {role.is_active ? "Active" : "Inactive"}
                 </Badge>
               </Table.Td>
@@ -970,7 +961,9 @@ export function RolesPage() {
           {!isLoading && roles.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={6}>
-                <Text c="dimmed" size="sm" ta="center">No roles found</Text>
+                <Text c="dimmed" size="sm" ta="center">
+                  No roles found
+                </Text>
               </Table.Td>
             </Table.Tr>
           )}
@@ -979,11 +972,7 @@ export function RolesPage() {
 
       <CreateRoleModal opened={createOpened} onClose={closeCreate} />
       <EditRoleModal opened={editModalOpened} onClose={closeEditModal} role={editingRole} />
-      <PermissionEditor
-        role={selectedRole}
-        opened={editorOpened}
-        onClose={closeEditor}
-      />
+      <PermissionEditor role={selectedRole} opened={editorOpened} onClose={closeEditor} />
     </div>
   );
 }

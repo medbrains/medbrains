@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO cpoe_safety_audit\n              (tenant_id, patient_id, encounter_id, source_module, source_record_id,\n               order_type, warning_code, severity, action_taken, item_ref, message,\n               override_reason, overridden_by, checked_by)\n            VALUES\n              ($1, $2, $3, $4, $5, 'drug', $6, $7, $8, $9, $10, $11, $12, $13)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "65b2f0913ee4f7713d2e1ce31f3eef5ca500ea124d87c1fe190fb58afc96fa6d"
+}

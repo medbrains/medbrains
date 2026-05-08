@@ -30,10 +30,7 @@ function getTrace(w: number): string {
   // Single beat centered at 50% of screen
   const center = w / 2 - 26;
 
-  const trace =
-    `0,15 ${center - 5},15 ` +
-    beat(center) +
-    ` ${center + 56},15 ${w},15`;
+  const trace = `0,15 ${center - 5},15 ${beat(center)} ${center + 56},15 ${w},15`;
 
   traceCache.set(w, trace);
   return trace;
@@ -48,7 +45,7 @@ const TRACE_COLOR = "#34d399";
 // ── Component ──────────────────────────────────────────────────
 
 function TopProgressBarInner() {
-  const location = useLocation();
+  const _location = useLocation();
   const [visible, setVisible] = useState(false);
   const widthRef = useRef(0);
   const [width, setWidth] = useState(0);
@@ -77,7 +74,7 @@ function TopProgressBarInner() {
     return () => {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
-  }, [location.pathname, hide]);
+  }, [hide]);
 
   // Memoize all derived values
   const trace = useMemo(() => (width > 0 ? getTrace(width) : ""), [width]);
@@ -85,15 +82,19 @@ function TopProgressBarInner() {
   // Single beat center position
   const beatCenter = width / 2 - 4;
 
-  const scanStyle = useMemo(() => ({
-    "--scan-start": `${-SCAN_W}px`,
-    "--beat-approach": `${beatCenter - 40}px`,
-    "--beat-pass": `${beatCenter + 10}px`,
-    "--scan-end": `${width + SCAN_W}px`,
-  } as React.CSSProperties), [beatCenter, width]);
+  const scanStyle = useMemo(
+    () =>
+      ({
+        "--scan-start": `${-SCAN_W}px`,
+        "--beat-approach": `${beatCenter - 40}px`,
+        "--beat-pass": `${beatCenter + 10}px`,
+        "--scan-end": `${width + SCAN_W}px`,
+      }) as React.CSSProperties,
+    [beatCenter, width],
+  );
 
   const pathStyle = useMemo(
-    () => ({ "--path-len": `${width * 1.2}` } as React.CSSProperties),
+    () => ({ "--path-len": `${width * 1.2}` }) as React.CSSProperties,
     [width],
   );
 
@@ -106,10 +107,7 @@ function TopProgressBarInner() {
       <div className={styles.baseline} />
 
       {/* Glowing dot at spike start */}
-      <div
-        className={styles.glowDot}
-        style={{ left: `${beatCenter}px` }}
-      />
+      <div className={styles.glowDot} style={{ left: `${beatCenter}px` }} />
 
       <svg className={styles.traceSvg} viewBox={viewBox} preserveAspectRatio="none" fill="none">
         <defs>

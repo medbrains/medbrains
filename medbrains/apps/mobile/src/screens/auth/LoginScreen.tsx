@@ -2,16 +2,9 @@ import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { User } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
-import {
-  Button,
-  HelperText,
-  Surface,
-  Text,
-  TextInput,
-  useTheme,
-} from "react-native-paper";
+import { Button, HelperText, Surface, Text, TextInput, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export function LoginScreen() {

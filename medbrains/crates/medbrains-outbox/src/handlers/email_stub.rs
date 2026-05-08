@@ -42,11 +42,7 @@ impl Handler for SmtpSendHandler {
         self.event_type
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         let to = payload
             .get("to")
             .and_then(Value::as_str)
@@ -92,8 +88,16 @@ impl Handler for SmtpSendHandler {
 
         match provider.as_str() {
             "sendgrid" => {
-                send_via_sendgrid(ctx, &from_address, from_name.as_deref(), to, subject, html, text)
-                    .await
+                send_via_sendgrid(
+                    ctx,
+                    &from_address,
+                    from_name.as_deref(),
+                    to,
+                    subject,
+                    html,
+                    text,
+                )
+                .await
             }
             "ses" => {
                 // AWS SES requires SigV4 signing — non-trivial. For now,

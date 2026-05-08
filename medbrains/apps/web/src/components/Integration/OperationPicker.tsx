@@ -1,18 +1,10 @@
-import {
-  Popover,
-  ScrollArea,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-  UnstyledButton,
-} from "@mantine/core";
-import { IconSearch } from "@tabler/icons-react";
+import { Popover, ScrollArea, Stack, Tabs, Text, TextInput, UnstyledButton } from "@mantine/core";
 import type { MappingOperationType, OperationCategory } from "@medbrains/types";
-import { useState, useMemo, type ReactNode } from "react";
+import { IconSearch } from "@tabler/icons-react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
-  OPERATION_CATEGORIES,
   getOperationsByCategory,
+  OPERATION_CATEGORIES,
   OPERATION_DESCRIPTORS,
 } from "./operationRegistry";
 

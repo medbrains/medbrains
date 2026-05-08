@@ -31,7 +31,11 @@ pub struct Encounter {
     #[serde(skip_serializing_if = "Vec::is_empty", default, rename = "reasonCode")]
     pub reason_code: Vec<CodeableConcept>,
 
-    #[serde(skip_serializing_if = "Vec::is_empty", default, rename = "serviceProvider")]
+    #[serde(
+        skip_serializing_if = "Vec::is_empty",
+        default,
+        rename = "serviceProvider"
+    )]
     pub service_provider: Vec<Reference>,
 }
 

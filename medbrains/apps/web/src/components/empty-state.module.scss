@@ -22,18 +22,21 @@
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    var(--mantine-color-primary-light) 0%,
-    transparent 70%
-  );
-  opacity: 0.5;
+  background:
+    radial-gradient(circle, rgba(20, 184, 166, 0.2) 0%, transparent 58%),
+    var(--mb-accent-gradient-soft);
+  opacity: 0.78;
+  animation: glowBreathe 3.4s ease-in-out infinite;
 }
 
 .iconFloat {
   position: relative;
   z-index: 1;
   animation: emptyFloat 3s ease-in-out infinite;
+}
+
+.iconFloat :global(.mantine-ThemeIcon-root) {
+  box-shadow: 0 12px 32px rgba(20, 184, 166, 0.18);
 }
 
 @keyframes emptyFloat {
@@ -46,8 +49,21 @@
   }
 }
 
+@keyframes glowBreathe {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.64;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.88;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .iconFloat {
+  .iconFloat,
+  .glowCircle {
     animation: none;
   }
 }

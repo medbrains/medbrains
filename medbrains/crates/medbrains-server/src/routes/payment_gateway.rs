@@ -190,7 +190,8 @@ pub async fn create_order(
     .await?;
 
     // Use the row's UUID as the idempotency key (and Razorpay receipt).
-    sqlx::query( // allow-raw-sql: backfill idempotency_key with txn.id
+    sqlx::query(
+        // allow-raw-sql: backfill idempotency_key with txn.id
         "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
     )
     .bind(txn.id)
@@ -325,9 +326,7 @@ pub async fn razorpay_webhook(
     let event_id = headers
         .get("X-Razorpay-Event-Id")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| {
-            AppError::BadRequest("missing X-Razorpay-Event-Id header".to_owned())
-        })?
+        .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Event-Id header".to_owned()))?
         .to_owned();
 
     let payload: serde_json::Value = serde_json::from_str(&body)
@@ -363,7 +362,8 @@ pub async fn razorpay_webhook(
     // Idempotency guard. INSERT ... ON CONFLICT DO NOTHING RETURNING.
     // If we get zero rows back, this event_id was already processed →
     // 200-OK no-op so Razorpay stops retrying.
-    let inserted: Option<(String,)> = sqlx::query_as( // allow-raw-sql: webhook idempotency PK insert
+    let inserted: Option<(String,)> = sqlx::query_as(
+        // allow-raw-sql: webhook idempotency PK insert
         "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
          VALUES ('razorpay', $1, $2, $3) \
          ON CONFLICT (provider, event_id) DO NOTHING \
@@ -378,13 +378,15 @@ pub async fn razorpay_webhook(
     if inserted.is_none() {
         tx.commit().await?;
         tracing::info!(event_id, "razorpay webhook duplicate — skipping");
-        return Ok(Json(serde_json::json!({ "status": "duplicate", "event_id": event_id })));
+        return Ok(Json(
+            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
+        ));
     }
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
         "payment.captured" => {
-            handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?
+            handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?;
         }
         "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, order_id, &payload).await?,
         "refund.created" => handle_webhook_refund(&mut tx, &txn_row, order_id, &payload).await?,

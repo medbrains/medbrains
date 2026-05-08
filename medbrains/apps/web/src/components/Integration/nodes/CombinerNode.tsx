@@ -1,5 +1,5 @@
 import { Select, Text } from "@mantine/core";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, type NodeProps, Position } from "@xyflow/react";
 import type { CombinerNodeData } from "../mapperSync";
 
 const COMBINE_OPTIONS = [
@@ -20,7 +20,9 @@ export function CombinerNode({ data, selected }: NodeProps) {
         border: `2px solid ${selected ? "var(--mantine-color-violet-5)" : "var(--mantine-color-violet-3)"}`,
         background: "var(--mantine-color-white)",
         minWidth: 160,
-        boxShadow: selected ? "0 0 0 2px var(--mantine-color-violet-2)" : "0 1px 3px rgba(0,0,0,0.1)",
+        boxShadow: selected
+          ? "0 0 0 2px var(--mantine-color-violet-2)"
+          : "0 1px 3px rgba(0,0,0,0.1)",
       }}
     >
       <div
@@ -71,7 +73,7 @@ export function CombinerNode({ data, selected }: NodeProps) {
             height: 10,
             background: "var(--mantine-color-violet-5)",
             border: "2px solid var(--mantine-color-white)",
-            top: `${30 + (i * 30)}px`,
+            top: `${30 + i * 30}px`,
           }}
         />
       ))}

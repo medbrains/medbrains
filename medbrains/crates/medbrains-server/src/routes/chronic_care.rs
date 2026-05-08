@@ -1509,12 +1509,15 @@ pub async fn treatment_summary(
 
     // Active diagnoses
     let diagnoses = sqlx::query_as::<_, DiagnosisSummary>(
-        "SELECT d.diagnosis_name, d.icd_code, d.diagnosed_date \
+        "SELECT d.description AS diagnosis_name, d.icd_code, \
+         COALESCE(d.onset_date, d.created_at::date) AS diagnosed_date \
          FROM diagnoses d \
-         WHERE d.patient_id = $1 AND d.is_active = true \
-         ORDER BY d.diagnosed_date DESC",
+         JOIN encounters e ON e.id = d.encounter_id AND e.tenant_id = d.tenant_id \
+         WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.resolved_date IS NULL \
+         ORDER BY diagnosed_date DESC NULLS LAST, d.created_at DESC",
     )
     .bind(patient_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

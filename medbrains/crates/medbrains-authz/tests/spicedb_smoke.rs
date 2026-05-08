@@ -136,9 +136,15 @@ async fn list_filters_to_only_granted_resources() {
         .await
         .expect("list_accessible");
 
-    assert!(visible.contains(&granted_a), "granted_a missing from visible list");
+    assert!(
+        visible.contains(&granted_a),
+        "granted_a missing from visible list"
+    );
     assert!(visible.contains(&granted_b), "granted_b missing");
-    assert!(!visible.contains(&not_granted), "not_granted leaked into list");
+    assert!(
+        !visible.contains(&not_granted),
+        "not_granted leaked into list"
+    );
 
     // Cleanup so this test is idempotent.
     for p in [granted_a, granted_b] {
@@ -181,5 +187,8 @@ async fn bypass_role_short_circuits() {
         .list_accessible(&ctx, "patient", Relation::Viewer)
         .await
         .expect("lookup");
-    assert!(visible.is_empty(), "bypass returns empty (caller skips filter)");
+    assert!(
+        visible.is_empty(),
+        "bypass returns empty (caller skips filter)"
+    );
 }

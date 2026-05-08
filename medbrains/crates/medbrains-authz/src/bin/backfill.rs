@@ -10,10 +10,13 @@
 //! Streams in batches of `BATCH_SIZE` (5000) to keep wire-time small
 //! and SpiceDB GC manageable. Per-FK tuple counts printed at the end.
 
+// CLI binary — println / eprintln are the user-facing UI.
+#![allow(clippy::print_stdout, clippy::print_stderr)]
+
 use std::env;
 
+use medbrains_authz::Subject;
 use medbrains_authz::backend_spicedb::SpiceDbBackend;
-use medbrains_authz::{AuthzBackend, AuthzContext, Subject, relations::Relation};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -60,23 +63,14 @@ async fn main() -> anyhow::Result<()> {
     let tenant = tenant.ok_or_else(|| anyhow::anyhow!("--tenant <uuid> required"))?;
 
     // ── Connect ─────────────────────────────────────────────
-    let database_url = env::var("DATABASE_URL")
-        .map_err(|_| anyhow::anyhow!("DATABASE_URL env required"))?;
+    let database_url =
+        env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL env required"))?;
     let pg = PgPool::connect(&database_url).await?;
 
     let spicedb_endpoint =
         env::var("SPICEDB_ENDPOINT").unwrap_or_else(|_| "http://localhost:50051".to_owned());
     let spicedb_token = env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
     let backend = SpiceDbBackend::connect(&spicedb_endpoint, &spicedb_token).await?;
-
-    // System context — bypass so writes go through unconditionally.
-    let ctx = AuthzContext {
-        tenant_id: tenant,
-        user_id: Uuid::nil(),
-        role: "super_admin".to_owned(),
-        department_ids: vec![],
-        is_bypass: true,
-    };
 
     println!(
         "rebac-backfill — tenant={} endpoint={} dry_run={}",
@@ -143,12 +137,11 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     // ── 4. admissions.admitting_doctor → admission#attending
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, admitting_doctor FROM admissions WHERE tenant_id = $1",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
+    let rows: Vec<(Uuid, Uuid)> =
+        sqlx::query_as("SELECT id, admitting_doctor FROM admissions WHERE tenant_id = $1")
+            .bind(tenant)
+            .fetch_all(&pg)
+            .await?;
     total_written += write_raw_batch(
         &backend,
         "admission",
@@ -261,52 +254,6 @@ async fn main() -> anyhow::Result<()> {
         total_written, dry_run
     );
     Ok(())
-}
-
-/// Write a slice of (object_id, subject) pairs as derived tuples
-/// using a `Relation` enum value (which maps to a SpiceDB schema
-/// relation name internally). For relations the enum doesn't cover
-/// (dept_member, member, ward_member), use `write_raw_batch`.
-async fn write_batch<T>(
-    backend: &SpiceDbBackend,
-    ctx: &AuthzContext,
-    object_type: &str,
-    relation: Relation,
-    rows: &[T],
-    map: impl Fn(&T) -> (Uuid, Subject),
-    label: &str,
-    dry_run: bool,
-) -> anyhow::Result<u64> {
-    if rows.is_empty() {
-        println!("  {label:<32} 0 rows");
-        return Ok(0);
-    }
-    if dry_run {
-        println!("  {label:<32} {} rows (dry-run)", rows.len());
-        return Ok(rows.len() as u64);
-    }
-    let total = rows.len();
-    let mut written = 0u64;
-    for chunk in rows.chunks(BATCH_SIZE) {
-        for row in chunk {
-            let (object_id, subject) = map(row);
-            backend
-                .write_tuple(
-                    ctx,
-                    object_type,
-                    object_id,
-                    relation,
-                    subject,
-                    None,
-                    Some(format!("backfill:{label}")),
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!("write_tuple {object_type} {object_id}: {e}"))?;
-            written += 1;
-        }
-        println!("  {label:<32} {written}/{total}");
-    }
-    Ok(written)
 }
 
 /// Write tuples with an explicit relation name string. Used for

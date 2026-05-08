@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Box,
   Button,
@@ -15,10 +14,11 @@ import {
   Textarea,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import type { PrintTemplateRequest, PrintTemplateType, TenantSettingsRow } from "@medbrains/types";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import type { TenantSettingsRow, PrintTemplateRequest, PrintTemplateType } from "@medbrains/types";
+import { useState } from "react";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -86,9 +86,11 @@ function parseTemplateFromRow(rows: TenantSettingsRow[], templateType: string): 
     margin_right: typeof v.margin_right === "number" ? v.margin_right : 15,
     show_logo: typeof v.show_logo === "boolean" ? v.show_logo : true,
     show_hospital_name: typeof v.show_hospital_name === "boolean" ? v.show_hospital_name : true,
-    show_hospital_address: typeof v.show_hospital_address === "boolean" ? v.show_hospital_address : true,
+    show_hospital_address:
+      typeof v.show_hospital_address === "boolean" ? v.show_hospital_address : true,
     show_hospital_phone: typeof v.show_hospital_phone === "boolean" ? v.show_hospital_phone : true,
-    show_registration_no: typeof v.show_registration_no === "boolean" ? v.show_registration_no : false,
+    show_registration_no:
+      typeof v.show_registration_no === "boolean" ? v.show_registration_no : false,
     custom_css: typeof v.custom_css === "string" ? v.custom_css : "",
   };
 }
@@ -101,7 +103,12 @@ export function PrintTemplateSettings() {
   const [form, setForm] = useState<PrintTemplateForm>({ ...DEFAULT_FORM });
   const [loaded, setLoaded] = useState(false);
 
-  const { data: templates, isLoading, isError, error } = useQuery({
+  const {
+    data: templates,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["setup-print-templates"],
     queryFn: () => api.getPrintTemplates(),
     select: (data: TenantSettingsRow[]) => {
@@ -190,7 +197,9 @@ export function PrintTemplateSettings() {
         {/* Left: Form Fields */}
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack gap="md">
-            <Text fw={600} size="lg">Header & Footer</Text>
+            <Text fw={600} size="lg">
+              Header & Footer
+            </Text>
             <Textarea
               label="Header Text"
               description="Text displayed at the top of printed pages."
@@ -210,7 +219,9 @@ export function PrintTemplateSettings() {
 
             <Divider mt="sm" />
 
-            <Text fw={600} size="lg">Typography</Text>
+            <Text fw={600} size="lg">
+              Typography
+            </Text>
             <Group grow>
               <Select
                 label="Font Family"
@@ -229,7 +240,9 @@ export function PrintTemplateSettings() {
 
             <Divider mt="sm" />
 
-            <Text fw={600} size="lg">Logo & Branding</Text>
+            <Text fw={600} size="lg">
+              Logo & Branding
+            </Text>
             <Select
               label="Logo Position"
               data={LOGO_POSITIONS}
@@ -267,19 +280,45 @@ export function PrintTemplateSettings() {
 
             <Divider mt="sm" />
 
-            <Text fw={600} size="lg">Margins (mm)</Text>
+            <Text fw={600} size="lg">
+              Margins (mm)
+            </Text>
             <Grid gap="sm">
               <Grid.Col span={3}>
-                <NumberInput label="Top" min={0} max={50} value={form.margin_top ?? 20} onChange={(v) => updateField("margin_top", v === "" ? 20 : Number(v))} />
+                <NumberInput
+                  label="Top"
+                  min={0}
+                  max={50}
+                  value={form.margin_top ?? 20}
+                  onChange={(v) => updateField("margin_top", v === "" ? 20 : Number(v))}
+                />
               </Grid.Col>
               <Grid.Col span={3}>
-                <NumberInput label="Bottom" min={0} max={50} value={form.margin_bottom ?? 20} onChange={(v) => updateField("margin_bottom", v === "" ? 20 : Number(v))} />
+                <NumberInput
+                  label="Bottom"
+                  min={0}
+                  max={50}
+                  value={form.margin_bottom ?? 20}
+                  onChange={(v) => updateField("margin_bottom", v === "" ? 20 : Number(v))}
+                />
               </Grid.Col>
               <Grid.Col span={3}>
-                <NumberInput label="Left" min={0} max={50} value={form.margin_left ?? 15} onChange={(v) => updateField("margin_left", v === "" ? 15 : Number(v))} />
+                <NumberInput
+                  label="Left"
+                  min={0}
+                  max={50}
+                  value={form.margin_left ?? 15}
+                  onChange={(v) => updateField("margin_left", v === "" ? 15 : Number(v))}
+                />
               </Grid.Col>
               <Grid.Col span={3}>
-                <NumberInput label="Right" min={0} max={50} value={form.margin_right ?? 15} onChange={(v) => updateField("margin_right", v === "" ? 15 : Number(v))} />
+                <NumberInput
+                  label="Right"
+                  min={0}
+                  max={50}
+                  value={form.margin_right ?? 15}
+                  onChange={(v) => updateField("margin_right", v === "" ? 15 : Number(v))}
+                />
               </Grid.Col>
             </Grid>
 
@@ -296,7 +335,9 @@ export function PrintTemplateSettings() {
 
         {/* Right: Preview */}
         <Grid.Col span={{ base: 12, md: 5 }}>
-          <Text fw={600} size="lg" mb="sm">Preview</Text>
+          <Text fw={600} size="lg" mb="sm">
+            Preview
+          </Text>
           <Paper
             withBorder
             shadow="xs"
@@ -313,7 +354,12 @@ export function PrintTemplateSettings() {
               p="sm"
               style={{
                 borderBottom: "1px solid #dee2e6",
-                textAlign: form.logo_position === "center" ? "center" : form.logo_position === "right" ? "right" : "left",
+                textAlign:
+                  form.logo_position === "center"
+                    ? "center"
+                    : form.logo_position === "right"
+                      ? "right"
+                      : "left",
               }}
             >
               {form.show_logo && (
@@ -329,14 +375,36 @@ export function PrintTemplateSettings() {
                     marginBottom: 4,
                   }}
                 >
-                  <Text size="xs" c="dimmed">Logo</Text>
+                  <Text size="xs" c="dimmed">
+                    Logo
+                  </Text>
                 </Box>
               )}
-              {form.show_hospital_name && <Text fw={700} size="sm">Hospital Name</Text>}
-              {form.show_hospital_address && <Text size="xs" c="dimmed">123 Medical Street, City</Text>}
-              {form.show_hospital_phone && <Text size="xs" c="dimmed">Phone: +91 12345 67890</Text>}
-              {form.show_registration_no && <Text size="xs" c="dimmed">Reg. No: HOSP-12345</Text>}
-              {form.header_text && <Text size="xs" mt={4}>{form.header_text}</Text>}
+              {form.show_hospital_name && (
+                <Text fw={700} size="sm">
+                  Hospital Name
+                </Text>
+              )}
+              {form.show_hospital_address && (
+                <Text size="xs" c="dimmed">
+                  123 Medical Street, City
+                </Text>
+              )}
+              {form.show_hospital_phone && (
+                <Text size="xs" c="dimmed">
+                  Phone: +91 12345 67890
+                </Text>
+              )}
+              {form.show_registration_no && (
+                <Text size="xs" c="dimmed">
+                  Reg. No: HOSP-12345
+                </Text>
+              )}
+              {form.header_text && (
+                <Text size="xs" mt={4}>
+                  {form.header_text}
+                </Text>
+              )}
             </Box>
 
             {/* Body placeholder */}
@@ -351,7 +419,8 @@ export function PrintTemplateSettings() {
               }}
             >
               <Text size="xs" c="dimmed" fs="italic">
-                [{TEMPLATE_TYPES.find((t) => t.value === selectedType)?.label ?? selectedType} content area]
+                [{TEMPLATE_TYPES.find((t) => t.value === selectedType)?.label ?? selectedType}{" "}
+                content area]
               </Text>
             </Box>
 
@@ -366,7 +435,11 @@ export function PrintTemplateSettings() {
                 right: 0,
               }}
             >
-              {form.footer_text && <Text size="xs" c="dimmed">{form.footer_text}</Text>}
+              {form.footer_text && (
+                <Text size="xs" c="dimmed">
+                  {form.footer_text}
+                </Text>
+              )}
             </Box>
           </Paper>
         </Grid.Col>

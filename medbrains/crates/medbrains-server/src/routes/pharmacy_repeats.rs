@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -81,10 +81,8 @@ pub async fn check_eligibility(
         _ => None,
     };
 
-    let is_eligible_now = remaining > 0
-        && next_eligible_at
-            .map(|t| t <= Utc::now())
-            .unwrap_or(true);
+    let is_eligible_now =
+        remaining > 0 && next_eligible_at.map(|t| t <= Utc::now()).unwrap_or(true);
 
     Ok(Json(RepeatEligibility {
         prescription_id,
@@ -109,7 +107,10 @@ pub async fn dispense_repeat(
     Path(prescription_id): Path<Uuid>,
     Json(body): Json<DispenseRepeatRequest>,
 ) -> Result<Json<RepeatRow>, AppError> {
-    require_permission(&claims, permissions::pharmacy_improvements::repeats::DISPENSE)?;
+    require_permission(
+        &claims,
+        permissions::pharmacy_improvements::repeats::DISPENSE,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

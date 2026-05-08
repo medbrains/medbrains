@@ -102,10 +102,7 @@ impl BridgePusher {
     /// its sink. Errors per-tenant are logged and counted but don't
     /// abort the broadcast — a flaky tenant must not stop other
     /// tenants from being told about their own changes.
-    pub async fn push_invalidate(
-        &self,
-        keys: Vec<InvalidationKey>,
-    ) -> PushOutcome {
+    pub async fn push_invalidate(&self, keys: Vec<InvalidationKey>) -> PushOutcome {
         let mut by_tenant: HashMap<Uuid, Vec<InvalidationKey>> = HashMap::new();
         for k in keys {
             by_tenant.entry(k.tenant_id).or_default().push(k);
@@ -124,7 +121,10 @@ impl BridgePusher {
                 );
                 continue;
             };
-            match sink.send(BridgeFrame::CacheInvalidate { keys: tenant_keys }).await {
+            match sink
+                .send(BridgeFrame::CacheInvalidate { keys: tenant_keys })
+                .await
+            {
                 Ok(()) => {
                     outcome.delivered_tenants += 1;
                     outcome.delivered_keys += count;
@@ -204,11 +204,7 @@ mod tests {
         pusher.register(t2, s2.clone()).await;
 
         let outcome = pusher
-            .push_invalidate(vec![
-                key(t1, "read"),
-                key(t1, "write"),
-                key(t2, "read"),
-            ])
+            .push_invalidate(vec![key(t1, "read"), key(t1, "write"), key(t2, "read")])
             .await;
 
         assert_eq!(outcome.delivered_tenants, 2);
@@ -249,7 +245,9 @@ mod tests {
         let healthy_id = Uuid::new_v4();
         let broken_id = Uuid::new_v4();
         let healthy = Arc::new(CapturingSink::default());
-        let broken = Arc::new(FailingSink { attempts: AtomicUsize::new(0) });
+        let broken = Arc::new(FailingSink {
+            attempts: AtomicUsize::new(0),
+        });
         pusher.register(healthy_id, healthy.clone()).await;
         pusher.register(broken_id, broken.clone()).await;
 

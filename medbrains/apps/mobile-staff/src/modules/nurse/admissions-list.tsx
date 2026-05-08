@@ -3,15 +3,15 @@
  * schedule.
  */
 
+import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
-import { listActiveAdmissions } from "../../api/ipd.js";
 import type { AdmissionRow } from "../../api/ipd.js";
-import { useFetch } from "../../lib/use-fetch.js";
+import { listActiveAdmissions } from "../../api/ipd.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { useFetch } from "../../lib/use-fetch.js";
 
 export function AdmissionsListScreen(): ReactNode {
   const router = useModuleRouter();
@@ -37,17 +37,11 @@ export function AdmissionsListScreen(): ReactNode {
           onAction={refetch}
         />
       )}
-      {!loading && !error && (data?.length ?? 0) === 0 && (
-        <Empty title="No active admissions" />
-      )}
+      {!loading && !error && (data?.length ?? 0) === 0 && <Empty title="No active admissions" />}
       {!loading && !error && data && data.length > 0 && (
         <ScrollView contentContainerStyle={{ padding: SPACING.md }}>
           {data.map((row) => (
-            <AdmissionRowView
-              key={row.id}
-              row={row}
-              onPress={() => router.push("mar", row)}
-            />
+            <AdmissionRowView key={row.id} row={row} onPress={() => router.push("mar", row)} />
           ))}
         </ScrollView>
       )}
@@ -55,13 +49,7 @@ export function AdmissionsListScreen(): ReactNode {
   );
 }
 
-function AdmissionRowView({
-  row,
-  onPress,
-}: {
-  row: AdmissionRow;
-  onPress: () => void;
-}): ReactNode {
+function AdmissionRowView({ row, onPress }: { row: AdmissionRow; onPress: () => void }): ReactNode {
   return (
     <View
       onTouchEnd={onPress}

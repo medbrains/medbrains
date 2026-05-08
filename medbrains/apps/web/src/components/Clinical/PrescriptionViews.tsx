@@ -1,18 +1,13 @@
-import { useMemo, useState } from "react";
 import { Group, SegmentedControl, Stack, Text } from "@mantine/core";
-import {
-  IconCalculator,
-  IconCards,
-  IconFileText,
-  IconTimeline,
-} from "@tabler/icons-react";
 import type { PrescriptionWithItems } from "@medbrains/types";
+import { IconCalculator, IconCards, IconFileText, IconTimeline } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
 import {
+  DoseCalculatorView,
   type FlatItem,
   ProseView,
-  TimelineView,
-  DoseCalculatorView,
   RuleCardsView,
+  TimelineView,
 } from "./prescription-view-panels";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -75,9 +70,17 @@ export function PrescriptionViews({
   return (
     <Stack gap="sm">
       <Group gap="xs">
-        <Text size="xs" fw={500}>{patientName}</Text>
-        <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">{uhid}</Text>
-        {patientAge && <Text size="xs" c="dimmed">{patientAge}</Text>}
+        <Text size="xs" fw={500}>
+          {patientName}
+        </Text>
+        <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">
+          {uhid}
+        </Text>
+        {patientAge && (
+          <Text size="xs" c="dimmed">
+            {patientAge}
+          </Text>
+        )}
       </Group>
 
       <SegmentedControl
@@ -85,17 +88,27 @@ export function PrescriptionViews({
         onChange={(v) => setView(v as ViewMode)}
         data={[
           { label: <SegLabel icon={<IconFileText size={14} />} text="Prose" />, value: "prose" },
-          { label: <SegLabel icon={<IconTimeline size={14} />} text="Timeline" />, value: "timeline" },
-          { label: <SegLabel icon={<IconCalculator size={14} />} text="Dose Calc" />, value: "dose" },
+          {
+            label: <SegLabel icon={<IconTimeline size={14} />} text="Timeline" />,
+            value: "timeline",
+          },
+          {
+            label: <SegLabel icon={<IconCalculator size={14} />} text="Dose Calc" />,
+            value: "dose",
+          },
           { label: <SegLabel icon={<IconCards size={14} />} text="Rules" />, value: "rules" },
         ]}
         size="xs"
         fullWidth
       />
 
-      {view === "prose" && <ProseView items={items} allergies={allergies} doctorName={doctorName} />}
+      {view === "prose" && (
+        <ProseView items={items} allergies={allergies} doctorName={doctorName} />
+      )}
       {view === "timeline" && <TimelineView items={items} />}
-      {view === "dose" && <DoseCalculatorView items={items} patientWeight={patientWeight} patientAge={patientAge} />}
+      {view === "dose" && (
+        <DoseCalculatorView items={items} patientWeight={patientWeight} patientAge={patientAge} />
+      )}
       {view === "rules" && <RuleCardsView items={items} />}
     </Stack>
   );

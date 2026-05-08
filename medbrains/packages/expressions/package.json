@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@medbrains/types": "workspace:*",
-    "expr-eval": "^2.0.2",
-    "json-logic-js": "^2.0.5",
-    "handlebars": "^4.7.8"
+    "expr-eval-fork": "^3.0.3",
+    "handlebars": "^4.7.9",
+    "json-logic-js": "^2.0.5"
   }
 }

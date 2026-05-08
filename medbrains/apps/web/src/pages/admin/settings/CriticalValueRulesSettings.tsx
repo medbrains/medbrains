@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -9,16 +8,17 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
+import type { CreateCriticalValueRuleRequest, CriticalValueRule } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import type { CriticalValueRule, CreateCriticalValueRuleRequest } from "@medbrains/types";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 export function CriticalValueRulesSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
@@ -41,7 +41,11 @@ export function CriticalValueRulesSettings() {
     mutationFn: (data: CreateCriticalValueRuleRequest) => api.createCriticalValueRule(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["critical-value-rules"] });
-      notifications.show({ title: "Created", message: "Critical value rule added", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Critical value rule added",
+        color: "success",
+      });
       handleClose();
     },
     onError: () => {
@@ -108,16 +112,40 @@ export function CriticalValueRulesSettings() {
         <Table.Tbody>
           {rules.map((r: CriticalValueRule) => (
             <Table.Tr key={r.id}>
-              <Table.Td><Text size="sm" fw={500}>{r.test_code}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.test_name}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.low_critical ?? "—"}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.high_critical ?? "—"}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.unit ?? "—"}</Text></Table.Td>
-              <Table.Td><Text size="sm">{r.gender ?? "All"}</Text></Table.Td>
-              <Table.Td><Text size="xs" lineClamp={1}>{r.alert_message}</Text></Table.Td>
+              <Table.Td>
+                <Text size="sm" fw={500}>
+                  {r.test_code}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.test_name}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.low_critical ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.high_critical ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.unit ?? "—"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{r.gender ?? "All"}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="xs" lineClamp={1}>
+                  {r.alert_message}
+                </Text>
+              </Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => deleteMutation.mutate(r.id)} aria-label="Delete">
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => deleteMutation.mutate(r.id)}
+                    aria-label="Delete"
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -127,7 +155,9 @@ export function CriticalValueRulesSettings() {
           {rules.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={canManage ? 8 : 7}>
-                <Text size="sm" c="dimmed" ta="center">No critical value rules configured</Text>
+                <Text size="sm" c="dimmed" ta="center">
+                  No critical value rules configured
+                </Text>
               </Table.Td>
             </Table.Tr>
           )}
@@ -137,21 +167,74 @@ export function CriticalValueRulesSettings() {
       <Modal opened={opened} onClose={handleClose} title="Add Critical Value Rule" size="md">
         <Stack gap="sm">
           <Group grow>
-            <TextInput label="Test Code" placeholder="e.g. K" value={testCode} onChange={(e) => setTestCode(e.currentTarget.value)} required />
-            <TextInput label="Test Name" placeholder="e.g. Potassium" value={testName} onChange={(e) => setTestName(e.currentTarget.value)} required />
+            <TextInput
+              label="Test Code"
+              placeholder="e.g. K"
+              value={testCode}
+              onChange={(e) => setTestCode(e.currentTarget.value)}
+              required
+            />
+            <TextInput
+              label="Test Name"
+              placeholder="e.g. Potassium"
+              value={testName}
+              onChange={(e) => setTestName(e.currentTarget.value)}
+              required
+            />
           </Group>
           <Group grow>
-            <NumberInput label="Low Critical" placeholder="e.g. 2.5" value={lowCritical} onChange={setLowCritical} decimalScale={4} />
-            <NumberInput label="High Critical" placeholder="e.g. 6.5" value={highCritical} onChange={setHighCritical} decimalScale={4} />
+            <NumberInput
+              label="Low Critical"
+              placeholder="e.g. 2.5"
+              value={lowCritical}
+              onChange={setLowCritical}
+              decimalScale={4}
+            />
+            <NumberInput
+              label="High Critical"
+              placeholder="e.g. 6.5"
+              value={highCritical}
+              onChange={setHighCritical}
+              decimalScale={4}
+            />
           </Group>
           <Group grow>
-            <TextInput label="Unit" placeholder="e.g. mEq/L" value={unit} onChange={(e) => setUnit(e.currentTarget.value)} />
-            <Select label="Gender" data={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }]} value={gender} onChange={setGender} clearable placeholder="All" />
+            <TextInput
+              label="Unit"
+              placeholder="e.g. mEq/L"
+              value={unit}
+              onChange={(e) => setUnit(e.currentTarget.value)}
+            />
+            <Select
+              label="Gender"
+              data={[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+              ]}
+              value={gender}
+              onChange={setGender}
+              clearable
+              placeholder="All"
+            />
           </Group>
-          <Textarea label="Alert Message" placeholder="Critical value alert text" value={alertMessage} onChange={(e) => setAlertMessage(e.currentTarget.value)} required autosize minRows={2} />
+          <Textarea
+            label="Alert Message"
+            placeholder="Critical value alert text"
+            value={alertMessage}
+            onChange={(e) => setAlertMessage(e.currentTarget.value)}
+            required
+            autosize
+            minRows={2}
+          />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>Cancel</Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={!testCode.trim() || !testName.trim() || !alertMessage.trim()}>
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={!testCode.trim() || !testName.trim() || !alertMessage.trim()}
+            >
               Create
             </Button>
           </Group>

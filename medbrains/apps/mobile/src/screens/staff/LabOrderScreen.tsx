@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
-import type { LabTestCatalog, LabOrder, LabPriority } from "@medbrains/types";
+import type { LabOrder, LabPriority, LabTestCatalog } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -224,9 +224,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
           <Text variant="titleMedium" style={styles.sectionTitle}>
             Selected Tests
           </Text>
-          {selectedTests.length > 0 && (
-            <Badge size={24}>{selectedTests.length}</Badge>
-          )}
+          {selectedTests.length > 0 && <Badge size={24}>{selectedTests.length}</Badge>}
         </View>
 
         {selectedTests.length > 0 ? (
@@ -252,11 +250,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
                     ₹{test.price}
                   </Text>
                 )}
-                <IconButton
-                  icon="close"
-                  size={20}
-                  onPress={() => handleRemoveTest(test.id)}
-                />
+                <IconButton icon="close" size={20} onPress={() => handleRemoveTest(test.id)} />
               </Surface>
             ))}
 

@@ -1,4 +1,3 @@
-import { useState, useMemo } from "react";
 import {
   ActionIcon,
   Badge,
@@ -14,6 +13,16 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  AppointmentWithPatient,
+  AvailableSlot,
+  DepartmentRow,
+  RescheduleAppointmentRequest,
+  SetupUser,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCalendar,
   IconCalendarEvent,
@@ -25,18 +34,9 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useMemo, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
-import type {
-  AppointmentWithPatient,
-  AvailableSlot,
-  DepartmentRow,
-  RescheduleAppointmentRequest,
-  SetupUser,
-} from "@medbrains/types";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -72,13 +72,7 @@ function todayStr(): string {
 
 // ── Book Appointment Modal ─────────────────────────────────
 
-function BookAppointmentModal({
-  opened,
-  onClose,
-}: {
-  opened: boolean;
-  onClose: () => void;
-}) {
+function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<"form" | "slots">("form");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -145,8 +139,8 @@ function BookAppointmentModal({
         doctor_id: selectedDoctorId!,
         department_id: selectedDeptId!,
         appointment_date: dateStr,
-        slot_start: selectedSlot!.start_time,
-        slot_end: selectedSlot!.end_time,
+        slot_start: selectedSlot?.start_time,
+        slot_end: selectedSlot?.end_time,
         appointment_type: appointmentType as
           | "new_visit"
           | "follow_up"
@@ -192,16 +186,10 @@ function BookAppointmentModal({
     onClose();
   };
 
-  const canProceedToSlots =
-    selectedPatientId && selectedDoctorId && selectedDeptId && selectedDate;
+  const canProceedToSlots = selectedPatientId && selectedDoctorId && selectedDeptId && selectedDate;
 
   return (
-    <Modal
-      opened={opened}
-      onClose={handleClose}
-      title="Book Appointment"
-      size="lg"
-    >
+    <Modal opened={opened} onClose={handleClose} title="Book Appointment" size="lg">
       {step === "form" ? (
         <Stack gap="sm">
           <Select
@@ -289,19 +277,14 @@ function BookAppointmentModal({
             <Button variant="light" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              onClick={() => setStep("slots")}
-              disabled={!canProceedToSlots}
-            >
+            <Button onClick={() => setStep("slots")} disabled={!canProceedToSlots}>
               Select Time Slot
             </Button>
           </Group>
         </Stack>
       ) : (
         <Stack gap="sm">
-          <Text fw={600}>
-            Available Slots for {dateStr}
-          </Text>
+          <Text fw={600}>Available Slots for {dateStr}</Text>
 
           {slotsLoading && (
             <Group gap="xs">
@@ -324,11 +307,7 @@ function BookAppointmentModal({
                 <Button
                   key={slot.start_time}
                   size="xs"
-                  variant={
-                    selectedSlot?.start_time === slot.start_time
-                      ? "filled"
-                      : "light"
-                  }
+                  variant={selectedSlot?.start_time === slot.start_time ? "filled" : "light"}
                   disabled={!slot.is_available}
                   onClick={() => setSelectedSlot(slot)}
                 >
@@ -379,8 +358,7 @@ export function AppointmentsPage() {
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["appointments", dateStr],
-    queryFn: () =>
-      api.listAppointments(dateStr ? { date: dateStr } : undefined),
+    queryFn: () => api.listAppointments(dateStr ? { date: dateStr } : undefined),
   });
 
   const checkInMutation = useMutation({
@@ -444,7 +422,7 @@ export function AppointmentsPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () =>
-      api.cancelAppointment(cancelTarget!.id, {
+      api.cancelAppointment(cancelTarget?.id, {
         cancel_reason: cancelReason || undefined,
       }),
     onSuccess: () => {
@@ -469,13 +447,13 @@ export function AppointmentsPage() {
 
   const rescheduleSlots = useQuery({
     queryKey: ["available-slots", rescheduleTarget?.doctor_id, rescheduleDate],
-    queryFn: () => api.getAvailableSlots(rescheduleTarget!.doctor_id, rescheduleDate!),
+    queryFn: () => api.getAvailableSlots(rescheduleTarget?.doctor_id, rescheduleDate!),
     enabled: !!rescheduleTarget && !!rescheduleDate,
   });
 
   const rescheduleMutation = useMutation({
     mutationFn: (data: RescheduleAppointmentRequest) =>
-      api.rescheduleAppointment(rescheduleTarget!.id, data),
+      api.rescheduleAppointment(rescheduleTarget?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Rescheduled",
@@ -504,10 +482,7 @@ export function AppointmentsPage() {
         subtitle="OPD appointment scheduling and management"
         actions={
           canBook ? (
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => setModalOpen(true)}
-            >
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>
               Book Appointment
             </Button>
           ) : undefined
@@ -569,16 +544,11 @@ export function AppointmentsPage() {
                   </Table.Td>
                   <Table.Td>
                     <Badge variant="light" size="sm">
-                      {APPT_TYPE_LABELS[appt.appointment_type] ??
-                        appt.appointment_type}
+                      {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Badge
-                      color={STATUS_COLORS[appt.status] ?? "slate"}
-                      variant="light"
-                      size="sm"
-                    >
+                    <Badge color={STATUS_COLORS[appt.status] ?? "slate"} variant="light" size="sm">
                       {appt.status.replace(/_/g, " ")}
                     </Badge>
                   </Table.Td>
@@ -591,16 +561,13 @@ export function AppointmentsPage() {
                     <Table.Td>
                       <Group gap="xs" wrap="nowrap">
                         {canUpdate &&
-                          (appt.status === "scheduled" ||
-                            appt.status === "confirmed") && (
+                          (appt.status === "scheduled" || appt.status === "confirmed") && (
                             <>
                               <ActionIcon
                                 variant="subtle"
                                 color="success"
                                 title="Check In"
-                                onClick={() =>
-                                  checkInMutation.mutate(appt.id)
-                                }
+                                onClick={() => checkInMutation.mutate(appt.id)}
                                 aria-label="Login"
                               >
                                 <IconLogin size={16} />
@@ -609,9 +576,7 @@ export function AppointmentsPage() {
                                 variant="subtle"
                                 color="slate"
                                 title="No Show"
-                                onClick={() =>
-                                  noShowMutation.mutate(appt.id)
-                                }
+                                onClick={() => noShowMutation.mutate(appt.id)}
                                 aria-label="Call"
                               >
                                 <IconPhone size={16} />
@@ -619,8 +584,7 @@ export function AppointmentsPage() {
                             </>
                           )}
                         {canUpdate &&
-                          (appt.status === "scheduled" ||
-                            appt.status === "confirmed") && (
+                          (appt.status === "scheduled" || appt.status === "confirmed") && (
                             <ActionIcon
                               variant="subtle"
                               color="primary"
@@ -636,15 +600,12 @@ export function AppointmentsPage() {
                             </ActionIcon>
                           )}
                         {canUpdate &&
-                          (appt.status === "checked_in" ||
-                            appt.status === "in_consultation") && (
+                          (appt.status === "checked_in" || appt.status === "in_consultation") && (
                             <ActionIcon
                               variant="subtle"
                               color="success"
                               title="Complete"
-                              onClick={() =>
-                                completeMutation.mutate(appt.id)
-                              }
+                              onClick={() => completeMutation.mutate(appt.id)}
                               aria-label="Confirm"
                             >
                               <IconCheck size={16} />
@@ -681,10 +642,7 @@ export function AppointmentsPage() {
         </Table>
       )}
 
-      <BookAppointmentModal
-        opened={modalOpen}
-        onClose={() => setModalOpen(false)}
-      />
+      <BookAppointmentModal opened={modalOpen} onClose={() => setModalOpen(false)} />
 
       <Modal
         opened={!!cancelTarget}
@@ -736,11 +694,16 @@ export function AppointmentsPage() {
         <Stack gap="md">
           <Text size="sm">
             Reschedule appointment for{" "}
-            <Text span fw={600}>{rescheduleTarget?.patient_name}</Text>
-            {" "}with Dr. {rescheduleTarget?.doctor_name}
+            <Text span fw={600}>
+              {rescheduleTarget?.patient_name}
+            </Text>{" "}
+            with Dr. {rescheduleTarget?.doctor_name}
           </Text>
           <Text size="xs" c="dimmed">
-            Current: {rescheduleTarget ? `${rescheduleTarget.appointment_date} at ${formatTime(rescheduleTarget.slot_start)}` : ""}
+            Current:{" "}
+            {rescheduleTarget
+              ? `${rescheduleTarget.appointment_date} at ${formatTime(rescheduleTarget.slot_start)}`
+              : ""}
           </Text>
 
           <DatePickerInput
@@ -760,11 +723,15 @@ export function AppointmentsPage() {
               {rescheduleSlots.isLoading && (
                 <Group gap="xs">
                   <Loader size="xs" />
-                  <Text size="sm" c="dimmed">Loading available slots...</Text>
+                  <Text size="sm" c="dimmed">
+                    Loading available slots...
+                  </Text>
                 </Group>
               )}
               {rescheduleSlots.data && rescheduleSlots.data.length === 0 && (
-                <Text size="sm" c="dimmed">No available slots for this date.</Text>
+                <Text size="sm" c="dimmed">
+                  No available slots for this date.
+                </Text>
               )}
               {rescheduleSlots.data && rescheduleSlots.data.length > 0 && (
                 <Group gap="xs" wrap="wrap">

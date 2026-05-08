@@ -1,6 +1,6 @@
 import { Badge, Box, Card, Group, Text, ThemeIcon } from "@mantine/core";
 import { IconCircleFilled, IconPlayerPlay } from "@tabler/icons-react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, type NodeProps, Position } from "@xyflow/react";
 
 interface ActionNodeData {
   label?: string;
@@ -11,9 +11,13 @@ interface ActionNodeData {
   [key: string]: unknown;
 }
 
-function getConfigSummary(code: string | undefined, config: Record<string, unknown>): string | null {
+function getConfigSummary(
+  code: string | undefined,
+  config: Record<string, unknown>,
+): string | null {
   if (!code) return null;
-  if (code === "action.create_indent" && config.indent_type) return `${String(config.indent_type)} indent`;
+  if (code === "action.create_indent" && config.indent_type)
+    return `${String(config.indent_type)} indent`;
   if (code === "action.create_order") return "pharmacy order";
   if (code === "action.send_notification" && config.channel) return String(config.channel);
   if (code === "action.webhook_call" && config.url) return String(config.url).slice(0, 30);
@@ -50,7 +54,9 @@ export function ActionNode({ data, selected }: NodeProps) {
         radius="md"
         withBorder
         style={{
-          borderColor: selected ? `var(--mantine-color-${color}-5)` : `var(--mantine-color-${color}-2)`,
+          borderColor: selected
+            ? `var(--mantine-color-${color}-5)`
+            : `var(--mantine-color-${color}-2)`,
           borderWidth: selected ? 2 : 1,
           minWidth: 200,
           borderLeft: `4px solid var(--mantine-color-${color}-5)`,

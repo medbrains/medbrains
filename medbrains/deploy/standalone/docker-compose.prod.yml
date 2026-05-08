@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     ports:
       # Bind to localhost only so the host firewall doesn't have to
-      # think about postgres exposure. Caddy + the Rust server are
+      # think about postgres exposure. Pingora + the Rust server are
       # the only public entry points.
       - "127.0.0.1:5432:5432"
     environment:

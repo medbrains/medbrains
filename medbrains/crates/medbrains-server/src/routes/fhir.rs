@@ -24,8 +24,8 @@ use medbrains_fhir::mapper::{
     EncounterView, ObservationView, PatientView, encounter_to_fhir, observation_to_fhir,
     patient_to_fhir,
 };
-use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use medbrains_fhir::r4::Resource;
+use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -152,8 +152,8 @@ struct EncounterRow {
     doctor_display: Option<String>,
     encounter_type: String,
     status: String,
-    started_at: chrono::DateTime<chrono::Utc>,
-    ended_at: Option<chrono::DateTime<chrono::Utc>>,
+    started_at: chrono::DateTime<Utc>,
+    ended_at: Option<chrono::DateTime<Utc>>,
 }
 
 // ── Patient $everything (Bundle) ──────────────────────────────────

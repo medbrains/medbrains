@@ -9,7 +9,7 @@
 //! Reference: ABDM HCX/HIE Implementation Guide §6 (Encryption).
 
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
-use aes_gcm::{Aes256Gcm, Key, Nonce};
+use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use hkdf::Hkdf;
 use p256::ecdh::EphemeralSecret;
@@ -69,9 +69,10 @@ pub fn encrypt_bundle<T: serde::Serialize>(
     // 5. AES-256-GCM encrypt with random nonce.
     let mut nonce_bytes = [0u8; 12];
     rand::rng().fill_bytes(&mut nonce_bytes);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&aes_key_bytes));
+    let cipher = Aes256Gcm::new_from_slice(&aes_key_bytes).map_err(|_| CryptoError::InvalidKey)?;
+    let nonce = Nonce::from(nonce_bytes);
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext.as_ref())
+        .encrypt(&nonce, plaintext.as_ref())
         .map_err(|_| CryptoError::Encrypt)?;
 
     Ok(EncryptedBundle {

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Accordion,
   ActionIcon,
@@ -6,28 +5,29 @@ import {
   Button,
   Card,
   Group,
+  NumberInput,
   Select,
   Stack,
   Text,
-  TextInput,
   Textarea,
-  NumberInput,
+  TextInput,
   ThemeIcon,
 } from "@mantine/core";
+import type {
+  FamilyHistoryEntry,
+  PastMedicalEntry,
+  PastSurgicalEntry,
+  SocialHistory,
+} from "@medbrains/types";
 import {
+  IconBottle,
   IconHistory,
   IconPlus,
   IconStethoscope,
   IconTrash,
   IconUsers,
-  IconBottle,
 } from "@tabler/icons-react";
-import type {
-  PastMedicalEntry,
-  PastSurgicalEntry,
-  FamilyHistoryEntry,
-  SocialHistory,
-} from "@medbrains/types";
+import { useState } from "react";
 
 interface StructuredHistoryProps {
   hpi: string;
@@ -52,10 +52,17 @@ const STATUS_OPTIONS = [
 ];
 
 const RELATIONS = [
-  "Father", "Mother", "Brother", "Sister",
-  "Paternal Grandfather", "Paternal Grandmother",
-  "Maternal Grandfather", "Maternal Grandmother",
-  "Son", "Daughter", "Spouse",
+  "Father",
+  "Mother",
+  "Brother",
+  "Sister",
+  "Paternal Grandfather",
+  "Paternal Grandmother",
+  "Maternal Grandfather",
+  "Maternal Grandmother",
+  "Son",
+  "Daughter",
+  "Spouse",
 ];
 
 const SMOKING_STATUS = [
@@ -102,7 +109,10 @@ export function StructuredHistory({
 
   const addPmh = () => {
     if (!pmhCondition.trim()) return;
-    const updated = [...pastMedical, { condition: pmhCondition.trim(), status: pmhStatus as PastMedicalEntry["status"] }];
+    const updated = [
+      ...pastMedical,
+      { condition: pmhCondition.trim(), status: pmhStatus as PastMedicalEntry["status"] },
+    ];
     onUpdate({ past_medical_history: updated });
     setPmhCondition("");
   };
@@ -145,8 +155,16 @@ export function StructuredHistory({
     <Accordion variant="separated" multiple defaultValue={["hpi"]}>
       {/* HPI */}
       <Accordion.Item value="hpi">
-        <Accordion.Control icon={<ThemeIcon variant="light" color="primary" size="sm"><IconStethoscope size={14} /></ThemeIcon>}>
-          <Text size="sm" fw={600}>History of Present Illness (HPI)</Text>
+        <Accordion.Control
+          icon={
+            <ThemeIcon variant="light" color="primary" size="sm">
+              <IconStethoscope size={14} />
+            </ThemeIcon>
+          }
+        >
+          <Text size="sm" fw={600}>
+            History of Present Illness (HPI)
+          </Text>
         </Accordion.Control>
         <Accordion.Panel>
           <Textarea
@@ -164,10 +182,22 @@ export function StructuredHistory({
 
       {/* Past Medical History */}
       <Accordion.Item value="pmh">
-        <Accordion.Control icon={<ThemeIcon variant="light" color="violet" size="sm"><IconHistory size={14} /></ThemeIcon>}>
+        <Accordion.Control
+          icon={
+            <ThemeIcon variant="light" color="violet" size="sm">
+              <IconHistory size={14} />
+            </ThemeIcon>
+          }
+        >
           <Group gap={8}>
-            <Text size="sm" fw={600}>Past Medical History</Text>
-            {pastMedical.length > 0 && <Badge size="xs" variant="light" circle>{pastMedical.length}</Badge>}
+            <Text size="sm" fw={600}>
+              Past Medical History
+            </Text>
+            {pastMedical.length > 0 && (
+              <Badge size="xs" variant="light" circle>
+                {pastMedical.length}
+              </Badge>
+            )}
           </Group>
         </Accordion.Control>
         <Accordion.Panel>
@@ -188,7 +218,12 @@ export function StructuredHistory({
                   w={120}
                   size="sm"
                 />
-                <Button size="sm" leftSection={<IconPlus size={14} />} onClick={addPmh} disabled={!pmhCondition.trim()}>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={addPmh}
+                  disabled={!pmhCondition.trim()}
+                >
                   Add
                 </Button>
               </Group>
@@ -198,29 +233,61 @@ export function StructuredHistory({
                 <Group justify="space-between">
                   <Group gap={8}>
                     <Text size="sm">{entry.condition}</Text>
-                    <Badge size="xs" color={entry.status === "active" ? "danger" : entry.status === "controlled" ? "warning" : "success"} variant="light">
+                    <Badge
+                      size="xs"
+                      color={
+                        entry.status === "active"
+                          ? "danger"
+                          : entry.status === "controlled"
+                            ? "warning"
+                            : "success"
+                      }
+                      variant="light"
+                    >
                       {entry.status}
                     </Badge>
                   </Group>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePmh(idx)} aria-label="Delete">
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      size="sm"
+                      onClick={() => removePmh(idx)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}
                 </Group>
               </Card>
             ))}
-            {pastMedical.length === 0 && <Text size="sm" c="dimmed" ta="center">No past medical history recorded</Text>}
+            {pastMedical.length === 0 && (
+              <Text size="sm" c="dimmed" ta="center">
+                No past medical history recorded
+              </Text>
+            )}
           </Stack>
         </Accordion.Panel>
       </Accordion.Item>
 
       {/* Past Surgical History */}
       <Accordion.Item value="psh">
-        <Accordion.Control icon={<ThemeIcon variant="light" color="orange" size="sm"><IconStethoscope size={14} /></ThemeIcon>}>
+        <Accordion.Control
+          icon={
+            <ThemeIcon variant="light" color="orange" size="sm">
+              <IconStethoscope size={14} />
+            </ThemeIcon>
+          }
+        >
           <Group gap={8}>
-            <Text size="sm" fw={600}>Past Surgical History</Text>
-            {pastSurgical.length > 0 && <Badge size="xs" variant="light" circle>{pastSurgical.length}</Badge>}
+            <Text size="sm" fw={600}>
+              Past Surgical History
+            </Text>
+            {pastSurgical.length > 0 && (
+              <Badge size="xs" variant="light" circle>
+                {pastSurgical.length}
+              </Badge>
+            )}
           </Group>
         </Accordion.Control>
         <Accordion.Panel>
@@ -243,7 +310,12 @@ export function StructuredHistory({
                   min={1950}
                   max={new Date().getFullYear()}
                 />
-                <Button size="sm" leftSection={<IconPlus size={14} />} onClick={addPsh} disabled={!pshProcedure.trim()}>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={addPsh}
+                  disabled={!pshProcedure.trim()}
+                >
                   Add
                 </Button>
               </Group>
@@ -251,26 +323,51 @@ export function StructuredHistory({
             {pastSurgical.map((entry, idx) => (
               <Card key={idx} padding="xs" withBorder>
                 <Group justify="space-between">
-                  <Text size="sm">{entry.procedure}{entry.year ? ` (${entry.year})` : ""}</Text>
+                  <Text size="sm">
+                    {entry.procedure}
+                    {entry.year ? ` (${entry.year})` : ""}
+                  </Text>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removePsh(idx)} aria-label="Delete">
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      size="sm"
+                      onClick={() => removePsh(idx)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}
                 </Group>
               </Card>
             ))}
-            {pastSurgical.length === 0 && <Text size="sm" c="dimmed" ta="center">No past surgical history recorded</Text>}
+            {pastSurgical.length === 0 && (
+              <Text size="sm" c="dimmed" ta="center">
+                No past surgical history recorded
+              </Text>
+            )}
           </Stack>
         </Accordion.Panel>
       </Accordion.Item>
 
       {/* Family History */}
       <Accordion.Item value="family">
-        <Accordion.Control icon={<ThemeIcon variant="light" color="teal" size="sm"><IconUsers size={14} /></ThemeIcon>}>
+        <Accordion.Control
+          icon={
+            <ThemeIcon variant="light" color="teal" size="sm">
+              <IconUsers size={14} />
+            </ThemeIcon>
+          }
+        >
           <Group gap={8}>
-            <Text size="sm" fw={600}>Family History</Text>
-            {familyHistory.length > 0 && <Badge size="xs" variant="light" circle>{familyHistory.length}</Badge>}
+            <Text size="sm" fw={600}>
+              Family History
+            </Text>
+            {familyHistory.length > 0 && (
+              <Badge size="xs" variant="light" circle>
+                {familyHistory.length}
+              </Badge>
+            )}
           </Group>
         </Accordion.Control>
         <Accordion.Panel>
@@ -293,7 +390,12 @@ export function StructuredHistory({
                   style={{ flex: 1 }}
                   size="sm"
                 />
-                <Button size="sm" leftSection={<IconPlus size={14} />} onClick={addFh} disabled={!fhRelation || !fhCondition.trim()}>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={addFh}
+                  disabled={!fhRelation || !fhCondition.trim()}
+                >
                   Add
                 </Button>
               </Group>
@@ -302,26 +404,46 @@ export function StructuredHistory({
               <Card key={idx} padding="xs" withBorder>
                 <Group justify="space-between">
                   <Group gap={8}>
-                    <Badge size="xs" variant="outline">{entry.relation}</Badge>
+                    <Badge size="xs" variant="outline">
+                      {entry.relation}
+                    </Badge>
                     <Text size="sm">{entry.condition}</Text>
                   </Group>
                   {canUpdate && (
-                    <ActionIcon variant="subtle" color="danger" size="sm" onClick={() => removeFh(idx)} aria-label="Delete">
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      size="sm"
+                      onClick={() => removeFh(idx)}
+                      aria-label="Delete"
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   )}
                 </Group>
               </Card>
             ))}
-            {familyHistory.length === 0 && <Text size="sm" c="dimmed" ta="center">No family history recorded</Text>}
+            {familyHistory.length === 0 && (
+              <Text size="sm" c="dimmed" ta="center">
+                No family history recorded
+              </Text>
+            )}
           </Stack>
         </Accordion.Panel>
       </Accordion.Item>
 
       {/* Social History */}
       <Accordion.Item value="social">
-        <Accordion.Control icon={<ThemeIcon variant="light" color="danger" size="sm"><IconBottle size={14} /></ThemeIcon>}>
-          <Text size="sm" fw={600}>Social History</Text>
+        <Accordion.Control
+          icon={
+            <ThemeIcon variant="light" color="danger" size="sm">
+              <IconBottle size={14} />
+            </ThemeIcon>
+          }
+        >
+          <Text size="sm" fw={600}>
+            Social History
+          </Text>
         </Accordion.Control>
         <Accordion.Panel>
           <Stack gap="sm">
@@ -346,7 +468,9 @@ export function StructuredHistory({
                 label="Tobacco Chewing"
                 data={SMOKING_STATUS}
                 value={socialHistory.tobacco_chewing?.status ?? "never"}
-                onChange={(v) => updateSocial("tobacco_chewing", { ...socialHistory.tobacco_chewing, status: v })}
+                onChange={(v) =>
+                  updateSocial("tobacco_chewing", { ...socialHistory.tobacco_chewing, status: v })
+                }
                 size="sm"
                 disabled={!canUpdate}
               />

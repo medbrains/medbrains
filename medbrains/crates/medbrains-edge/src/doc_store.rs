@@ -55,7 +55,10 @@ impl DocStore {
 
     fn doc_path(&self, tenant_id: Uuid, doc_id: &str) -> Result<PathBuf, DocStoreError> {
         let safe = sanitize_doc_id(doc_id)?;
-        Ok(self.base.join(tenant_id.to_string()).join(format!("{safe}.loro")))
+        Ok(self
+            .base
+            .join(tenant_id.to_string())
+            .join(format!("{safe}.loro")))
     }
 
     /// Load a document by id. Returns a fresh empty doc if no file
@@ -195,7 +198,10 @@ mod tests {
         let remote_update = remote.export(ExportMode::Snapshot).unwrap();
 
         // Merge remote into local store
-        let merged = store.apply_update(tenant, doc_id, &remote_update).await.unwrap();
+        let merged = store
+            .apply_update(tenant, doc_id, &remote_update)
+            .await
+            .unwrap();
         let m = merged.get_map("root");
         assert!(m.get("hr").is_some(), "local change preserved");
         assert!(m.get("spo2").is_some(), "remote change merged in");

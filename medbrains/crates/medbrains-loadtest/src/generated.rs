@@ -274,7 +274,9 @@ async fn t_get_api_setup_users_id_facilities_cc2dac(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_post_api_setup_facilities_id_auto_compliance_e174b3(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_setup_facilities_id_auto_compliance_e174b3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/setup/facilities/{id}/auto-compliance").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -312,13 +314,17 @@ async fn t_put_api_setup_masters_relations_id_7b5051(user: &mut GooseUser) -> Tr
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_setup_masters_insurance_providers_b7d42e(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_setup_masters_insurance_providers_b7d42e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/setup/masters/insurance-providers").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_setup_masters_insurance_providers_id_cb5425(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_setup_masters_insurance_providers_id_cb5425(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/setup/masters/insurance-providers/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -356,13 +362,17 @@ async fn t_post_api_patients_unmerge_id_2e8be1(user: &mut GooseUser) -> Transact
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_patients_patient_id_identifiers_e5e679(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_patients_patient_id_identifiers_e5e679(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/identifiers").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_identifiers_id_d18f56(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_identifiers_id_d18f56(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/identifiers/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -373,7 +383,9 @@ async fn t_get_api_patients_patient_id_addresses_50d788(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_addresses_id_fcd203(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_addresses_id_fcd203(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/addresses/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -384,7 +396,9 @@ async fn t_get_api_patients_patient_id_contacts_5bfdfa(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_contacts_id_939a46(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_contacts_id_939a46(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/contacts/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -395,7 +409,9 @@ async fn t_get_api_patients_patient_id_insurance_3da68f(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_insurance_id_293466(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_insurance_id_293466(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/insurance/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -406,7 +422,9 @@ async fn t_get_api_patients_patient_id_allergies_1e3efc(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_allergies_id_4d6f9f(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_allergies_id_4d6f9f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/allergies/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -417,42 +435,56 @@ async fn t_get_api_patients_patient_id_consents_5c5636(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_put_api_patients_patient_id_consents_id_9919f1(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_patients_patient_id_consents_id_9919f1(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/consents/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_patients_patient_id_family_links_af631f(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_patients_patient_id_family_links_af631f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/family-links").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_delete_api_patients_patient_id_family_links_id_a25f99(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_patients_patient_id_family_links_id_a25f99(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/family-links/{id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
 
-async fn t_delete_api_patients_patient_id_documents_id_361966(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_patients_patient_id_documents_id_361966(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/documents/{id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
 
-async fn t_get_api_patients_patient_id_merge_history_600009(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_patients_patient_id_merge_history_600009(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/merge-history").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_patients_patient_id_lab_orders_8d6d3b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_patients_patient_id_lab_orders_8d6d3b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/lab-orders").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_patients_patient_id_appointments_0f4f45(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_patients_patient_id_appointments_0f4f45(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patients/{patient_id}/appointments").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -493,7 +525,9 @@ async fn t_get_api_dashboard_summary_c1ef6b(user: &mut GooseUser) -> Transaction
     Ok(())
 }
 
-async fn t_get_api_dashboard_widget_data_widget_id_f6a95d(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_dashboard_widget_data_widget_id_f6a95d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/dashboard/widget-data/{widget_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -566,18 +600,24 @@ async fn t_put_api_opd_queue_id_no_show_b2df34(user: &mut GooseUser) -> Transact
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_opd_encounters_id_consultation_9ee291(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_opd_encounters_id_consultation_9ee291(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/encounters/{id}/consultation").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_opd_encounters_eid_consultation_id_3053c9(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_opd_encounters_eid_consultation_id_3053c9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/encounters/{eid}/consultation/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_delete_api_opd_encounters_id_diagnoses_did_2fbead(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_opd_encounters_id_diagnoses_did_2fbead(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/encounters/{id}/diagnoses/{did}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -589,7 +629,9 @@ async fn t_get_api_opd_prescriptions_id_4ea0f1(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_delete_api_opd_prescription_templates_id_9d8f80(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_opd_prescription_templates_id_9d8f80(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/prescription-templates/{id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -662,7 +704,9 @@ async fn t_put_api_opd_consents_id_sign_1a8001(user: &mut GooseUser) -> Transact
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_delete_api_opd_consultation_templates_id_98387a(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_opd_consultation_templates_id_98387a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/consultation-templates/{id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -703,7 +747,9 @@ async fn t_delete_api_cds_drug_interactions_id_c00f85(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_delete_api_cds_critical_value_rules_id_e50241(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_cds_critical_value_rules_id_e50241(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/cds/critical-value-rules/{id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -715,7 +761,9 @@ async fn t_delete_api_cds_protocols_id_2929b8(user: &mut GooseUser) -> Transacti
     Ok(())
 }
 
-async fn t_put_api_cds_restricted_drug_approvals_id_45cd2f(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_cds_restricted_drug_approvals_id_45cd2f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/cds/restricted-drug-approvals/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -797,7 +845,9 @@ async fn t_get_api_billing_invoices_id_discounts_49cbd8(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_delete_api_billing_invoices_id_discounts_did_793cc6(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_billing_invoices_id_discounts_did_793cc6(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/invoices/{id}/discounts/{did}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -809,7 +859,9 @@ async fn t_get_api_billing_credit_notes_3a08f1(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_post_api_billing_credit_notes_id_apply_378215(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_billing_credit_notes_id_apply_378215(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/credit-notes/{id}/apply").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -848,13 +900,17 @@ async fn t_get_api_billing_corporates_id_96f68e(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_get_api_billing_corporates_id_enrollments_1f600b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_corporates_id_enrollments_1f600b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/corporates/{id}/enrollments").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_delete_api_billing_corporates_cid_enrollments_eid_daf66e(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_billing_corporates_cid_enrollments_eid_daf66e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/corporates/{cid}/enrollments/{eid}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -866,7 +922,9 @@ async fn t_get_api_billing_reports_summary_686dfd(user: &mut GooseUser) -> Trans
     Ok(())
 }
 
-async fn t_get_api_billing_reports_collection_efficiency_c0605a(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_reports_collection_efficiency_c0605a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/reports/collection-efficiency").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -878,7 +936,9 @@ async fn t_get_api_billing_reports_daily_03cf3e(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_get_api_billing_reports_insurance_panel_7c0ea2(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_reports_insurance_panel_7c0ea2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/reports/insurance-panel").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -895,7 +955,9 @@ async fn t_post_api_billing_day_closes_id_verify_34ab38(user: &mut GooseUser) ->
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_billing_write_offs_id_approve_95e8ca(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_billing_write_offs_id_approve_95e8ca(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/write-offs/{id}/approve").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -916,7 +978,9 @@ async fn t_get_api_billing_exchange_rates_5ccc71(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_get_api_billing_invoices_id_print_data_632276(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_invoices_id_print_data_632276(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/invoices/{id}/print-data").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -934,14 +998,22 @@ async fn t_get_api_billing_credit_patients_aging_d904fd(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_get_api_billing_invoices_id_dual_insurance_2a0dd4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_invoices_id_dual_insurance_2a0dd4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/invoices/{id}/dual-insurance").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_billing_insurance_claims_id_reimbursement_docs_1fc910(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/billing/insurance-claims/{id}/reimbursement-docs").await;
+async fn t_post_api_billing_insurance_claims_id_reimbursement_docs_1fc910(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/billing/insurance-claims/{id}/reimbursement-docs",
+    )
+    .await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
@@ -962,17 +1034,23 @@ async fn t_get_api_billing_journal_entries_id_fb8179(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_post_api_billing_journal_entries_id_reverse_4453ed(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_billing_journal_entries_id_reverse_4453ed(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/journal-entries/{id}/reverse").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_billing_bank_transactions_import_fa4d95(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_billing_bank_transactions_import_fa4d95(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/bank-transactions/import").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_billing_bank_transactions_id_match_ae7510(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_billing_bank_transactions_id_match_ae7510(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/bank-transactions/{id}/match").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1015,13 +1093,17 @@ async fn t_get_api_billing_concessions_6811f2(user: &mut GooseUser) -> Transacti
     Ok(())
 }
 
-async fn t_get_api_billing_concessions_auto_rules_7a6d10(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_billing_concessions_auto_rules_7a6d10(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/concessions/auto-rules").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_billing_concessions_id_approve_6bb926(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_billing_concessions_id_approve_6bb926(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/concessions/{id}/approve").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1048,7 +1130,9 @@ async fn t_get_api_lab_home_collections_stats_028d66(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_post_api_lab_home_collections_id_status_d5dd71(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_lab_home_collections_id_status_d5dd71(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lab/home-collections/{id}/status").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1058,12 +1142,16 @@ async fn t_put_api_lab_collection_centers_id_0bceb3(user: &mut GooseUser) -> Tra
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_lab_sample_archive_id_retrieve_215870(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_lab_sample_archive_id_retrieve_215870(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lab/sample-archive/{id}/retrieve").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_lab_report_dispatches_id_confirm_0997f4(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_lab_report_dispatches_id_confirm_0997f4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lab/report-dispatches/{id}/confirm").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1153,7 +1241,9 @@ async fn t_get_api_lab_phlebotomy_queue_64d77f(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_put_api_lab_phlebotomy_queue_id_status_6f7242(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_lab_phlebotomy_queue_id_status_6f7242(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lab/phlebotomy-queue/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1301,7 +1391,9 @@ async fn t_get_api_radiology_analytics_tat_9af229(user: &mut GooseUser) -> Trans
     Ok(())
 }
 
-async fn t_get_api_radiology_dicom_studies_patient_id_prior_1b1ea9(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_radiology_dicom_studies_patient_id_prior_1b1ea9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/radiology/dicom-studies/{patient_id}/prior").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1319,7 +1411,9 @@ async fn t_get_api_radiology_dosimetry_3ba961(user: &mut GooseUser) -> Transacti
     Ok(())
 }
 
-async fn t_get_api_radiology_download_package_study_id_4f45f8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_radiology_download_package_study_id_4f45f8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/radiology/download-package/{study_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1357,7 +1451,9 @@ async fn t_get_api_pharmacy_ndps_register_919c4f(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_get_api_pharmacy_ndps_register_balance_4515c0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_pharmacy_ndps_register_balance_4515c0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/ndps-register/balance").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1419,7 +1515,9 @@ async fn t_get_api_pharmacy_rx_queue_id_4bd4ba(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_post_api_pharmacy_safety_allergy_check_96913b(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_pharmacy_safety_allergy_check_96913b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/safety/allergy-check").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1446,7 +1544,9 @@ async fn t_put_api_pharmacy_pricing_tiers_a31550(user: &mut GooseUser) -> Transa
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_pharmacy_stock_reorder_suggestions_039e29(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_pharmacy_stock_reorder_suggestions_039e29(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/stock/reorder-suggestions").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1470,7 +1570,9 @@ async fn t_get_api_pharmacy_credit_notes_id_9e951b(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_put_api_pharmacy_credit_notes_id_settle_48e4c5(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_credit_notes_id_settle_48e4c5(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/credit-notes/{id}/settle").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1481,12 +1583,16 @@ async fn t_get_api_pharmacy_store_indents_0999fb(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_put_api_pharmacy_store_indents_id_approve_37a9b4(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_store_indents_id_approve_37a9b4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/store-indents/{id}/approve").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_pharmacy_store_indents_id_receive_f71d3a(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_store_indents_id_receive_f71d3a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/store-indents/{id}/receive").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1508,7 +1614,9 @@ async fn t_get_api_pharmacy_destruction_b1726d(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_get_api_pharmacy_destruction_id_certificate_6af84b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_pharmacy_destruction_id_certificate_6af84b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/destruction/{id}/certificate").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1519,7 +1627,9 @@ async fn t_post_api_pharmacy_substitutes_3b3347(user: &mut GooseUser) -> Transac
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_pharmacy_emergency_kits_id_check_a21f86(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_emergency_kits_id_check_a21f86(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/emergency-kits/{id}/check").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1530,12 +1640,16 @@ async fn t_get_api_pharmacy_payments_89a871(user: &mut GooseUser) -> Transaction
     Ok(())
 }
 
-async fn t_put_api_pharmacy_payments_id_reconcile_0f4a70(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_payments_id_reconcile_0f4a70(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/payments/{id}/reconcile").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_pharmacy_payments_day_reconciliation_7e83b7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_pharmacy_payments_day_reconciliation_7e83b7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/payments/day-reconciliation").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1546,8 +1660,14 @@ async fn t_put_api_pharmacy_settlements_id_close_7485f6(user: &mut GooseUser) ->
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_pharmacy_prescriptions_prescription_id_repeat_eligibility_a73a71(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility").await;
+async fn t_get_api_pharmacy_prescriptions_prescription_id_repeat_eligibility_a73a71(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -1558,7 +1678,9 @@ async fn t_get_api_pharmacy_cash_drawers_a793ee(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_get_api_pharmacy_cash_drawers_me_active_a180f7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_pharmacy_cash_drawers_me_active_a180f7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/cash-drawers/me/active").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1586,7 +1708,9 @@ async fn t_put_api_nurse_vitals_schedules_id_end_3c0216(user: &mut GooseUser) ->
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_nurse_io_entries_encounter_encounter_id_ef07e0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_nurse_io_entries_encounter_encounter_id_ef07e0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/nurse/io-entries/encounter/{encounter_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1617,7 +1741,9 @@ async fn t_post_api_nurse_handoffs_7915c4(user: &mut GooseUser) -> TransactionRe
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_nurse_handoffs_encounter_encounter_id_e20ce6(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_nurse_handoffs_encounter_encounter_id_e20ce6(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/nurse/handoffs/encounter/{encounter_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1678,7 +1804,9 @@ async fn t_get_api_pharmacy_supplier_payments_798e38(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_put_api_pharmacy_supplier_payments_id_pay_159948(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_pharmacy_supplier_payments_id_pay_159948(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/pharmacy/supplier-payments/{id}/pay").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1695,7 +1823,9 @@ async fn t_get_api_indent_requisitions_id_c8e6f7(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_put_api_indent_requisitions_id_approve_5faf80(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_indent_requisitions_id_approve_5faf80(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/indent/requisitions/{id}/approve").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1722,7 +1852,9 @@ async fn t_get_api_indent_analytics_consumption_446460(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_get_api_indent_analytics_purchase_vs_consumption_210862(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_indent_analytics_purchase_vs_consumption_210862(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/indent/analytics/purchase-vs-consumption").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -1760,7 +1892,9 @@ async fn t_put_api_indent_implant_registry_id_14fbea(user: &mut GooseUser) -> Tr
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_indent_condemnations_id_status_3d1057(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_indent_condemnations_id_status_3d1057(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/indent/condemnations/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1789,18 +1923,24 @@ async fn t_get_api_procurement_store_locations_cb147a(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_put_api_procurement_store_locations_id_fbfbe3(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_procurement_store_locations_id_fbfbe3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/store-locations/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_procurement_purchase_orders_id_47a6d2(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_procurement_purchase_orders_id_47a6d2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/purchase-orders/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_procurement_purchase_orders_id_send_37b343(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_procurement_purchase_orders_id_send_37b343(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/purchase-orders/{id}/send").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1829,18 +1969,24 @@ async fn t_get_api_procurement_rate_contracts_id_e961e0(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_get_api_procurement_vendor_performance_7359bf(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_procurement_vendor_performance_7359bf(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/vendor-performance").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_procurement_emergency_purchase_6d81e2(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_procurement_emergency_purchase_6d81e2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/emergency-purchase").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_procurement_supplier_payments_id_1b1a2c(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_procurement_supplier_payments_id_1b1a2c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/procurement/supplier-payments/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -1863,7 +2009,9 @@ async fn t_get_api_quality_documents_id_29615b(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_post_api_quality_documents_id_acknowledge_9155bd(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_quality_documents_id_acknowledge_9155bd(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/quality/documents/{id}/acknowledge").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1882,7 +2030,13 @@ async fn t_get_api_quality_capa_994ccb(user: &mut GooseUser) -> TransactionResul
 
 async fn t_patch_api_quality_capa_id_242b88(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/quality/capa/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
@@ -1894,7 +2048,13 @@ async fn t_get_api_quality_meetings_5acb75(user: &mut GooseUser) -> TransactionR
 
 async fn t_patch_api_quality_meetings_id_43e01f(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/quality/meetings/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
@@ -1922,12 +2082,16 @@ async fn t_get_api_quality_audits_id_ebcd38(user: &mut GooseUser) -> Transaction
     Ok(())
 }
 
-async fn t_post_api_quality_indicators_id_calculate_519a12(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_quality_indicators_id_calculate_519a12(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/quality/indicators/{id}/calculate").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_quality_committees_id_auto_schedule_94ff7c(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_quality_committees_id_auto_schedule_94ff7c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/quality/committees/{id}/auto-schedule").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1972,7 +2136,9 @@ async fn t_get_api_regulatory_checklists_id_b5dc8e(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_post_api_regulatory_checklists_id_items_d0dcb1(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_regulatory_checklists_id_items_d0dcb1(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/checklists/{id}/items").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -1989,18 +2155,24 @@ async fn t_get_api_regulatory_adr_reports_id_3898a9(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_post_api_regulatory_adr_reports_id_submit_192201(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_regulatory_adr_reports_id_submit_192201(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/adr-reports/{id}/submit").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_regulatory_materiovigilance_id_c63dd7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_regulatory_materiovigilance_id_c63dd7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/materiovigilance/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_regulatory_materiovigilance_id_submit_d67c5f(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_regulatory_materiovigilance_id_submit_d67c5f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/materiovigilance/{id}/submit").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -2011,7 +2183,9 @@ async fn t_get_api_regulatory_pcpndt_forms_id_485595(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_get_api_regulatory_pcpndt_forms_quarterly_72d235(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_regulatory_pcpndt_forms_quarterly_72d235(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/pcpndt-forms/quarterly").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2022,7 +2196,9 @@ async fn t_put_api_regulatory_calendar_id_93d816(user: &mut GooseUser) -> Transa
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_regulatory_checklists_id_auto_populate_e42133(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_regulatory_checklists_id_auto_populate_e42133(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/regulatory/checklists/{id}/auto-populate").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -2057,9 +2233,17 @@ async fn t_get_api_infection_control_stewardship_b8d21e(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_patch_api_infection_control_stewardship_id_9a2b08(user: &mut GooseUser) -> TransactionResult {
+async fn t_patch_api_infection_control_stewardship_id_9a2b08(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/stewardship/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
@@ -2069,13 +2253,17 @@ async fn t_get_api_infection_control_biowaste_bb68c1(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_get_api_infection_control_needle_stick_5704d4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_infection_control_needle_stick_5704d4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/needle-stick").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_infection_control_hygiene_audits_f9b756(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_infection_control_hygiene_audits_f9b756(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/hygiene-audits").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2093,26 +2281,45 @@ async fn t_get_api_infection_control_outbreaks_1967dd(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_patch_api_infection_control_outbreaks_id_b3bfa2(user: &mut GooseUser) -> TransactionResult {
+async fn t_patch_api_infection_control_outbreaks_id_b3bfa2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/outbreaks/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
-async fn t_get_api_infection_control_analytics_hai_rates_3dc240(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_infection_control_analytics_hai_rates_3dc240(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/analytics/hai-rates").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_infection_control_analytics_antimicrobial_consumption_8dae5e(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/infection-control/analytics/antimicrobial-consumption").await;
+async fn t_get_api_infection_control_analytics_antimicrobial_consumption_8dae5e(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/infection-control/analytics/antimicrobial-consumption",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_infection_control_reports_culture_sensitivity_c788ac(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/infection-control/reports/culture-sensitivity").await;
+async fn t_get_api_infection_control_reports_culture_sensitivity_c788ac(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/infection-control/reports/culture-sensitivity").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -2122,7 +2329,9 @@ async fn t_post_api_infection_control_exposures_63c472(user: &mut GooseUser) -> 
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_infection_control_reports_monthly_81dd2d(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_infection_control_reports_monthly_81dd2d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/infection-control/reports/monthly").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2152,12 +2361,16 @@ async fn t_get_api_integration_pipelines_id_873313(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_put_api_integration_pipelines_id_status_575eca(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_integration_pipelines_id_status_575eca(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/integration/pipelines/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_integration_pipelines_id_executions_b732d0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_integration_pipelines_id_executions_b732d0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/integration/pipelines/{id}/executions").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2198,7 +2411,9 @@ async fn t_get_api_integration_code_snippets_id_804a80(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_post_api_integration_code_snippets_test_5ceb17(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_integration_code_snippets_test_5ceb17(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/integration/code-snippets/test").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -2278,18 +2493,25 @@ async fn t_put_api_ipd_admissions_id_tasks_tid_3698ba(user: &mut GooseUser) -> T
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_delete_api_ipd_admissions_id_attenders_aid_d98ce7(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_ipd_admissions_id_attenders_aid_d98ce7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/attenders/{aid}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
 
-async fn t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/discharge-summary/finalize").await;
+async fn t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/ipd/admissions/{id}/discharge-summary/finalize").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/progress-notes/{note_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2311,23 +2533,34 @@ async fn t_get_api_ipd_admissions_id_io_balance_20aa31(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_put_api_ipd_admissions_id_nursing_assessments_nid_6e551a(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/nursing-assessments/{nid}").await;
+async fn t_put_api_ipd_admissions_id_nursing_assessments_nid_6e551a(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/ipd/admissions/{id}/nursing-assessments/{nid}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_care_plans_cid_d86ece(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_admissions_id_care_plans_cid_d86ece(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/care-plans/{cid}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_handovers_hid_acknowledge_e35a33(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/handovers/{hid}/acknowledge").await;
+async fn t_put_api_ipd_admissions_id_handovers_hid_acknowledge_e35a33(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/ipd/admissions/{id}/handovers/{hid}/acknowledge").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_discharge_checklist_cid_a3c0c0(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/discharge-checklist/{cid}").await;
+async fn t_put_api_ipd_admissions_id_discharge_checklist_cid_a3c0c0(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/ipd/admissions/{id}/discharge-checklist/{cid}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
@@ -2336,7 +2569,9 @@ async fn t_put_api_ipd_ip_types_id_baddcb(user: &mut GooseUser) -> TransactionRe
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_bed_reservations_id_status_3f7e33(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_bed_reservations_id_status_3f7e33(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/bed-reservations/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2347,23 +2582,32 @@ async fn t_get_api_ipd_bed_turnaround_b8b460(user: &mut GooseUser) -> Transactio
     Ok(())
 }
 
-async fn t_post_api_ipd_bed_turnaround_id_complete_4989f8(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_ipd_bed_turnaround_id_complete_4989f8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/bed-turnaround/{id}/complete").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_checklist_item_id_cbeefb(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_admissions_id_checklist_item_id_cbeefb(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/checklist/{item_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_clinical_docs_doc_id_5bbcc6(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_admissions_id_clinical_docs_doc_id_5bbcc6(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/clinical-docs/{doc_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_ipd_admissions_id_restraint_checks_doc_id_a6bc1d(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/restraint-checks/{doc_id}").await;
+async fn t_get_api_ipd_admissions_id_restraint_checks_doc_id_a6bc1d(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/ipd/admissions/{id}/restraint-checks/{doc_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -2374,24 +2618,32 @@ async fn t_get_api_ipd_admissions_id_transfers_bed697(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_get_api_ipd_admissions_id_death_summary_6595a4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ipd_admissions_id_death_summary_6595a4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/death-summary").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_ipd_admissions_id_birth_records_e8e428(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ipd_admissions_id_birth_records_e8e428(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/birth-records").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_ipd_admissions_id_birth_records_rec_id_242382(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_ipd_admissions_id_birth_records_rec_id_242382(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/birth-records/{rec_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_ipd_admissions_id_investigations_ce25ef(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ipd_admissions_id_investigations_ce25ef(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/investigations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2409,7 +2661,9 @@ async fn t_get_api_ipd_admissions_id_mlc_246d69(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_get_api_ipd_admissions_id_billing_summary_cba5c9(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ipd_admissions_id_billing_summary_cba5c9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/billing-summary").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2443,18 +2697,28 @@ async fn t_put_api_ot_bookings_id_status_0a5be8(user: &mut GooseUser) -> Transac
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_ot_bookings_booking_id_checklists_07de2d(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ot_bookings_booking_id_checklists_07de2d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ot/bookings/{booking_id}/checklists").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_ot_bookings_booking_id_checklists_checklist_id_54dbf1(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ot/bookings/{booking_id}/checklists/{checklist_id}").await;
+async fn t_put_api_ot_bookings_booking_id_checklists_checklist_id_54dbf1(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/ot/bookings/{booking_id}/checklists/{checklist_id}",
+    )
+    .await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_ot_bookings_booking_id_anesthesia_6a9170(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_ot_bookings_booking_id_anesthesia_6a9170(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ot/bookings/{booking_id}/anesthesia").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2483,7 +2747,9 @@ async fn t_get_api_ot_schedule_fe89d5(user: &mut GooseUser) -> TransactionResult
     Ok(())
 }
 
-async fn t_delete_api_ot_bookings_id_consumables_item_id_c7123d(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_ot_bookings_id_consumables_item_id_c7123d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ot/bookings/{id}/consumables/{item_id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -2519,7 +2785,9 @@ async fn t_get_api_icu_admissions_id_devices_5fbce4(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_put_api_icu_admissions_id_devices_device_id_db546e(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_icu_admissions_id_devices_device_id_db546e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/icu/admissions/{id}/devices/{device_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2554,12 +2822,16 @@ async fn t_get_api_blood_bank_donors_id_7a9e83(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_put_api_blood_bank_donations_donation_id_dcd1b2(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_blood_bank_donations_donation_id_dcd1b2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/blood-bank/donations/{donation_id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_blood_bank_components_id_status_351413(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_blood_bank_components_id_status_351413(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/blood-bank/components/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2569,7 +2841,9 @@ async fn t_put_api_blood_bank_crossmatch_id_e68543(user: &mut GooseUser) -> Tran
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_blood_bank_transfusions_id_reaction_2c5abc(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_blood_bank_transfusions_id_reaction_2c5abc(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/blood-bank/transfusions/{id}/reaction").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2585,7 +2859,9 @@ async fn t_put_api_blood_bank_recruitment_id_829b6a(user: &mut GooseUser) -> Tra
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_blood_bank_cold_chain_readings_1645e0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_blood_bank_cold_chain_readings_1645e0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/blood-bank/cold-chain/readings").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2675,13 +2951,17 @@ async fn t_get_api_emergency_visits_id_67c51e(user: &mut GooseUser) -> Transacti
     Ok(())
 }
 
-async fn t_get_api_emergency_visits_visit_id_triage_689cf8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_emergency_visits_visit_id_triage_689cf8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/emergency/visits/{visit_id}/triage").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_emergency_visits_visit_id_resuscitation_a700e9(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_emergency_visits_visit_id_resuscitation_a700e9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/emergency/visits/{visit_id}/resuscitation").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -2703,14 +2983,19 @@ async fn t_put_api_emergency_mlc_id_042a18(user: &mut GooseUser) -> TransactionR
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_emergency_mlc_mlc_id_police_intimations_4d4c07(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_emergency_mlc_mlc_id_police_intimations_4d4c07(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/emergency/mlc/{mlc_id}/police-intimations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_emergency_mlc_police_intimations_id_confirm_43aaab(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/emergency/mlc/police-intimations/{id}/confirm").await;
+async fn t_put_api_emergency_mlc_police_intimations_id_confirm_43aaab(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/emergency/mlc/police-intimations/{id}/confirm").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
@@ -2786,7 +3071,9 @@ async fn t_put_api_front_office_passes_id_revoke_0a5573(user: &mut GooseUser) ->
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_front_office_visitor_logs_pass_id_check_in_1bce25(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_front_office_visitor_logs_pass_id_check_in_1bce25(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/front-office/visitor-logs/{pass_id}/check-in").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -2809,7 +3096,9 @@ async fn t_get_api_front_office_enquiries_5974ac(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_put_api_front_office_enquiries_id_resolve_14d4ba(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_front_office_enquiries_id_resolve_14d4ba(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/front-office/enquiries/{id}/resolve").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2842,7 +3131,9 @@ async fn t_get_api_housekeeping_turnarounds_18eecd(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_put_api_housekeeping_turnarounds_id_complete_b8294a(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_housekeeping_turnarounds_id_complete_b8294a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/housekeeping/turnarounds/{id}/complete").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2869,7 +3160,9 @@ async fn t_get_api_housekeeping_laundry_batches_ee8e8a(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_put_api_housekeeping_laundry_batches_id_complete_8ac260(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_housekeeping_laundry_batches_id_complete_8ac260(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/housekeeping/laundry-batches/{id}/complete").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -2909,18 +3202,24 @@ async fn t_get_api_hr_employees_id_credentials_21778a(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_put_api_hr_employees_id_credentials_cid_aa2971(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_hr_employees_id_credentials_cid_aa2971(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/hr/employees/{id}/credentials/{cid}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_hr_employees_id_training_records_118bd7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_hr_employees_id_training_records_118bd7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/hr/employees/{id}/training-records").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_hr_employees_id_statutory_records_9cb7aa(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_hr_employees_id_statutory_records_9cb7aa(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/hr/employees/{id}/statutory-records").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3042,7 +3341,9 @@ async fn t_post_api_lms_courses_id_modules_3b1bae(user: &mut GooseUser) -> Trans
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_lms_courses_id_modules_reorder_7b2ea3(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_lms_courses_id_modules_reorder_7b2ea3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lms/courses/{id}/modules/reorder").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3052,7 +3353,9 @@ async fn t_put_api_lms_quizzes_id_7f412a(user: &mut GooseUser) -> TransactionRes
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_lms_quizzes_quiz_id_questions_qid_4b6539(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_lms_quizzes_quiz_id_questions_qid_4b6539(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lms/quizzes/{quiz_id}/questions/{qid}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3074,7 +3377,9 @@ async fn t_get_api_lms_my_enrollments_bdb338(user: &mut GooseUser) -> Transactio
     Ok(())
 }
 
-async fn t_put_api_lms_my_enrollments_id_progress_371d28(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_lms_my_enrollments_id_progress_371d28(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/lms/my/enrollments/{id}/progress").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3136,8 +3441,11 @@ async fn t_get_api_mrd_records_id_movements_627236(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_post_api_mrd_records_record_id_movements_id_return_fe5089(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/mrd/records/{record_id}/movements/{id}/return").await;
+async fn t_post_api_mrd_records_record_id_movements_id_return_fe5089(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/mrd/records/{record_id}/movements/{id}/return").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
@@ -3308,24 +3616,32 @@ async fn t_put_api_bedside_sessions_id_end_1bba41(user: &mut GooseUser) -> Trans
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_bedside_admission_id_medications_104240(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_bedside_admission_id_medications_104240(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/bedside/{admission_id}/medications").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_bedside_admission_id_lab_results_a7c562(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_bedside_admission_id_lab_results_a7c562(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/bedside/{admission_id}/lab-results").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_bedside_admission_id_nurse_request_d43eec(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_bedside_admission_id_nurse_request_d43eec(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/bedside/{admission_id}/nurse-request").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_bedside_nurse_requests_id_status_00d8f2(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_bedside_nurse_requests_id_status_00d8f2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/bedside/nurse-requests/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3335,7 +3651,9 @@ async fn t_put_api_bedside_videos_id_a280a1(user: &mut GooseUser) -> Transaction
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_bedside_admission_id_feedback_e039ac(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_bedside_admission_id_feedback_e039ac(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/bedside/{admission_id}/feedback").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -3375,7 +3693,9 @@ async fn t_get_api_communications_alerts_b7acda(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_put_api_communications_alerts_id_acknowledge_a1da4a(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_communications_alerts_id_acknowledge_a1da4a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/communications/alerts/{id}/acknowledge").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3403,35 +3723,47 @@ async fn t_get_api_communications_feedback_stats_2a8323(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_get_api_command_center_patient_flow_hourly_0b256a(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_command_center_patient_flow_hourly_0b256a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/patient-flow/hourly").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_command_center_department_load_504799(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_command_center_department_load_504799(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/department-load").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_command_center_alerts_id_acknowledge_1a8634(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_command_center_alerts_id_acknowledge_1a8634(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/alerts/{id}/acknowledge").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_command_center_alert_thresholds_id_e4c899(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_command_center_alert_thresholds_id_e4c899(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/alert-thresholds/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_command_center_discharge_blockers_id_a151e4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_command_center_discharge_blockers_id_a151e4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/discharge-blockers/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_command_center_bed_turnaround_stats_8636ad(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_command_center_bed_turnaround_stats_8636ad(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/bed-turnaround/stats").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3442,7 +3774,9 @@ async fn t_put_api_command_center_transport_id_7dd65d(user: &mut GooseUser) -> T
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_command_center_transport_id_complete_562b5c(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_command_center_transport_id_complete_562b5c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/command-center/transport/{id}/complete").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3560,12 +3894,16 @@ async fn t_get_api_security_patient_tags_28d56b(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_put_api_security_patient_tags_id_deactivate_c08728(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_security_patient_tags_id_deactivate_c08728(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/security/patient-tags/{id}/deactivate").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_security_tag_alerts_id_resolve_0d689f(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_security_tag_alerts_id_resolve_0d689f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/security/tag-alerts/{id}/resolve").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3576,43 +3914,73 @@ async fn t_get_api_security_debriefs_id_92a18b(user: &mut GooseUser) -> Transact
     Ok(())
 }
 
-async fn t_get_api_specialty_cath_lab_procedures_id_9f3ee6(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_cath_lab_procedures_id_9f3ee6(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/cath-lab/procedures/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_cath_lab_procedures_procedure_id_hemodynamics_10c9fe(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/cath-lab/procedures/{procedure_id}/hemodynamics").await;
+async fn t_get_api_specialty_cath_lab_procedures_procedure_id_hemodynamics_10c9fe(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/cath-lab/procedures/{procedure_id}/hemodynamics",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_cath_lab_procedures_procedure_id_devices_84bfb1(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/cath-lab/procedures/{procedure_id}/devices").await;
+async fn t_get_api_specialty_cath_lab_procedures_procedure_id_devices_84bfb1(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/cath-lab/procedures/{procedure_id}/devices",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_cath_lab_procedures_procedure_id_stemi_timeline_be996f(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/cath-lab/procedures/{procedure_id}/stemi-timeline").await;
+async fn t_get_api_specialty_cath_lab_procedures_procedure_id_stemi_timeline_be996f(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/cath-lab/procedures/{procedure_id}/stemi-timeline",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_cath_lab_procedures_procedure_id_post_monitoring_06819d(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/cath-lab/procedures/{procedure_id}/post-monitoring").await;
+async fn t_get_api_specialty_cath_lab_procedures_procedure_id_post_monitoring_06819d(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/cath-lab/procedures/{procedure_id}/post-monitoring",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_endoscopy_procedures_546ad8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_endoscopy_procedures_546ad8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/endoscopy/procedures").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_specialty_endoscopy_procedures_id_517950(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_specialty_endoscopy_procedures_id_517950(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/endoscopy/procedures/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3622,8 +3990,14 @@ async fn t_put_api_specialty_endoscopy_scopes_id_df1c1c(user: &mut GooseUser) ->
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_specialty_endoscopy_procedures_procedure_id_biopsies_b73b7d(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies").await;
+async fn t_get_api_specialty_endoscopy_procedures_procedure_id_biopsies_b73b7d(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -3634,31 +4008,50 @@ async fn t_get_api_specialty_psychiatry_patients_6f7342(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_get_api_specialty_psychiatry_patients_id_c4e276(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_psychiatry_patients_id_c4e276(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/psychiatry/patients/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_psychiatry_patients_patient_id_assessments_56b47f(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/psychiatry/patients/{patient_id}/assessments").await;
+async fn t_get_api_specialty_psychiatry_patients_patient_id_assessments_56b47f(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/psychiatry/patients/{patient_id}/assessments",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_psychiatry_patients_patient_id_ect_3cbffe(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/psychiatry/patients/{patient_id}/ect").await;
+async fn t_get_api_specialty_psychiatry_patients_patient_id_ect_3cbffe(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/specialty/psychiatry/patients/{patient_id}/ect").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_psychiatry_patients_patient_id_restraints_8b310b(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/psychiatry/patients/{patient_id}/restraints").await;
+async fn t_get_api_specialty_psychiatry_patients_patient_id_restraints_8b310b(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/psychiatry/patients/{patient_id}/restraints",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_specialty_psychiatry_restraints_id_release_8579e2(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_specialty_psychiatry_restraints_id_release_8579e2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/psychiatry/restraints/{id}/release").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3668,20 +4061,30 @@ async fn t_put_api_specialty_psychiatry_mhrb_id_5105c6(user: &mut GooseUser) -> 
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_specialty_maternity_registrations_92b665(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_maternity_registrations_92b665(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/maternity/registrations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_maternity_registrations_id_10a050(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_maternity_registrations_id_10a050(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/maternity/registrations/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_specialty_maternity_registrations_registration_id_labor_0a2d00(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/maternity/registrations/{registration_id}/labor").await;
+async fn t_get_api_specialty_maternity_registrations_registration_id_labor_0a2d00(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/maternity/registrations/{registration_id}/labor",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -3691,8 +4094,14 @@ async fn t_put_api_specialty_maternity_labor_id_680d72(user: &mut GooseUser) -> 
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_specialty_maternity_registrations_registration_id_postnatal_c20992(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/specialty/maternity/registrations/{registration_id}/postnatal").await;
+async fn t_get_api_specialty_maternity_registrations_registration_id_postnatal_c20992(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/specialty/maternity/registrations/{registration_id}/postnatal",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -3703,7 +4112,9 @@ async fn t_get_api_specialty_pmr_rehab_plans_397c01(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_get_api_specialty_pmr_rehab_plans_plan_id_sessions_61291b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_pmr_rehab_plans_plan_id_sessions_61291b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/pmr/rehab-plans/{plan_id}/sessions").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3727,7 +4138,9 @@ async fn t_get_api_specialty_palliative_dnr_400418(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_put_api_specialty_palliative_dnr_id_revoke_1a5766(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_specialty_palliative_dnr_id_revoke_1a5766(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/palliative/dnr/{id}/revoke").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3743,7 +4156,9 @@ async fn t_put_api_specialty_mortuary_records_id_86ed69(user: &mut GooseUser) ->
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_specialty_nuclear_med_administrations_4eb6b4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_specialty_nuclear_med_administrations_4eb6b4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/nuclear-med/administrations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3767,7 +4182,9 @@ async fn t_get_api_specialty_dialysis_sessions_247f76(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_put_api_specialty_dialysis_sessions_id_023652(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_specialty_dialysis_sessions_id_023652(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/specialty/dialysis/sessions/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -3783,7 +4200,9 @@ async fn t_get_api_documents_templates_defaults_b06ecf(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_get_api_documents_templates_id_versions_27dc53(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_documents_templates_id_versions_27dc53(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/documents/templates/{id}/versions").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3816,7 +4235,9 @@ async fn t_post_api_documents_outputs_id_void_135a55(user: &mut GooseUser) -> Tr
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_delete_api_documents_outputs_id_signatures_sig_id_3b6919(user: &mut GooseUser) -> TransactionResult {
+async fn t_delete_api_documents_outputs_id_signatures_sig_id_3b6919(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/documents/outputs/{id}/signatures/{sig_id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
@@ -3838,7 +4259,9 @@ async fn t_post_api_orders_basket_check_ddf490(user: &mut GooseUser) -> Transact
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_orders_basket_drafts_encounter_id_1a2013(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_orders_basket_drafts_encounter_id_1a2013(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/orders/basket/drafts/{encounter_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3874,7 +4297,9 @@ async fn t_get_api_admin_signature_credentials_b8d432(user: &mut GooseUser) -> T
     Ok(())
 }
 
-async fn t_post_api_admin_signature_credentials_id_revoke_9c9d95(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_admin_signature_credentials_id_revoke_9c9d95(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/admin/signature-credentials/{id}/revoke").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -3897,7 +4322,9 @@ async fn t_get_api_admin_doctor_packages_id_278fa7(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_post_api_admin_doctor_packages_id_inclusions_f7bda5(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_admin_doctor_packages_id_inclusions_f7bda5(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/admin/doctor-packages/{id}/inclusions").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -3907,7 +4334,9 @@ async fn t_post_api_patient_packages_subscribe_8073ee(user: &mut GooseUser) -> T
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_patient_packages_sub_id_consume_307143(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_patient_packages_sub_id_consume_307143(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/patient-packages/{sub_id}/consume").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -3930,17 +4359,23 @@ async fn t_get_api_order_sets_templates_id_d8c463(user: &mut GooseUser) -> Trans
     Ok(())
 }
 
-async fn t_post_api_order_sets_templates_id_items_7df89d(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_order_sets_templates_id_items_7df89d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/order-sets/templates/{id}/items").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_order_sets_templates_id_new_version_6fee61(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_order_sets_templates_id_new_version_6fee61(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/order-sets/templates/{id}/new-version").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_order_sets_templates_id_versions_ccaceb(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_order_sets_templates_id_versions_ccaceb(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/order-sets/templates/{id}/versions").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3957,7 +4392,9 @@ async fn t_get_api_order_sets_activations_id_a3c4eb(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_get_api_order_sets_analytics_template_id_d757ca(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_order_sets_analytics_template_id_d757ca(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/order-sets/analytics/{template_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -3981,24 +4418,36 @@ async fn t_get_api_insurance_prior_auths_id_8b2e93(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_post_api_insurance_prior_auths_id_submit_448c53(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_insurance_prior_auths_id_submit_448c53(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/insurance/prior-auths/{id}/submit").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_insurance_prior_auths_id_cancel_6872fb(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_insurance_prior_auths_id_cancel_6872fb(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/insurance/prior-auths/{id}/cancel").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_insurance_prior_auths_pa_id_documents_5411df(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_insurance_prior_auths_pa_id_documents_5411df(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/insurance/prior-auths/{pa_id}/documents").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_delete_api_insurance_prior_auths_pa_id_documents_doc_id_af4b47(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/insurance/prior-auths/{pa_id}/documents/{doc_id}").await;
+async fn t_delete_api_insurance_prior_auths_pa_id_documents_doc_id_af4b47(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/insurance/prior-auths/{pa_id}/documents/{doc_id}",
+    )
+    .await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
@@ -4030,31 +4479,54 @@ async fn t_get_api_chronic_care_enrollments_c9312c(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_get_api_chronic_care_patients_patient_id_enrollments_89de3a(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/enrollments").await;
+async fn t_get_api_chronic_care_patients_patient_id_enrollments_89de3a(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/enrollments").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_chronic_care_enrollments_id_status_e0ede9(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_chronic_care_enrollments_id_status_e0ede9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/chronic-care/enrollments/{id}/status").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_chronic_care_patients_patient_id_drug_timeline_with_labs_8a7a09(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/drug-timeline/with-labs").await;
+async fn t_get_api_chronic_care_patients_patient_id_drug_timeline_with_labs_8a7a09(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/patients/{patient_id}/drug-timeline/with-labs",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_chronic_care_enrollments_enrollment_id_adherence_d3e7c7(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/enrollments/{enrollment_id}/adherence").await;
+async fn t_get_api_chronic_care_enrollments_enrollment_id_adherence_d3e7c7(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/enrollments/{enrollment_id}/adherence",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_chronic_care_enrollments_enrollment_id_adherence_summary_dae148(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/enrollments/{enrollment_id}/adherence-summary").await;
+async fn t_get_api_chronic_care_enrollments_enrollment_id_adherence_summary_dae148(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/enrollments/{enrollment_id}/adherence-summary",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -4064,19 +4536,37 @@ async fn t_post_api_chronic_care_targets_5251c4(user: &mut GooseUser) -> Transac
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_chronic_care_patients_patient_id_outcome_dashboard_01c2a5(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/outcome-dashboard").await;
+async fn t_get_api_chronic_care_patients_patient_id_outcome_dashboard_01c2a5(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/patients/{patient_id}/outcome-dashboard",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_chronic_care_patients_patient_id_check_interactions_5e9ec2(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/check-interactions").await;
+async fn t_post_api_chronic_care_patients_patient_id_check_interactions_5e9ec2(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/patients/{patient_id}/check-interactions",
+    )
+    .await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_chronic_care_patients_patient_id_treatment_summary_3fc059(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/chronic-care/patients/{patient_id}/treatment-summary").await;
+async fn t_get_api_chronic_care_patients_patient_id_treatment_summary_3fc059(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/chronic-care/patients/{patient_id}/treatment-summary",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -4132,24 +4622,32 @@ async fn t_get_api_utilization_review_reviews_63f90e(user: &mut GooseUser) -> Tr
     Ok(())
 }
 
-async fn t_get_api_utilization_review_reviews_outliers_5adb42(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_utilization_review_reviews_outliers_5adb42(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/utilization-review/reviews/outliers").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_utilization_review_reviews_id_ai_extract_ebf4ae(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_utilization_review_reviews_id_ai_extract_ebf4ae(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/utilization-review/reviews/{id}/ai-extract").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_utilization_review_communications_ec96f1(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_utilization_review_communications_ec96f1(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/utilization-review/communications").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_put_api_utilization_review_communications_id_81fe82(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_utilization_review_communications_id_81fe82(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/utilization-review/communications/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -4206,7 +4704,9 @@ async fn t_get_api_scheduling_predictions_d8ab4a(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_post_api_scheduling_predictions_score_batch_7d465e(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_scheduling_predictions_score_batch_7d465e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/scheduling/predictions/score-batch").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -4216,7 +4716,9 @@ async fn t_put_api_scheduling_waitlist_id_0a550a(user: &mut GooseUser) -> Transa
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_scheduling_waitlist_id_respond_d63fce(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_scheduling_waitlist_id_respond_d63fce(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/scheduling/waitlist/{id}/respond").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -4227,18 +4729,24 @@ async fn t_get_api_scheduling_overbooking_rules_f34e27(user: &mut GooseUser) -> 
     Ok(())
 }
 
-async fn t_put_api_scheduling_overbooking_rules_id_c6cd78(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_scheduling_overbooking_rules_id_c6cd78(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/scheduling/overbooking-rules/{id}").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_scheduling_overbooking_recommendation_e53233(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_scheduling_overbooking_recommendation_e53233(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/scheduling/overbooking/recommendation").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_scheduling_analytics_prediction_accuracy_c5d7a3(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_scheduling_analytics_prediction_accuracy_c5d7a3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/scheduling/analytics/prediction-accuracy").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -4273,7 +4781,9 @@ async fn t_get_api_care_view_handover_b91e7c(user: &mut GooseUser) -> Transactio
     Ok(())
 }
 
-async fn t_post_api_care_view_tasks_task_id_complete_ca4ce8(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_care_view_tasks_task_id_complete_ca4ce8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/care-view/tasks/{task_id}/complete").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -4295,7 +4805,9 @@ async fn t_get_api_retrospective_entries_id_2fc3bb(user: &mut GooseUser) -> Tran
     Ok(())
 }
 
-async fn t_put_api_retrospective_entries_id_reject_6ac5a9(user: &mut GooseUser) -> TransactionResult {
+async fn t_put_api_retrospective_entries_id_reject_6ac5a9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/retrospective/entries/{id}/reject").await;
     crate::json_put(user, &path, &serde_json::json!({})).await
 }
@@ -4336,67 +4848,89 @@ async fn t_get_api_analytics_export_c97398(user: &mut GooseUser) -> TransactionR
     Ok(())
 }
 
-async fn t_get_api_print_data_lab_report_order_id_d6afbf(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_lab_report_order_id_d6afbf(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/lab-report/{order_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_patient_card_patient_id_1a3d57(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_patient_card_patient_id_1a3d57(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/patient-card/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_histopath_report_order_id_d86def(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_histopath_report_order_id_d86def(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/histopath-report/{order_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_component_slip_issue_id_6ba4aa(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_component_slip_issue_id_6ba4aa(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/component-slip/{issue_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_wristband_admission_id_3d9ad8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_wristband_admission_id_3d9ad8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/wristband/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_death_certificate_admission_id_fe4ebd(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_death_certificate_admission_id_fe4ebd(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/death-certificate/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_token_slip_token_id_bf7a9c(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_token_slip_token_id_bf7a9c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/token-slip/{token_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_treatment_chart_admission_id_9bec36(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_treatment_chart_admission_id_9bec36(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/treatment-chart/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_patient_education_material_id_eafb5f(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_patient_education_material_id_eafb5f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/patient-education/{material_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_infant_wristband_newborn_id_b64b02(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_infant_wristband_newborn_id_b64b02(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/infant-wristband/{newborn_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_estimate_invoice_id_df3464(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_estimate_invoice_id_df3464(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/estimate/{invoice_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -4408,205 +4942,285 @@ async fn t_get_api_print_data_tds_certificate_id_100c08(user: &mut GooseUser) ->
     Ok(())
 }
 
-async fn t_get_api_print_data_opd_bill_invoice_id_998cc3(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_opd_bill_invoice_id_998cc3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/opd-bill/{invoice_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_ipd_final_bill_invoice_id_fa8618(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_ipd_final_bill_invoice_id_fa8618(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/ipd-final-bill/{invoice_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_refund_receipt_refund_id_df17b1(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_refund_receipt_refund_id_df17b1(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/refund-receipt/{refund_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_cashless_claim_claim_id_6e4058(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_cashless_claim_claim_id_6e4058(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/cashless-claim/{claim_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_general_admission_id_5f781f(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_consent_general_admission_id_5f781f(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/consent/general/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_anesthesia_booking_id_2b084c(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_consent_anesthesia_booking_id_2b084c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/consent/anesthesia/{booking_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_hiv_patient_id_18f29d(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_consent_hiv_patient_id_18f29d(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/consent/hiv/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_photo_patient_id_173d9b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_consent_photo_patient_id_173d9b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/consent/photo/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_organ_donation_patient_id_17a4f7(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/consent/organ-donation/{patient_id}").await;
+async fn t_get_api_print_data_consent_organ_donation_patient_id_17a4f7(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/consent/organ-donation/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_consent_abdm_patient_id_a8a306(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_consent_abdm_patient_id_a8a306(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/consent/abdm/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_mrd_progress_note_admission_id_1b2496(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_mrd_progress_note_admission_id_1b2496(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/mrd/progress-note/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_mrd_mar_admission_id_ac5ec2(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_mrd_mar_admission_id_ac5ec2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/mrd/mar/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_mrd_io_chart_admission_id_e7dba8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_mrd_io_chart_admission_id_e7dba8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/mrd/io-chart/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_fluid_balance_chart_admission_id_73ec01(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/fluid-balance-chart/{admission_id}").await;
+async fn t_get_api_print_data_fluid_balance_chart_admission_id_73ec01(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/fluid-balance-chart/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_fall_risk_assessment_admission_id_3d9ccc(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/fall-risk-assessment/{admission_id}").await;
+async fn t_get_api_print_data_fall_risk_assessment_admission_id_3d9ccc(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/fall-risk-assessment/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_gcs_chart_admission_id_90b807(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_gcs_chart_admission_id_90b807(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/gcs-chart/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_case_sheet_cover_admission_id_8a17a7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_case_sheet_cover_admission_id_8a17a7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/case-sheet-cover/{admission_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_surgical_safety_checklist_surgery_id_7c3dcc(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/surgical-safety-checklist/{surgery_id}").await;
+async fn t_get_api_print_data_surgical_safety_checklist_surgery_id_7c3dcc(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/surgical-safety-checklist/{surgery_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_operation_notes_surgery_id_6f7808(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_operation_notes_surgery_id_6f7808(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/operation-notes/{surgery_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_transfusion_monitoring_transfusion_id_befd58(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/transfusion-monitoring/{transfusion_id}").await;
+async fn t_get_api_print_data_transfusion_monitoring_transfusion_id_befd58(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/transfusion-monitoring/{transfusion_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_mlc_register_case_id_2e48ad(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_mlc_register_case_id_2e48ad(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/mlc-register/{case_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_age_estimation_case_id_653a70(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_age_estimation_case_id_653a70(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/age-estimation/{case_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_mlc_documentation_case_id_3ec2bc(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_mlc_documentation_case_id_3ec2bc(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/mlc-documentation/{case_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_rca_template_incident_id_fd8622(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_rca_template_incident_id_fd8622(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/rca-template/{incident_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_adr_report_report_id_6c91a2(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_adr_report_report_id_6c91a2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/adr-report/{report_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_opd_prescription_encounter_id_a05868(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_opd_prescription_encounter_id_a05868(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/opd-prescription/{encounter_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_cumulative_lab_report_patient_id_58d2f9(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/cumulative-lab-report/{patient_id}").await;
+async fn t_get_api_print_data_cumulative_lab_report_patient_id_58d2f9(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/cumulative-lab-report/{patient_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_nabh_quality_report_period_e9a824(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_nabh_quality_report_period_e9a824(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/nabh-quality-report/{period}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_nabl_quality_report_period_8be0c4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_nabl_quality_report_period_8be0c4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/nabl-quality-report/{period}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_peso_compliance_year_064737(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_peso_compliance_year_064737(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/peso-compliance/{year}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_pcpndt_report_period_7bfc9a(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_pcpndt_report_period_7bfc9a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/pcpndt-report/{period}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_death_register_period_68b4a5(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_death_register_period_68b4a5(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/death-register/{period}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_aebas_attendance_period_f4f1f9(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_aebas_attendance_period_f4f1f9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/aebas-attendance/{period}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_indent_form_indent_id_0701cc(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_indent_form_indent_id_0701cc(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/indent-form/{indent_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -4618,140 +5232,217 @@ async fn t_get_api_print_data_grn_grn_id_6448b7(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_get_api_print_data_stock_transfer_note_transfer_id_edbcc0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_stock_transfer_note_transfer_id_edbcc0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/stock-transfer-note/{transfer_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_drug_expiry_alert_store_id_658aa4(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_drug_expiry_alert_store_id_658aa4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/drug-expiry-alert/{store_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_work_order_work_order_id_c64fad(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_work_order_work_order_id_c64fad(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/work-order/{work_order_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_employee_id_card_employee_id_6507bf(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_employee_id_card_employee_id_6507bf(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/employee-id-card/{employee_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_leave_application_leave_id_2080e2(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_leave_application_leave_id_2080e2(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/leave-application/{leave_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_training_certificate_training_id_b99721(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/training-certificate/{training_id}").await;
+async fn t_get_api_print_data_training_certificate_training_id_b99721(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/training-certificate/{training_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_visitor_register_date_0ac95e(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_visitor_register_date_0ac95e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/visitor-register/{date}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_calibration_certificate_calibration_id_f52f12(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/calibration-certificate/{calibration_id}").await;
+async fn t_get_api_print_data_calibration_certificate_calibration_id_f52f12(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/calibration-certificate/{calibration_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_equipment_history_equipment_id_936763(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_equipment_history_equipment_id_936763(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/equipment-history/{equipment_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_water_quality_test_id_ab2558(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_water_quality_test_id_ab2558(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/water-quality/{test_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_fire_inspection_inspection_id_a274b6(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_fire_inspection_inspection_id_a274b6(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/fire-inspection/{inspection_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_fire_mock_drill_drill_id_e85a25(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_fire_mock_drill_drill_id_e85a25(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/fire-mock-drill/{drill_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_blood_donor_form_donor_id_c0477e(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_blood_donor_form_donor_id_c0477e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/blood-donor-form/{donor_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_dpdp_consent_consent_id_1ade1b(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_dpdp_consent_consent_id_1ade1b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/dpdp-consent/{consent_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_restraint_documentation_restraint_id_8f5f6e(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/restraint-documentation/{restraint_id}").await;
+async fn t_get_api_print_data_restraint_documentation_restraint_id_8f5f6e(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/restraint-documentation/{restraint_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_intern_rotation_schedule_schedule_id_4c8f53(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/intern-rotation-schedule/{schedule_id}").await;
+async fn t_get_api_print_data_intern_rotation_schedule_schedule_id_4c8f53(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/intern-rotation-schedule/{schedule_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_internal_assessment_marks_assessment_id_58742c(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/internal-assessment-marks/{assessment_id}").await;
+async fn t_get_api_print_data_internal_assessment_marks_assessment_id_58742c(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/internal-assessment-marks/{assessment_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_osce_scoring_sheet_exam_id_station_number_40cb34(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/osce-scoring-sheet/{exam_id}/{station_number}").await;
+async fn t_get_api_print_data_osce_scoring_sheet_exam_id_station_number_40cb34(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/osce-scoring-sheet/{exam_id}/{station_number}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_cme_certificate_certificate_id_3f616e(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_print_data_cme_certificate_certificate_id_3f616e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/cme-certificate/{certificate_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_research_proposal_form_proposal_id_732053(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/research-proposal-form/{proposal_id}").await;
+async fn t_get_api_print_data_research_proposal_form_proposal_id_732053(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/research-proposal-form/{proposal_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_anti_ragging_undertaking_undertaking_id_de7b98(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/anti-ragging-undertaking/{undertaking_id}").await;
+async fn t_get_api_print_data_anti_ragging_undertaking_undertaking_id_de7b98(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/anti-ragging-undertaking/{undertaking_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_internship_completion_certificate_certificate_id_c27a78(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/internship-completion-certificate/{certificate_id}").await;
+async fn t_get_api_print_data_internship_completion_certificate_certificate_id_c27a78(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/print-data/internship-completion-certificate/{certificate_id}",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_print_data_stipend_payment_advice_advice_id_d7f471(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/stipend-payment-advice/{advice_id}").await;
+async fn t_get_api_print_data_stipend_payment_advice_advice_id_d7f471(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/print-data/stipend-payment-advice/{advice_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -4780,90 +5471,126 @@ async fn t_get_api_multi_hospital_regions_id_ed45a2(user: &mut GooseUser) -> Tra
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_hospitals_7af242(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_hospitals_7af242(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/hospitals").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_delete_api_multi_hospital_hospital_assignments_tenant_id_94c42f(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/multi-hospital/hospital-assignments/{tenant_id}").await;
+async fn t_delete_api_multi_hospital_hospital_assignments_tenant_id_94c42f(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/multi-hospital/hospital-assignments/{tenant_id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_user_assignments_d83e75(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_user_assignments_d83e75(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/user-assignments").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_delete_api_multi_hospital_user_assignments_assignment_id_893f00(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/multi-hospital/user-assignments/{assignment_id}").await;
+async fn t_delete_api_multi_hospital_user_assignments_assignment_id_893f00(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/multi-hospital/user-assignments/{assignment_id}").await;
     let _ = crate::json_request(user, GooseMethod::Delete, &path, None).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_transfers_patients_incoming_ca2fe3(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_transfers_patients_incoming_ca2fe3(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/transfers/patients/incoming").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_transfers_patients_id_353ea9(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_transfers_patients_id_353ea9(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/transfers/patients/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_transfers_stock_outgoing_f1f157(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_transfers_stock_outgoing_f1f157(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/transfers/stock/outgoing").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_post_api_multi_hospital_transfers_stock_1c93e4(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_multi_hospital_transfers_stock_1c93e4(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/transfers/stock").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_multi_hospital_transfers_stock_transfer_id_items_37f6ed(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/multi-hospital/transfers/stock/{transfer_id}/items").await;
+async fn t_get_api_multi_hospital_transfers_stock_transfer_id_items_37f6ed(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path = crate::resolve_path(
+        user,
+        "/api/multi-hospital/transfers/stock/{transfer_id}/items",
+    )
+    .await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_kpis_bff9c8(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_kpis_bff9c8(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/kpis").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_rotations_2d429e(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_rotations_2d429e(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/rotations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_doctors_doctor_id_rotations_a077ce(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_doctors_doctor_id_rotations_a077ce(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/doctors/{doctor_id}/rotations").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_drugs_bf40f0(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_drugs_bf40f0(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/drugs").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_tariffs_e719c7(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_tariffs_e719c7(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/tariffs").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
 
-async fn t_get_api_multi_hospital_groups_group_id_templates_58b04a(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_multi_hospital_groups_group_id_templates_58b04a(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/multi-hospital/groups/{group_id}/templates").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -4954,8 +5681,11 @@ async fn t_post_api_cms_posts_id_unarchive_adc3ba(user: &mut GooseUser) -> Trans
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_cms_posts_post_id_revisions_revision_number_b80e51(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/cms/posts/{post_id}/revisions/{revision_number}").await;
+async fn t_get_api_cms_posts_post_id_revisions_revision_number_b80e51(
+    user: &mut GooseUser,
+) -> TransactionResult {
+    let path =
+        crate::resolve_path(user, "/api/cms/posts/{post_id}/revisions/{revision_number}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -5047,7 +5777,9 @@ async fn t_get_api_tv_queue_beds_ward_type_a079db(user: &mut GooseUser) -> Trans
     Ok(())
 }
 
-async fn t_get_api_tv_queue_metrics_department_id_0069ac(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_tv_queue_metrics_department_id_0069ac(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/tv/queue/metrics/{department_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -5095,7 +5827,9 @@ async fn t_get_api_audit_verify_integrity_a05485(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_get_api_audit_timeline_entity_type_entity_id_00109c(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_audit_timeline_entity_type_entity_id_00109c(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/audit/timeline/{entity_type}/{entity_id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -5193,7 +5927,9 @@ async fn t_get_api_security_incidents_id_29afcf(user: &mut GooseUser) -> Transac
     Ok(())
 }
 
-async fn t_post_api_security_incidents_id_cert_in_8b052b(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_security_incidents_id_cert_in_8b052b(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/security-incidents/{id}/cert-in").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -5206,13 +5942,25 @@ async fn t_get_api_vulnerabilities_6dba86(user: &mut GooseUser) -> TransactionRe
 
 async fn t_patch_api_vulnerabilities_id_8c528a(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/vulnerabilities/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
 async fn t_patch_api_compliance_requirements_id_902184(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/compliance-requirements/{id}").await;
-    let _ = crate::json_request(user, GooseMethod::Patch, &path, Some(&serde_json::json!({}))).await?;
+    let _ = crate::json_request(
+        user,
+        GooseMethod::Patch,
+        &path,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
     Ok(())
 }
 
@@ -5251,7 +5999,9 @@ async fn t_get_api_incentive_calculations_7c0dd3(user: &mut GooseUser) -> Transa
     Ok(())
 }
 
-async fn t_post_api_incentive_calculations_id_approve_d03abc(user: &mut GooseUser) -> TransactionResult {
+async fn t_post_api_incentive_calculations_id_approve_d03abc(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/incentive-calculations/{id}/approve").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
@@ -5324,7 +6074,9 @@ async fn t_post_api_public_kiosk_checkin_b68e2d(user: &mut GooseUser) -> Transac
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_opd_appointments_reminder_config_c43c34(user: &mut GooseUser) -> TransactionResult {
+async fn t_get_api_opd_appointments_reminder_config_c43c34(
+    user: &mut GooseUser,
+) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/opd/appointments/reminder-config").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
@@ -5332,7 +6084,10 @@ async fn t_get_api_opd_appointments_reminder_config_c43c34(user: &mut GooseUser)
 
 pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
     Ok(scenario!("AllEndpoints")
-        .set_wait_time(std::time::Duration::from_millis(50), std::time::Duration::from_millis(150))?
+        .set_wait_time(
+            std::time::Duration::from_millis(50),
+            std::time::Duration::from_millis(150),
+        )?
         .register_transaction(transaction!(init_session).set_on_start())
         .register_transaction(transaction!(login).set_on_start())
         .register_transaction(transaction!(seed_cache).set_on_start())
@@ -5382,46 +6137,80 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_setup_module_masters_3a0f73))
         .register_transaction(transaction!(t_post_api_setup_departments_import_ffff04))
         .register_transaction(transaction!(t_get_api_setup_users_id_facilities_cc2dac))
-        .register_transaction(transaction!(t_post_api_setup_facilities_id_auto_compliance_e174b3))
+        .register_transaction(transaction!(
+            t_post_api_setup_facilities_id_auto_compliance_e174b3
+        ))
         .register_transaction(transaction!(t_get_api_setup_masters_religions_b93a6c))
         .register_transaction(transaction!(t_put_api_setup_masters_religions_id_5bc5a1))
         .register_transaction(transaction!(t_get_api_setup_masters_occupations_d7bdd8))
         .register_transaction(transaction!(t_put_api_setup_masters_occupations_id_cae08d))
         .register_transaction(transaction!(t_get_api_setup_masters_relations_cacbbd))
         .register_transaction(transaction!(t_put_api_setup_masters_relations_id_7b5051))
-        .register_transaction(transaction!(t_get_api_setup_masters_insurance_providers_b7d42e))
-        .register_transaction(transaction!(t_put_api_setup_masters_insurance_providers_id_cb5425))
+        .register_transaction(transaction!(
+            t_get_api_setup_masters_insurance_providers_b7d42e
+        ))
+        .register_transaction(transaction!(
+            t_put_api_setup_masters_insurance_providers_id_cb5425
+        ))
         .register_transaction(transaction!(t_post_api_setup_users_bulk_c4baf4))
         .register_transaction(transaction!(t_get_api_setup_completeness_72ac3e))
         .register_transaction(transaction!(t_get_api_setup_config_export_f9630e))
         .register_transaction(transaction!(t_get_api_patients_a870ea))
         .register_transaction(transaction!(t_post_api_patients_match_6c4fe2))
         .register_transaction(transaction!(t_post_api_patients_unmerge_id_2e8be1))
-        .register_transaction(transaction!(t_get_api_patients_patient_id_identifiers_e5e679))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_identifiers_id_d18f56))
+        .register_transaction(transaction!(
+            t_get_api_patients_patient_id_identifiers_e5e679
+        ))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_identifiers_id_d18f56
+        ))
         .register_transaction(transaction!(t_get_api_patients_patient_id_addresses_50d788))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_addresses_id_fcd203))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_addresses_id_fcd203
+        ))
         .register_transaction(transaction!(t_get_api_patients_patient_id_contacts_5bfdfa))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_contacts_id_939a46))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_contacts_id_939a46
+        ))
         .register_transaction(transaction!(t_get_api_patients_patient_id_insurance_3da68f))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_insurance_id_293466))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_insurance_id_293466
+        ))
         .register_transaction(transaction!(t_get_api_patients_patient_id_allergies_1e3efc))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_allergies_id_4d6f9f))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_allergies_id_4d6f9f
+        ))
         .register_transaction(transaction!(t_get_api_patients_patient_id_consents_5c5636))
-        .register_transaction(transaction!(t_put_api_patients_patient_id_consents_id_9919f1))
-        .register_transaction(transaction!(t_get_api_patients_patient_id_family_links_af631f))
-        .register_transaction(transaction!(t_delete_api_patients_patient_id_family_links_id_a25f99))
-        .register_transaction(transaction!(t_delete_api_patients_patient_id_documents_id_361966))
-        .register_transaction(transaction!(t_get_api_patients_patient_id_merge_history_600009))
-        .register_transaction(transaction!(t_get_api_patients_patient_id_lab_orders_8d6d3b))
-        .register_transaction(transaction!(t_get_api_patients_patient_id_appointments_0f4f45))
+        .register_transaction(transaction!(
+            t_put_api_patients_patient_id_consents_id_9919f1
+        ))
+        .register_transaction(transaction!(
+            t_get_api_patients_patient_id_family_links_af631f
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_patients_patient_id_family_links_id_a25f99
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_patients_patient_id_documents_id_361966
+        ))
+        .register_transaction(transaction!(
+            t_get_api_patients_patient_id_merge_history_600009
+        ))
+        .register_transaction(transaction!(
+            t_get_api_patients_patient_id_lab_orders_8d6d3b
+        ))
+        .register_transaction(transaction!(
+            t_get_api_patients_patient_id_appointments_0f4f45
+        ))
         .register_transaction(transaction!(t_get_api_masters_occupations_e1f929))
         .register_transaction(transaction!(t_get_api_dashboards_d088d9))
         .register_transaction(transaction!(t_post_api_dashboards_my_personalize_2e865e))
         .register_transaction(transaction!(t_delete_api_dashboards_my_widgets_wid_a6b836))
         .register_transaction(transaction!(t_get_api_dashboards_id_02aa59))
         .register_transaction(transaction!(t_get_api_dashboard_summary_c1ef6b))
-        .register_transaction(transaction!(t_get_api_dashboard_widget_data_widget_id_f6a95d))
+        .register_transaction(transaction!(
+            t_get_api_dashboard_widget_data_widget_id_f6a95d
+        ))
         .register_transaction(transaction!(t_put_api_opd_schedules_id_28b7fa))
         .register_transaction(transaction!(t_get_api_opd_schedule_exceptions_3fd3bc))
         .register_transaction(transaction!(t_delete_api_opd_schedule_exceptions_id_14225c))
@@ -5434,11 +6223,19 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_opd_queue_36170d))
         .register_transaction(transaction!(t_put_api_opd_queue_id_start_e3b1a9))
         .register_transaction(transaction!(t_put_api_opd_queue_id_no_show_b2df34))
-        .register_transaction(transaction!(t_get_api_opd_encounters_id_consultation_9ee291))
-        .register_transaction(transaction!(t_put_api_opd_encounters_eid_consultation_id_3053c9))
-        .register_transaction(transaction!(t_delete_api_opd_encounters_id_diagnoses_did_2fbead))
+        .register_transaction(transaction!(
+            t_get_api_opd_encounters_id_consultation_9ee291
+        ))
+        .register_transaction(transaction!(
+            t_put_api_opd_encounters_eid_consultation_id_3053c9
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_opd_encounters_id_diagnoses_did_2fbead
+        ))
         .register_transaction(transaction!(t_get_api_opd_prescriptions_id_4ea0f1))
-        .register_transaction(transaction!(t_delete_api_opd_prescription_templates_id_9d8f80))
+        .register_transaction(transaction!(
+            t_delete_api_opd_prescription_templates_id_9d8f80
+        ))
         .register_transaction(transaction!(t_get_api_opd_patients_id_diagnoses_652264))
         .register_transaction(transaction!(t_post_api_opd_certificates_62ee81))
         .register_transaction(transaction!(t_get_api_opd_patients_id_referrals_3122f5))
@@ -5451,16 +6248,22 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_opd_patients_id_feedback_bde096))
         .register_transaction(transaction!(t_get_api_opd_patients_id_consents_edcd8e))
         .register_transaction(transaction!(t_put_api_opd_consents_id_sign_1a8001))
-        .register_transaction(transaction!(t_delete_api_opd_consultation_templates_id_98387a))
+        .register_transaction(transaction!(
+            t_delete_api_opd_consultation_templates_id_98387a
+        ))
         .register_transaction(transaction!(t_post_api_opd_appointment_groups_a6433e))
         .register_transaction(transaction!(t_get_api_opd_queue_wait_estimate_8f0836))
         .register_transaction(transaction!(t_get_api_opd_visits_id_pharmacy_status_e2b6a0))
         .register_transaction(transaction!(t_get_api_opd_analytics_followup_708775))
         .register_transaction(transaction!(t_get_api_cds_drug_interactions_93c4ff))
         .register_transaction(transaction!(t_delete_api_cds_drug_interactions_id_c00f85))
-        .register_transaction(transaction!(t_delete_api_cds_critical_value_rules_id_e50241))
+        .register_transaction(transaction!(
+            t_delete_api_cds_critical_value_rules_id_e50241
+        ))
         .register_transaction(transaction!(t_delete_api_cds_protocols_id_2929b8))
-        .register_transaction(transaction!(t_put_api_cds_restricted_drug_approvals_id_45cd2f))
+        .register_transaction(transaction!(
+            t_put_api_cds_restricted_drug_approvals_id_45cd2f
+        ))
         .register_transaction(transaction!(t_put_api_cds_pre_auth_requests_id_906fba))
         .register_transaction(transaction!(t_put_api_cds_pg_logbook_id_verify_7e3697))
         .register_transaction(transaction!(t_put_api_cds_co_signatures_id_f5e950))
@@ -5475,38 +6278,64 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_billing_rate_plans_5f949e))
         .register_transaction(transaction!(t_get_api_billing_rate_plans_id_d48b2d))
         .register_transaction(transaction!(t_get_api_billing_invoices_id_discounts_49cbd8))
-        .register_transaction(transaction!(t_delete_api_billing_invoices_id_discounts_did_793cc6))
+        .register_transaction(transaction!(
+            t_delete_api_billing_invoices_id_discounts_did_793cc6
+        ))
         .register_transaction(transaction!(t_get_api_billing_credit_notes_3a08f1))
-        .register_transaction(transaction!(t_post_api_billing_credit_notes_id_apply_378215))
+        .register_transaction(transaction!(
+            t_post_api_billing_credit_notes_id_apply_378215
+        ))
         .register_transaction(transaction!(t_get_api_billing_insurance_claims_92fb80))
         .register_transaction(transaction!(t_get_api_billing_insurance_claims_id_d2ad23))
         .register_transaction(transaction!(t_post_api_billing_auto_charge_44d10c))
         .register_transaction(transaction!(t_post_api_billing_advances_id_adjust_a354b9))
         .register_transaction(transaction!(t_get_api_billing_corporates_9fdc85))
         .register_transaction(transaction!(t_get_api_billing_corporates_id_96f68e))
-        .register_transaction(transaction!(t_get_api_billing_corporates_id_enrollments_1f600b))
-        .register_transaction(transaction!(t_delete_api_billing_corporates_cid_enrollments_eid_daf66e))
+        .register_transaction(transaction!(
+            t_get_api_billing_corporates_id_enrollments_1f600b
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_billing_corporates_cid_enrollments_eid_daf66e
+        ))
         .register_transaction(transaction!(t_get_api_billing_reports_summary_686dfd))
-        .register_transaction(transaction!(t_get_api_billing_reports_collection_efficiency_c0605a))
+        .register_transaction(transaction!(
+            t_get_api_billing_reports_collection_efficiency_c0605a
+        ))
         .register_transaction(transaction!(t_get_api_billing_reports_daily_03cf3e))
-        .register_transaction(transaction!(t_get_api_billing_reports_insurance_panel_7c0ea2))
+        .register_transaction(transaction!(
+            t_get_api_billing_reports_insurance_panel_7c0ea2
+        ))
         .register_transaction(transaction!(t_get_api_billing_day_closes_f2e9b5))
         .register_transaction(transaction!(t_post_api_billing_day_closes_id_verify_34ab38))
-        .register_transaction(transaction!(t_post_api_billing_write_offs_id_approve_95e8ca))
+        .register_transaction(transaction!(
+            t_post_api_billing_write_offs_id_approve_95e8ca
+        ))
         .register_transaction(transaction!(t_put_api_billing_tpa_rate_cards_id_3740d5))
         .register_transaction(transaction!(t_post_api_billing_invoices_id_clone_de03fa))
         .register_transaction(transaction!(t_get_api_billing_exchange_rates_5ccc71))
-        .register_transaction(transaction!(t_get_api_billing_invoices_id_print_data_632276))
+        .register_transaction(transaction!(
+            t_get_api_billing_invoices_id_print_data_632276
+        ))
         .register_transaction(transaction!(t_get_api_billing_scheme_rate_9ec83c))
         .register_transaction(transaction!(t_get_api_billing_credit_patients_aging_d904fd))
-        .register_transaction(transaction!(t_get_api_billing_invoices_id_dual_insurance_2a0dd4))
-        .register_transaction(transaction!(t_post_api_billing_insurance_claims_id_reimbursement_docs_1fc910))
+        .register_transaction(transaction!(
+            t_get_api_billing_invoices_id_dual_insurance_2a0dd4
+        ))
+        .register_transaction(transaction!(
+            t_post_api_billing_insurance_claims_id_reimbursement_docs_1fc910
+        ))
         .register_transaction(transaction!(t_get_api_billing_gl_accounts_2d73a7))
         .register_transaction(transaction!(t_put_api_billing_gl_accounts_id_23678c))
         .register_transaction(transaction!(t_get_api_billing_journal_entries_id_fb8179))
-        .register_transaction(transaction!(t_post_api_billing_journal_entries_id_reverse_4453ed))
-        .register_transaction(transaction!(t_post_api_billing_bank_transactions_import_fa4d95))
-        .register_transaction(transaction!(t_post_api_billing_bank_transactions_id_match_ae7510))
+        .register_transaction(transaction!(
+            t_post_api_billing_journal_entries_id_reverse_4453ed
+        ))
+        .register_transaction(transaction!(
+            t_post_api_billing_bank_transactions_import_fa4d95
+        ))
+        .register_transaction(transaction!(
+            t_post_api_billing_bank_transactions_id_match_ae7510
+        ))
         .register_transaction(transaction!(t_post_api_billing_tds_id_deposit_d1934a))
         .register_transaction(transaction!(t_get_api_billing_gst_returns_af9a85))
         .register_transaction(transaction!(t_post_api_billing_gst_returns_id_file_91de0a))
@@ -5514,16 +6343,26 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_billing_erp_export_29a4c9))
         .register_transaction(transaction!(t_post_api_billing_copay_calculate_e95c1c))
         .register_transaction(transaction!(t_get_api_billing_concessions_6811f2))
-        .register_transaction(transaction!(t_get_api_billing_concessions_auto_rules_7a6d10))
-        .register_transaction(transaction!(t_put_api_billing_concessions_id_approve_6bb926))
+        .register_transaction(transaction!(
+            t_get_api_billing_concessions_auto_rules_7a6d10
+        ))
+        .register_transaction(transaction!(
+            t_put_api_billing_concessions_id_approve_6bb926
+        ))
         .register_transaction(transaction!(t_post_api_payments_create_order_05e5f8))
         .register_transaction(transaction!(t_get_api_payments_id_status_dd34bd))
         .register_transaction(transaction!(t_post_api_payments_refund_fa76c1))
         .register_transaction(transaction!(t_get_api_lab_home_collections_stats_028d66))
-        .register_transaction(transaction!(t_post_api_lab_home_collections_id_status_d5dd71))
+        .register_transaction(transaction!(
+            t_post_api_lab_home_collections_id_status_d5dd71
+        ))
         .register_transaction(transaction!(t_put_api_lab_collection_centers_id_0bceb3))
-        .register_transaction(transaction!(t_post_api_lab_sample_archive_id_retrieve_215870))
-        .register_transaction(transaction!(t_post_api_lab_report_dispatches_id_confirm_0997f4))
+        .register_transaction(transaction!(
+            t_post_api_lab_sample_archive_id_retrieve_215870
+        ))
+        .register_transaction(transaction!(
+            t_post_api_lab_report_dispatches_id_confirm_0997f4
+        ))
         .register_transaction(transaction!(t_put_api_lab_report_templates_id_151be1))
         .register_transaction(transaction!(t_get_api_lab_eqas_471b9c))
         .register_transaction(transaction!(t_put_api_lab_eqas_id_37a08a))
@@ -5539,7 +6378,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_lab_reagent_lots_id_f36b60))
         .register_transaction(transaction!(t_get_api_lab_calibrations_9b9a8b))
         .register_transaction(transaction!(t_get_api_lab_phlebotomy_queue_64d77f))
-        .register_transaction(transaction!(t_put_api_lab_phlebotomy_queue_id_status_6f7242))
+        .register_transaction(transaction!(
+            t_put_api_lab_phlebotomy_queue_id_status_6f7242
+        ))
         .register_transaction(transaction!(t_put_api_lab_outsourced_id_1b7cbd))
         .register_transaction(transaction!(t_get_api_lab_analyzer_worklist_ccb2cb))
         .register_transaction(transaction!(t_post_api_lab_reports_bulk_print_79d655))
@@ -5566,17 +6407,23 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_radiology_modalities_id_5e2e41))
         .register_transaction(transaction!(t_get_api_radiology_appointments_f12783))
         .register_transaction(transaction!(t_get_api_radiology_analytics_tat_9af229))
-        .register_transaction(transaction!(t_get_api_radiology_dicom_studies_patient_id_prior_1b1ea9))
+        .register_transaction(transaction!(
+            t_get_api_radiology_dicom_studies_patient_id_prior_1b1ea9
+        ))
         .register_transaction(transaction!(t_get_api_radiology_pacs_config_7c93a8))
         .register_transaction(transaction!(t_get_api_radiology_dosimetry_3ba961))
-        .register_transaction(transaction!(t_get_api_radiology_download_package_study_id_4f45f8))
+        .register_transaction(transaction!(
+            t_get_api_radiology_download_package_study_id_4f45f8
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_orders_id_4ae3fd))
         .register_transaction(transaction!(t_put_api_pharmacy_orders_id_cancel_c7865b))
         .register_transaction(transaction!(t_put_api_pharmacy_catalog_id_957701))
         .register_transaction(transaction!(t_post_api_pharmacy_stock_transactions_37ba3d))
         .register_transaction(transaction!(t_post_api_pharmacy_otc_sale_100360))
         .register_transaction(transaction!(t_get_api_pharmacy_ndps_register_919c4f))
-        .register_transaction(transaction!(t_get_api_pharmacy_ndps_register_balance_4515c0))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_ndps_register_balance_4515c0
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_batches_dc8429))
         .register_transaction(transaction!(t_get_api_pharmacy_batches_near_expiry_057e0e))
         .register_transaction(transaction!(t_get_api_pharmacy_store_assignments_2c0481))
@@ -5587,43 +6434,69 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_pharmacy_interactions_check_6e28a9))
         .register_transaction(transaction!(t_post_api_pharmacy_formulary_check_29ede5))
         .register_transaction(transaction!(t_get_api_pharmacy_rx_queue_id_4bd4ba))
-        .register_transaction(transaction!(t_post_api_pharmacy_safety_allergy_check_96913b))
+        .register_transaction(transaction!(
+            t_post_api_pharmacy_safety_allergy_check_96913b
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_pos_sales_9b7368))
         .register_transaction(transaction!(t_put_api_pharmacy_pos_sales_id_cancel_d6c748))
         .register_transaction(transaction!(t_get_api_pharmacy_pos_day_summary_ff0c3b))
         .register_transaction(transaction!(t_put_api_pharmacy_pricing_tiers_a31550))
-        .register_transaction(transaction!(t_get_api_pharmacy_stock_reorder_suggestions_039e29))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_stock_reorder_suggestions_039e29
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_analytics_fill_rate_130a1b))
         .register_transaction(transaction!(t_get_api_pharmacy_credit_notes_6d6983))
         .register_transaction(transaction!(t_get_api_pharmacy_credit_notes_id_9e951b))
-        .register_transaction(transaction!(t_put_api_pharmacy_credit_notes_id_settle_48e4c5))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_credit_notes_id_settle_48e4c5
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_store_indents_0999fb))
-        .register_transaction(transaction!(t_put_api_pharmacy_store_indents_id_approve_37a9b4))
-        .register_transaction(transaction!(t_put_api_pharmacy_store_indents_id_receive_f71d3a))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_store_indents_id_approve_37a9b4
+        ))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_store_indents_id_receive_f71d3a
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_pos_lookup_361118))
         .register_transaction(transaction!(t_put_api_pharmacy_recalls_id_complete_1ed0cc))
         .register_transaction(transaction!(t_get_api_pharmacy_destruction_b1726d))
-        .register_transaction(transaction!(t_get_api_pharmacy_destruction_id_certificate_6af84b))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_destruction_id_certificate_6af84b
+        ))
         .register_transaction(transaction!(t_post_api_pharmacy_substitutes_3b3347))
-        .register_transaction(transaction!(t_put_api_pharmacy_emergency_kits_id_check_a21f86))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_emergency_kits_id_check_a21f86
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_payments_89a871))
-        .register_transaction(transaction!(t_put_api_pharmacy_payments_id_reconcile_0f4a70))
-        .register_transaction(transaction!(t_get_api_pharmacy_payments_day_reconciliation_7e83b7))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_payments_id_reconcile_0f4a70
+        ))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_payments_day_reconciliation_7e83b7
+        ))
         .register_transaction(transaction!(t_put_api_pharmacy_settlements_id_close_7485f6))
-        .register_transaction(transaction!(t_get_api_pharmacy_prescriptions_prescription_id_repeat_eligibility_a73a71))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_prescriptions_prescription_id_repeat_eligibility_a73a71
+        ))
         .register_transaction(transaction!(t_get_api_pharmacy_cash_drawers_a793ee))
-        .register_transaction(transaction!(t_get_api_pharmacy_cash_drawers_me_active_a180f7))
+        .register_transaction(transaction!(
+            t_get_api_pharmacy_cash_drawers_me_active_a180f7
+        ))
         .register_transaction(transaction!(t_get_api_nurse_mar_due_now_76d744))
         .register_transaction(transaction!(t_put_api_nurse_mar_id_hold_3efa71))
         .register_transaction(transaction!(t_get_api_nurse_mar_patient_patient_id_7178c6))
         .register_transaction(transaction!(t_put_api_nurse_vitals_schedules_id_end_3c0216))
-        .register_transaction(transaction!(t_get_api_nurse_io_entries_encounter_encounter_id_ef07e0))
+        .register_transaction(transaction!(
+            t_get_api_nurse_io_entries_encounter_encounter_id_ef07e0
+        ))
         .register_transaction(transaction!(t_post_api_nurse_pain_entries_1996f9))
         .register_transaction(transaction!(t_post_api_nurse_fall_risk_6b61f1))
         .register_transaction(transaction!(t_post_api_nurse_restraint_events_f1a85a))
         .register_transaction(transaction!(t_post_api_nurse_wounds_9f6ac4))
         .register_transaction(transaction!(t_post_api_nurse_handoffs_7915c4))
-        .register_transaction(transaction!(t_get_api_nurse_handoffs_encounter_encounter_id_e20ce6))
+        .register_transaction(transaction!(
+            t_get_api_nurse_handoffs_encounter_encounter_id_e20ce6
+        ))
         .register_transaction(transaction!(t_put_api_nurse_code_blue_id_append_b6185b))
         .register_transaction(transaction!(t_get_api_nurse_equipment_checks_4785fe))
         .register_transaction(transaction!(t_post_api_pharmacy_substitutions_d51cfb))
@@ -5634,40 +6507,62 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_pharmacy_free_dispensings_21cb5c))
         .register_transaction(transaction!(t_get_api_pharmacy_cashier_overrides_4beff5))
         .register_transaction(transaction!(t_get_api_pharmacy_supplier_payments_798e38))
-        .register_transaction(transaction!(t_put_api_pharmacy_supplier_payments_id_pay_159948))
+        .register_transaction(transaction!(
+            t_put_api_pharmacy_supplier_payments_id_pay_159948
+        ))
         .register_transaction(transaction!(t_get_api_indent_requisitions_ecb5b3))
         .register_transaction(transaction!(t_get_api_indent_requisitions_id_c8e6f7))
-        .register_transaction(transaction!(t_put_api_indent_requisitions_id_approve_5faf80))
+        .register_transaction(transaction!(
+            t_put_api_indent_requisitions_id_approve_5faf80
+        ))
         .register_transaction(transaction!(t_put_api_indent_requisitions_id_issue_f3fd28))
         .register_transaction(transaction!(t_get_api_indent_catalog_1b4d53))
         .register_transaction(transaction!(t_put_api_indent_catalog_id_597f4a))
         .register_transaction(transaction!(t_get_api_indent_analytics_consumption_446460))
-        .register_transaction(transaction!(t_get_api_indent_analytics_purchase_vs_consumption_210862))
+        .register_transaction(transaction!(
+            t_get_api_indent_analytics_purchase_vs_consumption_210862
+        ))
         .register_transaction(transaction!(t_get_api_indent_analytics_compliance_796fd7))
         .register_transaction(transaction!(t_get_api_indent_analytics_abc_42a961))
         .register_transaction(transaction!(t_post_api_indent_department_issues_49ad20))
         .register_transaction(transaction!(t_post_api_indent_returns_7b0761))
         .register_transaction(transaction!(t_post_api_indent_consignment_usage_683503))
         .register_transaction(transaction!(t_put_api_indent_implant_registry_id_14fbea))
-        .register_transaction(transaction!(t_put_api_indent_condemnations_id_status_3d1057))
+        .register_transaction(transaction!(
+            t_put_api_indent_condemnations_id_status_3d1057
+        ))
         .register_transaction(transaction!(t_get_api_indent_reorder_alerts_0f8f29))
         .register_transaction(transaction!(t_get_api_procurement_vendors_313a45))
         .register_transaction(transaction!(t_get_api_procurement_vendors_id_3f450e))
         .register_transaction(transaction!(t_get_api_procurement_store_locations_cb147a))
-        .register_transaction(transaction!(t_put_api_procurement_store_locations_id_fbfbe3))
-        .register_transaction(transaction!(t_get_api_procurement_purchase_orders_id_47a6d2))
-        .register_transaction(transaction!(t_put_api_procurement_purchase_orders_id_send_37b343))
+        .register_transaction(transaction!(
+            t_put_api_procurement_store_locations_id_fbfbe3
+        ))
+        .register_transaction(transaction!(
+            t_get_api_procurement_purchase_orders_id_47a6d2
+        ))
+        .register_transaction(transaction!(
+            t_put_api_procurement_purchase_orders_id_send_37b343
+        ))
         .register_transaction(transaction!(t_get_api_procurement_grns_b1eea6))
         .register_transaction(transaction!(t_get_api_procurement_grns_id_ec7f0c))
         .register_transaction(transaction!(t_get_api_procurement_rate_contracts_290b04))
         .register_transaction(transaction!(t_get_api_procurement_rate_contracts_id_e961e0))
-        .register_transaction(transaction!(t_get_api_procurement_vendor_performance_7359bf))
-        .register_transaction(transaction!(t_post_api_procurement_emergency_purchase_6d81e2))
-        .register_transaction(transaction!(t_put_api_procurement_supplier_payments_id_1b1a2c))
+        .register_transaction(transaction!(
+            t_get_api_procurement_vendor_performance_7359bf
+        ))
+        .register_transaction(transaction!(
+            t_post_api_procurement_emergency_purchase_6d81e2
+        ))
+        .register_transaction(transaction!(
+            t_put_api_procurement_supplier_payments_id_1b1a2c
+        ))
         .register_transaction(transaction!(t_get_api_quality_indicator_values_ec0936))
         .register_transaction(transaction!(t_get_api_quality_documents_e8649f))
         .register_transaction(transaction!(t_get_api_quality_documents_id_29615b))
-        .register_transaction(transaction!(t_post_api_quality_documents_id_acknowledge_9155bd))
+        .register_transaction(transaction!(
+            t_post_api_quality_documents_id_acknowledge_9155bd
+        ))
         .register_transaction(transaction!(t_get_api_quality_incidents_id_aae198))
         .register_transaction(transaction!(t_get_api_quality_capa_994ccb))
         .register_transaction(transaction!(t_patch_api_quality_capa_id_242b88))
@@ -5677,8 +6572,12 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_quality_compliance_6fe398))
         .register_transaction(transaction!(t_get_api_quality_audits_256f54))
         .register_transaction(transaction!(t_get_api_quality_audits_id_ebcd38))
-        .register_transaction(transaction!(t_post_api_quality_indicators_id_calculate_519a12))
-        .register_transaction(transaction!(t_post_api_quality_committees_id_auto_schedule_94ff7c))
+        .register_transaction(transaction!(
+            t_post_api_quality_indicators_id_calculate_519a12
+        ))
+        .register_transaction(transaction!(
+            t_post_api_quality_committees_id_auto_schedule_94ff7c
+        ))
         .register_transaction(transaction!(t_post_api_quality_audits_schedule_1ca371))
         .register_transaction(transaction!(t_get_api_quality_capas_overdue_992189))
         .register_transaction(transaction!(t_post_api_quality_mortality_reviews_d932b1))
@@ -5686,46 +6585,80 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_regulatory_dashboard_358467))
         .register_transaction(transaction!(t_get_api_regulatory_dashboard_gaps_855321))
         .register_transaction(transaction!(t_get_api_regulatory_checklists_id_b5dc8e))
-        .register_transaction(transaction!(t_post_api_regulatory_checklists_id_items_d0dcb1))
+        .register_transaction(transaction!(
+            t_post_api_regulatory_checklists_id_items_d0dcb1
+        ))
         .register_transaction(transaction!(t_get_api_regulatory_adr_reports_a52b7b))
         .register_transaction(transaction!(t_get_api_regulatory_adr_reports_id_3898a9))
-        .register_transaction(transaction!(t_post_api_regulatory_adr_reports_id_submit_192201))
-        .register_transaction(transaction!(t_get_api_regulatory_materiovigilance_id_c63dd7))
-        .register_transaction(transaction!(t_post_api_regulatory_materiovigilance_id_submit_d67c5f))
+        .register_transaction(transaction!(
+            t_post_api_regulatory_adr_reports_id_submit_192201
+        ))
+        .register_transaction(transaction!(
+            t_get_api_regulatory_materiovigilance_id_c63dd7
+        ))
+        .register_transaction(transaction!(
+            t_post_api_regulatory_materiovigilance_id_submit_d67c5f
+        ))
         .register_transaction(transaction!(t_get_api_regulatory_pcpndt_forms_id_485595))
-        .register_transaction(transaction!(t_get_api_regulatory_pcpndt_forms_quarterly_72d235))
+        .register_transaction(transaction!(
+            t_get_api_regulatory_pcpndt_forms_quarterly_72d235
+        ))
         .register_transaction(transaction!(t_put_api_regulatory_calendar_id_93d816))
-        .register_transaction(transaction!(t_post_api_regulatory_checklists_id_auto_populate_e42133))
+        .register_transaction(transaction!(
+            t_post_api_regulatory_checklists_id_auto_populate_e42133
+        ))
         .register_transaction(transaction!(t_get_api_regulatory_mock_surveys_2471ae))
         .register_transaction(transaction!(t_get_api_regulatory_staff_credentials_7714f2))
         .register_transaction(transaction!(t_get_api_regulatory_nabl_documents_1cb96a))
         .register_transaction(transaction!(t_get_api_infection_control_device_days_5e2ea1))
         .register_transaction(transaction!(t_get_api_infection_control_stewardship_b8d21e))
-        .register_transaction(transaction!(t_patch_api_infection_control_stewardship_id_9a2b08))
+        .register_transaction(transaction!(
+            t_patch_api_infection_control_stewardship_id_9a2b08
+        ))
         .register_transaction(transaction!(t_get_api_infection_control_biowaste_bb68c1))
-        .register_transaction(transaction!(t_get_api_infection_control_needle_stick_5704d4))
-        .register_transaction(transaction!(t_get_api_infection_control_hygiene_audits_f9b756))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_needle_stick_5704d4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_hygiene_audits_f9b756
+        ))
         .register_transaction(transaction!(t_get_api_infection_control_cultures_4d7bfd))
         .register_transaction(transaction!(t_get_api_infection_control_outbreaks_1967dd))
-        .register_transaction(transaction!(t_patch_api_infection_control_outbreaks_id_b3bfa2))
-        .register_transaction(transaction!(t_get_api_infection_control_analytics_hai_rates_3dc240))
-        .register_transaction(transaction!(t_get_api_infection_control_analytics_antimicrobial_consumption_8dae5e))
-        .register_transaction(transaction!(t_get_api_infection_control_reports_culture_sensitivity_c788ac))
+        .register_transaction(transaction!(
+            t_patch_api_infection_control_outbreaks_id_b3bfa2
+        ))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_analytics_hai_rates_3dc240
+        ))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_analytics_antimicrobial_consumption_8dae5e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_reports_culture_sensitivity_c788ac
+        ))
         .register_transaction(transaction!(t_post_api_infection_control_exposures_63c472))
-        .register_transaction(transaction!(t_get_api_infection_control_reports_monthly_81dd2d))
+        .register_transaction(transaction!(
+            t_get_api_infection_control_reports_monthly_81dd2d
+        ))
         .register_transaction(transaction!(t_get_api_schema_modules_95d87a))
         .register_transaction(transaction!(t_get_api_schema_events_754690))
         .register_transaction(transaction!(t_get_api_integration_pipelines_439a2d))
         .register_transaction(transaction!(t_get_api_integration_pipelines_id_873313))
-        .register_transaction(transaction!(t_put_api_integration_pipelines_id_status_575eca))
-        .register_transaction(transaction!(t_get_api_integration_pipelines_id_executions_b732d0))
+        .register_transaction(transaction!(
+            t_put_api_integration_pipelines_id_status_575eca
+        ))
+        .register_transaction(transaction!(
+            t_get_api_integration_pipelines_id_executions_b732d0
+        ))
         .register_transaction(transaction!(t_get_api_integration_node_templates_810842))
         .register_transaction(transaction!(t_get_api_orchestration_events_d38319))
         .register_transaction(transaction!(t_put_api_orchestration_connectors_id_13f791))
         .register_transaction(transaction!(t_get_api_orchestration_jobs_f0e890))
         .register_transaction(transaction!(t_get_api_integration_code_snippets_2ae6ca))
         .register_transaction(transaction!(t_get_api_integration_code_snippets_id_804a80))
-        .register_transaction(transaction!(t_post_api_integration_code_snippets_test_5ceb17))
+        .register_transaction(transaction!(
+            t_post_api_integration_code_snippets_test_5ceb17
+        ))
         .register_transaction(transaction!(t_post_api_integration_code_ai_generate_18f0e2))
         .register_transaction(transaction!(t_get_api_ipd_wards_id_3dc0b5))
         .register_transaction(transaction!(t_get_api_ipd_wards_id_beds_c2b53d))
@@ -5739,62 +6672,114 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_ipd_admissions_id_transfer_e102a7))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_tasks_f72ec9))
         .register_transaction(transaction!(t_put_api_ipd_admissions_id_tasks_tid_3698ba))
-        .register_transaction(transaction!(t_delete_api_ipd_admissions_id_attenders_aid_d98ce7))
-        .register_transaction(transaction!(t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab))
+        .register_transaction(transaction!(
+            t_delete_api_ipd_admissions_id_attenders_aid_d98ce7
+        ))
+        .register_transaction(transaction!(
+            t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab
+        ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_mar_246d69))
         .register_transaction(transaction!(t_put_api_ipd_admissions_id_mar_mar_id_287d43))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_io_balance_20aa31))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_nursing_assessments_nid_6e551a))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_care_plans_cid_d86ece))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_handovers_hid_acknowledge_e35a33))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_discharge_checklist_cid_a3c0c0))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_nursing_assessments_nid_6e551a
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_care_plans_cid_d86ece
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_handovers_hid_acknowledge_e35a33
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_discharge_checklist_cid_a3c0c0
+        ))
         .register_transaction(transaction!(t_put_api_ipd_ip_types_id_baddcb))
-        .register_transaction(transaction!(t_put_api_ipd_bed_reservations_id_status_3f7e33))
+        .register_transaction(transaction!(
+            t_put_api_ipd_bed_reservations_id_status_3f7e33
+        ))
         .register_transaction(transaction!(t_get_api_ipd_bed_turnaround_b8b460))
-        .register_transaction(transaction!(t_post_api_ipd_bed_turnaround_id_complete_4989f8))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_checklist_item_id_cbeefb))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_clinical_docs_doc_id_5bbcc6))
-        .register_transaction(transaction!(t_get_api_ipd_admissions_id_restraint_checks_doc_id_a6bc1d))
+        .register_transaction(transaction!(
+            t_post_api_ipd_bed_turnaround_id_complete_4989f8
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_checklist_item_id_cbeefb
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_clinical_docs_doc_id_5bbcc6
+        ))
+        .register_transaction(transaction!(
+            t_get_api_ipd_admissions_id_restraint_checks_doc_id_a6bc1d
+        ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_transfers_bed697))
-        .register_transaction(transaction!(t_get_api_ipd_admissions_id_death_summary_6595a4))
-        .register_transaction(transaction!(t_get_api_ipd_admissions_id_birth_records_e8e428))
-        .register_transaction(transaction!(t_put_api_ipd_admissions_id_birth_records_rec_id_242382))
-        .register_transaction(transaction!(t_get_api_ipd_admissions_id_investigations_ce25ef))
+        .register_transaction(transaction!(
+            t_get_api_ipd_admissions_id_death_summary_6595a4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_ipd_admissions_id_birth_records_e8e428
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ipd_admissions_id_birth_records_rec_id_242382
+        ))
+        .register_transaction(transaction!(
+            t_get_api_ipd_admissions_id_investigations_ce25ef
+        ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_advances_40e351))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_mlc_246d69))
-        .register_transaction(transaction!(t_get_api_ipd_admissions_id_billing_summary_cba5c9))
+        .register_transaction(transaction!(
+            t_get_api_ipd_admissions_id_billing_summary_cba5c9
+        ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_diet_orders_4d2302))
         .register_transaction(transaction!(t_get_api_ipd_discharges_expected_1f2f2d))
         .register_transaction(transaction!(t_put_api_ot_rooms_id_3b8438))
         .register_transaction(transaction!(t_get_api_ot_bookings_id_3330b9))
         .register_transaction(transaction!(t_put_api_ot_bookings_id_status_0a5be8))
-        .register_transaction(transaction!(t_get_api_ot_bookings_booking_id_checklists_07de2d))
-        .register_transaction(transaction!(t_put_api_ot_bookings_booking_id_checklists_checklist_id_54dbf1))
-        .register_transaction(transaction!(t_get_api_ot_bookings_booking_id_anesthesia_6a9170))
+        .register_transaction(transaction!(
+            t_get_api_ot_bookings_booking_id_checklists_07de2d
+        ))
+        .register_transaction(transaction!(
+            t_put_api_ot_bookings_booking_id_checklists_checklist_id_54dbf1
+        ))
+        .register_transaction(transaction!(
+            t_get_api_ot_bookings_booking_id_anesthesia_6a9170
+        ))
         .register_transaction(transaction!(t_get_api_ot_bookings_booking_id_postop_cb5cae))
         .register_transaction(transaction!(t_get_api_ot_surgeon_preferences_c7cd92))
         .register_transaction(transaction!(t_put_api_ot_surgeon_preferences_id_c2ba0f))
         .register_transaction(transaction!(t_get_api_ot_schedule_fe89d5))
-        .register_transaction(transaction!(t_delete_api_ot_bookings_id_consumables_item_id_c7123d))
+        .register_transaction(transaction!(
+            t_delete_api_ot_bookings_id_consumables_item_id_c7123d
+        ))
         .register_transaction(transaction!(t_get_api_ot_analytics_surgeon_caseload_c112c2))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_flowsheets_721764))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_ventilator_b1e1ef))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_scores_9319bf))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_devices_5fbce4))
-        .register_transaction(transaction!(t_put_api_icu_admissions_id_devices_device_id_db546e))
+        .register_transaction(transaction!(
+            t_put_api_icu_admissions_id_devices_device_id_db546e
+        ))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_nutrition_974c8e))
         .register_transaction(transaction!(t_get_api_icu_admissions_id_neonatal_8f41d5))
         .register_transaction(transaction!(t_get_api_icu_analytics_los_468c6f))
         .register_transaction(transaction!(t_get_api_blood_bank_donors_d7a1f9))
         .register_transaction(transaction!(t_get_api_blood_bank_donors_id_7a9e83))
-        .register_transaction(transaction!(t_put_api_blood_bank_donations_donation_id_dcd1b2))
-        .register_transaction(transaction!(t_put_api_blood_bank_components_id_status_351413))
+        .register_transaction(transaction!(
+            t_put_api_blood_bank_donations_donation_id_dcd1b2
+        ))
+        .register_transaction(transaction!(
+            t_put_api_blood_bank_components_id_status_351413
+        ))
         .register_transaction(transaction!(t_put_api_blood_bank_crossmatch_id_e68543))
-        .register_transaction(transaction!(t_put_api_blood_bank_transfusions_id_reaction_2c5abc))
+        .register_transaction(transaction!(
+            t_put_api_blood_bank_transfusions_id_reaction_2c5abc
+        ))
         .register_transaction(transaction!(t_get_api_blood_bank_hemovigilance_c8cb47))
         .register_transaction(transaction!(t_put_api_blood_bank_recruitment_id_829b6a))
-        .register_transaction(transaction!(t_get_api_blood_bank_cold_chain_readings_1645e0))
+        .register_transaction(transaction!(
+            t_get_api_blood_bank_cold_chain_readings_1645e0
+        ))
         .register_transaction(transaction!(t_post_api_blood_bank_returns_f5fe6e))
         .register_transaction(transaction!(t_get_api_blood_bank_msbos_d0de5c))
         .register_transaction(transaction!(t_get_api_blood_bank_lookback_0e5b12))
@@ -5810,13 +6795,21 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_cssd_issuances_id_return_d25b19))
         .register_transaction(transaction!(t_get_api_emergency_visits_202adf))
         .register_transaction(transaction!(t_get_api_emergency_visits_id_67c51e))
-        .register_transaction(transaction!(t_get_api_emergency_visits_visit_id_triage_689cf8))
-        .register_transaction(transaction!(t_get_api_emergency_visits_visit_id_resuscitation_a700e9))
+        .register_transaction(transaction!(
+            t_get_api_emergency_visits_visit_id_triage_689cf8
+        ))
+        .register_transaction(transaction!(
+            t_get_api_emergency_visits_visit_id_resuscitation_a700e9
+        ))
         .register_transaction(transaction!(t_get_api_emergency_codes_939463))
         .register_transaction(transaction!(t_put_api_emergency_codes_id_deactivate_ede681))
         .register_transaction(transaction!(t_put_api_emergency_mlc_id_042a18))
-        .register_transaction(transaction!(t_get_api_emergency_mlc_mlc_id_police_intimations_4d4c07))
-        .register_transaction(transaction!(t_put_api_emergency_mlc_police_intimations_id_confirm_43aaab))
+        .register_transaction(transaction!(
+            t_get_api_emergency_mlc_mlc_id_police_intimations_4d4c07
+        ))
+        .register_transaction(transaction!(
+            t_put_api_emergency_mlc_police_intimations_id_confirm_43aaab
+        ))
         .register_transaction(transaction!(t_put_api_emergency_mass_casualty_id_9befa8))
         .register_transaction(transaction!(t_get_api_diet_templates_dc88da))
         .register_transaction(transaction!(t_put_api_diet_templates_id_d57402))
@@ -5830,31 +6823,45 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_front_office_visitors_b0b949))
         .register_transaction(transaction!(t_get_api_front_office_passes_06211b))
         .register_transaction(transaction!(t_put_api_front_office_passes_id_revoke_0a5573))
-        .register_transaction(transaction!(t_post_api_front_office_visitor_logs_pass_id_check_in_1bce25))
+        .register_transaction(transaction!(
+            t_post_api_front_office_visitor_logs_pass_id_check_in_1bce25
+        ))
         .register_transaction(transaction!(t_get_api_front_office_queue_priority_fb008f))
         .register_transaction(transaction!(t_get_api_front_office_display_config_6496f5))
         .register_transaction(transaction!(t_get_api_front_office_enquiries_5974ac))
-        .register_transaction(transaction!(t_put_api_front_office_enquiries_id_resolve_14d4ba))
+        .register_transaction(transaction!(
+            t_put_api_front_office_enquiries_id_resolve_14d4ba
+        ))
         .register_transaction(transaction!(t_get_api_front_office_analytics_2f27ae))
         .register_transaction(transaction!(t_get_api_housekeeping_schedules_528745))
         .register_transaction(transaction!(t_put_api_housekeeping_schedules_id_c43180))
         .register_transaction(transaction!(t_put_api_housekeeping_tasks_id_status_2354b8))
         .register_transaction(transaction!(t_get_api_housekeeping_turnarounds_18eecd))
-        .register_transaction(transaction!(t_put_api_housekeeping_turnarounds_id_complete_b8294a))
+        .register_transaction(transaction!(
+            t_put_api_housekeeping_turnarounds_id_complete_b8294a
+        ))
         .register_transaction(transaction!(t_put_api_housekeeping_pest_control_id_ea2bff))
         .register_transaction(transaction!(t_get_api_housekeeping_linen_272e2d))
         .register_transaction(transaction!(t_put_api_housekeeping_linen_id_43ac30))
         .register_transaction(transaction!(t_get_api_housekeeping_laundry_batches_ee8e8a))
-        .register_transaction(transaction!(t_put_api_housekeeping_laundry_batches_id_complete_8ac260))
+        .register_transaction(transaction!(
+            t_put_api_housekeeping_laundry_batches_id_complete_8ac260
+        ))
         .register_transaction(transaction!(t_get_api_housekeeping_condemnations_573642))
         .register_transaction(transaction!(t_get_api_housekeeping_bmw_schedule_17ad36))
         .register_transaction(transaction!(t_get_api_hr_designations_206411))
         .register_transaction(transaction!(t_put_api_hr_designations_id_4aec4b))
         .register_transaction(transaction!(t_get_api_hr_employees_id_65d9f9))
         .register_transaction(transaction!(t_get_api_hr_employees_id_credentials_21778a))
-        .register_transaction(transaction!(t_put_api_hr_employees_id_credentials_cid_aa2971))
-        .register_transaction(transaction!(t_get_api_hr_employees_id_training_records_118bd7))
-        .register_transaction(transaction!(t_get_api_hr_employees_id_statutory_records_9cb7aa))
+        .register_transaction(transaction!(
+            t_put_api_hr_employees_id_credentials_cid_aa2971
+        ))
+        .register_transaction(transaction!(
+            t_get_api_hr_employees_id_training_records_118bd7
+        ))
+        .register_transaction(transaction!(
+            t_get_api_hr_employees_id_statutory_records_9cb7aa
+        ))
         .register_transaction(transaction!(t_put_api_hr_shifts_id_ffd6a8))
         .register_transaction(transaction!(t_put_api_hr_rosters_id_approve_swap_1e65b9))
         .register_transaction(transaction!(t_get_api_hr_leaves_343f62))
@@ -5876,13 +6883,19 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_bme_analytics_uptime_e32d42))
         .register_transaction(transaction!(t_get_api_lms_courses_id_c7e065))
         .register_transaction(transaction!(t_post_api_lms_courses_id_modules_3b1bae))
-        .register_transaction(transaction!(t_put_api_lms_courses_id_modules_reorder_7b2ea3))
+        .register_transaction(transaction!(
+            t_put_api_lms_courses_id_modules_reorder_7b2ea3
+        ))
         .register_transaction(transaction!(t_put_api_lms_quizzes_id_7f412a))
-        .register_transaction(transaction!(t_put_api_lms_quizzes_quiz_id_questions_qid_4b6539))
+        .register_transaction(transaction!(
+            t_put_api_lms_quizzes_quiz_id_questions_qid_4b6539
+        ))
         .register_transaction(transaction!(t_get_api_lms_enrollments_038662))
         .register_transaction(transaction!(t_post_api_lms_enrollments_bulk_role_0dcac0))
         .register_transaction(transaction!(t_get_api_lms_my_enrollments_bdb338))
-        .register_transaction(transaction!(t_put_api_lms_my_enrollments_id_progress_371d28))
+        .register_transaction(transaction!(
+            t_put_api_lms_my_enrollments_id_progress_371d28
+        ))
         .register_transaction(transaction!(t_put_api_lms_my_quiz_attempts_id_bd28d0))
         .register_transaction(transaction!(t_get_api_lms_paths_id_2dfc95))
         .register_transaction(transaction!(t_post_api_lms_paths_id_courses_2be29d))
@@ -5893,7 +6906,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_mrd_records_a7b01a))
         .register_transaction(transaction!(t_get_api_mrd_records_id_aba731))
         .register_transaction(transaction!(t_get_api_mrd_records_id_movements_627236))
-        .register_transaction(transaction!(t_post_api_mrd_records_record_id_movements_id_return_fe5089))
+        .register_transaction(transaction!(
+            t_post_api_mrd_records_record_id_movements_id_return_fe5089
+        ))
         .register_transaction(transaction!(t_get_api_mrd_births_id_944cba))
         .register_transaction(transaction!(t_get_api_mrd_deaths_id_d1bed1))
         .register_transaction(transaction!(t_put_api_mrd_retention_policies_id_12bdf1))
@@ -5924,31 +6939,57 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_ambulance_maintenance_587a85))
         .register_transaction(transaction!(t_put_api_ambulance_maintenance_id_a24f3f))
         .register_transaction(transaction!(t_put_api_bedside_sessions_id_end_1bba41))
-        .register_transaction(transaction!(t_get_api_bedside_admission_id_medications_104240))
-        .register_transaction(transaction!(t_get_api_bedside_admission_id_lab_results_a7c562))
-        .register_transaction(transaction!(t_post_api_bedside_admission_id_nurse_request_d43eec))
-        .register_transaction(transaction!(t_put_api_bedside_nurse_requests_id_status_00d8f2))
+        .register_transaction(transaction!(
+            t_get_api_bedside_admission_id_medications_104240
+        ))
+        .register_transaction(transaction!(
+            t_get_api_bedside_admission_id_lab_results_a7c562
+        ))
+        .register_transaction(transaction!(
+            t_post_api_bedside_admission_id_nurse_request_d43eec
+        ))
+        .register_transaction(transaction!(
+            t_put_api_bedside_nurse_requests_id_status_00d8f2
+        ))
         .register_transaction(transaction!(t_put_api_bedside_videos_id_a280a1))
-        .register_transaction(transaction!(t_post_api_bedside_admission_id_feedback_e039ac))
+        .register_transaction(transaction!(
+            t_post_api_bedside_admission_id_feedback_e039ac
+        ))
         .register_transaction(transaction!(t_get_api_communications_templates_76b412))
         .register_transaction(transaction!(t_put_api_communications_templates_id_7efd30))
         .register_transaction(transaction!(t_get_api_communications_messages_id_67f194))
         .register_transaction(transaction!(t_get_api_communications_clinical_eff137))
         .register_transaction(transaction!(t_get_api_communications_clinical_id_5a5e2b))
         .register_transaction(transaction!(t_get_api_communications_alerts_b7acda))
-        .register_transaction(transaction!(t_put_api_communications_alerts_id_acknowledge_a1da4a))
+        .register_transaction(transaction!(
+            t_put_api_communications_alerts_id_acknowledge_a1da4a
+        ))
         .register_transaction(transaction!(t_get_api_communications_complaints_c116cf))
         .register_transaction(transaction!(t_put_api_communications_complaints_id_a55cea))
         .register_transaction(transaction!(t_get_api_communications_feedback_ddfd08))
         .register_transaction(transaction!(t_get_api_communications_feedback_stats_2a8323))
-        .register_transaction(transaction!(t_get_api_command_center_patient_flow_hourly_0b256a))
-        .register_transaction(transaction!(t_get_api_command_center_department_load_504799))
-        .register_transaction(transaction!(t_post_api_command_center_alerts_id_acknowledge_1a8634))
-        .register_transaction(transaction!(t_put_api_command_center_alert_thresholds_id_e4c899))
-        .register_transaction(transaction!(t_get_api_command_center_discharge_blockers_id_a151e4))
-        .register_transaction(transaction!(t_get_api_command_center_bed_turnaround_stats_8636ad))
+        .register_transaction(transaction!(
+            t_get_api_command_center_patient_flow_hourly_0b256a
+        ))
+        .register_transaction(transaction!(
+            t_get_api_command_center_department_load_504799
+        ))
+        .register_transaction(transaction!(
+            t_post_api_command_center_alerts_id_acknowledge_1a8634
+        ))
+        .register_transaction(transaction!(
+            t_put_api_command_center_alert_thresholds_id_e4c899
+        ))
+        .register_transaction(transaction!(
+            t_get_api_command_center_discharge_blockers_id_a151e4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_command_center_bed_turnaround_stats_8636ad
+        ))
         .register_transaction(transaction!(t_put_api_command_center_transport_id_7dd65d))
-        .register_transaction(transaction!(t_put_api_command_center_transport_id_complete_562b5c))
+        .register_transaction(transaction!(
+            t_put_api_command_center_transport_id_complete_562b5c
+        ))
         .register_transaction(transaction!(t_get_api_command_center_kpis_code_55acfe))
         .register_transaction(transaction!(t_get_api_facilities_gas_compliance_52bbdf))
         .register_transaction(transaction!(t_put_api_facilities_gas_compliance_id_5cd146))
@@ -5969,98 +7010,188 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_security_cameras_id_22246b))
         .register_transaction(transaction!(t_get_api_security_incidents_id_248428))
         .register_transaction(transaction!(t_get_api_security_patient_tags_28d56b))
-        .register_transaction(transaction!(t_put_api_security_patient_tags_id_deactivate_c08728))
-        .register_transaction(transaction!(t_put_api_security_tag_alerts_id_resolve_0d689f))
+        .register_transaction(transaction!(
+            t_put_api_security_patient_tags_id_deactivate_c08728
+        ))
+        .register_transaction(transaction!(
+            t_put_api_security_tag_alerts_id_resolve_0d689f
+        ))
         .register_transaction(transaction!(t_get_api_security_debriefs_id_92a18b))
-        .register_transaction(transaction!(t_get_api_specialty_cath_lab_procedures_id_9f3ee6))
-        .register_transaction(transaction!(t_get_api_specialty_cath_lab_procedures_procedure_id_hemodynamics_10c9fe))
-        .register_transaction(transaction!(t_get_api_specialty_cath_lab_procedures_procedure_id_devices_84bfb1))
-        .register_transaction(transaction!(t_get_api_specialty_cath_lab_procedures_procedure_id_stemi_timeline_be996f))
-        .register_transaction(transaction!(t_get_api_specialty_cath_lab_procedures_procedure_id_post_monitoring_06819d))
-        .register_transaction(transaction!(t_get_api_specialty_endoscopy_procedures_546ad8))
-        .register_transaction(transaction!(t_put_api_specialty_endoscopy_procedures_id_517950))
+        .register_transaction(transaction!(
+            t_get_api_specialty_cath_lab_procedures_id_9f3ee6
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_cath_lab_procedures_procedure_id_hemodynamics_10c9fe
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_cath_lab_procedures_procedure_id_devices_84bfb1
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_cath_lab_procedures_procedure_id_stemi_timeline_be996f
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_cath_lab_procedures_procedure_id_post_monitoring_06819d
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_endoscopy_procedures_546ad8
+        ))
+        .register_transaction(transaction!(
+            t_put_api_specialty_endoscopy_procedures_id_517950
+        ))
         .register_transaction(transaction!(t_put_api_specialty_endoscopy_scopes_id_df1c1c))
-        .register_transaction(transaction!(t_get_api_specialty_endoscopy_procedures_procedure_id_biopsies_b73b7d))
+        .register_transaction(transaction!(
+            t_get_api_specialty_endoscopy_procedures_procedure_id_biopsies_b73b7d
+        ))
         .register_transaction(transaction!(t_get_api_specialty_psychiatry_patients_6f7342))
-        .register_transaction(transaction!(t_get_api_specialty_psychiatry_patients_id_c4e276))
-        .register_transaction(transaction!(t_get_api_specialty_psychiatry_patients_patient_id_assessments_56b47f))
-        .register_transaction(transaction!(t_get_api_specialty_psychiatry_patients_patient_id_ect_3cbffe))
-        .register_transaction(transaction!(t_get_api_specialty_psychiatry_patients_patient_id_restraints_8b310b))
-        .register_transaction(transaction!(t_put_api_specialty_psychiatry_restraints_id_release_8579e2))
+        .register_transaction(transaction!(
+            t_get_api_specialty_psychiatry_patients_id_c4e276
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_psychiatry_patients_patient_id_assessments_56b47f
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_psychiatry_patients_patient_id_ect_3cbffe
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_psychiatry_patients_patient_id_restraints_8b310b
+        ))
+        .register_transaction(transaction!(
+            t_put_api_specialty_psychiatry_restraints_id_release_8579e2
+        ))
         .register_transaction(transaction!(t_put_api_specialty_psychiatry_mhrb_id_5105c6))
-        .register_transaction(transaction!(t_get_api_specialty_maternity_registrations_92b665))
-        .register_transaction(transaction!(t_get_api_specialty_maternity_registrations_id_10a050))
-        .register_transaction(transaction!(t_get_api_specialty_maternity_registrations_registration_id_labor_0a2d00))
+        .register_transaction(transaction!(
+            t_get_api_specialty_maternity_registrations_92b665
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_maternity_registrations_id_10a050
+        ))
+        .register_transaction(transaction!(
+            t_get_api_specialty_maternity_registrations_registration_id_labor_0a2d00
+        ))
         .register_transaction(transaction!(t_put_api_specialty_maternity_labor_id_680d72))
-        .register_transaction(transaction!(t_get_api_specialty_maternity_registrations_registration_id_postnatal_c20992))
+        .register_transaction(transaction!(
+            t_get_api_specialty_maternity_registrations_registration_id_postnatal_c20992
+        ))
         .register_transaction(transaction!(t_get_api_specialty_pmr_rehab_plans_397c01))
-        .register_transaction(transaction!(t_get_api_specialty_pmr_rehab_plans_plan_id_sessions_61291b))
+        .register_transaction(transaction!(
+            t_get_api_specialty_pmr_rehab_plans_plan_id_sessions_61291b
+        ))
         .register_transaction(transaction!(t_get_api_specialty_pmr_audiology_793b07))
         .register_transaction(transaction!(t_get_api_specialty_pmr_psychometric_eaca31))
         .register_transaction(transaction!(t_get_api_specialty_palliative_dnr_400418))
-        .register_transaction(transaction!(t_put_api_specialty_palliative_dnr_id_revoke_1a5766))
+        .register_transaction(transaction!(
+            t_put_api_specialty_palliative_dnr_id_revoke_1a5766
+        ))
         .register_transaction(transaction!(t_get_api_specialty_mortuary_records_10bf8b))
         .register_transaction(transaction!(t_put_api_specialty_mortuary_records_id_86ed69))
-        .register_transaction(transaction!(t_get_api_specialty_nuclear_med_administrations_4eb6b4))
+        .register_transaction(transaction!(
+            t_get_api_specialty_nuclear_med_administrations_4eb6b4
+        ))
         .register_transaction(transaction!(t_get_api_specialty_templates_5fc321))
         .register_transaction(transaction!(t_get_api_specialty_records_d64f4a))
         .register_transaction(transaction!(t_get_api_specialty_dialysis_sessions_247f76))
-        .register_transaction(transaction!(t_put_api_specialty_dialysis_sessions_id_023652))
+        .register_transaction(transaction!(
+            t_put_api_specialty_dialysis_sessions_id_023652
+        ))
         .register_transaction(transaction!(t_put_api_specialty_chemo_protocols_id_0412b2))
         .register_transaction(transaction!(t_get_api_documents_templates_defaults_b06ecf))
-        .register_transaction(transaction!(t_get_api_documents_templates_id_versions_27dc53))
+        .register_transaction(transaction!(
+            t_get_api_documents_templates_id_versions_27dc53
+        ))
         .register_transaction(transaction!(t_post_api_documents_generate_300c16))
         .register_transaction(transaction!(t_post_api_documents_generate_batch_920ce5))
         .register_transaction(transaction!(t_get_api_documents_outputs_stats_ab2900))
         .register_transaction(transaction!(t_get_api_documents_outputs_id_de619e))
         .register_transaction(transaction!(t_post_api_documents_outputs_id_void_135a55))
-        .register_transaction(transaction!(t_delete_api_documents_outputs_id_signatures_sig_id_3b6919))
+        .register_transaction(transaction!(
+            t_delete_api_documents_outputs_id_signatures_sig_id_3b6919
+        ))
         .register_transaction(transaction!(t_put_api_documents_review_schedule_id_3528c4))
         .register_transaction(transaction!(t_get_api_documents_print_jobs_777a2a))
         .register_transaction(transaction!(t_post_api_orders_basket_check_ddf490))
-        .register_transaction(transaction!(t_get_api_orders_basket_drafts_encounter_id_1a2013))
+        .register_transaction(transaction!(
+            t_get_api_orders_basket_drafts_encounter_id_1a2013
+        ))
         .register_transaction(transaction!(t_get_api_admin_doctors_d0b138))
         .register_transaction(transaction!(t_get_api_admin_doctors_id_cedc4c))
         .register_transaction(transaction!(t_get_api_doctors_me_profile_36ee08))
         .register_transaction(transaction!(t_get_api_doctors_me_dashboard_3ef7c0))
         .register_transaction(transaction!(t_get_api_admin_signature_credentials_b8d432))
-        .register_transaction(transaction!(t_post_api_admin_signature_credentials_id_revoke_9c9d95))
+        .register_transaction(transaction!(
+            t_post_api_admin_signature_credentials_id_revoke_9c9d95
+        ))
         .register_transaction(transaction!(t_get_api_signatures_list_34867f))
         .register_transaction(transaction!(t_get_api_admin_doctor_packages_b8f854))
         .register_transaction(transaction!(t_get_api_admin_doctor_packages_id_278fa7))
-        .register_transaction(transaction!(t_post_api_admin_doctor_packages_id_inclusions_f7bda5))
+        .register_transaction(transaction!(
+            t_post_api_admin_doctor_packages_id_inclusions_f7bda5
+        ))
         .register_transaction(transaction!(t_post_api_patient_packages_subscribe_8073ee))
-        .register_transaction(transaction!(t_post_api_patient_packages_sub_id_consume_307143))
+        .register_transaction(transaction!(
+            t_post_api_patient_packages_sub_id_consume_307143
+        ))
         .register_transaction(transaction!(t_get_api_admin_coverage_a1b44f))
         .register_transaction(transaction!(t_delete_api_admin_coverage_id_e9c895))
         .register_transaction(transaction!(t_get_api_order_sets_templates_id_d8c463))
-        .register_transaction(transaction!(t_post_api_order_sets_templates_id_items_7df89d))
-        .register_transaction(transaction!(t_post_api_order_sets_templates_id_new_version_6fee61))
-        .register_transaction(transaction!(t_get_api_order_sets_templates_id_versions_ccaceb))
+        .register_transaction(transaction!(
+            t_post_api_order_sets_templates_id_items_7df89d
+        ))
+        .register_transaction(transaction!(
+            t_post_api_order_sets_templates_id_new_version_6fee61
+        ))
+        .register_transaction(transaction!(
+            t_get_api_order_sets_templates_id_versions_ccaceb
+        ))
         .register_transaction(transaction!(t_post_api_order_sets_activate_197575))
         .register_transaction(transaction!(t_get_api_order_sets_activations_id_a3c4eb))
-        .register_transaction(transaction!(t_get_api_order_sets_analytics_template_id_d757ca))
+        .register_transaction(transaction!(
+            t_get_api_order_sets_analytics_template_id_d757ca
+        ))
         .register_transaction(transaction!(t_get_api_insurance_verifications_id_21f4bf))
         .register_transaction(transaction!(t_get_api_insurance_prior_auths_74e6bf))
         .register_transaction(transaction!(t_get_api_insurance_prior_auths_id_8b2e93))
-        .register_transaction(transaction!(t_post_api_insurance_prior_auths_id_submit_448c53))
-        .register_transaction(transaction!(t_post_api_insurance_prior_auths_id_cancel_6872fb))
-        .register_transaction(transaction!(t_get_api_insurance_prior_auths_pa_id_documents_5411df))
-        .register_transaction(transaction!(t_delete_api_insurance_prior_auths_pa_id_documents_doc_id_af4b47))
+        .register_transaction(transaction!(
+            t_post_api_insurance_prior_auths_id_submit_448c53
+        ))
+        .register_transaction(transaction!(
+            t_post_api_insurance_prior_auths_id_cancel_6872fb
+        ))
+        .register_transaction(transaction!(
+            t_get_api_insurance_prior_auths_pa_id_documents_5411df
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_insurance_prior_auths_pa_id_documents_doc_id_af4b47
+        ))
         .register_transaction(transaction!(t_put_api_insurance_appeals_id_0a3a36))
         .register_transaction(transaction!(t_put_api_insurance_rules_id_c5f5db))
         .register_transaction(transaction!(t_get_api_chronic_care_programs_4dcee3))
         .register_transaction(transaction!(t_put_api_chronic_care_programs_id_774cdc))
         .register_transaction(transaction!(t_get_api_chronic_care_enrollments_c9312c))
-        .register_transaction(transaction!(t_get_api_chronic_care_patients_patient_id_enrollments_89de3a))
-        .register_transaction(transaction!(t_put_api_chronic_care_enrollments_id_status_e0ede9))
-        .register_transaction(transaction!(t_get_api_chronic_care_patients_patient_id_drug_timeline_with_labs_8a7a09))
-        .register_transaction(transaction!(t_get_api_chronic_care_enrollments_enrollment_id_adherence_d3e7c7))
-        .register_transaction(transaction!(t_get_api_chronic_care_enrollments_enrollment_id_adherence_summary_dae148))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_patients_patient_id_enrollments_89de3a
+        ))
+        .register_transaction(transaction!(
+            t_put_api_chronic_care_enrollments_id_status_e0ede9
+        ))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_patients_patient_id_drug_timeline_with_labs_8a7a09
+        ))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_enrollments_enrollment_id_adherence_d3e7c7
+        ))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_enrollments_enrollment_id_adherence_summary_dae148
+        ))
         .register_transaction(transaction!(t_post_api_chronic_care_targets_5251c4))
-        .register_transaction(transaction!(t_get_api_chronic_care_patients_patient_id_outcome_dashboard_01c2a5))
-        .register_transaction(transaction!(t_post_api_chronic_care_patients_patient_id_check_interactions_5e9ec2))
-        .register_transaction(transaction!(t_get_api_chronic_care_patients_patient_id_treatment_summary_3fc059))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_patients_patient_id_outcome_dashboard_01c2a5
+        ))
+        .register_transaction(transaction!(
+            t_post_api_chronic_care_patients_patient_id_check_interactions_5e9ec2
+        ))
+        .register_transaction(transaction!(
+            t_get_api_chronic_care_patients_patient_id_treatment_summary_3fc059
+        ))
         .register_transaction(transaction!(t_get_api_occ_health_screenings_due_a69418))
         .register_transaction(transaction!(t_get_api_occ_health_drug_screens_46214b))
         .register_transaction(transaction!(t_put_api_occ_health_drug_screens_id_52b9c2))
@@ -6070,10 +7201,18 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_occ_health_hazards_b665f4))
         .register_transaction(transaction!(t_get_api_occ_health_analytics_1a3f0b))
         .register_transaction(transaction!(t_get_api_utilization_review_reviews_63f90e))
-        .register_transaction(transaction!(t_get_api_utilization_review_reviews_outliers_5adb42))
-        .register_transaction(transaction!(t_post_api_utilization_review_reviews_id_ai_extract_ebf4ae))
-        .register_transaction(transaction!(t_get_api_utilization_review_communications_ec96f1))
-        .register_transaction(transaction!(t_put_api_utilization_review_communications_id_81fe82))
+        .register_transaction(transaction!(
+            t_get_api_utilization_review_reviews_outliers_5adb42
+        ))
+        .register_transaction(transaction!(
+            t_post_api_utilization_review_reviews_id_ai_extract_ebf4ae
+        ))
+        .register_transaction(transaction!(
+            t_get_api_utilization_review_communications_ec96f1
+        ))
+        .register_transaction(transaction!(
+            t_put_api_utilization_review_communications_id_81fe82
+        ))
         .register_transaction(transaction!(t_get_api_utilization_review_analytics_2d9e02))
         .register_transaction(transaction!(t_get_api_case_mgmt_assignments_db52bc))
         .register_transaction(transaction!(t_get_api_case_mgmt_assignments_id_2a4126))
@@ -6083,118 +7222,298 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_put_api_case_mgmt_referrals_id_e1925b))
         .register_transaction(transaction!(t_get_api_case_mgmt_analytics_barriers_5520bd))
         .register_transaction(transaction!(t_get_api_scheduling_predictions_d8ab4a))
-        .register_transaction(transaction!(t_post_api_scheduling_predictions_score_batch_7d465e))
+        .register_transaction(transaction!(
+            t_post_api_scheduling_predictions_score_batch_7d465e
+        ))
         .register_transaction(transaction!(t_put_api_scheduling_waitlist_id_0a550a))
-        .register_transaction(transaction!(t_post_api_scheduling_waitlist_id_respond_d63fce))
+        .register_transaction(transaction!(
+            t_post_api_scheduling_waitlist_id_respond_d63fce
+        ))
         .register_transaction(transaction!(t_get_api_scheduling_overbooking_rules_f34e27))
-        .register_transaction(transaction!(t_put_api_scheduling_overbooking_rules_id_c6cd78))
-        .register_transaction(transaction!(t_get_api_scheduling_overbooking_recommendation_e53233))
-        .register_transaction(transaction!(t_get_api_scheduling_analytics_prediction_accuracy_c5d7a3))
+        .register_transaction(transaction!(
+            t_put_api_scheduling_overbooking_rules_id_c6cd78
+        ))
+        .register_transaction(transaction!(
+            t_get_api_scheduling_overbooking_recommendation_e53233
+        ))
+        .register_transaction(transaction!(
+            t_get_api_scheduling_analytics_prediction_accuracy_c5d7a3
+        ))
         .register_transaction(transaction!(t_get_api_scheduling_conflicts_c1fc09))
         .register_transaction(transaction!(t_get_api_scheduling_analytics_overview_18e504))
         .register_transaction(transaction!(t_post_api_scheduling_blocks_38e68e))
         .register_transaction(transaction!(t_get_api_care_view_my_tasks_ca9ee9))
         .register_transaction(transaction!(t_get_api_care_view_handover_b91e7c))
-        .register_transaction(transaction!(t_post_api_care_view_tasks_task_id_complete_ca4ce8))
+        .register_transaction(transaction!(
+            t_post_api_care_view_tasks_task_id_complete_ca4ce8
+        ))
         .register_transaction(transaction!(t_get_api_retrospective_settings_0ff5f6))
         .register_transaction(transaction!(t_post_api_retrospective_encounters_b821d0))
         .register_transaction(transaction!(t_get_api_retrospective_entries_id_2fc3bb))
-        .register_transaction(transaction!(t_put_api_retrospective_entries_id_reject_6ac5a9))
+        .register_transaction(transaction!(
+            t_put_api_retrospective_entries_id_reject_6ac5a9
+        ))
         .register_transaction(transaction!(t_get_api_analytics_revenue_department_5c8a9b))
         .register_transaction(transaction!(t_get_api_analytics_ipd_census_b0d860))
         .register_transaction(transaction!(t_get_api_analytics_pharmacy_sales_58a07d))
         .register_transaction(transaction!(t_get_api_analytics_er_volume_1fb2cb))
         .register_transaction(transaction!(t_get_api_analytics_opd_footfall_955d5e))
         .register_transaction(transaction!(t_get_api_analytics_export_c97398))
-        .register_transaction(transaction!(t_get_api_print_data_lab_report_order_id_d6afbf))
-        .register_transaction(transaction!(t_get_api_print_data_patient_card_patient_id_1a3d57))
-        .register_transaction(transaction!(t_get_api_print_data_histopath_report_order_id_d86def))
-        .register_transaction(transaction!(t_get_api_print_data_component_slip_issue_id_6ba4aa))
-        .register_transaction(transaction!(t_get_api_print_data_wristband_admission_id_3d9ad8))
-        .register_transaction(transaction!(t_get_api_print_data_death_certificate_admission_id_fe4ebd))
-        .register_transaction(transaction!(t_get_api_print_data_token_slip_token_id_bf7a9c))
-        .register_transaction(transaction!(t_get_api_print_data_treatment_chart_admission_id_9bec36))
-        .register_transaction(transaction!(t_get_api_print_data_patient_education_material_id_eafb5f))
-        .register_transaction(transaction!(t_get_api_print_data_infant_wristband_newborn_id_b64b02))
-        .register_transaction(transaction!(t_get_api_print_data_estimate_invoice_id_df3464))
+        .register_transaction(transaction!(
+            t_get_api_print_data_lab_report_order_id_d6afbf
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_patient_card_patient_id_1a3d57
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_histopath_report_order_id_d86def
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_component_slip_issue_id_6ba4aa
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_wristband_admission_id_3d9ad8
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_death_certificate_admission_id_fe4ebd
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_token_slip_token_id_bf7a9c
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_treatment_chart_admission_id_9bec36
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_patient_education_material_id_eafb5f
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_infant_wristband_newborn_id_b64b02
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_estimate_invoice_id_df3464
+        ))
         .register_transaction(transaction!(t_get_api_print_data_tds_certificate_id_100c08))
-        .register_transaction(transaction!(t_get_api_print_data_opd_bill_invoice_id_998cc3))
-        .register_transaction(transaction!(t_get_api_print_data_ipd_final_bill_invoice_id_fa8618))
-        .register_transaction(transaction!(t_get_api_print_data_refund_receipt_refund_id_df17b1))
-        .register_transaction(transaction!(t_get_api_print_data_cashless_claim_claim_id_6e4058))
-        .register_transaction(transaction!(t_get_api_print_data_consent_general_admission_id_5f781f))
-        .register_transaction(transaction!(t_get_api_print_data_consent_anesthesia_booking_id_2b084c))
-        .register_transaction(transaction!(t_get_api_print_data_consent_hiv_patient_id_18f29d))
-        .register_transaction(transaction!(t_get_api_print_data_consent_photo_patient_id_173d9b))
-        .register_transaction(transaction!(t_get_api_print_data_consent_organ_donation_patient_id_17a4f7))
-        .register_transaction(transaction!(t_get_api_print_data_consent_abdm_patient_id_a8a306))
-        .register_transaction(transaction!(t_get_api_print_data_mrd_progress_note_admission_id_1b2496))
-        .register_transaction(transaction!(t_get_api_print_data_mrd_mar_admission_id_ac5ec2))
-        .register_transaction(transaction!(t_get_api_print_data_mrd_io_chart_admission_id_e7dba8))
-        .register_transaction(transaction!(t_get_api_print_data_fluid_balance_chart_admission_id_73ec01))
-        .register_transaction(transaction!(t_get_api_print_data_fall_risk_assessment_admission_id_3d9ccc))
-        .register_transaction(transaction!(t_get_api_print_data_gcs_chart_admission_id_90b807))
-        .register_transaction(transaction!(t_get_api_print_data_case_sheet_cover_admission_id_8a17a7))
-        .register_transaction(transaction!(t_get_api_print_data_surgical_safety_checklist_surgery_id_7c3dcc))
-        .register_transaction(transaction!(t_get_api_print_data_operation_notes_surgery_id_6f7808))
-        .register_transaction(transaction!(t_get_api_print_data_transfusion_monitoring_transfusion_id_befd58))
-        .register_transaction(transaction!(t_get_api_print_data_mlc_register_case_id_2e48ad))
-        .register_transaction(transaction!(t_get_api_print_data_age_estimation_case_id_653a70))
-        .register_transaction(transaction!(t_get_api_print_data_mlc_documentation_case_id_3ec2bc))
-        .register_transaction(transaction!(t_get_api_print_data_rca_template_incident_id_fd8622))
-        .register_transaction(transaction!(t_get_api_print_data_adr_report_report_id_6c91a2))
-        .register_transaction(transaction!(t_get_api_print_data_opd_prescription_encounter_id_a05868))
-        .register_transaction(transaction!(t_get_api_print_data_cumulative_lab_report_patient_id_58d2f9))
-        .register_transaction(transaction!(t_get_api_print_data_nabh_quality_report_period_e9a824))
-        .register_transaction(transaction!(t_get_api_print_data_nabl_quality_report_period_8be0c4))
-        .register_transaction(transaction!(t_get_api_print_data_peso_compliance_year_064737))
-        .register_transaction(transaction!(t_get_api_print_data_pcpndt_report_period_7bfc9a))
-        .register_transaction(transaction!(t_get_api_print_data_death_register_period_68b4a5))
-        .register_transaction(transaction!(t_get_api_print_data_aebas_attendance_period_f4f1f9))
-        .register_transaction(transaction!(t_get_api_print_data_indent_form_indent_id_0701cc))
+        .register_transaction(transaction!(
+            t_get_api_print_data_opd_bill_invoice_id_998cc3
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_ipd_final_bill_invoice_id_fa8618
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_refund_receipt_refund_id_df17b1
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_cashless_claim_claim_id_6e4058
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_general_admission_id_5f781f
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_anesthesia_booking_id_2b084c
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_hiv_patient_id_18f29d
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_photo_patient_id_173d9b
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_organ_donation_patient_id_17a4f7
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_consent_abdm_patient_id_a8a306
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_mrd_progress_note_admission_id_1b2496
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_mrd_mar_admission_id_ac5ec2
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_mrd_io_chart_admission_id_e7dba8
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_fluid_balance_chart_admission_id_73ec01
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_fall_risk_assessment_admission_id_3d9ccc
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_gcs_chart_admission_id_90b807
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_case_sheet_cover_admission_id_8a17a7
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_surgical_safety_checklist_surgery_id_7c3dcc
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_operation_notes_surgery_id_6f7808
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_transfusion_monitoring_transfusion_id_befd58
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_mlc_register_case_id_2e48ad
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_age_estimation_case_id_653a70
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_mlc_documentation_case_id_3ec2bc
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_rca_template_incident_id_fd8622
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_adr_report_report_id_6c91a2
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_opd_prescription_encounter_id_a05868
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_cumulative_lab_report_patient_id_58d2f9
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_nabh_quality_report_period_e9a824
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_nabl_quality_report_period_8be0c4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_peso_compliance_year_064737
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_pcpndt_report_period_7bfc9a
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_death_register_period_68b4a5
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_aebas_attendance_period_f4f1f9
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_indent_form_indent_id_0701cc
+        ))
         .register_transaction(transaction!(t_get_api_print_data_grn_grn_id_6448b7))
-        .register_transaction(transaction!(t_get_api_print_data_stock_transfer_note_transfer_id_edbcc0))
-        .register_transaction(transaction!(t_get_api_print_data_drug_expiry_alert_store_id_658aa4))
-        .register_transaction(transaction!(t_get_api_print_data_work_order_work_order_id_c64fad))
-        .register_transaction(transaction!(t_get_api_print_data_employee_id_card_employee_id_6507bf))
-        .register_transaction(transaction!(t_get_api_print_data_leave_application_leave_id_2080e2))
-        .register_transaction(transaction!(t_get_api_print_data_training_certificate_training_id_b99721))
-        .register_transaction(transaction!(t_get_api_print_data_visitor_register_date_0ac95e))
-        .register_transaction(transaction!(t_get_api_print_data_calibration_certificate_calibration_id_f52f12))
-        .register_transaction(transaction!(t_get_api_print_data_equipment_history_equipment_id_936763))
-        .register_transaction(transaction!(t_get_api_print_data_water_quality_test_id_ab2558))
-        .register_transaction(transaction!(t_get_api_print_data_fire_inspection_inspection_id_a274b6))
-        .register_transaction(transaction!(t_get_api_print_data_fire_mock_drill_drill_id_e85a25))
-        .register_transaction(transaction!(t_get_api_print_data_blood_donor_form_donor_id_c0477e))
-        .register_transaction(transaction!(t_get_api_print_data_dpdp_consent_consent_id_1ade1b))
-        .register_transaction(transaction!(t_get_api_print_data_restraint_documentation_restraint_id_8f5f6e))
-        .register_transaction(transaction!(t_get_api_print_data_intern_rotation_schedule_schedule_id_4c8f53))
-        .register_transaction(transaction!(t_get_api_print_data_internal_assessment_marks_assessment_id_58742c))
-        .register_transaction(transaction!(t_get_api_print_data_osce_scoring_sheet_exam_id_station_number_40cb34))
-        .register_transaction(transaction!(t_get_api_print_data_cme_certificate_certificate_id_3f616e))
-        .register_transaction(transaction!(t_get_api_print_data_research_proposal_form_proposal_id_732053))
-        .register_transaction(transaction!(t_get_api_print_data_anti_ragging_undertaking_undertaking_id_de7b98))
-        .register_transaction(transaction!(t_get_api_print_data_internship_completion_certificate_certificate_id_c27a78))
-        .register_transaction(transaction!(t_get_api_print_data_stipend_payment_advice_advice_id_d7f471))
+        .register_transaction(transaction!(
+            t_get_api_print_data_stock_transfer_note_transfer_id_edbcc0
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_drug_expiry_alert_store_id_658aa4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_work_order_work_order_id_c64fad
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_employee_id_card_employee_id_6507bf
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_leave_application_leave_id_2080e2
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_training_certificate_training_id_b99721
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_visitor_register_date_0ac95e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_calibration_certificate_calibration_id_f52f12
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_equipment_history_equipment_id_936763
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_water_quality_test_id_ab2558
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_fire_inspection_inspection_id_a274b6
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_fire_mock_drill_drill_id_e85a25
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_blood_donor_form_donor_id_c0477e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_dpdp_consent_consent_id_1ade1b
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_restraint_documentation_restraint_id_8f5f6e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_intern_rotation_schedule_schedule_id_4c8f53
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_internal_assessment_marks_assessment_id_58742c
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_osce_scoring_sheet_exam_id_station_number_40cb34
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_cme_certificate_certificate_id_3f616e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_research_proposal_form_proposal_id_732053
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_anti_ragging_undertaking_undertaking_id_de7b98
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_internship_completion_certificate_certificate_id_c27a78
+        ))
+        .register_transaction(transaction!(
+            t_get_api_print_data_stipend_payment_advice_advice_id_d7f471
+        ))
         .register_transaction(transaction!(t_get_api_multi_hospital_groups_5061c1))
         .register_transaction(transaction!(t_get_api_multi_hospital_groups_id_28d76d))
         .register_transaction(transaction!(t_get_api_multi_hospital_regions_2f6f19))
         .register_transaction(transaction!(t_get_api_multi_hospital_regions_id_ed45a2))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_hospitals_7af242))
-        .register_transaction(transaction!(t_delete_api_multi_hospital_hospital_assignments_tenant_id_94c42f))
-        .register_transaction(transaction!(t_get_api_multi_hospital_user_assignments_d83e75))
-        .register_transaction(transaction!(t_delete_api_multi_hospital_user_assignments_assignment_id_893f00))
-        .register_transaction(transaction!(t_get_api_multi_hospital_transfers_patients_incoming_ca2fe3))
-        .register_transaction(transaction!(t_get_api_multi_hospital_transfers_patients_id_353ea9))
-        .register_transaction(transaction!(t_get_api_multi_hospital_transfers_stock_outgoing_f1f157))
-        .register_transaction(transaction!(t_post_api_multi_hospital_transfers_stock_1c93e4))
-        .register_transaction(transaction!(t_get_api_multi_hospital_transfers_stock_transfer_id_items_37f6ed))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_kpis_bff9c8))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_rotations_2d429e))
-        .register_transaction(transaction!(t_get_api_multi_hospital_doctors_doctor_id_rotations_a077ce))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_drugs_bf40f0))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_tariffs_e719c7))
-        .register_transaction(transaction!(t_get_api_multi_hospital_groups_group_id_templates_58b04a))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_hospitals_7af242
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_multi_hospital_hospital_assignments_tenant_id_94c42f
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_user_assignments_d83e75
+        ))
+        .register_transaction(transaction!(
+            t_delete_api_multi_hospital_user_assignments_assignment_id_893f00
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_transfers_patients_incoming_ca2fe3
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_transfers_patients_id_353ea9
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_transfers_stock_outgoing_f1f157
+        ))
+        .register_transaction(transaction!(
+            t_post_api_multi_hospital_transfers_stock_1c93e4
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_transfers_stock_transfer_id_items_37f6ed
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_kpis_bff9c8
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_rotations_2d429e
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_doctors_doctor_id_rotations_a077ce
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_drugs_bf40f0
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_tariffs_e719c7
+        ))
+        .register_transaction(transaction!(
+            t_get_api_multi_hospital_groups_group_id_templates_58b04a
+        ))
         .register_transaction(transaction!(t_get_api_multi_hospital_templates_id_7930cb))
         .register_transaction(transaction!(t_get_api_cms_dashboard_b57a21))
         .register_transaction(transaction!(t_get_api_cms_categories_tree_eed7ff))
@@ -6210,7 +7529,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_cms_posts_id_medical_review_7e09e8))
         .register_transaction(transaction!(t_post_api_cms_posts_id_schedule_aaef41))
         .register_transaction(transaction!(t_post_api_cms_posts_id_unarchive_adc3ba))
-        .register_transaction(transaction!(t_get_api_cms_posts_post_id_revisions_revision_number_b80e51))
+        .register_transaction(transaction!(
+            t_get_api_cms_posts_post_id_revisions_revision_number_b80e51
+        ))
         .register_transaction(transaction!(t_get_api_cms_posts_id_analytics_45f33c))
         .register_transaction(transaction!(t_get_api_cms_subscribers_4aa8d9))
         .register_transaction(transaction!(t_get_api_cms_subscribers_export_463d76))
@@ -6226,7 +7547,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_tv_queue_lab_d449b5))
         .register_transaction(transaction!(t_get_api_tv_queue_er_8a4fd0))
         .register_transaction(transaction!(t_get_api_tv_queue_beds_ward_type_a079db))
-        .register_transaction(transaction!(t_get_api_tv_queue_metrics_department_id_0069ac))
+        .register_transaction(transaction!(
+            t_get_api_tv_queue_metrics_department_id_0069ac
+        ))
         .register_transaction(transaction!(t_get_api_audit_log_id_2b9e53))
         .register_transaction(transaction!(t_get_api_audit_stats_f4fe1e))
         .register_transaction(transaction!(t_get_api_admin_system_state_0061c4))
@@ -6234,7 +7557,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_audit_access_log_patient_id_d16a51))
         .register_transaction(transaction!(t_get_api_audit_entity_types_9b433e))
         .register_transaction(transaction!(t_get_api_audit_verify_integrity_a05485))
-        .register_transaction(transaction!(t_get_api_audit_timeline_entity_type_entity_id_00109c))
+        .register_transaction(transaction!(
+            t_get_api_audit_timeline_entity_type_entity_id_00109c
+        ))
         .register_transaction(transaction!(t_get_api_break_glass_id_886704))
         .register_transaction(transaction!(t_post_api_break_glass_id_review_6db006))
         .register_transaction(transaction!(t_delete_api_sensitive_patients_id_9e3aca))
@@ -6251,7 +7576,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_data_quality_issues_6d9a6c))
         .register_transaction(transaction!(t_get_api_data_quality_dashboard_9c67cf))
         .register_transaction(transaction!(t_get_api_security_incidents_id_29afcf))
-        .register_transaction(transaction!(t_post_api_security_incidents_id_cert_in_8b052b))
+        .register_transaction(transaction!(
+            t_post_api_security_incidents_id_cert_in_8b052b
+        ))
         .register_transaction(transaction!(t_get_api_vulnerabilities_6dba86))
         .register_transaction(transaction!(t_patch_api_vulnerabilities_id_8c528a))
         .register_transaction(transaction!(t_patch_api_compliance_requirements_id_902184))
@@ -6261,7 +7588,9 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_get_api_incentive_plans_id_rules_1262ec))
         .register_transaction(transaction!(t_get_api_incentive_assignments_727c12))
         .register_transaction(transaction!(t_get_api_incentive_calculations_7c0dd3))
-        .register_transaction(transaction!(t_post_api_incentive_calculations_id_approve_d03abc))
+        .register_transaction(transaction!(
+            t_post_api_incentive_calculations_id_approve_d03abc
+        ))
         .register_transaction(transaction!(t_get_api_devices_manufacturers_52b3bb))
         .register_transaction(transaction!(t_get_api_devices_catalog_adapter_code_ccc725))
         .register_transaction(transaction!(t_get_api_devices_instances_fb8729))
@@ -6274,6 +7603,7 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_bridge_register_dd09b8))
         .register_transaction(transaction!(t_get_api_public_appointments_slots_b9f537))
         .register_transaction(transaction!(t_post_api_public_kiosk_checkin_b68e2d))
-        .register_transaction(transaction!(t_get_api_opd_appointments_reminder_config_c43c34))
-    )
+        .register_transaction(transaction!(
+            t_get_api_opd_appointments_reminder_config_c43c34
+        )))
 }

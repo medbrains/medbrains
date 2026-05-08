@@ -49,7 +49,6 @@ reqwest = { workspace = true }
 rig-core = { workspace = true }
 schemars = { workspace = true }
 mlua = { workspace = true }
-wasmtime = { workspace = true }
 anyhow = { workspace = true }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 

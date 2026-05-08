@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_blood_transfusion_reactions (tenant_id, patient_id, transfusion_id, blood_unit_id, component_type, reaction_at, onset_minutes, reaction_type, severity, symptoms, reported_to_blood_bank, reported_to_blood_bank_at, reported_by, notes, source_module, source_record_id) SELECT tr.tenant_id, tr.patient_id, tr.id, tr.component_id, bc.component_type::text, COALESCE(tr.reaction_reported_at, now()), CASE WHEN tr.reaction_reported_at IS NULL THEN NULL ELSE EXTRACT(EPOCH FROM (tr.reaction_reported_at - tr.started_at))::int / 60 END, COALESCE(NULLIF(tr.reaction_type, ''), 'other'), CASE COALESCE(tr.reaction_severity::text, 'moderate') WHEN 'fatal' THEN 'death' ELSE COALESCE(tr.reaction_severity::text, 'moderate') END, ARRAY[]::text[], true, tr.reaction_reported_at, tr.administered_by, tr.reaction_details, $3, tr.id FROM transfusion_records tr LEFT JOIN blood_components bc ON bc.id = tr.component_id AND bc.tenant_id = tr.tenant_id WHERE tr.id = $1 AND tr.tenant_id = $2 AND tr.has_reaction = true ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET reaction_at = EXCLUDED.reaction_at, onset_minutes = EXCLUDED.onset_minutes, reaction_type = EXCLUDED.reaction_type, severity = EXCLUDED.severity, reported_to_blood_bank = EXCLUDED.reported_to_blood_bank, reported_to_blood_bank_at = EXCLUDED.reported_to_blood_bank_at, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "757b41ac46da375dc8e7d3127125b5ba306d572e6ed562678c890acfe1f4600a"
+}

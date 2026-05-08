@@ -1,31 +1,30 @@
 import { useAuthStore } from "@medbrains/stores";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React from "react";
 import {
-  LoginScreen,
-  PatientDashboard,
-  StaffDashboard,
-  // Staff screens
-  PatientSearchScreen,
-  PatientDetailScreen,
-  QueueScreen,
-  VitalsEntryScreen,
-  PrescriptionScreen,
-  LabOrderScreen,
-  LabResultsViewScreen,
-  ConsultationNotesScreen,
   // Patient screens
   AppointmentsScreen,
-  LabResultsScreen,
-  PrescriptionsScreen,
   BillingScreen,
-  ProfileScreen,
-  QueuePositionScreen,
+  CollectionDetailScreen,
   // Phlebo screens
   CollectionListScreen,
-  CollectionDetailScreen,
+  ConsultationNotesScreen,
+  LabOrderScreen,
+  LabResultsScreen,
+  LabResultsViewScreen,
+  LoginScreen,
+  PatientDashboard,
+  PatientDetailScreen,
+  // Staff screens
+  PatientSearchScreen,
+  PrescriptionScreen,
+  PrescriptionsScreen,
+  ProfileScreen,
+  QueuePositionScreen,
+  QueueScreen,
   SampleCollectionScreen,
+  StaffDashboard,
   TripSummaryScreen,
+  VitalsEntryScreen,
 } from "../screens";
 
 export type RootStackParamList = {
@@ -111,11 +110,7 @@ function PatientStack() {
         component={BillingScreen}
         options={{ title: "Bills & Payments" }}
       />
-      <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ title: "Profile" }}
-      />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
       <Stack.Screen
         name="QueuePosition"
         component={QueuePositionScreen}
@@ -148,11 +143,7 @@ function StaffStack() {
         component={PatientDetailScreen}
         options={{ title: "Patient Details" }}
       />
-      <Stack.Screen
-        name="Queue"
-        component={QueueScreen}
-        options={{ title: "Patient Queue" }}
-      />
+      <Stack.Screen name="Queue" component={QueueScreen} options={{ title: "Patient Queue" }} />
       <Stack.Screen
         name="Vitals"
         component={VitalsEntryScreen}
@@ -163,11 +154,7 @@ function StaffStack() {
         component={PrescriptionScreen}
         options={{ title: "E-Prescription" }}
       />
-      <Stack.Screen
-        name="LabOrder"
-        component={LabOrderScreen}
-        options={{ title: "Lab Orders" }}
-      />
+      <Stack.Screen name="LabOrder" component={LabOrderScreen} options={{ title: "Lab Orders" }} />
       <Stack.Screen
         name="LabResultsView"
         component={LabResultsViewScreen}
@@ -224,16 +211,18 @@ export function RootNavigator() {
 
   // Determine user type based on role
   const isPhlebotomist = user?.role === "lab_technician"; // Phlebo uses lab_technician role with home collection flag
-  const isStaff = user?.role && [
-    "super_admin",
-    "hospital_admin",
-    "doctor",
-    "nurse",
-    "receptionist",
-    "lab_technician",
-    "pharmacist",
-    "billing_clerk",
-  ].includes(user.role);
+  const isStaff =
+    user?.role &&
+    [
+      "super_admin",
+      "hospital_admin",
+      "doctor",
+      "nurse",
+      "receptionist",
+      "lab_technician",
+      "pharmacist",
+      "billing_clerk",
+    ].includes(user.role);
 
   // Show appropriate stack based on user type
   if (isPhlebotomist) {

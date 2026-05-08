@@ -36,7 +36,8 @@ pub struct PipelineFallbackHandler {
 
 impl std::fmt::Debug for PipelineFallbackHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PipelineFallbackHandler").finish_non_exhaustive()
+        f.debug_struct("PipelineFallbackHandler")
+            .finish_non_exhaustive()
     }
 }
 
@@ -55,11 +56,7 @@ impl Handler for PipelineFallbackHandler {
         "_pipeline_fallback"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         // Use the worker's pool for dispatch. RLS is satisfied because
         // the worker runs with BYPASSRLS; per-pipeline execution sets
         // app.tenant_id internally via execute_pipeline_safe.

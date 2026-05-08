@@ -1,4 +1,3 @@
-import { useState, useMemo } from "react";
 import {
   ActionIcon,
   Autocomplete,
@@ -12,11 +11,18 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
-import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import type { CreateDiagnosisRequest, Diagnosis, DiagnosisSeverity, DiagnosisCertainty, SnomedCode } from "@medbrains/types";
+import type {
+  CreateDiagnosisRequest,
+  Diagnosis,
+  DiagnosisCertainty,
+  DiagnosisSeverity,
+  SnomedCode,
+} from "@medbrains/types";
+import { IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./diagnosis-panel.module.scss";
 
 interface DiagnosisPanelProps {
@@ -83,11 +89,12 @@ export function DiagnosisPanel({
   });
 
   const icdOptions = useMemo(
-    () => (icdResults ?? []).map((r) => ({
-      value: `${r.code} — ${r.short_desc}`,
-      code: r.code,
-      desc: r.short_desc,
-    })),
+    () =>
+      (icdResults ?? []).map((r) => ({
+        value: `${r.code} — ${r.short_desc}`,
+        code: r.code,
+        desc: r.short_desc,
+      })),
     [icdResults],
   );
 
@@ -100,11 +107,12 @@ export function DiagnosisPanel({
   });
 
   const snomedOptions = useMemo(
-    () => (snomedResults ?? []).map((r: SnomedCode) => ({
-      value: `${r.code} — ${r.display_name}`,
-      code: r.code,
-      display: r.display_name,
-    })),
+    () =>
+      (snomedResults ?? []).map((r: SnomedCode) => ({
+        value: `${r.code} — ${r.display_name}`,
+        code: r.code,
+        display: r.display_name,
+      })),
     [snomedResults],
   );
 
@@ -202,10 +210,14 @@ export function DiagnosisPanel({
           </Group>
           <Group gap="xs" align="flex-end">
             {icdCode && (
-              <Badge size="sm" variant="light" color="primary">ICD: {icdCode}</Badge>
+              <Badge size="sm" variant="light" color="primary">
+                ICD: {icdCode}
+              </Badge>
             )}
             {snomedCode && (
-              <Badge size="sm" variant="light" color="violet">SNOMED: {snomedCode}</Badge>
+              <Badge size="sm" variant="light" color="violet">
+                SNOMED: {snomedCode}
+              </Badge>
             )}
             <Select
               data={SEVERITY_OPTIONS}
@@ -263,17 +275,25 @@ export function DiagnosisPanel({
           <Group justify="space-between" wrap="nowrap">
             <div>
               <Group gap={8}>
-                <Text size="sm" fw={500}>{d.description}</Text>
+                <Text size="sm" fw={500}>
+                  {d.description}
+                </Text>
                 {d.is_primary && (
-                  <Badge size="xs" color="orange" variant="light">{t("diagnosis.primary")}</Badge>
+                  <Badge size="xs" color="orange" variant="light">
+                    {t("diagnosis.primary")}
+                  </Badge>
                 )}
               </Group>
               <Group gap={6} mt={4}>
                 {d.icd_code && (
-                  <Badge size="xs" variant="outline" color="slate">{d.icd_code}</Badge>
+                  <Badge size="xs" variant="outline" color="slate">
+                    {d.icd_code}
+                  </Badge>
                 )}
                 {d.snomed_code && (
-                  <Badge size="xs" variant="outline" color="violet">{d.snomed_code}</Badge>
+                  <Badge size="xs" variant="outline" color="violet">
+                    {d.snomed_code}
+                  </Badge>
                 )}
                 {d.severity && (
                   <Badge size="xs" variant="light" color={SEVERITY_COLORS[d.severity] ?? "slate"}>

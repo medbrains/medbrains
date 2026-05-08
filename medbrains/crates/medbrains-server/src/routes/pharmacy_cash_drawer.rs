@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -118,9 +118,7 @@ pub async fn close_drawer(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let opening_float = drawer
-        .ok_or(AppError::NotFound)?
-        .0;
+    let opening_float = drawer.ok_or(AppError::NotFound)?.0;
 
     // Fold in cash payments + refunds for this drawer's window.
     // This is a placeholder — actual aggregation needs join to

@@ -2,7 +2,7 @@ import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -54,10 +54,14 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
 
   const collections: LabHomeCollection[] = data || [];
   const completed = collections.filter(
-    (c) => c.status === "collected" || c.status === "returned_to_lab"
+    (c) => c.status === "collected" || c.status === "returned_to_lab",
   );
   const pending = collections.filter(
-    (c) => c.status === "scheduled" || c.status === "assigned" || c.status === "in_transit" || c.status === "arrived"
+    (c) =>
+      c.status === "scheduled" ||
+      c.status === "assigned" ||
+      c.status === "in_transit" ||
+      c.status === "arrived",
   );
   const cancelled = collections.filter((c) => c.status === "cancelled");
 
@@ -78,9 +82,8 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
     );
   }
 
-  const completionRate = collections.length > 0
-    ? Math.round((completed.length / collections.length) * 100)
-    : 0;
+  const completionRate =
+    collections.length > 0 ? Math.round((completed.length / collections.length) * 100) : 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -104,25 +107,33 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               <Text variant="displaySmall" style={[styles.statValue, { color: "#228be6" }]}>
                 {collections.length}
               </Text>
-              <Text variant="labelSmall" style={styles.statLabel}>Total Assigned</Text>
+              <Text variant="labelSmall" style={styles.statLabel}>
+                Total Assigned
+              </Text>
             </View>
             <View style={styles.statItem}>
               <Text variant="displaySmall" style={[styles.statValue, { color: "#40c057" }]}>
                 {completed.length}
               </Text>
-              <Text variant="labelSmall" style={styles.statLabel}>Completed</Text>
+              <Text variant="labelSmall" style={styles.statLabel}>
+                Completed
+              </Text>
             </View>
             <View style={styles.statItem}>
               <Text variant="displaySmall" style={[styles.statValue, { color: "#fab005" }]}>
                 {pending.length}
               </Text>
-              <Text variant="labelSmall" style={styles.statLabel}>Pending</Text>
+              <Text variant="labelSmall" style={styles.statLabel}>
+                Pending
+              </Text>
             </View>
             <View style={styles.statItem}>
               <Text variant="displaySmall" style={[styles.statValue, { color: "#fa5252" }]}>
                 {cancelled.length}
               </Text>
-              <Text variant="labelSmall" style={styles.statLabel}>Cancelled</Text>
+              <Text variant="labelSmall" style={styles.statLabel}>
+                Cancelled
+              </Text>
             </View>
           </View>
 
@@ -135,12 +146,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               </Text>
             </View>
             <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${completionRate}%` },
-                ]}
-              />
+              <View style={[styles.progressFill, { width: `${completionRate}%` }]} />
             </View>
           </View>
         </Surface>
@@ -171,7 +177,8 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
             {completed.length > 0 ? (
               completed.map((collection) => {
                 const addressParts = [collection.address_line, collection.city].filter(Boolean);
-                const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
+                const address =
+                  addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
                 return (
                   <List.Item
                     key={collection.id}
@@ -214,12 +221,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                     title={`Collection #${collection.id.slice(0, 8)}`}
                     description={address}
                     left={(props) => (
-                      <Avatar.Icon
-                        {...props}
-                        size={40}
-                        icon="clock"
-                        style={styles.pendingIcon}
-                      />
+                      <Avatar.Icon {...props} size={40} icon="clock" style={styles.pendingIcon} />
                     )}
                     right={() => (
                       <Button
@@ -302,10 +304,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setEndTripDialogVisible(false)}>Cancel</Button>
-            <Button
-              mode="contained"
-              onPress={handleEndTrip}
-            >
+            <Button mode="contained" onPress={handleEndTrip}>
               End Trip
             </Button>
           </Dialog.Actions>

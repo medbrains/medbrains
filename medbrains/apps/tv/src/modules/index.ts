@@ -5,13 +5,12 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { queueModule } from "./queue";
 import { bedStatusModule } from "./bed-status";
-import { labStatusModule } from "./lab-status";
-import { emergencyTriageModule } from "./emergency-triage";
-import { pharmacyQueueModule } from "./pharmacy-queue";
 import { digitalSignageModule } from "./digital-signage";
-
+import { emergencyTriageModule } from "./emergency-triage";
+import { labStatusModule } from "./lab-status";
+import { pharmacyQueueModule } from "./pharmacy-queue";
+import { queueModule } from "./queue";
 
 export const MODULES: ReadonlyArray<Module> = [
   queueModule,
@@ -20,5 +19,4 @@ export const MODULES: ReadonlyArray<Module> = [
   emergencyTriageModule,
   pharmacyQueueModule,
   digitalSignageModule,
-
 ];

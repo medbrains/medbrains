@@ -133,13 +133,12 @@ pub async fn list_for_patient(
 
     let mut result = Vec::with_capacity(subs.len());
     for sub in subs {
-        let pkg: Option<(String,)> = sqlx::query_as(
-            "SELECT name FROM doctor_packages WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(sub.package_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let pkg: Option<(String,)> =
+            sqlx::query_as("SELECT name FROM doctor_packages WHERE id = $1 AND tenant_id = $2")
+                .bind(sub.package_id)
+                .bind(claims.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
 
         let balances = sqlx::query_as::<_, InclusionBalance>(
             "SELECT \
@@ -291,7 +290,9 @@ pub async fn consume(
     }
 
     tx.commit().await?;
-    Ok(Json(json!({ "consumption_id": consumed_id, "remaining_after": remaining - qty })))
+    Ok(Json(
+        json!({ "consumption_id": consumed_id, "remaining_after": remaining - qty }),
+    ))
 }
 
 pub async fn refund(

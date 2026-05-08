@@ -36,11 +36,7 @@ impl Handler for PreauthSubmitHandler {
         "tpa.preauth_submit"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         submit_to_nhcx(ctx, payload, "preauth/submit", "preauth").await
     }
 }
@@ -55,11 +51,7 @@ impl Handler for ClaimSubmitHandler {
         "tpa.claim_submit"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         submit_to_nhcx(ctx, payload, "claim/submit", "claim").await
     }
 }
@@ -74,12 +66,14 @@ impl Handler for CoverageEligibilityHandler {
         "tpa.coverage_eligibility_check"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
-        submit_to_nhcx(ctx, payload, "coverageeligibility/check", "coverage_eligibility").await
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
+        submit_to_nhcx(
+            ctx,
+            payload,
+            "coverageeligibility/check",
+            "coverage_eligibility",
+        )
+        .await
     }
 }
 
@@ -126,16 +120,15 @@ async fn submit_to_nhcx(
     let recipient_code = payload
         .get("recipient_code")
         .and_then(Value::as_str)
-        .ok_or_else(|| {
-            HandlerError::Permanent("payload.recipient_code missing".to_owned())
-        })?;
+        .ok_or_else(|| HandlerError::Permanent("payload.recipient_code missing".to_owned()))?;
     let bundle = payload
         .get("bundle")
         .ok_or_else(|| HandlerError::Permanent("payload.bundle missing".to_owned()))?;
 
     // 1. Sign with our private key (RS256 JWS).
-    let jws = medbrains_crypto::jws::sign_rs256(bundle, &participant_code, private_key_pem.as_bytes())
-        .map_err(|e| HandlerError::Permanent(format!("nhcx jws: {e}")))?;
+    let jws =
+        medbrains_crypto::jws::sign_rs256(bundle, &participant_code, private_key_pem.as_bytes())
+            .map_err(|e| HandlerError::Permanent(format!("nhcx jws: {e}")))?;
 
     // 2. Encrypt the JWS for the payer (RSA-OAEP-256 + A256GCM JWE).
     let jws_value = json!({ "jws": jws });

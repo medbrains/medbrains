@@ -1,8 +1,8 @@
 import { Badge, Text } from "@mantine/core";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import type { MappingOperationType } from "@medbrains/types";
+import { Handle, type NodeProps, Position } from "@xyflow/react";
 import type { OperationNodeData } from "../mapperSync";
 import { getConfigSummary, getDescriptor } from "../operationRegistry";
-import type { MappingOperationType } from "@medbrains/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   string: "primary",
@@ -16,10 +16,7 @@ export function OperationNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as OperationNodeData;
   const desc = getDescriptor(nodeData.operation as MappingOperationType);
   const color = CATEGORY_COLORS[desc?.category ?? nodeData.category] ?? "slate";
-  const summary = getConfigSummary(
-    nodeData.operation as MappingOperationType,
-    nodeData.config,
-  );
+  const summary = getConfigSummary(nodeData.operation as MappingOperationType, nodeData.config);
 
   return (
     <div
@@ -29,7 +26,9 @@ export function OperationNode({ data, selected }: NodeProps) {
         background: "var(--mantine-color-white)",
         minWidth: 120,
         overflow: "hidden",
-        boxShadow: selected ? `0 0 0 2px var(--mantine-color-${color}-2)` : "0 1px 3px rgba(0,0,0,0.1)",
+        boxShadow: selected
+          ? `0 0 0 2px var(--mantine-color-${color}-2)`
+          : "0 1px 3px rgba(0,0,0,0.1)",
       }}
     >
       <div

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -12,20 +11,16 @@ import {
   Switch,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import type { TaxCategoryRow, PaymentMethodRow } from "@medbrains/types";
+import type { PaymentMethodRow, TaxCategoryRow } from "@medbrains/types";
+import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -141,8 +136,7 @@ function TaxCategoryModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof taxFormToPayload>) =>
-      api.createTaxCategory(data),
+    mutationFn: (data: ReturnType<typeof taxFormToPayload>) => api.createTaxCategory(data),
     onSuccess: () => {
       notifications.show({
         title: "Tax category created",
@@ -164,7 +158,7 @@ function TaxCategoryModal({
 
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof taxFormToPayload>) =>
-      api.updateTaxCategory(editingRow!.id, data),
+      api.updateTaxCategory(editingRow?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Tax category updated",
@@ -309,8 +303,7 @@ function PaymentMethodModal({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) =>
-      api.createPaymentMethod(data),
+    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) => api.createPaymentMethod(data),
     onSuccess: () => {
       notifications.show({
         title: "Payment method created",
@@ -332,7 +325,7 @@ function PaymentMethodModal({
 
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof paymentFormToPayload>) =>
-      api.updatePaymentMethod(editingRow!.id, data),
+      api.updatePaymentMethod(editingRow?.id, data),
     onSuccess: () => {
       notifications.show({
         title: "Payment method updated",
@@ -535,11 +528,7 @@ export function BillingTaxSettings() {
         <Text size="sm">{Number(row.rate_percent).toFixed(2)}%</Text>
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={APPLICABILITY_COLORS[row.applicability] ?? "slate"}
-        >
+        <Badge size="sm" variant="light" color={APPLICABILITY_COLORS[row.applicability] ?? "slate"}>
           {row.applicability.replace(/_/g, " ")}
         </Badge>
       </Table.Td>
@@ -549,11 +538,7 @@ export function BillingTaxSettings() {
         </Text>
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={row.is_active ? "success" : "slate"}
-        >
+        <Badge size="sm" variant="light" color={row.is_active ? "success" : "slate"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -599,15 +584,13 @@ export function BillingTaxSettings() {
             Default
           </Badge>
         ) : (
-          <Text size="sm" c="dimmed">-</Text>
+          <Text size="sm" c="dimmed">
+            -
+          </Text>
         )}
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={row.is_active ? "success" : "slate"}
-        >
+        <Badge size="sm" variant="light" color={row.is_active ? "success" : "slate"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -643,11 +626,7 @@ export function BillingTaxSettings() {
       <div>
         <Group justify="space-between" mb="md">
           <Title order={5}>Tax Categories</Title>
-          <Button
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCreateTax}
-          >
+          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreateTax}>
             Add Tax Category
           </Button>
         </Group>
@@ -679,8 +658,7 @@ export function BillingTaxSettings() {
                 <Table.Tr>
                   <Table.Td colSpan={7}>
                     <Text ta="center" c="dimmed" py="lg">
-                      No tax categories configured. Click "Add Tax Category" to
-                      get started.
+                      No tax categories configured. Click "Add Tax Category" to get started.
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -694,11 +672,7 @@ export function BillingTaxSettings() {
       <div>
         <Group justify="space-between" mb="md">
           <Title order={5}>Payment Methods</Title>
-          <Button
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCreatePayment}
-          >
+          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreatePayment}>
             Add Payment Method
           </Button>
         </Group>
@@ -728,8 +702,7 @@ export function BillingTaxSettings() {
                 <Table.Tr>
                   <Table.Td colSpan={5}>
                     <Text ta="center" c="dimmed" py="lg">
-                      No payment methods configured. Click "Add Payment Method"
-                      to get started.
+                      No payment methods configured. Click "Add Payment Method" to get started.
                     </Text>
                   </Table.Td>
                 </Table.Tr>

@@ -5,6 +5,9 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
+use medbrains_core::clinical_events::{
+    ClinicalEventEnvelope, ClinicalEventName, ClinicalEventSourceModule,
+};
 use medbrains_core::permissions;
 use medbrains_core::pharmacy::{
     PharmacyCatalog, PharmacyOrder, PharmacyOrderItem, PharmacyStockTransaction,
@@ -24,7 +27,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_permission},
     state::AppState,
 };
 
@@ -67,6 +72,41 @@ pub struct CreateOrderRequest {
     pub discharge_summary_id: Option<Uuid>,
     pub billing_package_id: Option<Uuid>,
     pub store_location_id: Option<Uuid>,
+    /// General CPOE/CDS override reason for medication safety blocks
+    /// (duplicate active order, high-risk medication acknowledgement,
+    /// controlled-drug acknowledgement). Requires
+    /// `pharmacy.safety.override`.
+    pub safety_override_reason: Option<String>,
+    /// When the prescriber has reviewed the patient's drug-allergy
+    /// list and chooses to proceed despite a partial-match warning,
+    /// the override reason is stored on the order for audit (e.g.
+    /// "test dose under monitoring", "sensitivity confirmed false on
+    /// re-challenge"). Empty / absent → strict allergy check.
+    pub allergy_override_reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MedicationSafetyItem {
+    pub catalog_item_id: Option<Uuid>,
+    pub drug_name: String,
+    pub quantity: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MedicationSafetyWarning {
+    pub code: String,
+    pub severity: MedicationSafetySeverity,
+    pub message: String,
+    pub catalog_item_id: Option<Uuid>,
+    pub drug_name: String,
+    pub detail: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MedicationSafetySeverity {
+    Warn,
+    Block,
 }
 
 #[derive(Debug, Serialize)]
@@ -144,6 +184,374 @@ pub struct CreateStockTransactionRequest {
     pub quantity: i32,
     pub reference_id: Option<Uuid>,
     pub notes: Option<String>,
+}
+
+fn medication_safety_override_reason(body: &CreateOrderRequest) -> Option<&str> {
+    body.safety_override_reason
+        .as_deref()
+        .or(body.allergy_override_reason.as_deref())
+        .map(str::trim)
+        .filter(|reason| !reason.is_empty())
+}
+
+fn can_override_medication_safety(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::pharmacy::safety::OVERRIDE)
+}
+
+fn medication_safety_severity_str(severity: MedicationSafetySeverity) -> &'static str {
+    match severity {
+        MedicationSafetySeverity::Warn => "warn",
+        MedicationSafetySeverity::Block => "block",
+    }
+}
+
+pub fn medication_safety_warning_is_overrideable(code: &str) -> bool {
+    !matches!(code, "INSUFFICIENT_STOCK")
+}
+
+fn normalize_allergy_tokens(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::Array(items) => items
+            .iter()
+            .flat_map(normalize_allergy_tokens)
+            .collect::<Vec<_>>(),
+        serde_json::Value::String(s) => split_allergy_text(s),
+        serde_json::Value::Null => Vec::new(),
+        other => split_allergy_text(&other.to_string()),
+    }
+}
+
+fn split_allergy_text(text: &str) -> Vec<String> {
+    text.split([',', ';', '/', '\n', '[', ']', '"'])
+        .map(str::trim)
+        .filter(|token| {
+            !token.is_empty()
+                && !token.eq_ignore_ascii_case("nkda")
+                && !token.eq_ignore_ascii_case("no known drug allergies")
+                && !token.eq_ignore_ascii_case("none")
+        })
+        .map(str::to_lowercase)
+        .collect()
+}
+
+fn drug_search_text(parts: &[Option<&str>]) -> String {
+    parts
+        .iter()
+        .filter_map(|part| part.map(str::trim).filter(|s| !s.is_empty()))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn warning_detail(mut pairs: Vec<(&str, serde_json::Value)>) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for (key, value) in pairs.drain(..) {
+        map.insert(key.to_owned(), value);
+    }
+    serde_json::Value::Object(map)
+}
+
+/// Shared medication CDS phase-1 evaluator used by both direct pharmacy order
+/// creation and the CPOE order basket. The evaluator does not decide whether
+/// a block is overrideable; callers enforce permission and audit decisions.
+pub async fn evaluate_medication_safety_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    patient_id: &Uuid,
+    items: &[MedicationSafetyItem],
+) -> Result<Vec<MedicationSafetyWarning>, AppError> {
+    let mut warnings = Vec::new();
+
+    let structured_allergies = sqlx::query!(
+        r#"
+        SELECT allergen_name, allergy_type::text AS "allergy_type!", severity::text AS severity,
+               reaction
+        FROM patient_allergies
+        WHERE tenant_id = $1
+          AND patient_id = $2
+          AND is_active = true
+          AND allergy_type = 'drug'
+        "#,
+        *tenant_id,
+        *patient_id
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let patient_attributes = sqlx::query!(
+        r#"
+        SELECT attributes->'drug_allergies' AS "drug_allergies: serde_json::Value"
+        FROM patients
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+        *patient_id,
+        *tenant_id
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let mut attribute_allergies = patient_attributes
+        .and_then(|row| row.drug_allergies)
+        .as_ref()
+        .map(normalize_allergy_tokens)
+        .unwrap_or_default();
+    attribute_allergies.sort();
+    attribute_allergies.dedup();
+
+    for item in items {
+        let catalog = if let Some(catalog_id) = item.catalog_item_id {
+            sqlx::query!(
+                r#"
+                SELECT name, generic_name, inn_name, atc_code, drug_class, drug_schedule,
+                       is_controlled, is_lasa, lasa_group, formulary_status,
+                       black_box_warning, max_dose_per_day, current_stock
+                FROM pharmacy_catalog
+                WHERE id = $1 AND tenant_id = $2
+                "#,
+                catalog_id,
+                *tenant_id
+            )
+            .fetch_optional(&mut **tx)
+            .await?
+        } else {
+            None
+        };
+
+        let catalog_name = catalog
+            .as_ref()
+            .map(|row| row.name.as_str())
+            .unwrap_or(item.drug_name.as_str());
+        let drug_text = drug_search_text(&[
+            Some(item.drug_name.as_str()),
+            Some(catalog_name),
+            catalog.as_ref().and_then(|row| row.generic_name.as_deref()),
+            catalog.as_ref().and_then(|row| row.inn_name.as_deref()),
+            catalog.as_ref().and_then(|row| row.drug_class.as_deref()),
+            catalog.as_ref().and_then(|row| row.atc_code.as_deref()),
+        ]);
+
+        for allergy in &structured_allergies {
+            let allergen = allergy.allergen_name.trim().to_lowercase();
+            if !allergen.is_empty()
+                && (drug_text.contains(&allergen) || allergen.contains(&drug_text))
+            {
+                warnings.push(MedicationSafetyWarning {
+                    code: "DRUG_ALLERGY_CONFLICT".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!(
+                        "{} conflicts with documented drug allergy '{}'",
+                        item.drug_name, allergy.allergen_name
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![
+                        ("allergen", json!(allergy.allergen_name)),
+                        ("allergy_type", json!(allergy.allergy_type)),
+                        ("severity", json!(allergy.severity)),
+                        ("reaction", json!(allergy.reaction)),
+                    ]),
+                });
+            }
+        }
+
+        for allergen in &attribute_allergies {
+            if drug_text.contains(allergen) || allergen.contains(&drug_text) {
+                warnings.push(MedicationSafetyWarning {
+                    code: "DRUG_ALLERGY_CONFLICT".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!(
+                        "{} conflicts with registered drug allergy '{}'",
+                        item.drug_name, allergen
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![("allergen", json!(allergen))]),
+                });
+            }
+        }
+
+        let duplicate_count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint AS "count!"
+            FROM pharmacy_orders po
+            JOIN pharmacy_order_items poi
+              ON poi.order_id = po.id AND poi.tenant_id = po.tenant_id
+            WHERE po.tenant_id = $1
+              AND po.patient_id = $2
+              AND po.status = 'ordered'
+              AND (
+                    ($3::uuid IS NOT NULL AND poi.catalog_item_id = $3)
+                    OR ($3::uuid IS NULL AND lower(poi.drug_name) = lower($4))
+                  )
+            "#,
+            *tenant_id,
+            *patient_id,
+            item.catalog_item_id,
+            item.drug_name
+        )
+        .fetch_one(&mut **tx)
+        .await?;
+
+        if duplicate_count > 0 {
+            warnings.push(MedicationSafetyWarning {
+                code: "DUPLICATE_ACTIVE_MEDICATION_ORDER".to_owned(),
+                severity: MedicationSafetySeverity::Block,
+                message: format!(
+                    "{} already has {duplicate_count} active medication order(s)",
+                    item.drug_name
+                ),
+                catalog_item_id: item.catalog_item_id,
+                drug_name: item.drug_name.clone(),
+                detail: warning_detail(vec![("existing_count", json!(duplicate_count))]),
+            });
+        }
+
+        if let Some(row) = &catalog {
+            if row.current_stock < item.quantity {
+                warnings.push(MedicationSafetyWarning {
+                    code: "INSUFFICIENT_STOCK".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!(
+                        "Insufficient stock for {name}: requested {req}, on-hand {on}",
+                        name = row.name,
+                        req = item.quantity,
+                        on = row.current_stock
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![
+                        ("requested", json!(item.quantity)),
+                        ("on_hand", json!(row.current_stock)),
+                    ]),
+                });
+            }
+
+            let schedule = row.drug_schedule.as_deref().unwrap_or("");
+            if row.is_controlled
+                || schedule.eq_ignore_ascii_case("NDPS")
+                || schedule.eq_ignore_ascii_case("X")
+                || schedule.eq_ignore_ascii_case("H1")
+            {
+                warnings.push(MedicationSafetyWarning {
+                    code: "CONTROLLED_DRUG_ACK_REQUIRED".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!(
+                        "{} is a controlled/restricted scheduled medicine; dual review is required",
+                        item.drug_name
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![
+                        ("drug_schedule", json!(row.drug_schedule)),
+                        ("is_controlled", json!(row.is_controlled)),
+                    ]),
+                });
+            }
+
+            if row.is_lasa || row.black_box_warning.is_some() {
+                warnings.push(MedicationSafetyWarning {
+                    code: "HIGH_RISK_MEDICATION_ACK_REQUIRED".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!(
+                        "{} is flagged for high-risk medication safety review",
+                        item.drug_name
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![
+                        ("is_lasa", json!(row.is_lasa)),
+                        ("lasa_group", json!(row.lasa_group)),
+                        ("black_box_warning", json!(row.black_box_warning)),
+                    ]),
+                });
+            }
+
+            if row.formulary_status == "restricted" {
+                warnings.push(MedicationSafetyWarning {
+                    code: "RESTRICTED_FORMULARY_ACK_REQUIRED".to_owned(),
+                    severity: MedicationSafetySeverity::Block,
+                    message: format!("{} is restricted by formulary policy", item.drug_name),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![("formulary_status", json!(row.formulary_status))]),
+                });
+            }
+
+            if let Some(max_dose) = row
+                .max_dose_per_day
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+            {
+                warnings.push(MedicationSafetyWarning {
+                    code: "MAX_DAILY_DOSE_REVIEW_REQUIRED".to_owned(),
+                    severity: MedicationSafetySeverity::Warn,
+                    message: format!(
+                        "{} has a configured max daily dose: {max_dose}",
+                        item.drug_name
+                    ),
+                    catalog_item_id: item.catalog_item_id,
+                    drug_name: item.drug_name.clone(),
+                    detail: warning_detail(vec![("max_dose_per_day", json!(max_dose))]),
+                });
+            }
+        }
+    }
+
+    Ok(warnings)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn record_cpoe_safety_audit_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    source_module: &str,
+    source_record_id: Option<Uuid>,
+    warnings: &[MedicationSafetyWarning],
+    override_reason: Option<&str>,
+) -> Result<(), AppError> {
+    for warning in warnings {
+        let action_taken = match warning.severity {
+            MedicationSafetySeverity::Block if override_reason.is_some() => "overridden",
+            MedicationSafetySeverity::Block => "blocked",
+            MedicationSafetySeverity::Warn => "warned",
+        };
+        let item_ref = json!({
+            "catalog_item_id": warning.catalog_item_id,
+            "drug_name": warning.drug_name,
+        });
+        sqlx::query!(
+            r#"
+            INSERT INTO cpoe_safety_audit
+              (tenant_id, patient_id, encounter_id, source_module, source_record_id,
+               order_type, warning_code, severity, action_taken, item_ref, message,
+               override_reason, overridden_by, checked_by)
+            VALUES
+              ($1, $2, $3, $4, $5, 'drug', $6, $7, $8, $9, $10, $11, $12, $13)
+            "#,
+            claims.tenant_id,
+            patient_id,
+            encounter_id,
+            source_module,
+            source_record_id,
+            warning.code.as_str(),
+            medication_safety_severity_str(warning.severity),
+            action_taken,
+            item_ref,
+            warning.message.as_str(),
+            override_reason,
+            override_reason.map(|_| claims.sub),
+            claims.sub
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
 }
 
 // Phase 2 request/response types
@@ -313,7 +721,7 @@ pub async fn list_orders(
 
     // ── ReBAC scope — only pharmacy orders caller has `view` on ─
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<uuid::Uuid>> = if authz_ctx.is_bypass {
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
         Some(
@@ -330,7 +738,8 @@ pub async fn list_orders(
     };
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
@@ -428,7 +837,8 @@ pub async fn create_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
     let result = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
     Ok(Json(result))
@@ -448,52 +858,214 @@ pub async fn create_order_in_tx(
         ));
     }
 
+    let safety_items = body
+        .items
+        .iter()
+        .map(|item| MedicationSafetyItem {
+            catalog_item_id: item.catalog_item_id,
+            drug_name: item.drug_name.clone(),
+            quantity: item.quantity,
+        })
+        .collect::<Vec<_>>();
+    let safety_warnings =
+        evaluate_medication_safety_in_tx(tx, &claims.tenant_id, &body.patient_id, &safety_items)
+            .await?;
+    let safety_override_reason = medication_safety_override_reason(body);
+    let blocking_warnings = safety_warnings
+        .iter()
+        .filter(|warning| warning.severity == MedicationSafetySeverity::Block)
+        .collect::<Vec<_>>();
+    if !blocking_warnings.is_empty() {
+        if let Some(hard_block) = blocking_warnings
+            .iter()
+            .find(|warning| !medication_safety_warning_is_overrideable(&warning.code))
+        {
+            return Err(AppError::BadRequest(hard_block.message.clone()));
+        }
+        let reason = safety_override_reason.ok_or_else(|| {
+            let codes = blocking_warnings
+                .iter()
+                .map(|warning| warning.code.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            AppError::BadRequest(format!(
+                "Medication safety block(s) require authorized override reason before ordering: {codes}"
+            ))
+        })?;
+        if reason.len() < 5 {
+            return Err(AppError::BadRequest(
+                "Medication safety override reason must be at least 5 characters".to_owned(),
+            ));
+        }
+        if !can_override_medication_safety(claims) {
+            return Err(AppError::Forbidden);
+        }
+    }
+
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
 
-    let order = sqlx::query_as::<_, PharmacyOrder>(
-        "INSERT INTO pharmacy_orders \
-         (tenant_id, prescription_id, patient_id, encounter_id, ordered_by, \
-          status, notes, dispensing_type, discharge_summary_id, billing_package_id, \
-          store_location_id) \
-         VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::pharmacy_dispensing_type, $8, $9, $10) \
-         RETURNING *",
+    let order = sqlx::query_as!(
+        PharmacyOrder,
+        r#"
+        INSERT INTO pharmacy_orders
+          (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,
+           status, notes, dispensing_type, discharge_summary_id, billing_package_id,
+           store_location_id)
+        VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)
+        RETURNING id, tenant_id, prescription_id, patient_id AS "patient_id!",
+                  encounter_id, ordered_by, status, notes,
+                  dispensing_type AS "dispensing_type: _",
+                  discharge_summary_id, billing_package_id, store_location_id,
+                  interaction_check_result, dispensed_by, dispensed_at,
+                  created_at, updated_at
+        "#,
+        claims.tenant_id,
+        body.prescription_id,
+        body.patient_id,
+        body.encounter_id,
+        claims.sub,
+        body.notes.as_deref(),
+        dispensing_type,
+        body.discharge_summary_id,
+        body.billing_package_id,
+        body.store_location_id
     )
-    .bind(claims.tenant_id)
-    .bind(body.prescription_id)
-    .bind(body.patient_id)
-    .bind(body.encounter_id)
-    .bind(claims.sub)
-    .bind(&body.notes)
-    .bind(dispensing_type)
-    .bind(body.discharge_summary_id)
-    .bind(body.billing_package_id)
-    .bind(body.store_location_id)
     .fetch_one(&mut **tx)
     .await?;
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
         let total = item.unit_price * Decimal::from(item.quantity);
-        let oi = sqlx::query_as::<_, PharmacyOrderItem>(
-            "INSERT INTO pharmacy_order_items \
-             (tenant_id, order_id, catalog_item_id, drug_name, quantity, \
-              unit_price, total_price, quantity_prescribed) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+        let oi = sqlx::query_as!(
+            PharmacyOrderItem,
+            r#"
+            INSERT INTO pharmacy_order_items
+              (tenant_id, order_id, catalog_item_id, drug_name, quantity,
+               unit_price, total_price, quantity_prescribed)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, tenant_id, order_id, catalog_item_id, drug_name,
+                      quantity, unit_price, total_price, batch_number,
+                      expiry_date, batch_stock_id, quantity_prescribed,
+                      quantity_returned, created_at
+            "#,
+            claims.tenant_id,
+            order.id,
+            item.catalog_item_id,
+            item.drug_name.as_str(),
+            item.quantity,
+            item.unit_price,
+            total,
+            item.quantity
         )
-        .bind(claims.tenant_id)
-        .bind(order.id)
-        .bind(item.catalog_item_id)
-        .bind(&item.drug_name)
-        .bind(item.quantity)
-        .bind(item.unit_price)
-        .bind(total)
-        .bind(item.quantity)
         .fetch_one(&mut **tx)
         .await?;
         items.push(oi);
     }
 
+    record_cpoe_safety_audit_in_tx(
+        tx,
+        claims,
+        body.patient_id,
+        body.encounter_id,
+        "pharmacy",
+        Some(order.id),
+        &safety_warnings,
+        safety_override_reason,
+    )
+    .await?;
+
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::OrderCreated,
+        order.id,
+        claims.sub,
+        json!({
+            "order_id": order.id,
+            "order_type": "drug",
+            "patient_id": body.patient_id,
+            "encounter_id": body.encounter_id,
+            "items": items.iter().map(|item| {
+                json!({
+                    "catalog_item_id": item.catalog_item_id,
+                    "drug_name": item.drug_name,
+                    "quantity": item.quantity,
+                })
+            }).collect::<Vec<_>>(),
+        }),
+    )
+    .with_source_module(ClinicalEventSourceModule::Pharmacy)
+    .with_patient(body.patient_id);
+    let event = if let Some(encounter_id) = body.encounter_id {
+        event.with_encounter(encounter_id)
+    } else {
+        event
+    };
+    crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+
+    ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
+
     Ok(OrderDetailResponse { order, items })
+}
+
+async fn ensure_pharmacy_billing_indent_for_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    order: &PharmacyOrder,
+    items: &[PharmacyOrderItem],
+) -> Result<(), AppError> {
+    let Some(encounter_id) = order.encounter_id else {
+        return Ok(());
+    };
+
+    if !super::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy").await? {
+        return Ok(());
+    }
+
+    for item in items {
+        let code = item.catalog_item_id.map_or_else(
+            || "PHARMA-GENERIC".to_owned(),
+            |cid| format!("PHARMA-{cid}"),
+        );
+
+        let charge = super::billing::auto_charge_with_batch(
+            tx,
+            tenant_id,
+            super::billing::AutoChargeInput {
+                patient_id: order.patient_id,
+                encounter_id,
+                charge_code: code,
+                source: "pharmacy".to_owned(),
+                source_id: item.id,
+                quantity: item.quantity,
+                description_override: Some(item.drug_name.clone()),
+                unit_price_override: Some(item.unit_price),
+                tax_percent_override: None,
+            },
+            super::billing::BatchTrace {
+                batch_number: item.batch_number.clone(),
+                expiry_date: item.expiry_date,
+            },
+        )
+        .await?;
+
+        sqlx::query(
+            "UPDATE invoice_items SET \
+             pharmacy_order_id = $1, \
+             batch_number = COALESCE($2, batch_number), \
+             expiry_date = COALESCE($3, expiry_date), \
+             source_module = 'pharmacy' \
+             WHERE id = $4 AND tenant_id = $5",
+        )
+        .bind(order.id)
+        .bind(&item.batch_number)
+        .bind(item.expiry_date)
+        .bind(charge.item_id)
+        .bind(tenant_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -511,7 +1083,12 @@ pub async fn get_order(
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "pharmacy_order", id)
+        .check(
+            &authz_ctx,
+            medbrains_authz::Relation::Viewer,
+            "pharmacy_order",
+            id,
+        )
         .await
         .unwrap_or(false);
     if !allowed {
@@ -519,7 +1096,8 @@ pub async fn get_order(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
@@ -556,7 +1134,8 @@ pub async fn dispense_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
     // (rules 65, 65A) — must be on a registered medical practitioner's
@@ -604,7 +1183,12 @@ pub async fn dispense_order(
                     sqlx::query(
                         "UPDATE pharmacy_order_items SET \
                          batch_number = COALESCE($1, batch_number), \
-                         batch_stock_id = COALESCE($2, batch_stock_id) \
+                         batch_stock_id = COALESCE($2, batch_stock_id), \
+                         expiry_date = COALESCE(\
+                             (SELECT expiry_date FROM pharmacy_batches \
+                              WHERE id = $2 AND tenant_id = $4), \
+                             expiry_date\
+                         ) \
                          WHERE id = $3 AND tenant_id = $4",
                     )
                     .bind(&dispense_input.batch_number)
@@ -705,33 +1289,20 @@ pub async fn dispense_order(
         }
     }
 
-    // Auto-billing: charge for dispensed items
-    if let Some(encounter_id) = order.encounter_id {
-        if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "pharmacy").await? {
-            for item in &items {
-                let code = item.catalog_item_id.map_or_else(
-                    || "PHARMA-GENERIC".to_owned(),
-                    |cid| format!("PHARMA-{cid}"),
-                );
-                let _ = super::billing::auto_charge(
-                    &mut tx,
-                    &claims.tenant_id,
-                    super::billing::AutoChargeInput {
-                        patient_id: order.patient_id,
-                        encounter_id,
-                        charge_code: code,
-                        source: "pharmacy".to_owned(),
-                        source_id: item.id,
-                        quantity: item.quantity,
-                        description_override: Some(item.drug_name.clone()),
-                        unit_price_override: Some(item.unit_price),
-                        tax_percent_override: None,
-                    },
-                )
-                .await;
-            }
-        }
-    }
+    let billed_items = sqlx::query_as::<_, PharmacyOrderItem>(
+        "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    ensure_pharmacy_billing_indent_for_order_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        &order,
+        &billed_items,
+    )
+    .await?;
 
     tx.commit().await?;
 
@@ -840,9 +1411,8 @@ async fn enforce_schedule_compliance(
 
     if has_x {
         if witnessed_by.is_none() {
-            blocks.push(
-                "Schedule X dispense requires a witness signature (witnessed_by)".to_owned(),
-            );
+            blocks
+                .push("Schedule X dispense requires a witness signature (witnessed_by)".to_owned());
         } else if witnessed_by == Some(ordered_by) {
             blocks.push("Schedule X witness must differ from prescriber".to_owned());
         }
@@ -859,8 +1429,7 @@ async fn enforce_schedule_compliance(
         match prescriber_authorised {
             Some(true) => {}
             Some(false) => blocks.push(
-                "Schedule X prescriber lacks `can_prescribe_schedule_x` authorisation"
-                    .to_owned(),
+                "Schedule X prescriber lacks `can_prescribe_schedule_x` authorisation".to_owned(),
             ),
             None => blocks.push(
                 "Schedule X prescriber not registered as a doctor in this hospital".to_owned(),
@@ -890,7 +1459,8 @@ pub async fn cancel_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "UPDATE pharmacy_orders SET status = 'cancelled', updated_at = now() \
@@ -901,6 +1471,48 @@ pub async fn cancel_order(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
+
+    if let Some(ref o) = order {
+        let order_item_ids = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+        )
+        .bind(o.id)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for order_item_id in order_item_ids {
+            super::billing::reverse_auto_charge_for_source(
+                &mut tx,
+                &claims.tenant_id,
+                "pharmacy",
+                order_item_id,
+                claims.sub,
+                "Pharmacy order cancelled",
+            )
+            .await?;
+        }
+
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::OrderCancelled,
+            o.id,
+            claims.sub,
+            serde_json::json!({
+                "order_id": o.id,
+                "order_type": "pharmacy",
+                "reason": "Cancelled from pharmacy order queue",
+                "patient_id": o.patient_id,
+                "encounter_id": o.encounter_id,
+            }),
+        )
+        .with_source_module(ClinicalEventSourceModule::Pharmacy)
+        .with_patient(o.patient_id);
+        if let Some(encounter_id) = o.encounter_id {
+            event = event.with_encounter(encounter_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -918,7 +1530,8 @@ pub async fn validate_order(
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
@@ -1051,7 +1664,8 @@ pub async fn create_otc_sale(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // OTC sale: patient_id is optional (NULL for walk-in customers)
     let patient_id = body.patient_id;
@@ -1129,7 +1743,8 @@ pub async fn create_discharge_dispensing(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
@@ -1193,7 +1808,8 @@ pub async fn list_catalog(
     require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let search = q.search.map(|s| format!("%{s}%"));
 
@@ -1234,7 +1850,8 @@ pub async fn create_catalog_entry(
     let batch_track = body.batch_tracking_required.unwrap_or(false);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyCatalog>(
         "INSERT INTO pharmacy_catalog \
@@ -1290,7 +1907,8 @@ pub async fn update_catalog_entry(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyCatalog>(
         "UPDATE pharmacy_catalog SET \
@@ -1365,7 +1983,8 @@ pub async fn list_stock(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let sql = if params.low_stock.unwrap_or(false) {
         "SELECT * FROM pharmacy_catalog \
@@ -1394,7 +2013,8 @@ pub async fn create_stock_transaction(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let txn = sqlx::query_as::<_, PharmacyStockTransaction>(
         "INSERT INTO pharmacy_stock_transactions \
@@ -1454,7 +2074,8 @@ pub async fn list_ndps_entries(
     let offset = (page - 1) * per_page;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
@@ -1533,7 +2154,8 @@ pub async fn create_ndps_entry(
     require_permission(&claims, permissions::pharmacy::ndps::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Calculate current balance
     let current_balance = sqlx::query_scalar::<_, Option<i64>>(
@@ -1582,7 +2204,8 @@ pub async fn ndps_balance(
     require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, NdpsBalanceRow>(
         "SELECT n.catalog_item_id, c.name AS drug_name, \
@@ -1625,7 +2248,8 @@ pub async fn list_batches(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
@@ -1677,7 +2301,8 @@ pub async fn create_batch(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let batch = sqlx::query_as::<_, PharmacyBatch>(
         "INSERT INTO pharmacy_batches \
@@ -1736,7 +2361,8 @@ pub async fn near_expiry_report(
     let days = params.days.unwrap_or(90);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, NearExpiryRow>(
         "SELECT c.name AS drug_name, b.batch_number, b.expiry_date, \
@@ -1766,7 +2392,8 @@ pub async fn dead_stock_report(
     let idle_days = params.idle_days.unwrap_or(90);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, DeadStockRow>(
         "SELECT c.name AS drug_name, c.current_stock, \
@@ -1801,7 +2428,8 @@ pub async fn list_store_assignments(
     require_permission(&claims, permissions::pharmacy::stores::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreAssignment>(
         "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 ORDER BY created_at",
@@ -1822,7 +2450,8 @@ pub async fn create_store_assignment(
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyStoreAssignment>(
         "INSERT INTO pharmacy_store_assignments \
@@ -1849,7 +2478,8 @@ pub async fn create_transfer(
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyTransferRequest>(
         "INSERT INTO pharmacy_transfer_requests \
@@ -1877,7 +2507,8 @@ pub async fn approve_transfer(
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyTransferRequest>(
         "UPDATE pharmacy_transfer_requests SET \
@@ -1904,7 +2535,8 @@ pub async fn list_transfers(
     require_permission(&claims, permissions::pharmacy::stores::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PharmacyTransferRequest>(
@@ -1940,7 +2572,8 @@ pub async fn list_returns(
     require_permission(&claims, permissions::pharmacy::returns::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyReturn>(
         "SELECT * FROM pharmacy_returns WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200",
@@ -1961,7 +2594,8 @@ pub async fn create_return(
     require_permission(&claims, permissions::pharmacy::returns::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyReturn>(
         "INSERT INTO pharmacy_returns \
@@ -1994,7 +2628,8 @@ pub async fn process_return(
     };
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let restocked = new_status == "returned_to_stock";
 
@@ -2014,17 +2649,32 @@ pub async fn process_return(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // If returned to stock, increment catalog stock
-    if restocked {
-        let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
-            "SELECT * FROM pharmacy_order_items WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(row.order_item_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+    let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
+        "SELECT * FROM pharmacy_order_items WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row.order_item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
 
-        if let Some(oi) = order_item {
+    if let Some(oi) = order_item {
+        if new_status != "rejected" {
+            super::billing::reverse_auto_charge_quantity_for_source(
+                &mut tx,
+                &claims.tenant_id,
+                "pharmacy",
+                row.order_item_id,
+                Some(row.quantity_returned),
+                claims.sub,
+                row.reason.as_deref().unwrap_or("Pharmacy return"),
+                "pharmacy_return",
+                row.id,
+            )
+            .await?;
+        }
+
+        // If returned to stock, increment catalog stock.
+        if restocked {
             if let Some(catalog_id) = oi.catalog_item_id {
                 sqlx::query(
                     "UPDATE pharmacy_catalog SET current_stock = current_stock + $1, \
@@ -2066,21 +2716,27 @@ pub async fn consumption_analysis(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut conditions = vec![
         "o.tenant_id = $1".to_owned(),
         "o.status = 'dispensed'".to_owned(),
+        "o.dispensed_at IS NOT NULL".to_owned(),
     ];
     let mut bind_idx: usize = 2;
 
+    // Filter by dispense date, not order-creation date — consumption
+    // tracks what physically left the pharmacy, not what was prescribed.
+    // An Rx ordered on Monday and dispensed on Wednesday counts toward
+    // Wednesday's consumption.
     if params.from_date.is_some() {
-        conditions.push(format!("o.created_at >= ${bind_idx}::date"));
+        conditions.push(format!("o.dispensed_at >= ${bind_idx}::date"));
         bind_idx += 1;
     }
     if params.to_date.is_some() {
         conditions.push(format!(
-            "o.created_at < (${bind_idx}::date + interval '1 day')"
+            "o.dispensed_at < (${bind_idx}::date + interval '1 day')"
         ));
         bind_idx += 1;
     }
@@ -2127,7 +2783,8 @@ pub async fn abc_ved_analysis(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // ABC analysis: rank drugs by annual consumption value
     // VED from store_catalog ved_class or inferred from formulary_status
@@ -2173,7 +2830,8 @@ pub async fn drug_utilization_review(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, DrugUtilizationRow>(
         "SELECT oi.drug_name, c.generic_name, c.aware_category, \
@@ -2222,7 +2880,8 @@ pub async fn check_drug_interactions(
     require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Get active prescriptions for the patient
     let active_drugs = sqlx::query_as::<_, DrugInteractionRow>(
@@ -2286,7 +2945,8 @@ pub async fn prescription_audit(
     require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PrescriptionAuditRow>(
         "SELECT a.id, a.action, a.performed_by AS changed_by, \
@@ -2335,7 +2995,8 @@ pub async fn formulary_check(
     require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let drug = sqlx::query_as::<_, FormularyCheckRow>(
         "SELECT id, name, generic_name, formulary_status, \
@@ -2385,7 +3046,8 @@ pub async fn list_rx_queue(
     require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let status_filter = params.status.as_deref().unwrap_or("pending_review");
 
@@ -2424,7 +3086,8 @@ pub async fn get_rx_detail(
     require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
         "SELECT * FROM pharmacy_prescriptions WHERE id = $1",
@@ -2476,7 +3139,8 @@ pub async fn review_prescription(
     require_permission(&claims, permissions::pharmacy::rx_queue::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let new_status = match body.action.as_str() {
         "approved" => "approved",
@@ -2498,13 +3162,14 @@ pub async fn review_prescription(
             rejection_reason = $5,
             allergy_check_done = true,
             interaction_check_done = true
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND tenant_id = $6 RETURNING *",
     )
     .bind(id)
     .bind(new_status)
     .bind(claims.sub)
     .bind(&body.notes)
     .bind(&body.rejection_reason)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -2521,13 +3186,14 @@ pub async fn review_prescription(
         .fetch_all(&mut *tx)
         .await?;
 
-        // Create pharmacy order
-        let order_id = sqlx::query_scalar::<_, Uuid>(
+        // Create pharmacy order and billing indent; dispense remains a
+        // separate stock-control step after billing is visible.
+        let order = sqlx::query_as::<_, PharmacyOrder>(
             "INSERT INTO pharmacy_orders \
              (tenant_id, patient_id, prescription_id, encounter_id, ordered_by, status, \
               dispensing_type, rx_queue_id, pharmacist_reviewed_by, reviewed_at) \
              VALUES ($1, $2, $3, $4, $5, 'ordered', 'prescription'::pharmacy_dispensing_type, $6, $5, now()) \
-             RETURNING id",
+             RETURNING *",
         )
         .bind(claims.tenant_id)
         .bind(rx.patient_id)
@@ -2539,6 +3205,7 @@ pub async fn review_prescription(
         .await?;
 
         // Create order items from prescription items
+        let mut order_items = Vec::with_capacity(items.len());
         for item in &items {
             // Try to resolve catalog item by drug name
             let catalog = sqlx::query_scalar::<_, Option<Uuid>>(
@@ -2565,32 +3232,51 @@ pub async fn review_prescription(
                 Decimal::ZERO
             };
 
-            sqlx::query(
+            let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
                 "INSERT INTO pharmacy_order_items \
-                 (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, total_price) \
-                 VALUES ($1, $2, $3, $4, 1, $5, $5)",
+                 (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
+                  total_price, quantity_prescribed) \
+                 VALUES ($1, $2, $3, $4, 1, $5, $5, 1) \
+                 RETURNING *",
             )
             .bind(claims.tenant_id)
-            .bind(order_id)
+            .bind(order.id)
             .bind(catalog)
             .bind(&item.drug_name)
             .bind(price)
-            .execute(&mut *tx)
+            .fetch_one(&mut *tx)
             .await?;
+            order_items.push(order_item);
         }
+
+        ensure_pharmacy_billing_indent_for_order_in_tx(
+            &mut tx,
+            &claims.tenant_id,
+            &order,
+            &order_items,
+        )
+        .await?;
 
         // Link order back to rx queue
         sqlx::query(
             "UPDATE pharmacy_prescriptions SET pharmacy_order_id = $1, status = 'dispensing'::pharmacy_rx_status WHERE id = $2",
         )
-        .bind(order_id)
+        .bind(order.id)
         .bind(rx.id)
         .execute(&mut *tx)
         .await?;
     }
 
+    let final_rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
+        "SELECT * FROM pharmacy_prescriptions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(rx))
+    Ok(Json(final_rx))
 }
 
 // Helper row for prescription items
@@ -2617,7 +3303,8 @@ pub async fn check_patient_allergies(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let matches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
@@ -2638,7 +3325,7 @@ pub async fn check_patient_allergies(
     .fetch_one(&mut *tx)
     .await?;
 
-    let safe = matches.as_array().map_or(true, Vec::is_empty);
+    let safe = matches.as_array().is_none_or(Vec::is_empty);
 
     // Log allergy check to audit trail
     for drug_id in &body.drug_ids {
@@ -2671,7 +3358,8 @@ pub async fn select_fefo_batch(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let batches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.expiry_date), '[]'::json) FROM (
@@ -2709,7 +3397,8 @@ pub async fn create_pos_sale(
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Generate sale number
     let sale_num = format!(
@@ -2864,7 +3553,8 @@ pub async fn list_pos_sales(
     require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyPosSale>(
         "SELECT * FROM pharmacy_pos_sales
@@ -2891,7 +3581,8 @@ pub async fn pos_day_summary(
     require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let summary = sqlx::query_as::<_, PosDaySummary>(
         "SELECT
@@ -2921,7 +3612,8 @@ pub async fn cancel_pos_sale(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Get the POS sale
     let sale = sqlx::query_as::<_, PharmacyPosSale>(
@@ -3015,7 +3707,10 @@ pub async fn cancel_pos_sale(
     .bind(claims.tenant_id)
     .bind(id)
     .bind(sale.total_amount)
-    .bind(format!("REFUND-{}", sale.receipt_number.as_deref().unwrap_or("N/A")))
+    .bind(format!(
+        "REFUND-{}",
+        sale.receipt_number.as_deref().unwrap_or("N/A")
+    ))
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
@@ -3049,7 +3744,8 @@ pub async fn return_pos_items(
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut total_refund = Decimal::ZERO;
 
@@ -3181,7 +3877,8 @@ pub async fn resolve_drug_price(
     require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let tier = body.tier_name.as_deref().unwrap_or("mrp");
 
@@ -3251,7 +3948,8 @@ pub async fn upsert_pricing_tier(
     require_permission(&claims, permissions::pharmacy::pricing::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let tier = sqlx::query_as::<_, PharmacyPricingTier>(
         "INSERT INTO pharmacy_pricing_tiers
@@ -3290,7 +3988,8 @@ pub async fn stock_reconciliation(
     require_permission(&claims, permissions::pharmacy::reconciliation::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mut reconciled = 0i64;
     for item in &body.items {
@@ -3351,7 +4050,8 @@ pub async fn reorder_suggestions(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let suggestions = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.urgency DESC), '[]'::json) FROM (
@@ -3390,7 +4090,8 @@ pub async fn daily_sales_summary(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let days = params.days.unwrap_or(30);
 
@@ -3425,7 +4126,8 @@ pub async fn prescription_fill_rate(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let stats = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT json_build_object(
@@ -3455,7 +4157,8 @@ pub async fn margin_analysis(
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.margin_percent DESC), '[]'::json) FROM (

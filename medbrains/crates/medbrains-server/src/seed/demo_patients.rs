@@ -370,13 +370,11 @@ pub(super) async fn seed_demo_patients(
 
     for user in DEMO_ROLE_USERS {
         let dept_id: Option<uuid::Uuid> = if let Some(code) = user.dept_code {
-            sqlx::query_scalar(
-                "SELECT id FROM departments WHERE tenant_id = $1 AND code = $2",
-            )
-            .bind(tenant_id)
-            .bind(code)
-            .fetch_optional(&mut *tx)
-            .await?
+            sqlx::query_scalar("SELECT id FROM departments WHERE tenant_id = $1 AND code = $2")
+                .bind(tenant_id)
+                .bind(code)
+                .fetch_optional(&mut *tx)
+                .await?
         } else {
             None
         };

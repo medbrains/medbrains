@@ -69,8 +69,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           return;
         }
         // Check HTTP status — only clear auth on 401
-        const status = (err as { status?: number }).status
-          ?? (err as { response?: { status?: number } }).response?.status;
+        const status =
+          (err as { status?: number }).status ??
+          (err as { response?: { status?: number } }).response?.status;
         if (status === 401) {
           clearAuth();
           clearPermissions();
@@ -84,7 +85,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasHydrated, user, clearAuth, clearPermissions, setPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
@@ -107,7 +108,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         refreshTimer.current = null;
       }
     };
-  }, [verified, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    verified,
+    user, // Refresh failed — session expired, force re-login
+    clearAuth,
+    clearPermissions,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hasHydrated) {
     return <PageSkeleton />;

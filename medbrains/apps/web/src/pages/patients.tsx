@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -15,6 +14,10 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBolt,
@@ -25,16 +28,9 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  CreatePatientRequest,
-  Patient,
-  MpiMatchResult,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
-import { useNavigate } from "react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "../components";
 import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -100,7 +96,6 @@ function buildFullName(patient: Patient): string {
   ].filter(Boolean);
   return parts.join(" ");
 }
-
 
 // #endregion
 
@@ -244,16 +239,26 @@ export function PatientsPage() {
       label: "Blood Group",
       render: (row: Patient) =>
         row.blood_group && row.blood_group !== "unknown" ? (
-          <StatusDot color="danger" label={bloodGroupLabels[row.blood_group] ?? row.blood_group} size="sm" />
+          <StatusDot
+            color="danger"
+            label={bloodGroupLabels[row.blood_group] ?? row.blood_group}
+            size="sm"
+          />
         ) : (
-          <Text size="sm" c="dimmed">-</Text>
+          <Text size="sm" c="dimmed">
+            -
+          </Text>
         ),
     },
     {
       key: "category",
       label: "Category",
       render: (row: Patient) => (
-        <StatusDot color={categoryColors[row.category] ?? "slate"} label={row.category.replace(/_/g, " ")} size="sm" />
+        <StatusDot
+          color={categoryColors[row.category] ?? "slate"}
+          label={row.category.replace(/_/g, " ")}
+          size="sm"
+        />
       ),
     },
     {
@@ -261,7 +266,12 @@ export function PatientsPage() {
       label: "Status",
       render: (row: Patient) => {
         const label = registrationTypeLabels[row.registration_type] ?? row.registration_type;
-        const color = row.registration_type === "revisit" ? "success" : row.registration_type === "emergency" ? "danger" : "slate";
+        const color =
+          row.registration_type === "revisit"
+            ? "success"
+            : row.registration_type === "emergency"
+              ? "danger"
+              : "slate";
         return <StatusDot color={color} label={label} size="sm" />;
       },
     },
@@ -270,11 +280,7 @@ export function PatientsPage() {
       label: "",
       render: (row: Patient) => (
         <Tooltip label="Full profile">
-          <ActionIcon
-            variant="subtle"
-            color="teal"
-            onClick={() => navigate(`/patients/${row.id}`)}
-          >
+          <ActionIcon variant="subtle" color="teal" onClick={() => navigate(`/patients/${row.id}`)}>
             <IconUsers size={16} />
           </ActionIcon>
         </Tooltip>
@@ -362,9 +368,18 @@ export function PatientsPage() {
       </Drawer>
 
       {/* MPI Duplicate Detection Modal */}
-      <Modal opened={dupModalOpen} onClose={() => { dupModalHandlers.close(); setPendingRequest(null); }} title="Potential Duplicates Found" size="lg">
+      <Modal
+        opened={dupModalOpen}
+        onClose={() => {
+          dupModalHandlers.close();
+          setPendingRequest(null);
+        }}
+        title="Potential Duplicates Found"
+        size="lg"
+      >
         <Alert color="orange" icon={<IconAlertTriangle size={16} />} mb="md">
-          The following existing patients match the registration data. Please verify before creating a new record.
+          The following existing patients match the registration data. Please verify before creating
+          a new record.
         </Alert>
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -379,16 +394,33 @@ export function PatientsPage() {
           <Table.Tbody>
             {duplicateMatches.map((m) => (
               <Table.Tr key={m.patient.id}>
-                <Table.Td><Text size="sm" fw={500}>{m.patient.uhid}</Text></Table.Td>
-                <Table.Td><Text size="sm">{m.patient.first_name} {m.patient.last_name}</Text></Table.Td>
-                <Table.Td><Text size="sm">{m.patient.phone ?? "—"}</Text></Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {m.patient.uhid}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {m.patient.first_name} {m.patient.last_name}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{m.patient.phone ?? "—"}</Text>
+                </Table.Td>
                 <Table.Td>
                   <Badge size="sm" color={m.score >= 0.8 ? "danger" : "orange"}>
                     {Math.round(m.score * 100)}%
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <ActionIcon variant="light" size="sm" onClick={() => { dupModalHandlers.close(); navigate(`/patients/${m.patient.id}`); }}>
+                  <ActionIcon
+                    variant="light"
+                    size="sm"
+                    onClick={() => {
+                      dupModalHandlers.close();
+                      navigate(`/patients/${m.patient.id}`);
+                    }}
+                  >
                     <IconEye size={14} />
                   </ActionIcon>
                 </Table.Td>
@@ -397,8 +429,18 @@ export function PatientsPage() {
           </Table.Tbody>
         </Table>
         <Group justify="flex-end" mt="md">
-          <Button variant="subtle" onClick={() => { dupModalHandlers.close(); setPendingRequest(null); }}>Cancel</Button>
-          <Button color="orange" onClick={handleCreateAnyway}>Create Anyway</Button>
+          <Button
+            variant="subtle"
+            onClick={() => {
+              dupModalHandlers.close();
+              setPendingRequest(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="orange" onClick={handleCreateAnyway}>
+            Create Anyway
+          </Button>
         </Group>
       </Modal>
     </div>

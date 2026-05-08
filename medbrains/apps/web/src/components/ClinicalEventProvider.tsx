@@ -19,5 +19,7 @@ interface ClinicalEventProviderProps {
 }
 
 export function ClinicalEventProvider({ children }: ClinicalEventProviderProps) {
-  return <ClinicalEventCtx.Provider value={{ emit: () => {} }}>{children}</ClinicalEventCtx.Provider>;
+  return (
+    <ClinicalEventCtx.Provider value={{ emit: () => {} }}>{children}</ClinicalEventCtx.Provider>
+  );
 }

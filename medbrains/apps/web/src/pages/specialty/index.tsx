@@ -1,15 +1,15 @@
 import { Card, SimpleGrid, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import {
-  IconHeartbeat,
-  IconMicroscope,
-  IconBrain,
-  IconStretching,
-  IconHeartHandshake,
   IconBabyCarriage,
+  IconBrain,
+  IconHeartbeat,
+  IconHeartHandshake,
+  IconMicroscope,
   IconStethoscope,
+  IconStretching,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
-import { useHasPermission } from "@medbrains/stores";
 import { PageHeader } from "../../components";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 

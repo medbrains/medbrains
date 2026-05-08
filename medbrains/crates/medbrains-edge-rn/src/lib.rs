@@ -115,7 +115,10 @@ impl DocHandle {
     }
 
     pub fn apply_update(&self, update_bytes: Vec<u8>) -> Result<Vec<u8>, BridgeError> {
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         doc.import(&update_bytes)?;
         Ok(doc.oplog_vv().encode())
     }
@@ -123,12 +126,18 @@ impl DocHandle {
     pub fn export_since(&self, their_vv: Vec<u8>) -> Result<Vec<u8>, BridgeError> {
         let vv = loro::VersionVector::decode(&their_vv)
             .map_err(|_| BridgeError::InvalidVersionVector)?;
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         Ok(doc.export(loro::ExportMode::updates(&vv))?)
     }
 
     pub fn version_vector(&self) -> Result<Vec<u8>, BridgeError> {
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         Ok(doc.oplog_vv().encode())
     }
 
@@ -140,15 +149,23 @@ impl DocHandle {
         item: AppendItem,
     ) -> Result<Vec<u8>, BridgeError> {
         let value: serde_json::Value = serde_json::from_str(&item.json_value)?;
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         let list = doc.get_list(container_name);
-        list.push(loro::LoroValue::String(serde_json::to_string(&value)?.into()))?;
+        list.push(loro::LoroValue::String(
+            serde_json::to_string(&value)?.into(),
+        ))?;
         let vv_before = doc.oplog_vv();
         Ok(doc.export(loro::ExportMode::updates(&vv_before))?)
     }
 
     pub fn list_entries(&self, container_name: String) -> Result<Vec<String>, BridgeError> {
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         let list = doc.get_list(container_name);
         let mut out = Vec::with_capacity(list.len());
         for i in 0..list.len() {
@@ -168,7 +185,10 @@ impl DocHandle {
         container_name: String,
         new_text: String,
     ) -> Result<Vec<u8>, BridgeError> {
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         let text = doc.get_text(container_name);
         text.update(&new_text, loro::UpdateOptions::default())
             .map_err(|e| BridgeError::Loro(format!("text update: {e}")))?;
@@ -177,7 +197,10 @@ impl DocHandle {
     }
 
     pub fn read_text(&self, container_name: String) -> Result<TextSnapshot, BridgeError> {
-        let doc = self.inner.lock().map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
+        let doc = self
+            .inner
+            .lock()
+            .map_err(|_| BridgeError::Loro("lock poisoned".into()))?;
         let text = doc.get_text(container_name);
         Ok(TextSnapshot {
             text: text.to_string(),
@@ -215,7 +238,11 @@ impl From<offline::JwtClaims> for JwtClaims {
             tenant_id: c.tenant_id.to_string(),
             iat: c.iat,
             exp: c.exp,
-            department_ids: c.department_ids.into_iter().map(|u| u.to_string()).collect(),
+            department_ids: c
+                .department_ids
+                .into_iter()
+                .map(|u| u.to_string())
+                .collect(),
             permissions: c.permissions,
             role: c.role,
         }
@@ -259,13 +286,20 @@ pub fn verify_jwt(
         Ok(a) => a,
         Err(_) => {
             return JwtOutcome::Malformed {
-                reason: format!("public key must be 32 bytes, got {}", public_key_bytes.len()),
+                reason: format!(
+                    "public key must be 32 bytes, got {}",
+                    public_key_bytes.len()
+                ),
             };
         }
     };
     let key = match offline::VerifyingKey::from_bytes(key_array) {
         Ok(k) => k,
-        Err(e) => return JwtOutcome::Malformed { reason: format!("verifying key: {e}") },
+        Err(e) => {
+            return JwtOutcome::Malformed {
+                reason: format!("verifying key: {e}"),
+            }
+        }
     };
     let now = if now_unix < 0 {
         UNIX_EPOCH
@@ -364,8 +398,12 @@ pub enum CheckOutcome {
 impl From<offline::CheckOutcome> for CheckOutcome {
     fn from(o: offline::CheckOutcome) -> Self {
         match o {
-            offline::CheckOutcome::Allow { source } => Self::Allow { source: source.into() },
-            offline::CheckOutcome::Deny { reason } => Self::Deny { reason: reason.into() },
+            offline::CheckOutcome::Allow { source } => Self::Allow {
+                source: source.into(),
+            },
+            offline::CheckOutcome::Deny { reason } => Self::Deny {
+                reason: reason.into(),
+            },
         }
     }
 }
@@ -394,12 +432,9 @@ pub struct AuthzCacheHandle {
 impl AuthzCacheHandle {
     pub fn new(path: String, capacity: u32, default_ttl_secs: u64) -> Result<Self, BridgeError> {
         let p = PathBuf::from(path);
-        let inner = offline::AuthzCache::new(
-            &p,
-            capacity as usize,
-            Duration::from_secs(default_ttl_secs),
-        )
-        .map_err(|e| BridgeError::AuthzCache(e.to_string()))?;
+        let inner =
+            offline::AuthzCache::new(&p, capacity as usize, Duration::from_secs(default_ttl_secs))
+                .map_err(|e| BridgeError::AuthzCache(e.to_string()))?;
         Ok(Self { inner })
     }
 
@@ -500,12 +535,16 @@ mod tests {
         let h = DocHandle::new("notes:xyz".into()).unwrap();
         h.append_to_list(
             "entries".into(),
-            AppendItem { json_value: r#"{"note":"first"}"#.to_owned() },
+            AppendItem {
+                json_value: r#"{"note":"first"}"#.to_owned(),
+            },
         )
         .unwrap();
         h.append_to_list(
             "entries".into(),
-            AppendItem { json_value: r#"{"note":"second"}"#.to_owned() },
+            AppendItem {
+                json_value: r#"{"note":"second"}"#.to_owned(),
+            },
         )
         .unwrap();
         let entries = h.list_entries("entries".into()).unwrap();
@@ -533,7 +572,9 @@ mod tests {
 
         a.append_to_list(
             "log".into(),
-            AppendItem { json_value: r#"{"v":1}"#.to_owned() },
+            AppendItem {
+                json_value: r#"{"v":1}"#.to_owned(),
+            },
         )
         .unwrap();
         let empty_vv = loro::VersionVector::default().encode();
@@ -542,7 +583,9 @@ mod tests {
 
         b.append_to_list(
             "log".into(),
-            AppendItem { json_value: r#"{"v":2}"#.to_owned() },
+            AppendItem {
+                json_value: r#"{"v":2}"#.to_owned(),
+            },
         )
         .unwrap();
         let b_to_a = b.export_since(empty_vv).unwrap();
@@ -567,7 +610,9 @@ mod tests {
         let vv0 = h.version_vector().unwrap();
         h.append_to_list(
             "log".into(),
-            AppendItem { json_value: "true".into() },
+            AppendItem {
+                json_value: "true".into(),
+            },
         )
         .unwrap();
         let vv1 = h.version_vector().unwrap();
@@ -596,7 +641,10 @@ mod tests {
             "narcotic".into(),
             "dispense".into()
         ));
-        assert!(!super::is_action_offline_required("vitals".into(), "create".into()));
+        assert!(!super::is_action_offline_required(
+            "vitals".into(),
+            "create".into()
+        ));
     }
 
     #[test]
@@ -617,10 +665,11 @@ mod tests {
     fn verify_jwt_malformed_token() {
         let outcome = super::verify_jwt(
             "not-a-jwt".into(),
-            vec![0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
-                 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
-                 0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25,
-                 0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a],
+            vec![
+                0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7, 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64,
+                0x07, 0x3a, 0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68,
+                0xf7, 0x07, 0x51, 0x1a,
+            ],
             1_700_000_000,
             300,
         );
@@ -630,13 +679,12 @@ mod tests {
     #[test]
     fn revocation_cache_round_trip() {
         let dir = tempfile::TempDir::new().unwrap();
-        let cache = RevocationCacheHandle::new(
-            dir.path().to_string_lossy().into_owned(),
-            64,
-        )
-        .unwrap();
+        let cache =
+            RevocationCacheHandle::new(dir.path().to_string_lossy().into_owned(), 64).unwrap();
         let user = Uuid::new_v4().to_string();
-        cache.record_revocation(user.clone(), 1_700_000_000).unwrap();
+        cache
+            .record_revocation(user.clone(), 1_700_000_000)
+            .unwrap();
         assert!(cache.is_revoked(user.clone(), 1_699_000_000).unwrap());
         assert!(!cache.is_revoked(user.clone(), 1_700_000_001).unwrap());
         assert_eq!(cache.pull_window_max(), 1_700_000_000);
@@ -647,11 +695,8 @@ mod tests {
     #[test]
     fn revocation_cache_rejects_bad_uuid() {
         let dir = tempfile::TempDir::new().unwrap();
-        let cache = RevocationCacheHandle::new(
-            dir.path().to_string_lossy().into_owned(),
-            16,
-        )
-        .unwrap();
+        let cache =
+            RevocationCacheHandle::new(dir.path().to_string_lossy().into_owned(), 16).unwrap();
         let err = cache
             .record_revocation("not-a-uuid".into(), 1_700_000_000)
             .unwrap_err();
@@ -661,12 +706,8 @@ mod tests {
     #[test]
     fn authz_cache_check_returns_outcome() {
         let dir = tempfile::TempDir::new().unwrap();
-        let cache = AuthzCacheHandle::new(
-            dir.path().to_string_lossy().into_owned(),
-            64,
-            300,
-        )
-        .unwrap();
+        let cache =
+            AuthzCacheHandle::new(dir.path().to_string_lossy().into_owned(), 64, 300).unwrap();
         let key = CacheKey {
             tenant_id: Uuid::new_v4().to_string(),
             user_id: Uuid::new_v4().to_string(),
@@ -679,7 +720,9 @@ mod tests {
             .unwrap();
         // Empty cache, CacheOnly policy → Deny(CacheMissStrict)
         match outcome {
-            CheckOutcome::Deny { reason: DenyReasonKind::CacheMissStrict } => {}
+            CheckOutcome::Deny {
+                reason: DenyReasonKind::CacheMissStrict,
+            } => {}
             other => panic!("expected Deny(CacheMissStrict), got {other:?}"),
         }
     }

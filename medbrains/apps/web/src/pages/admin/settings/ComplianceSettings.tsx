@@ -1,20 +1,10 @@
-import { useMemo } from "react";
-import {
-  Alert,
-  Card,
-  Divider,
-  Group,
-  Loader,
-  Stack,
-  Switch,
-  Text,
-  Title,
-} from "@mantine/core";
-import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Card, Divider, Group, Loader, Stack, Switch, Text, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import type { ComplianceSettings as ComplianceFlags, TenantSettingsRow } from "@medbrains/types";
-import { notifications } from "@mantine/notifications";
+import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 const DEFAULT_COMPLIANCE: ComplianceFlags = {
   enforce_drug_scheduling: false,
@@ -38,21 +28,73 @@ interface ToggleItem {
 }
 
 const DISPLAY_TOGGLES: ToggleItem[] = [
-  { key: "show_schedule_badges", label: "Drug Schedule Badges", description: "Show Schedule H/H1/X/OTC badges on drugs in catalog and prescription" },
-  { key: "show_controlled_warnings", label: "Controlled Substance Warnings", description: "Show CTRL badge and warnings for NDPS/controlled drugs" },
-  { key: "show_formulary_status", label: "Formulary Status", description: "Show Approved/Restricted/Non-Formulary status on drugs" },
-  { key: "show_aware_category", label: "AWaRe Category", description: "Show WHO Access/Watch/Reserve classification for antibiotics" },
+  {
+    key: "show_schedule_badges",
+    label: "Drug Schedule Badges",
+    description: "Show Schedule H/H1/X/OTC badges on drugs in catalog and prescription",
+  },
+  {
+    key: "show_controlled_warnings",
+    label: "Controlled Substance Warnings",
+    description: "Show CTRL badge and warnings for NDPS/controlled drugs",
+  },
+  {
+    key: "show_formulary_status",
+    label: "Formulary Status",
+    description: "Show Approved/Restricted/Non-Formulary status on drugs",
+  },
+  {
+    key: "show_aware_category",
+    label: "AWaRe Category",
+    description: "Show WHO Access/Watch/Reserve classification for antibiotics",
+  },
 ];
 
 const ENFORCEMENT_TOGGLES: ToggleItem[] = [
-  { key: "enforce_drug_scheduling", label: "Drug Scheduling Enforcement", description: "Require valid drug schedule for all catalog entries. Warn on Schedule X prescriptions." },
-  { key: "enforce_ndps_tracking", label: "NDPS Act Compliance", description: "Require narcotic register entries for controlled substance dispensing (NDPS Act 1985)" },
-  { key: "enforce_formulary", label: "Formulary Enforcement", description: "Block or warn when prescribing non-formulary drugs. Require DTC approval workflow." },
-  { key: "enforce_drug_interactions", label: "Drug Interaction Checks", description: "Check drug-drug interactions before prescribing/dispensing (requires interaction database)" },
-  { key: "enforce_antibiotic_stewardship", label: "Antibiotic Stewardship", description: "Enforce WHO AWaRe classification. Require approval for Reserve antibiotics." },
-  { key: "enforce_lasa_warnings", label: "LASA Warnings", description: "Show Look-Alike Sound-Alike drug warnings during prescription and dispensing" },
-  { key: "enforce_max_dose_check", label: "Max Dose Validation", description: "Validate prescribed dose against maximum daily dose limits" },
-  { key: "enforce_batch_tracking", label: "Batch Tracking", description: "Require batch/lot number and expiry date during dispensing" },
+  {
+    key: "enforce_drug_scheduling",
+    label: "Drug Scheduling Enforcement",
+    description:
+      "Require valid drug schedule for all catalog entries. Warn on Schedule X prescriptions.",
+  },
+  {
+    key: "enforce_ndps_tracking",
+    label: "NDPS Act Compliance",
+    description:
+      "Require narcotic register entries for controlled substance dispensing (NDPS Act 1985)",
+  },
+  {
+    key: "enforce_formulary",
+    label: "Formulary Enforcement",
+    description:
+      "Block or warn when prescribing non-formulary drugs. Require DTC approval workflow.",
+  },
+  {
+    key: "enforce_drug_interactions",
+    label: "Drug Interaction Checks",
+    description:
+      "Check drug-drug interactions before prescribing/dispensing (requires interaction database)",
+  },
+  {
+    key: "enforce_antibiotic_stewardship",
+    label: "Antibiotic Stewardship",
+    description: "Enforce WHO AWaRe classification. Require approval for Reserve antibiotics.",
+  },
+  {
+    key: "enforce_lasa_warnings",
+    label: "LASA Warnings",
+    description: "Show Look-Alike Sound-Alike drug warnings during prescription and dispensing",
+  },
+  {
+    key: "enforce_max_dose_check",
+    label: "Max Dose Validation",
+    description: "Validate prescribed dose against maximum daily dose limits",
+  },
+  {
+    key: "enforce_batch_tracking",
+    label: "Batch Tracking",
+    description: "Require batch/lot number and expiry date during dispensing",
+  },
 ];
 
 export function ComplianceSettingsTab() {
@@ -79,18 +121,30 @@ export function ComplianceSettingsTab() {
     mutationFn: (data: { key: string; value: boolean }) =>
       api.updateTenantSetting({ category: "compliance", key: data.key, value: data.value }),
     onSuccess: (_data, variables) => {
-      queryClient.setQueryData<TenantSettingsRow[]>(
-        ["tenant-settings", "compliance"],
-        (old) => {
-          if (!old) return old;
-          const exists = old.find((r) => r.key === variables.key);
-          if (exists) {
-            return old.map((r) => r.key === variables.key ? { ...r, value: variables.value } : r);
-          }
-          return [...old, { id: "", tenant_id: "", category: "compliance", key: variables.key, value: variables.value, created_at: "", updated_at: "" }];
-        },
-      );
-      notifications.show({ title: "Updated", message: `${variables.key} updated`, color: "success" });
+      queryClient.setQueryData<TenantSettingsRow[]>(["tenant-settings", "compliance"], (old) => {
+        if (!old) return old;
+        const exists = old.find((r) => r.key === variables.key);
+        if (exists) {
+          return old.map((r) => (r.key === variables.key ? { ...r, value: variables.value } : r));
+        }
+        return [
+          ...old,
+          {
+            id: "",
+            tenant_id: "",
+            category: "compliance",
+            key: variables.key,
+            value: variables.value,
+            created_at: "",
+            updated_at: "",
+          },
+        ];
+      });
+      notifications.show({
+        title: "Updated",
+        message: `${variables.key} updated`,
+        color: "success",
+      });
     },
   });
 
@@ -106,23 +160,30 @@ export function ComplianceSettingsTab() {
     <Stack gap="lg">
       <Alert icon={<IconShieldCheck size={20} />} color="primary" variant="light">
         <Text size="sm">
-          Configure which regulatory compliance features are active for your hospital.
-          Display settings control visibility of badges and labels. Enforcement settings
-          add validation rules that must be satisfied before prescribing or dispensing.
+          Configure which regulatory compliance features are active for your hospital. Display
+          settings control visibility of badges and labels. Enforcement settings add validation
+          rules that must be satisfied before prescribing or dispensing.
         </Text>
       </Alert>
 
       <Card padding="md" radius="md" withBorder>
-        <Title order={5} mb="sm">Display Settings</Title>
+        <Title order={5} mb="sm">
+          Display Settings
+        </Title>
         <Text size="xs" c="dimmed" mb="md">
-          Control which regulatory indicators are shown in the drug catalog, prescription writer, and pharmacy module.
+          Control which regulatory indicators are shown in the drug catalog, prescription writer,
+          and pharmacy module.
         </Text>
         <Stack gap="sm">
           {DISPLAY_TOGGLES.map((item) => (
             <Group key={item.key} justify="space-between" wrap="nowrap">
               <div>
-                <Text size="sm" fw={500}>{item.label}</Text>
-                <Text size="xs" c="dimmed">{item.description}</Text>
+                <Text size="sm" fw={500}>
+                  {item.label}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {item.description}
+                </Text>
               </div>
               <Switch
                 checked={settings[item.key]}
@@ -149,8 +210,12 @@ export function ComplianceSettingsTab() {
           {ENFORCEMENT_TOGGLES.map((item) => (
             <Group key={item.key} justify="space-between" wrap="nowrap">
               <div>
-                <Text size="sm" fw={500}>{item.label}</Text>
-                <Text size="xs" c="dimmed">{item.description}</Text>
+                <Text size="sm" fw={500}>
+                  {item.label}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {item.description}
+                </Text>
               </div>
               <Switch
                 checked={settings[item.key]}

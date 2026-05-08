@@ -67,11 +67,7 @@ impl Handler for ClaimSubmitHandler {
         "abdm.nhcx.claim_submit"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         // Required payload fields. The route that queues this event
         // is responsible for assembling the FHIR Bundle per
         // medbrains-fhir helpers.
@@ -99,13 +95,14 @@ impl Handler for ClaimSubmitHandler {
             .json(bundle)
             .send()
             .await
-            .map_err(classify_reqwest_err)?;
+            .map_err(|e| classify_reqwest_err(&e))?;
 
         let status = resp.status();
         if status.is_success() {
-            let body: Value = resp.json().await.map_err(|e| {
-                HandlerError::Transient(format!("nhcx parse: {e}"))
-            })?;
+            let body: Value = resp
+                .json()
+                .await
+                .map_err(|e| HandlerError::Transient(format!("nhcx parse: {e}")))?;
             let request_id = body["request_id"]
                 .as_str()
                 .or_else(|| body["api_call_id"].as_str())
@@ -142,7 +139,7 @@ async fn resolve_secret(ctx: &HandlerCtx, name: &str) -> Result<String, HandlerE
         .map_err(|e| HandlerError::Transient(format!("secret {name}: {e}")))
 }
 
-fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
+fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
     if e.is_timeout() || e.is_connect() {
         HandlerError::Transient(format!("network: {e}"))
     } else if e.is_builder() {
@@ -155,9 +152,7 @@ fn classify_reqwest_err(e: reqwest::Error) -> HandlerError {
 fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
     let trimmed = body.chars().take(512).collect::<String>();
     match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => {
-            HandlerError::Permanent(format!("nhcx {status}: {trimmed}"))
-        }
+        400 | 401 | 403 | 404 | 422 => HandlerError::Permanent(format!("nhcx {status}: {trimmed}")),
         429 | 500..=599 => HandlerError::Transient(format!("nhcx {status}: {trimmed}")),
         _ => HandlerError::Transient(format!("nhcx unexpected {status}: {trimmed}")),
     }

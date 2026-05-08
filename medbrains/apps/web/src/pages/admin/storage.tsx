@@ -6,6 +6,7 @@
  * Tabs: Policies / Usage / Transitions / Archived.
  */
 
+import { DonutChart } from "@mantine/charts";
 import {
   Alert,
   Badge,
@@ -19,17 +20,11 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { DonutChart } from "@mantine/charts";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import {
-  IconArchive,
-  IconChartDonut,
-  IconHistory,
-  IconSettings,
-} from "@tabler/icons-react";
+import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "../../components";
@@ -72,10 +67,7 @@ export function StoragePage() {
         subtitle="Hot / cold / archive tiers, retention policies, and the hash-chained transition log."
         actions={
           canSweep ? (
-            <Button
-              loading={sweepMutation.isPending}
-              onClick={() => sweepMutation.mutate()}
-            >
+            <Button loading={sweepMutation.isPending} onClick={() => sweepMutation.mutate()}>
               Run sweep now
             </Button>
           ) : undefined
@@ -109,8 +101,8 @@ export function StoragePage() {
         </Tabs.Panel>
         <Tabs.Panel value="archived" pt="md">
           <Alert color="blue">
-            Archive-tier listings come from the same patient-documents query;
-            see the MRD records page for per-record restore controls.
+            Archive-tier listings come from the same patient-documents query; see the MRD records
+            page for per-record restore controls.
           </Alert>
         </Tabs.Panel>
       </Tabs>
@@ -159,9 +151,7 @@ function PoliciesTab() {
             label: "Cold → Archive",
             render: (r) => (
               <Text size="xs" ff="monospace">
-                {r.cold_to_archive_days != null
-                  ? `${r.cold_to_archive_days}d`
-                  : "—"}
+                {r.cold_to_archive_days != null ? `${r.cold_to_archive_days}d` : "—"}
               </Text>
             ),
           },
@@ -170,9 +160,7 @@ function PoliciesTab() {
             label: "Archive → Delete",
             render: (r) => (
               <Text size="xs" ff="monospace">
-                {r.archive_to_delete_days != null
-                  ? `${r.archive_to_delete_days}d`
-                  : "—"}
+                {r.archive_to_delete_days != null ? `${r.archive_to_delete_days}d` : "—"}
               </Text>
             ),
           },

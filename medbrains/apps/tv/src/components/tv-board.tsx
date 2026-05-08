@@ -8,10 +8,10 @@
  * the right boot screen per deep-link.
  */
 
+import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
 
 export interface TvBoardProps {
   eyebrow: string;
@@ -21,13 +21,7 @@ export interface TvBoardProps {
   children?: ReactNode;
 }
 
-export function TvBoard({
-  eyebrow,
-  title,
-  subtitle,
-  legend,
-  children,
-}: TvBoardProps): ReactNode {
+export function TvBoard({ eyebrow, title, subtitle, legend, children }: TvBoardProps): ReactNode {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: COLORS.brandDeep }}

@@ -1,26 +1,26 @@
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  type OnNodesChange,
-  type OnEdgesChange,
-  type OnConnect,
-  type Node,
-  type Edge,
-  applyNodeChanges,
-  applyEdgeChanges,
   addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
+  Background,
   BackgroundVariant,
   type Connection,
+  Controls,
+  type Edge,
+  MiniMap,
+  type Node,
+  type OnConnect,
+  type OnEdgesChange,
+  type OnNodesChange,
+  ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useRef } from "react";
-import { SourceFieldNode } from "./nodes/SourceFieldNode";
-import { OperationNode } from "./nodes/OperationNode";
+import type { MapperNode } from "./mapperSync";
 import { CombinerNode } from "./nodes/CombinerNode";
 import { DestFieldNode } from "./nodes/DestFieldNode";
-import type { MapperNode } from "./mapperSync";
+import { OperationNode } from "./nodes/OperationNode";
+import { SourceFieldNode } from "./nodes/SourceFieldNode";
 
 // ── Custom node types ─────────────────────────────────────
 
@@ -39,7 +39,11 @@ interface FreeformMapperCanvasProps {
   onNodesChange: (nodes: MapperNode[]) => void;
   onEdgesChange: (edges: Edge[]) => void;
   onSelectionChange?: (selectedNodeIds: string[]) => void;
-  onDrop?: (type: string, data: Record<string, unknown>, position: { x: number; y: number }) => void;
+  onDrop?: (
+    type: string,
+    data: Record<string, unknown>,
+    position: { x: number; y: number },
+  ) => void;
 }
 
 // ── Component ─────────────────────────────────────────────

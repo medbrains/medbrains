@@ -27,7 +27,6 @@ use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 use medbrains_core::permissions;
 use sqlx::PgPool;
 
-
 /// Insert DEFAULT tenant + `super_admin` user + built-in roles + operational
 /// master data if they don't already exist.
 pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {

@@ -20,11 +20,7 @@ impl Handler for CriticalValueHandler {
         "lab.critical_value_notify"
     }
 
-    async fn handle(
-        &self,
-        ctx: &HandlerCtx,
-        payload: &Value,
-    ) -> Result<Value, HandlerError> {
+    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
         tracing::info!(
             tenant_id = %ctx.tenant_id,
             event_id = %ctx.event_id,

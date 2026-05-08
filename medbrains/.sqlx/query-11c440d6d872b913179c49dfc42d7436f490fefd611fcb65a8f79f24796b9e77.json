@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nabh_bmw_disposal_log (tenant_id, disposal_date, waste_category, waste_subtype, quantity_kg, source_department, bag_count, barcode_refs, stored_at, handed_over_at, disposal_agency, disposal_method, handed_over_by, received_by_agency, notes, source_module, source_record_id) SELECT b.tenant_id, b.record_date, CASE b.waste_category::text WHEN 'white_translucent' THEN 'white' ELSE b.waste_category::text END, b.waste_category::text, b.weight_kg, b.department_id::text, b.container_count, ARRAY_REMOVE(ARRAY[b.manifest_number], NULL)::text[], b.record_date::timestamptz, b.record_date::timestamptz + interval '12 hours', COALESCE(NULLIF(b.disposal_vendor, ''), 'In-house holding area'), CASE b.waste_category::text WHEN 'yellow' THEN 'incineration' WHEN 'cytotoxic' THEN 'incineration' WHEN 'chemical' THEN 'sanitary_landfill' WHEN 'blue' THEN 'sanitary_landfill' ELSE 'autoclave' END, b.recorded_by, NULLIF(b.disposal_vendor, ''), b.notes, $3, b.id FROM biowaste_records b WHERE b.id = $1 AND b.tenant_id = $2 ON CONFLICT (tenant_id, source_module, source_record_id) WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL DO UPDATE SET disposal_date = EXCLUDED.disposal_date, waste_category = EXCLUDED.waste_category, waste_subtype = EXCLUDED.waste_subtype, quantity_kg = EXCLUDED.quantity_kg, source_department = EXCLUDED.source_department, bag_count = EXCLUDED.bag_count, barcode_refs = EXCLUDED.barcode_refs, stored_at = EXCLUDED.stored_at, handed_over_at = EXCLUDED.handed_over_at, disposal_agency = EXCLUDED.disposal_agency, disposal_method = EXCLUDED.disposal_method, handed_over_by = EXCLUDED.handed_over_by, received_by_agency = EXCLUDED.received_by_agency, notes = EXCLUDED.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "11c440d6d872b913179c49dfc42d7436f490fefd611fcb65a8f79f24796b9e77"
+}

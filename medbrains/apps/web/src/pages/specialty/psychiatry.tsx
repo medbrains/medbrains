@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -9,28 +8,30 @@ import {
   Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconPencil, IconShieldOff } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  PsychPatient,
-  PsychAssessment,
-  PsychEctSession,
-  PsychRestraint,
-  PsychMhrbNotification,
   CreatePsychPatientRequest,
   PsychAdmissionCategory,
+  PsychAssessment,
+  PsychEctSession,
+  PsychMhrbNotification,
+  PsychPatient,
+  PsychRestraint,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { IconPencil, IconPlus, IconShieldOff } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
 import type { Column } from "../../components/DataTable";
+import { PatientNameCell } from "../../components/PatientNameCell";
+import { useRequirePermission } from "../../hooks/useRequirePermission";
 
 const ADMISSION_CATEGORIES: { value: PsychAdmissionCategory; label: string }[] = [
   { value: "independent", label: "Independent" },
@@ -79,7 +80,8 @@ export function PsychiatryPage() {
   });
 
   const [patForm, setPatForm] = useState<CreatePsychPatientRequest>({
-    patient_id: "", admission_category: "independent",
+    patient_id: "",
+    admission_category: "independent",
   });
 
   const createPat = useMutation({
@@ -87,7 +89,11 @@ export function PsychiatryPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["psych-patients"] });
       patHandlers.close();
-      notifications.show({ title: "Created", message: "Psychiatric patient registered", color: "success" });
+      notifications.show({
+        title: "Created",
+        message: "Psychiatric patient registered",
+        color: "success",
+      });
     },
   });
 
@@ -100,13 +106,37 @@ export function PsychiatryPage() {
   });
 
   const patCols: Column<PsychPatient>[] = [
-    { key: "patient_id", label: "Patient", render: (r) => <Text size="sm">{r.patient_id.slice(0, 8)}</Text> },
-    { key: "category", label: "Category", render: (r) => <Badge>{r.admission_category.replace(/_/g, " ")}</Badge> },
-    { key: "substance", label: "Substance Abuse", render: (r) => r.substance_abuse_flag ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text> },
-    { key: "restricted", label: "Restricted", render: (r) => r.is_restricted ? <Badge color="danger">RESTRICTED</Badge> : <Text size="sm">No</Text> },
-    { key: "nominated", label: "Nominated Rep", render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None"}</Text> },
     {
-      key: "actions", label: "", render: (r) => (
+      key: "patient_id",
+      label: "Patient",
+      render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (r) => <Badge>{r.admission_category.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "substance",
+      label: "Substance Abuse",
+      render: (r) =>
+        r.substance_abuse_flag ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text>,
+    },
+    {
+      key: "restricted",
+      label: "Restricted",
+      render: (r) =>
+        r.is_restricted ? <Badge color="danger">RESTRICTED</Badge> : <Text size="sm">No</Text>,
+    },
+    {
+      key: "nominated",
+      label: "Nominated Rep",
+      render: (r) => <Text size="sm">{r.nominated_rep_name ?? "None"}</Text>,
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (r) => (
         <ActionIcon variant="subtle" onClick={() => setSelectedId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
         </ActionIcon>
@@ -116,31 +146,108 @@ export function PsychiatryPage() {
 
   const assessCols: Column<PsychAssessment>[] = [
     { key: "type", label: "Type", render: (r) => <Badge>{r.assessment_type}</Badge> },
-    { key: "ham_d", label: "HAM-D", render: (r) => <Text size="sm">{r.ham_d_score ?? "---"}</Text> },
+    {
+      key: "ham_d",
+      label: "HAM-D",
+      render: (r) => <Text size="sm">{r.ham_d_score ?? "---"}</Text>,
+    },
     { key: "bprs", label: "BPRS", render: (r) => <Text size="sm">{r.bprs_score ?? "---"}</Text> },
-    { key: "date", label: "Date", render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text> },
+    {
+      key: "date",
+      label: "Date",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
   ];
 
   const ectCols: Column<PsychEctSession>[] = [
-    { key: "session", label: "Session #", render: (r) => <Text size="sm">{r.session_number}</Text> },
-    { key: "laterality", label: "Laterality", render: (r) => <Badge>{r.laterality.replace(/_/g, " ")}</Badge> },
-    { key: "consent", label: "Consent", render: (r) => r.consent_obtained ? <Badge color="success">Yes</Badge> : <Badge color="danger">No</Badge> },
-    { key: "stimulus", label: "Stimulus", render: (r) => <Text size="sm">{r.stimulus_dose ?? "---"}</Text> },
-    { key: "seizure", label: "Seizure Duration", render: (r) => <Text size="sm">{r.seizure_duration ?? "---"}</Text> },
-    { key: "date", label: "Date", render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text> },
+    {
+      key: "session",
+      label: "Session #",
+      render: (r) => <Text size="sm">{r.session_number}</Text>,
+    },
+    {
+      key: "laterality",
+      label: "Laterality",
+      render: (r) => <Badge>{r.laterality.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "consent",
+      label: "Consent",
+      render: (r) =>
+        r.consent_obtained ? <Badge color="success">Yes</Badge> : <Badge color="danger">No</Badge>,
+    },
+    {
+      key: "stimulus",
+      label: "Stimulus",
+      render: (r) => <Text size="sm">{r.stimulus_dose ?? "---"}</Text>,
+    },
+    {
+      key: "seizure",
+      label: "Seizure Duration",
+      render: (r) => <Text size="sm">{r.seizure_duration ?? "---"}</Text>,
+    },
+    {
+      key: "date",
+      label: "Date",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
   ];
 
   const restraintCols: Column<PsychRestraint>[] = [
-    { key: "type", label: "Type", render: (r) => <Badge color={r.restraint_type === "seclusion" ? "danger" : r.restraint_type === "chemical" ? "orange" : "warning"}>{r.restraint_type}</Badge> },
-    { key: "start", label: "Start", render: (r) => <Text size="sm">{new Date(r.start_time).toLocaleString()}</Text> },
-    { key: "review_due", label: "Review Due", render: (r) => <Text size="sm" c={new Date(r.review_due_at) < new Date() && !r.reviewed_at ? "danger" : undefined}>{new Date(r.review_due_at).toLocaleString()}</Text> },
-    { key: "released", label: "Released", render: (r) => r.released_at ? <Badge color="success">Yes</Badge> : <Badge color="danger">Active</Badge> },
     {
-      key: "actions", label: "", render: (r) => !r.released_at && canRestraint ? (
-        <ActionIcon variant="subtle" color="success" onClick={() => releaseRestraint.mutate(r.id)} aria-label="Shield Off">
-          <IconShieldOff size={16} />
-        </ActionIcon>
-      ) : null,
+      key: "type",
+      label: "Type",
+      render: (r) => (
+        <Badge
+          color={
+            r.restraint_type === "seclusion"
+              ? "danger"
+              : r.restraint_type === "chemical"
+                ? "orange"
+                : "warning"
+          }
+        >
+          {r.restraint_type}
+        </Badge>
+      ),
+    },
+    {
+      key: "start",
+      label: "Start",
+      render: (r) => <Text size="sm">{new Date(r.start_time).toLocaleString()}</Text>,
+    },
+    {
+      key: "review_due",
+      label: "Review Due",
+      render: (r) => (
+        <Text
+          size="sm"
+          c={new Date(r.review_due_at) < new Date() && !r.reviewed_at ? "danger" : undefined}
+        >
+          {new Date(r.review_due_at).toLocaleString()}
+        </Text>
+      ),
+    },
+    {
+      key: "released",
+      label: "Released",
+      render: (r) =>
+        r.released_at ? <Badge color="success">Yes</Badge> : <Badge color="danger">Active</Badge>,
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (r) =>
+        !r.released_at && canRestraint ? (
+          <ActionIcon
+            variant="subtle"
+            color="success"
+            onClick={() => releaseRestraint.mutate(r.id)}
+            aria-label="Shield Off"
+          >
+            <IconShieldOff size={16} />
+          </ActionIcon>
+        ) : null,
     },
   ];
 
@@ -149,7 +256,13 @@ export function PsychiatryPage() {
       <PageHeader
         title="Psychiatry"
         subtitle="MHCA 2017 compliant psychiatric care management"
-        actions={canCreate ? <Button leftSection={<IconPlus size={16} />} onClick={patHandlers.open}>Register Patient</Button> : undefined}
+        actions={
+          canCreate ? (
+            <Button leftSection={<IconPlus size={16} />} onClick={patHandlers.open}>
+              Register Patient
+            </Button>
+          ) : undefined
+        }
       />
 
       <Tabs value={tab} onChange={setTab} mt="md">
@@ -165,41 +278,139 @@ export function PsychiatryPage() {
           <DataTable columns={patCols} data={patients} loading={isLoading} rowKey={(r) => r.id} />
         </Tabs.Panel>
         <Tabs.Panel value="assessments" pt="md">
-          {selectedId ? <DataTable columns={assessCols} data={assessments} loading={false} rowKey={(r) => r.id} /> : <Text c="dimmed">Select a patient to view assessments</Text>}
+          {selectedId ? (
+            <DataTable
+              columns={assessCols}
+              data={assessments}
+              loading={false}
+              rowKey={(r) => r.id}
+            />
+          ) : (
+            <Text c="dimmed">Select a patient to view assessments</Text>
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="ect" pt="md">
-          {selectedId ? <DataTable columns={ectCols} data={ectSessions} loading={false} rowKey={(r) => r.id} /> : <Text c="dimmed">Select a patient to view ECT sessions</Text>}
+          {selectedId ? (
+            <DataTable columns={ectCols} data={ectSessions} loading={false} rowKey={(r) => r.id} />
+          ) : (
+            <Text c="dimmed">Select a patient to view ECT sessions</Text>
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="restraint" pt="md">
-          {selectedId ? <DataTable columns={restraintCols} data={restraints} loading={false} rowKey={(r) => r.id} /> : <Text c="dimmed">Select a patient to view restraint records</Text>}
+          {selectedId ? (
+            <DataTable
+              columns={restraintCols}
+              data={restraints}
+              loading={false}
+              rowKey={(r) => r.id}
+            />
+          ) : (
+            <Text c="dimmed">Select a patient to view restraint records</Text>
+          )}
         </Tabs.Panel>
         <Tabs.Panel value="mhrb" pt="md">
           {selectedId ? (
             <DataTable
               columns={[
-                { key: "type", label: "Type", render: (r: PsychMhrbNotification) => <Badge>{r.notification_type}</Badge> },
-                { key: "ref", label: "Reference", render: (r: PsychMhrbNotification) => <Text size="sm">{r.reference_number ?? "---"}</Text> },
-                { key: "status", label: "Status", render: (r: PsychMhrbNotification) => <Badge>{r.status}</Badge> },
-                { key: "date", label: "Date", render: (r: PsychMhrbNotification) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text> },
+                {
+                  key: "type",
+                  label: "Type",
+                  render: (r: PsychMhrbNotification) => <Badge>{r.notification_type}</Badge>,
+                },
+                {
+                  key: "ref",
+                  label: "Reference",
+                  render: (r: PsychMhrbNotification) => (
+                    <Text size="sm">{r.reference_number ?? "---"}</Text>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (r: PsychMhrbNotification) => <Badge>{r.status}</Badge>,
+                },
+                {
+                  key: "date",
+                  label: "Date",
+                  render: (r: PsychMhrbNotification) => (
+                    <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>
+                  ),
+                },
               ]}
               data={mhrb}
               loading={false}
               rowKey={(r) => r.id}
             />
-          ) : <Text c="dimmed">Select a patient to view MHRB notifications</Text>}
+          ) : (
+            <Text c="dimmed">Select a patient to view MHRB notifications</Text>
+          )}
         </Tabs.Panel>
       </Tabs>
 
-      <Drawer opened={patOpen} onClose={patHandlers.close} title="Register Psychiatric Patient" size="lg" position="right">
+      <Drawer
+        opened={patOpen}
+        onClose={patHandlers.close}
+        title="Register Psychiatric Patient"
+        size="lg"
+        position="right"
+      >
         <Stack>
-          <TextInput label="Patient ID" required value={patForm.patient_id} onChange={(e) => setPatForm((p) => ({ ...p, patient_id: e.currentTarget.value }))} />
-          <Select label="Admission Category" required data={ADMISSION_CATEGORIES} value={patForm.admission_category} onChange={(v) => setPatForm((p) => ({ ...p, admission_category: (v ?? "independent") as PsychAdmissionCategory }))} />
-          <Textarea label="Advance Directive" value={patForm.advance_directive_text ?? ""} onChange={(e) => setPatForm((p) => ({ ...p, advance_directive_text: e.currentTarget.value }))} />
-          <TextInput label="Nominated Rep Name" value={patForm.nominated_rep_name ?? ""} onChange={(e) => setPatForm((p) => ({ ...p, nominated_rep_name: e.currentTarget.value }))} />
-          <TextInput label="Nominated Rep Contact" value={patForm.nominated_rep_contact ?? ""} onChange={(e) => setPatForm((p) => ({ ...p, nominated_rep_contact: e.currentTarget.value }))} />
-          <TextInput label="Nominated Rep Relation" value={patForm.nominated_rep_relation ?? ""} onChange={(e) => setPatForm((p) => ({ ...p, nominated_rep_relation: e.currentTarget.value }))} />
-          <Switch label="Substance Abuse" checked={patForm.substance_abuse_flag ?? false} onChange={(e) => setPatForm((p) => ({ ...p, substance_abuse_flag: e.currentTarget.checked }))} />
-          <Button onClick={() => createPat.mutate(patForm)} loading={createPat.isPending}>Register Patient</Button>
+          <TextInput
+            label="Patient ID"
+            required
+            value={patForm.patient_id}
+            onChange={(e) => setPatForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+          />
+          <Select
+            label="Admission Category"
+            required
+            data={ADMISSION_CATEGORIES}
+            value={patForm.admission_category}
+            onChange={(v) =>
+              setPatForm((p) => ({
+                ...p,
+                admission_category: (v ?? "independent") as PsychAdmissionCategory,
+              }))
+            }
+          />
+          <Textarea
+            label="Advance Directive"
+            value={patForm.advance_directive_text ?? ""}
+            onChange={(e) =>
+              setPatForm((p) => ({ ...p, advance_directive_text: e.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Nominated Rep Name"
+            value={patForm.nominated_rep_name ?? ""}
+            onChange={(e) =>
+              setPatForm((p) => ({ ...p, nominated_rep_name: e.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Nominated Rep Contact"
+            value={patForm.nominated_rep_contact ?? ""}
+            onChange={(e) =>
+              setPatForm((p) => ({ ...p, nominated_rep_contact: e.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Nominated Rep Relation"
+            value={patForm.nominated_rep_relation ?? ""}
+            onChange={(e) =>
+              setPatForm((p) => ({ ...p, nominated_rep_relation: e.currentTarget.value }))
+            }
+          />
+          <Switch
+            label="Substance Abuse"
+            checked={patForm.substance_abuse_flag ?? false}
+            onChange={(e) =>
+              setPatForm((p) => ({ ...p, substance_abuse_flag: e.currentTarget.checked }))
+            }
+          />
+          <Button onClick={() => createPat.mutate(patForm)} loading={createPat.isPending}>
+            Register Patient
+          </Button>
         </Stack>
       </Drawer>
     </div>

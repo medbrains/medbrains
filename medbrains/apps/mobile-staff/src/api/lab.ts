@@ -2,8 +2,8 @@
  * Lab API methods — order queue + results.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface LabOrderRow {
   id: string;

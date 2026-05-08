@@ -1,19 +1,14 @@
 import { Button, Group, NumberInput, Select, Stack, TextInput } from "@mantine/core";
+import type { BasketDrugItem, BasketItem, PharmacyCatalog } from "@medbrains/types";
 import { useState } from "react";
-import type { BasketItem, BasketDrugItem } from "@medbrains/types";
-import type { PharmacyCatalog } from "@medbrains/types";
 import { DrugSearchSelect } from "../../DrugSearchSelect";
 
 interface DrugPickerFormProps {
   onAdd: (item: BasketItem) => void;
 }
 
-const FREQ = [
-  "OD", "BD", "TDS", "QID", "Q4H", "Q6H", "Q8H", "Q12H", "PRN", "STAT", "Once",
-];
-const ROUTES = [
-  "PO", "IV", "IM", "SC", "Inhalation", "Topical", "PR", "SL", "Per NG",
-];
+const FREQ = ["OD", "BD", "TDS", "QID", "Q4H", "Q6H", "Q8H", "Q12H", "PRN", "STAT", "Once"];
+const ROUTES = ["PO", "IV", "IM", "SC", "Inhalation", "Topical", "PR", "SL", "Per NG"];
 
 export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
   const [drugId, setDrugId] = useState("");
@@ -27,8 +22,7 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
   const [scheduleX, setScheduleX] = useState("");
 
   const isScheduleX =
-    drug?.drug_schedule != null &&
-    String(drug.drug_schedule).toUpperCase() === "X";
+    drug?.drug_schedule != null && String(drug.drug_schedule).toUpperCase() === "X";
 
   const reset = () => {
     setDrugId("");
@@ -80,13 +74,7 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
           onChange={(e) => setDose(e.currentTarget.value)}
           required
         />
-        <Select
-          label="Frequency"
-          data={FREQ}
-          value={frequency}
-          onChange={setFrequency}
-          required
-        />
+        <Select label="Frequency" data={FREQ} value={frequency} onChange={setFrequency} required />
       </Group>
       <Group grow>
         <Select label="Route" data={ROUTES} value={route} onChange={setRoute} required />
@@ -97,12 +85,7 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
           min={0}
           max={365}
         />
-        <NumberInput
-          label="Quantity"
-          value={quantity}
-          onChange={(v) => setQuantity(v)}
-          min={1}
-        />
+        <NumberInput label="Quantity" value={quantity} onChange={(v) => setQuantity(v)} min={1} />
       </Group>
       <TextInput
         label="Indication"

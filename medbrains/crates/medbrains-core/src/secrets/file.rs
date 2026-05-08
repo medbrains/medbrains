@@ -50,12 +50,10 @@ impl FileSecretResolver {
 impl SecretResolver for FileSecretResolver {
     async fn get(&self, key: &str) -> Result<String, SecretError> {
         let path = self.path_for(key);
-        let bytes = tokio::fs::read(&path)
-            .await
-            .map_err(|e| match e.kind() {
-                std::io::ErrorKind::NotFound => SecretError::NotFound(key.to_owned()),
-                _ => SecretError::Io(format!("{}: {e}", path.display())),
-            })?;
+        let bytes = tokio::fs::read(&path).await.map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => SecretError::NotFound(key.to_owned()),
+            _ => SecretError::Io(format!("{}: {e}", path.display())),
+        })?;
         let s = String::from_utf8(bytes).map_err(|e| SecretError::Parse(e.to_string()))?;
         Ok(s.trim_end_matches(['\n', '\r']).to_owned())
     }
@@ -89,10 +87,7 @@ mod tests {
     fn path_sanitizes_slashes() {
         let r = FileSecretResolver::new("/x");
         let p = r.path_for("medbrains/dev/global/foo");
-        assert_eq!(
-            p.to_string_lossy(),
-            "/x/medbrains-dev-global-foo.txt"
-        );
+        assert_eq!(p.to_string_lossy(), "/x/medbrains-dev-global-foo.txt");
     }
 
     #[test]

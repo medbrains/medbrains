@@ -10,9 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
@@ -83,7 +81,9 @@ pub async fn my_day(
     .await?;
 
     // Today counts — best-effort against existing tables
-    let today = compute_today_counts(&mut tx, &claims).await.unwrap_or_default();
+    let today = compute_today_counts(&mut tx, &claims)
+        .await
+        .unwrap_or_default();
 
     tx.commit().await?;
 

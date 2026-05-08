@@ -1,0 +1,140 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO pharmacy_orders\n          (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,\n           status, notes, dispensing_type, discharge_summary_id, billing_package_id,\n           store_location_id)\n        VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)\n        RETURNING id, tenant_id, prescription_id, patient_id AS \"patient_id!\",\n                  encounter_id, ordered_by, status, notes,\n                  dispensing_type AS \"dispensing_type: _\",\n                  discharge_summary_id, billing_package_id, store_location_id,\n                  interaction_check_result, dispensed_by, dispensed_at,\n                  created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "prescription_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "patient_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "encounter_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "ordered_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "dispensing_type: _",
+        "type_info": {
+          "Custom": {
+            "name": "pharmacy_dispensing_type",
+            "kind": {
+              "Enum": [
+                "prescription",
+                "otc",
+                "discharge",
+                "package",
+                "emergency"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "discharge_summary_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "billing_package_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "store_location_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "interaction_check_result",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 13,
+        "name": "dispensed_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "dispensed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "1fdef5f3ffec0278ceb13c702ab24c62d7cbde9324c6d4773d3f3516bf1981a1"
+}

@@ -1,7 +1,7 @@
 # MedBrains standalone deploy kit
 
 Single-server deploy: postgres-17 in docker, medbrains-server as a
-systemd unit, Caddy 2 reverse proxy with automatic Let's Encrypt,
+systemd unit, MedBrains Pingora edge proxy with Certbot-issued TLS,
 daily storage-tier sweeper.
 
 This is the **pilot path** — one box, three tier roots
@@ -21,11 +21,13 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
   # On the build host (Linux x86_64 or aarch64 — match the target):
   cargo build -p medbrains-server --release --bin medbrains-server
   cargo build -p medbrains-server --release --bin medbrains-archive
+  cargo build -p medbrains-proxy --release --bin medbrains-proxy
   pnpm --filter @medbrains/web build
 
   # Then ship to the deploy host:
   scp target/release/medbrains-server  root@<host>:/tmp/
   scp target/release/medbrains-archive root@<host>:/tmp/
+  scp target/release/medbrains-proxy   root@<host>:/tmp/
   rsync -a apps/web/dist/ root@<host>:/tmp/medbrains-web/
   scp -r medbrains/deploy/standalone root@<host>:/tmp/
   ```
@@ -41,20 +43,20 @@ secrets. Picks up where it left off if interrupted.
 
 ## What the installer does
 
-1. Installs system packages: `docker.io`, `caddy`, `openssl`.
+1. Installs system packages: Docker, `certbot`, `openssl`.
 2. Creates `medbrains` system user + directory tree under
    `/var/lib/medbrains/`.
 3. Writes `/etc/medbrains/env` (postgres password, Ed25519 JWT
    keypair both auto-generated; permissions `640 root:medbrains`).
 4. Brings up postgres-17 via docker compose, bound to localhost
    only.
-5. Installs `medbrains-server` + `medbrains-archive` binaries to
+5. Installs `medbrains-server`, `medbrains-archive`, and `medbrains-proxy` binaries to
    `/usr/local/bin`.
 6. Copies SPA static files to `/var/www/medbrains`.
 7. Installs + enables `medbrains-server.service` (long-running) and
    `medbrains-archive.timer` (daily 02:00 oneshot).
-8. Renders `Caddyfile.tmpl` → `/etc/caddy/Caddyfile`, reloads Caddy.
-   Caddy auto-issues + renews TLS certs.
+8. Issues TLS with Certbot, copies certs to `/etc/medbrains/tls`,
+   renders `PingoraProxy.toml.tmpl`, and starts `medbrains-proxy`.
 9. Probes `/api/health` and prints the public URL.
 
 ## Verification
@@ -63,7 +65,7 @@ secrets. Picks up where it left off if interrupted.
 systemctl is-active medbrains-server.service           # active
 systemctl list-timers medbrains-archive.timer          # next run scheduled
 curl -fsS http://127.0.0.1:3000/api/health             # {"status":"ok",...}
-journalctl -u caddy -f                                 # ACME challenge logs
+journalctl -u medbrains-proxy -f                       # edge proxy logs
 curl -I https://hims.alagappahospital.com              # 200 once ACME completes
 ```
 
@@ -72,6 +74,7 @@ curl -I https://hims.alagappahospital.com              # 200 once ACME completes
 | Task | Command |
 |---|---|
 | Tail server logs | `journalctl -u medbrains-server -f` |
+| Tail edge proxy logs | `journalctl -u medbrains-proxy -f` |
 | Tail archive sweeper | `journalctl -u medbrains-archive -f` |
 | Run sweeper now | `sudo systemctl start medbrains-archive.service` |
 | Restart server | `sudo systemctl restart medbrains-server.service` |
@@ -84,7 +87,11 @@ curl -I https://hims.alagappahospital.com              # 200 once ACME completes
 | File | Purpose |
 |---|---|
 | `install.sh` | Idempotent bootstrap script |
-| `Caddyfile.tmpl` | Caddy reverse-proxy template ({{DOMAIN}}, {{ADMIN_EMAIL}}) |
+| `PingoraProxy.toml.tmpl` | Pingora edge proxy template |
+| `medbrains-proxy.service` | systemd unit for the Pingora edge proxy |
+| `copy-medbrains-proxy-cert` | Certbot deploy hook that copies renewed certs into `/etc/medbrains/tls` |
+| `stop-medbrains-proxy` | Certbot pre-renewal hook so standalone HTTP-01 can bind port 80 |
+| `start-medbrains-proxy` | Certbot post-renewal hook that brings the edge proxy back |
 | `medbrains-server.service` | systemd unit for the API + SPA server |
 | `medbrains-archive.service` | systemd one-shot for the storage sweeper |
 | `medbrains-archive.timer` | daily 02:00 timer |

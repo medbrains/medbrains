@@ -3,8 +3,8 @@
  * Wire shape mirrors `crates/medbrains-server/src/routes/opd.rs`.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface QueueEntry {
   id: string;

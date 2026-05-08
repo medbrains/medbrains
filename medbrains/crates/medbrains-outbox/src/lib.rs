@@ -27,7 +27,7 @@ pub mod queue;
 pub mod worker;
 
 pub use handler::{Handler, HandlerCtx, HandlerError, Registry};
-pub use queue::{queue_in_tx, OutboxRow};
+pub use queue::{OutboxRow, queue_in_tx};
 pub use worker::{Worker, WorkerConfig};
 
 use thiserror::Error;

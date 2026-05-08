@@ -24,11 +24,11 @@
  * must happen exactly once per app lifetime.
  */
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 const DEVICE_ID_KEY = "medbrains-crdt-device-id";
 
@@ -122,11 +122,7 @@ export function TenantConfigProvider({
     };
   }, [user, clinicalSettings, deviceId, edgeUrlOverride, modeOverride]);
 
-  return (
-    <TenantConfigContext.Provider value={value}>
-      {children}
-    </TenantConfigContext.Provider>
-  );
+  return <TenantConfigContext.Provider value={value}>{children}</TenantConfigContext.Provider>;
 }
 
 /**

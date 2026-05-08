@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import type { QueueEntry } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -87,7 +87,7 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
 
   const handleQueueItemAction = (
     action: "call" | "start" | "complete" | "noShow",
-    item: QueueEntry
+    item: QueueEntry,
   ) => {
     switch (action) {
       case "call":
@@ -164,7 +164,12 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
                 token_number: item.token_number,
                 patient_name: item.patient_name,
                 uhid: item.uhid,
-                status: item.status as "waiting" | "called" | "in_consultation" | "completed" | "no_show",
+                status: item.status as
+                  | "waiting"
+                  | "called"
+                  | "in_consultation"
+                  | "completed"
+                  | "no_show",
                 // Calculate wait time from called_at if available
                 wait_time_minutes: item.called_at
                   ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)

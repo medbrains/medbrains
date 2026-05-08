@@ -2,8 +2,8 @@
  * HR API methods — attendance + leave.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface AttendanceRow {
   id: string;

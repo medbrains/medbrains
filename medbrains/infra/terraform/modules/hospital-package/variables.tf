@@ -6,8 +6,8 @@ variable "tier" {
   type        = string
   default     = "starter"
   validation {
-    condition     = contains(["starter", "growth", "enterprise", "enterprise-k3s"], var.tier)
-    error_message = "tier must be one of: starter, growth, enterprise, enterprise-k3s."
+    condition     = contains(["test", "demo", "starter", "growth", "enterprise", "enterprise-k3s"], var.tier)
+    error_message = "tier must be one of: test, demo, starter, growth, enterprise, enterprise-k3s."
   }
 }
 
@@ -35,6 +35,16 @@ variable "admin_email" {
   type        = string
 }
 
+variable "edge_proxy" {
+  description = "Standalone edge proxy for test/demo/starter. Pingora is the only supported target."
+  type        = string
+  default     = "pingora"
+  validation {
+    condition     = var.edge_proxy == "pingora"
+    error_message = "edge_proxy must be pingora."
+  }
+}
+
 # ── Starter / Enterprise-k3s shared knobs ─────────────────────────────
 
 variable "aws_ssh_key_name" {
@@ -50,9 +60,9 @@ variable "ssh_private_key_path" {
 }
 
 variable "aws_instance_type" {
-  description = "EC2 instance type for tiers that boot a single host (starter, enterprise-k3s). Sized per tier — overridden in tier-specific defaults."
+  description = "Optional EC2 instance type override for tiers that boot a single host. Empty uses the package default for test/demo/starter/enterprise-k3s."
   type        = string
-  default     = "t3.small"
+  default     = ""
 }
 
 # ── Starter-tier build artefact paths (cargo + pnpm output) ───────────

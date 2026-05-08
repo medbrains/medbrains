@@ -139,13 +139,9 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
         return Ok(());
     }
-    let perms = crate::routes::auth::resolve_permissions(
-        db,
-        claims.tenant_id,
-        claims.sub,
-        &claims.role,
-    )
-    .await?;
+    let perms =
+        crate::routes::auth::resolve_permissions(db, claims.tenant_id, claims.sub, &claims.role)
+            .await?;
     claims.permissions = perms;
     Ok(())
 }
@@ -153,26 +149,23 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
 /// Reject tokens whose `perm_version` is stale.
 ///
 /// Compares the JWT's `perm_version` against the current DB value.
-/// Returns `Unauthorized` if the token is outdated (permissions changed
-/// since it was issued). Tokens with `perm_version == 0` (old tokens
-/// issued before this feature) are allowed through.
+/// Returns `Unauthorized` if the token is outdated, missing a permission
+/// version, or references a user row that no longer exists.
 async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
-    // Skip check for legacy tokens (version 0 = pre-feature)
-    if claims.perm_version == 0 {
-        return Ok(());
+    if claims.perm_version <= 0 {
+        return Err(AppError::Unauthorized);
     }
 
-    let current: Option<i32> =
-        sqlx::query_scalar("SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2")
-            .bind(claims.sub)
-            .bind(claims.tenant_id)
-            .fetch_optional(db)
-            .await?;
+    let current: Option<i32> = sqlx::query_scalar!(
+        "SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2",
+        claims.sub,
+        claims.tenant_id
+    )
+    .fetch_optional(db)
+    .await?;
 
     match current {
         Some(v) if v == claims.perm_version => Ok(()),
-        Some(_) => Err(AppError::Unauthorized),
-        // User not found — let downstream handle it
-        None => Ok(()),
+        Some(_) | None => Err(AppError::Unauthorized),
     }
 }

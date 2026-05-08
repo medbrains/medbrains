@@ -19,16 +19,22 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconCheck, IconClock, IconCurrencyRupee, IconStack2 } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@medbrains/api";
 import { useOrderBasketStore } from "@medbrains/stores";
 import type { BasketItem } from "@medbrains/types";
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconClock,
+  IconCurrencyRupee,
+  IconStack2,
+} from "@tabler/icons-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BasketItemRow } from "./BasketItemRow";
-import { WarningsPanel } from "./WarningsPanel";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
 import { LabPickerForm } from "./pickers/LabPickerForm";
 import { RadiologyPickerForm } from "./pickers/RadiologyPickerForm";
+import { WarningsPanel } from "./WarningsPanel";
 
 interface OrderBasketWorkspaceProps {
   opened: boolean;
@@ -103,14 +109,7 @@ export function OrderBasketWorkspace({
     return () => {
       if (checkTimer.current) clearTimeout(checkTimer.current);
     };
-  }, [
-    opened,
-    basket.items,
-    encounterId,
-    patientId,
-    basket.setChecking,
-    basket.setWarnings,
-  ]);
+  }, [opened, basket.items, encounterId, patientId, basket.setChecking, basket.setWarnings]);
 
   // Load draft on open (if any)
   useEffect(() => {
@@ -300,9 +299,7 @@ export function OrderBasketWorkspace({
               icon={<IconCurrencyRupee size={16} />}
               title={
                 <Group gap="xs">
-                  <Text fw={600}>
-                    Est. ₹{costPreview.estimated_total}
-                  </Text>
+                  <Text fw={600}>Est. ₹{costPreview.estimated_total}</Text>
                   <Text size="xs" c="dimmed">
                     (subtotal ₹{costPreview.subtotal} + tax ₹{costPreview.estimated_tax})
                   </Text>
@@ -539,9 +536,7 @@ function CarryForwardModal({
   }, [opened, patientId, encounterId]);
 
   const toggle = (idx: number) => {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, checked: !r.checked } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, checked: !r.checked } : r)));
   };
 
   const handleAdd = () => {
@@ -557,7 +552,12 @@ function CarryForwardModal({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Carry forward from previous encounter" size="lg">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Carry forward from previous encounter"
+      size="lg"
+    >
       {loading && <Text size="sm">Loading…</Text>}
       {!loading && rows.length === 0 && (
         <Text size="sm" c="dimmed">

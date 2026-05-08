@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # MedBrains standalone deploy — bootstrap a single Ubuntu/Debian
-# server to run the HMS behind Caddy with auto Let's Encrypt.
+# server to run the HMS behind the MedBrains Pingora edge proxy.
 #
-#   sudo bash install.sh hims.alagappahospital.com admin@example.com
+#   sudo bash install.sh hims.alagappahospital.com admin@example.com [backup-bucket]
 #
 # Idempotent: re-running advances state without breaking anything.
 
@@ -13,10 +13,15 @@ ADMIN_EMAIL="${2:-}"
 # 3rd arg = S3 backup bucket name (passed by terraform). Optional —
 # omitted = no S3 backups (timer still installed but exits noisily).
 BACKUP_BUCKET="${3:-${BACKUP_BUCKET:-}}"
+EDGE_PROXY="${4:-${EDGE_PROXY:-pingora}}"
+if [[ "$EDGE_PROXY" != "pingora" ]]; then
+    echo "ERROR: standalone edge proxy is Pingora-only; got '$EDGE_PROXY'"
+    exit 1
+fi
 
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
     cat <<USAGE
-Usage:  sudo bash install.sh <domain> <admin-email>
+Usage:  sudo bash install.sh <domain> <admin-email> [backup-bucket]
 
 Examples:
   sudo bash install.sh hims.alagappahospital.com ops@alagappahospital.com
@@ -28,6 +33,8 @@ Prerequisites:
   - Pre-built binaries on this host:
       /tmp/medbrains-server      (the Rust API server)
       /tmp/medbrains-archive     (the storage sweeper)
+      /tmp/medbrains-proxy       (the Pingora edge proxy)
+      /tmp/medbrains-edge        (the Loro CRDT edge sync server)
       /tmp/medbrains-web/        (apps/web/dist contents)
 USAGE
     exit 1
@@ -43,8 +50,7 @@ DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "==> [1/9] Installing system packages"
 apt-get update -qq
 apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg lsb-release \
-    caddy openssl
+    ca-certificates certbot curl gnupg lsb-release openssl
 
 # Docker CE + compose plugin from Docker's official apt repo.
 # Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
@@ -74,19 +80,33 @@ install -d -o medbrains -g medbrains -m 0750 \
     /var/lib/medbrains/cold \
     /var/lib/medbrains/archive \
     /var/lib/medbrains/pgdata \
+    /var/lib/medbrains-edge \
+    /var/lib/medbrains-edge/docs \
+    /var/lib/medbrains-edge/chain \
     /var/log/medbrains \
     /etc/medbrains \
     /var/www/medbrains
-chown -R medbrains:medbrains /var/lib/medbrains /var/log/medbrains /var/www/medbrains
+chown -R medbrains:medbrains /var/lib/medbrains /var/lib/medbrains-edge /var/log/medbrains /var/www/medbrains
 
 echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
 if [[ ! -f /etc/medbrains/env ]]; then
     cp "$DEPLOY_DIR/env.example" /etc/medbrains/env
     sed -i "s|__DOMAIN__|$DOMAIN|g" /etc/medbrains/env
 
-    # Generate Ed25519 JWT keypair if not already in place.
-    PRIV="$(openssl genpkey -algorithm Ed25519 2>/dev/null | base64 -w0)"
-    PUB="$(echo "$PRIV" | base64 -d | openssl pkey -pubout 2>/dev/null | base64 -w0)"
+    # Generate Ed25519 JWT keypair.
+    # - JWT_PRIVATE_KEY: PKCS#8 v1 DER (jsonwebtoken EncodingKey::from_ed_der)
+    # - JWT_PUBLIC_KEY:  raw 32-byte pub key (ring's Ed25519 verifier — NOT SPKI)
+    # Both base64-encoded.
+    PRIV_DER="/tmp/medbrains-jwt-priv.der"
+    SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
+    PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+    openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
+    openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
+    # SPKI for Ed25519 is 44 bytes; raw 32-byte key = last 32 bytes.
+    tail -c 32 "$SPKI_DER" > "$PUB_RAW"
+    PRIV="$(base64 -w0 < "$PRIV_DER")"
+    PUB="$(base64 -w0 < "$PUB_RAW")"
+    rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
     sed -i "s|^JWT_PRIVATE_KEY=$|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
     sed -i "s|^JWT_PUBLIC_KEY=$|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
 
@@ -100,6 +120,29 @@ if [[ ! -f /etc/medbrains/env ]]; then
     echo "    Generated JWT keypair + random postgres password."
 else
     echo "    /etc/medbrains/env already exists — leaving alone."
+
+    # Rotate JWT keys if existing format is broken:
+    #  - "LS0t..." prefix     → legacy PEM-base64 (`InvalidEddsaKey`)
+    #  - PUBLIC key length 60 → SPKI-wrapped DER (decode-side wants raw 32B)
+    EXISTING_PRIV="$(grep '^JWT_PRIVATE_KEY=' /etc/medbrains/env | cut -d= -f2-)"
+    EXISTING_PUB="$(grep '^JWT_PUBLIC_KEY=' /etc/medbrains/env | cut -d= -f2-)"
+    NEEDS_ROTATE=0
+    [[ "$EXISTING_PRIV" == LS0t* ]] && NEEDS_ROTATE=1
+    [[ "${#EXISTING_PUB}" -eq 60 ]] && NEEDS_ROTATE=1
+    if [[ "$NEEDS_ROTATE" -eq 1 ]]; then
+        echo "    JWT key format incompatible with jsonwebtoken — rotating"
+        PRIV_DER="/tmp/medbrains-jwt-priv.der"
+        SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
+        PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+        openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
+        openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
+        tail -c 32 "$SPKI_DER" > "$PUB_RAW"
+        PRIV="$(base64 -w0 < "$PRIV_DER")"
+        PUB="$(base64 -w0 < "$PUB_RAW")"
+        rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
+        sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
+        sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
+    fi
 fi
 
 echo "==> [4/9] Bringing up postgres-17 via docker compose"
@@ -149,10 +192,9 @@ for _ in {1..30}; do
 done
 
 echo "==> [5/9] Installing binaries to /usr/local/bin"
-for bin in medbrains-server medbrains-archive; do
+for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
     if [[ ! -f "/tmp/$bin" ]]; then
-        echo "ERROR: /tmp/$bin missing. Build with: cargo build -p medbrains-server --release --bin $bin"
-        echo "       and copy target/release/$bin to /tmp/$bin on this host."
+        echo "ERROR: /tmp/$bin missing. Build and copy target/release/$bin to /tmp/$bin on this host."
         exit 1
     fi
     install -m 0755 "/tmp/$bin" "/usr/local/bin/$bin"
@@ -175,6 +217,21 @@ install -m 0644 "$DEPLOY_DIR/medbrains-archive.timer" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-pg-backup.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-pg-backup.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
+install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-proxy.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-edge.toml.tmpl" /etc/medbrains/edge.toml
+chmod 640 /etc/medbrains/edge.toml
+chown root:medbrains /etc/medbrains/edge.toml
+install -d -m 0755 \
+    /etc/letsencrypt/renewal-hooks/pre \
+    /etc/letsencrypt/renewal-hooks/deploy \
+    /etc/letsencrypt/renewal-hooks/post
+install -m 0755 "$DEPLOY_DIR/stop-medbrains-proxy" \
+    /etc/letsencrypt/renewal-hooks/pre/stop-medbrains-proxy
+install -m 0755 "$DEPLOY_DIR/copy-medbrains-proxy-cert" \
+    /etc/letsencrypt/renewal-hooks/deploy/copy-medbrains-proxy-cert
+install -m 0755 "$DEPLOY_DIR/start-medbrains-proxy" \
+    /etc/letsencrypt/renewal-hooks/post/start-medbrains-proxy
 
 # AWS CLI v2 — required by the pg-backup timer to upload dumps to S3.
 # Ubuntu 24.04 noble dropped the apt awscli package; install Amazon's
@@ -205,13 +262,31 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now medbrains-server.service
+# Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
+# BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
+systemctl restart medbrains-server.service
 systemctl enable --now medbrains-archive.timer
 systemctl enable --now medbrains-pg-backup.timer
+systemctl enable --now medbrains-edge.service
+systemctl restart medbrains-edge.service
 
-echo "==> [8/9] Configuring Caddy reverse proxy with auto Let's Encrypt"
-sed -e "s|{{DOMAIN}}|$DOMAIN|g" -e "s|{{ADMIN_EMAIL}}|$ADMIN_EMAIL|g" \
-    "$DEPLOY_DIR/Caddyfile.tmpl" > /etc/caddy/Caddyfile
-systemctl reload caddy || systemctl restart caddy
+echo "==> [8/9] Configuring Pingora edge proxy"
+systemctl stop caddy 2>/dev/null || true
+systemctl disable caddy 2>/dev/null || true
+systemctl stop medbrains-proxy.service 2>/dev/null || true
+
+certbot certonly --standalone --non-interactive --agree-tos \
+    --email "$ADMIN_EMAIL" -d "$DOMAIN" --keep-until-expiring
+bash "$DEPLOY_DIR/copy-medbrains-proxy-cert" "/etc/letsencrypt/live/$DOMAIN"
+
+sed -e "s|{{DOMAIN}}|$DOMAIN|g" \
+    "$DEPLOY_DIR/PingoraProxy.toml.tmpl" > /etc/medbrains/proxy.toml
+chmod 640 /etc/medbrains/proxy.toml
+chown root:medbrains /etc/medbrains/proxy.toml
+
+systemctl enable --now certbot.timer 2>/dev/null || true
+systemctl enable --now medbrains-proxy.service
+systemctl restart medbrains-proxy.service
 
 echo "==> [9/9] Verification — wait up to 30s for service to be active + healthy"
 
@@ -243,6 +318,6 @@ echo "    archive timer:"
 systemctl list-timers medbrains-archive.timer --no-pager | head -3 || true
 echo "    health probe: OK — http://127.0.0.1:3000/api/health responded"
 echo
-echo "Public URL once Caddy finishes ACME: https://$DOMAIN"
+echo "Public URL once Pingora finishes TLS setup: https://$DOMAIN"
 echo "First boot may take ~30s for Let's Encrypt; tail with:"
-echo "    journalctl -u caddy -f"
+echo "    journalctl -u medbrains-proxy -f"

@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -62,15 +62,18 @@ pub async fn register(
         return Err(AppError::BadRequest("pincode must be 6 digits".into()));
     }
     if !body.contact_phone.starts_with('+') {
-        return Err(AppError::BadRequest("contact_phone must be E.164 (+...)".into()));
+        return Err(AppError::BadRequest(
+            "contact_phone must be E.164 (+...)".into(),
+        ));
     }
     if !matches!(body.ownership.as_str(), "government" | "private" | "trust") {
-        return Err(AppError::BadRequest("ownership must be government | private | trust".into()));
+        return Err(AppError::BadRequest(
+            "ownership must be government | private | trust".into(),
+        ));
     }
 
-    let payload = serde_json::to_value(&body).map_err(|e| {
-        AppError::BadRequest(format!("payload serialize: {e}"))
-    })?;
+    let payload = serde_json::to_value(&body)
+        .map_err(|e| AppError::BadRequest(format!("payload serialize: {e}")))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

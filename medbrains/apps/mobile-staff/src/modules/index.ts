@@ -5,18 +5,17 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { doctorModule } from "./doctor";
-import { nurseModule } from "./nurse";
-import { pharmacyModule } from "./pharmacy";
-import { labModule } from "./lab";
 import { billingModule } from "./billing";
 import { bmeModule } from "./bme";
+import { doctorModule } from "./doctor";
 import { facilitiesModule } from "./facilities";
 import { housekeepingModule } from "./housekeeping";
-import { securityModule } from "./security";
 import { hrModule } from "./hr";
+import { labModule } from "./lab";
+import { nurseModule } from "./nurse";
+import { pharmacyModule } from "./pharmacy";
 import { receptionModule } from "./reception";
-
+import { securityModule } from "./security";
 
 export const MODULES: ReadonlyArray<Module> = [
   doctorModule,
@@ -30,5 +29,4 @@ export const MODULES: ReadonlyArray<Module> = [
   securityModule,
   hrModule,
   receptionModule,
-
 ];

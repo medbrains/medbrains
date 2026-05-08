@@ -19,7 +19,7 @@
 
 use chrono::{DateTime, Utc};
 use medbrains_core::object_store::{
-    transition_hash, ObjectStore, StorageTier, StorageTierTransition,
+    ObjectStore, StorageTier, StorageTierTransition, transition_hash,
 };
 use sqlx::{PgPool, Postgres, Transaction};
 use std::sync::Arc;
@@ -37,6 +37,12 @@ pub struct StoreSet {
     pub hot: Arc<dyn ObjectStore>,
     pub cold: Arc<dyn ObjectStore>,
     pub archive: Arc<dyn ObjectStore>,
+}
+
+impl std::fmt::Debug for StoreSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoreSet").finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -60,7 +66,10 @@ pub enum SweepError {
 }
 
 /// Run a single sweep pass across every tenant.
-pub async fn sweep_all_tenants(pool: &PgPool, stores: &StoreSet) -> Result<SweepReport, SweepError> {
+pub async fn sweep_all_tenants(
+    pool: &PgPool,
+    stores: &StoreSet,
+) -> Result<SweepReport, SweepError> {
     let mut report = SweepReport::default();
     let tenants: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM tenants WHERE is_active = true")
         .fetch_all(pool)
@@ -91,9 +100,7 @@ pub async fn sweep_tenant(
     stores: &StoreSet,
     tenant_id: Uuid,
 ) -> Result<SweepReport, SweepError> {
-    let mut report = SweepReport::default();
-
-    report.hot_to_cold = transition_eligible(
+    let hot_to_cold = transition_eligible(
         pool,
         stores,
         tenant_id,
@@ -103,7 +110,7 @@ pub async fn sweep_tenant(
     )
     .await?;
 
-    report.cold_to_archive = transition_eligible(
+    let cold_to_archive = transition_eligible(
         pool,
         stores,
         tenant_id,
@@ -113,7 +120,7 @@ pub async fn sweep_tenant(
     )
     .await?;
 
-    report.archive_to_deleted = transition_eligible(
+    let archive_to_deleted = transition_eligible(
         pool,
         stores,
         tenant_id,
@@ -123,7 +130,12 @@ pub async fn sweep_tenant(
     )
     .await?;
 
-    Ok(report)
+    Ok(SweepReport {
+        hot_to_cold,
+        cold_to_archive,
+        archive_to_deleted,
+        ..SweepReport::default()
+    })
 }
 
 /// Move every document at `from` whose age exceeds the configured
@@ -244,15 +256,20 @@ async fn move_object(
     if let (StorageTier::Deleted, _) = (to, to_key) {
         // Tombstone — drop the source, no destination.
         if let Some(s) = src {
-            s.delete(from_key).await.map_err(|e| SweepError::Store(e.to_string()))?;
+            s.delete(from_key)
+                .await
+                .map_err(|e| SweepError::Store(e.to_string()))?;
         }
         return Ok(());
     }
 
     let dst_key = to_key.ok_or_else(|| {
-        SweepError::Internal(format!("missing destination key for tier transition to {to:?}"))
+        SweepError::Internal(format!(
+            "missing destination key for tier transition to {to:?}"
+        ))
     })?;
-    let src = src.ok_or_else(|| SweepError::Internal(format!("no store for source tier {from:?}")))?;
+    let src =
+        src.ok_or_else(|| SweepError::Internal(format!("no store for source tier {from:?}")))?;
     let dst = pick(stores, to)?
         .ok_or_else(|| SweepError::Internal(format!("no store for destination tier {to:?}")))?;
 
@@ -294,12 +311,10 @@ async fn write_transition_row(
     to_key: Option<String>,
     byte_size: Option<i64>,
 ) -> Result<(), SweepError> {
-    sqlx::query(
-        "SELECT pg_advisory_xact_lock(hashtext('storage_chain'), hashtext($1::text))",
-    )
-    .bind(tenant_id.to_string())
-    .execute(&mut **tx)
-    .await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('storage_chain'), hashtext($1::text))")
+        .bind(tenant_id.to_string())
+        .execute(&mut **tx)
+        .await?;
 
     let previous_hash: Option<String> = sqlx::query_scalar(
         "SELECT hash FROM object_storage_transitions \

@@ -21,7 +21,7 @@ ed25519-dalek = { workspace = true }
 # Persistent embedded KV + in-memory LRU. Same versions the edge
 # crate has been using since PR #9 — bump together when needed.
 sled = "0.34"
-lru = "0.12"
+lru = "0.16.3"
 
 [dev-dependencies]
 tempfile = { workspace = true }

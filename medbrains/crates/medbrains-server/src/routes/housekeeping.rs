@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::housekeeping::{
     CleaningSchedule, CleaningTask, LaundryBatch, LinenCondemnation, LinenItem, LinenMovement,
     LinenParLevel, PestControlLog, PestControlSchedule, RoomTurnaround,
@@ -1108,6 +1109,7 @@ pub async fn create_sharp_replacement(
 
     let department_id = body
         .get("department_id")
+        .or_else(|| body.get("location_id"))
         .and_then(|v| v.as_str())
         .and_then(|s| s.parse::<Uuid>().ok())
         .ok_or_else(|| AppError::BadRequest("department_id is required".into()))?;
@@ -1118,24 +1120,56 @@ pub async fn create_sharp_replacement(
         .and_then(serde_json::Value::as_i64)
         .unwrap_or(1);
 
-    let row = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT row_to_json(r) FROM ( \
-         INSERT INTO biowaste_records \
+    let row = sqlx::query!(
+        "INSERT INTO biowaste_records \
          (tenant_id, department_id, waste_category, record_date, \
           weight_kg, container_count, notes, recorded_by) \
          VALUES ($1, $2, 'white_translucent'::waste_category, CURRENT_DATE, \
           0, $3, $4, $5) \
-         RETURNING * \
-         ) r",
+         RETURNING id, tenant_id, department_id, waste_category::text AS waste_category, \
+                   weight_kg, record_date, container_count, disposal_vendor, manifest_number, \
+                   notes, recorded_by, created_at, updated_at",
+        claims.tenant_id,
+        department_id,
+        container_count as i32,
+        format!("Sharp container replacement. {notes}"),
+        claims.sub
     )
-    .bind(claims.tenant_id)
-    .bind(department_id)
-    .bind(container_count as i32)
-    .bind(format!("Sharp container replacement. {notes}"))
-    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
+    crate::routes::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::HousekeepingBmwDisposalRecorded,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "disposal_id": row.id,
+            "department_id": row.department_id,
+            "waste_category": &row.waste_category,
+            "quantity_kg": row.weight_kg,
+            "container_count": row.container_count,
+            "manifest_number": &row.manifest_number,
+        }),
+    )
+    .with_department(row.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(serde_json::json!({
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "department_id": row.department_id,
+        "waste_category": row.waste_category,
+        "weight_kg": row.weight_kg,
+        "record_date": row.record_date,
+        "container_count": row.container_count,
+        "disposal_vendor": row.disposal_vendor,
+        "manifest_number": row.manifest_number,
+        "notes": row.notes,
+        "recorded_by": row.recorded_by,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    })))
 }

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
@@ -14,25 +13,20 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import {
-  IconCheck,
-  IconHistory,
-  IconList,
-  IconSettings,
-  IconX,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { P } from "@medbrains/types";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import type {
+  ApproveRejectRequest,
   RetrospectiveEntry,
   RetrospectiveSettings,
-  ApproveRejectRequest,
 } from "@medbrains/types";
-import { useHasPermission } from "@medbrains/stores";
-import { api } from "@medbrains/api";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { P } from "@medbrains/types";
+import { IconCheck, IconHistory, IconList, IconSettings, IconX } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { type Column, DataTable } from "../components/DataTable";
 import { PageHeader } from "../components/PageHeader";
-import { DataTable, type Column } from "../components/DataTable";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Status badge helpers ──
 
@@ -155,19 +149,16 @@ function ApprovalQueueTab() {
             </Button>
           </Group>
         ) : (
-          <Text size="sm" c="dimmed">-</Text>
+          <Text size="sm" c="dimmed">
+            -
+          </Text>
         ),
     },
   ];
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={data}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
       <Modal
         opened={reviewId !== null}
@@ -260,8 +251,7 @@ function AllEntriesTab() {
     {
       key: "reviewed_at",
       label: "Reviewed At",
-      render: (r) =>
-        r.reviewed_at ? new Date(r.reviewed_at).toLocaleDateString() : "-",
+      render: (r) => (r.reviewed_at ? new Date(r.reviewed_at).toLocaleDateString() : "-"),
     },
     {
       key: "review_notes",
@@ -302,12 +292,7 @@ function AllEntriesTab() {
           w={180}
         />
       </Group>
-      <DataTable
-        columns={columns}
-        data={data}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
     </Stack>
   );
 }

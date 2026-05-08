@@ -57,14 +57,13 @@ pub async fn audit_layer(
     }
 
     let correlation_id = Uuid::new_v4();
-    request.extensions_mut().insert(CorrelationId(correlation_id));
+    request
+        .extensions_mut()
+        .insert(CorrelationId(correlation_id));
 
     // Snapshot context BEFORE handler runs (extensions may move)
     let claims_opt = request.extensions().get::<Claims>().cloned();
-    let ip_opt = request
-        .extensions()
-        .get::<ClientIp>()
-        .map(ClientIp::as_str);
+    let ip_opt = request.extensions().get::<ClientIp>().map(ClientIp::as_str);
     let user_agent = request
         .headers()
         .get(axum::http::header::USER_AGENT)
@@ -209,7 +208,10 @@ mod tests {
 
     #[test]
     fn delete_action_default() {
-        assert_eq!(derive_action("DELETE", "/api/patients/abc"), "delete_patients");
+        assert_eq!(
+            derive_action("DELETE", "/api/patients/abc"),
+            "delete_patients"
+        );
     }
 
     #[test]

@@ -4,16 +4,16 @@
  * (offline-aware) before the POST so cached denial is fast.
  */
 
-import { useState } from "react";
+import { useAuthStore } from "@medbrains/mobile-shell";
+import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Button, Text } from "react-native-paper";
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { AdmissionRow, MarRow, MarStatus } from "../../api/ipd.js";
 import { listMar, updateMar } from "../../api/ipd.js";
-import { useAuthStore } from "@medbrains/mobile-shell";
-import { useFetch } from "../../lib/use-fetch.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { useFetch } from "../../lib/use-fetch.js";
 
 const STATUS_TONE: Record<MarStatus, "info" | "warn" | "success" | "alert" | "neutral"> = {
   scheduled: "info",
@@ -29,13 +29,8 @@ export interface MarScheduleScreenProps {
   admission: AdmissionRow;
 }
 
-export function MarScheduleScreen({
-  admission,
-}: MarScheduleScreenProps): ReactNode {
-  const { data, loading, error, refetch } = useFetch(
-    () => listMar(admission.id),
-    [admission.id],
-  );
+export function MarScheduleScreen({ admission }: MarScheduleScreenProps): ReactNode {
+  const { data, loading, error, refetch } = useFetch(() => listMar(admission.id), [admission.id]);
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
@@ -63,12 +58,7 @@ export function MarScheduleScreen({
       {!loading && !error && data && data.length > 0 && (
         <ScrollView contentContainerStyle={{ padding: SPACING.md }}>
           {data.map((dose) => (
-            <DoseRow
-              key={dose.id}
-              dose={dose}
-              admissionId={admission.id}
-              onChange={refetch}
-            />
+            <DoseRow key={dose.id} dose={dose} admissionId={admission.id} onChange={refetch} />
           ))}
         </ScrollView>
       )}

@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
 };
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -91,7 +91,11 @@ pub async fn decide_petty_cash(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let new_status = if body.approved { "approved" } else { "rejected" };
+    let new_status = if body.approved {
+        "approved"
+    } else {
+        "rejected"
+    };
     let row = sqlx::query_as::<_, PettyCashVoucher>(
         "UPDATE pharmacy_petty_cash_vouchers SET \
            status = $3, approved_by = $4, approved_at = now(), \

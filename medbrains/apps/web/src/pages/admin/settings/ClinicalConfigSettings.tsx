@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -13,16 +12,12 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import {
-  IconHeartbeat,
-  IconPlus,
-  IconTrash,
-  IconArrowRight,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import type { TenantSettingsRow } from "@medbrains/types";
-import { notifications } from "@mantine/notifications";
+import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 /* ------------------------------------------------------------------ */
@@ -104,7 +99,9 @@ function VitalParametersCard({
 }) {
   return (
     <Card padding="md" radius="md" withBorder>
-      <Title order={5} mb="sm">Vital Parameters</Title>
+      <Title order={5} mb="sm">
+        Vital Parameters
+      </Title>
       <Text size="xs" c="dimmed" mb="md">
         Select which vital signs are recorded during consultations and nursing assessments.
       </Text>
@@ -157,12 +154,7 @@ function RosSystemsCard({
             Define body system categories for the ROS section in consultations.
           </Text>
         </div>
-        <Button
-          size="xs"
-          variant="light"
-          leftSection={<IconPlus size={14} />}
-          onClick={handleAdd}
-        >
+        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
           Add System
         </Button>
       </Group>
@@ -183,18 +175,15 @@ function RosSystemsCard({
               onChange={(e) => handleChange(idx, "label", e.currentTarget.value)}
               style={{ flex: 1 }}
             />
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              size="sm"
-              onClick={() => handleRemove(idx)}
-            >
+            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleRemove(idx)}>
               <IconTrash size={14} />
             </ActionIcon>
           </Group>
         ))}
         {local.length === 0 && (
-          <Text size="xs" c="dimmed" ta="center">No systems defined. Click Add System to begin.</Text>
+          <Text size="xs" c="dimmed" ta="center">
+            No systems defined. Click Add System to begin.
+          </Text>
         )}
       </Stack>
       {isDirty && (
@@ -219,7 +208,9 @@ function ConsultationSectionsCard({
 }) {
   return (
     <Card padding="md" radius="md" withBorder>
-      <Title order={5} mb="sm">Consultation Sections</Title>
+      <Title order={5} mb="sm">
+        Consultation Sections
+      </Title>
       <Text size="xs" c="dimmed" mb="md">
         Enable or disable SOAP note sections shown during OPD consultations.
       </Text>
@@ -301,12 +292,7 @@ function DischargeChecklistCard({
             Define items that must be completed before a patient can be discharged.
           </Text>
         </div>
-        <Button
-          size="xs"
-          variant="light"
-          leftSection={<IconPlus size={14} />}
-          onClick={handleAdd}
-        >
+        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
           Add Item
         </Button>
       </Group>
@@ -326,18 +312,15 @@ function DischargeChecklistCard({
               checked={it.required}
               onChange={(e) => handleRequiredToggle(idx, e.currentTarget.checked)}
             />
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              size="sm"
-              onClick={() => handleRemove(idx)}
-            >
+            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleRemove(idx)}>
               <IconTrash size={14} />
             </ActionIcon>
           </Group>
         ))}
         {local.length === 0 && (
-          <Text size="xs" c="dimmed" ta="center">No checklist items defined. Click Add Item to begin.</Text>
+          <Text size="xs" c="dimmed" ta="center">
+            No checklist items defined. Click Add Item to begin.
+          </Text>
         )}
       </Stack>
       {isDirty && (
@@ -365,7 +348,9 @@ function RecordingFrequencyCard({
 
   return (
     <Card padding="md" radius="md" withBorder>
-      <Title order={5} mb="sm">Recording Frequency</Title>
+      <Title order={5} mb="sm">
+        Recording Frequency
+      </Title>
       <Text size="xs" c="dimmed" mb="md">
         Default frequency for IPD vital sign recordings.
       </Text>
@@ -401,17 +386,24 @@ export function ClinicalConfigSettings() {
   });
 
   const vitalParameters = useMemo(
-    () => parseSetting<string[]>(raw, "vital_parameters", VITAL_PARAMETERS.map((v) => v.key)),
+    () =>
+      parseSetting<string[]>(
+        raw,
+        "vital_parameters",
+        VITAL_PARAMETERS.map((v) => v.key),
+      ),
     [raw],
   );
 
-  const rosSystems = useMemo(
-    () => parseSetting<RosSystemItem[]>(raw, "ros_systems", []),
-    [raw],
-  );
+  const rosSystems = useMemo(() => parseSetting<RosSystemItem[]>(raw, "ros_systems", []), [raw]);
 
   const consultationSections = useMemo(
-    () => parseSetting<string[]>(raw, "consultation_sections", SOAP_SECTIONS.map((s) => s.key)),
+    () =>
+      parseSetting<string[]>(
+        raw,
+        "consultation_sections",
+        SOAP_SECTIONS.map((s) => s.key),
+      ),
     [raw],
   );
 
@@ -429,36 +421,31 @@ export function ClinicalConfigSettings() {
     mutationFn: (data: { key: string; value: unknown }) =>
       api.updateTenantSetting({ category: "clinical", key: data.key, value: data.value }),
     onSuccess: (_data, variables) => {
-      queryClient.setQueryData<TenantSettingsRow[]>(
-        ["tenant-settings", "clinical"],
-        (old) => {
-          if (!old) return old;
-          const exists = old.find((r) => r.key === variables.key);
-          if (exists) {
-            return old.map((r) => r.key === variables.key ? { ...r, value: variables.value } : r);
-          }
-          return [
-            ...old,
-            {
-              id: "",
-              tenant_id: "",
-              category: "clinical",
-              key: variables.key,
-              value: variables.value,
-              created_at: "",
-              updated_at: "",
-            },
-          ];
-        },
-      );
+      queryClient.setQueryData<TenantSettingsRow[]>(["tenant-settings", "clinical"], (old) => {
+        if (!old) return old;
+        const exists = old.find((r) => r.key === variables.key);
+        if (exists) {
+          return old.map((r) => (r.key === variables.key ? { ...r, value: variables.value } : r));
+        }
+        return [
+          ...old,
+          {
+            id: "",
+            tenant_id: "",
+            category: "clinical",
+            key: variables.key,
+            value: variables.value,
+            created_at: "",
+            updated_at: "",
+          },
+        ];
+      });
       notifications.show({ title: "Updated", message: `${variables.key} saved`, color: "success" });
     },
   });
 
   const handleVitalToggle = (key: string, checked: boolean) => {
-    const next = checked
-      ? [...vitalParameters, key]
-      : vitalParameters.filter((k) => k !== key);
+    const next = checked ? [...vitalParameters, key] : vitalParameters.filter((k) => k !== key);
     updateMutation.mutate({ key: "vital_parameters", value: next });
   };
 
@@ -477,9 +464,9 @@ export function ClinicalConfigSettings() {
     <Stack gap="lg">
       <Alert icon={<IconHeartbeat size={20} />} color="primary" variant="light">
         <Text size="sm">
-          Configure clinical documentation settings for your hospital. These settings
-          control which vitals are captured, which consultation sections are shown, and
-          the default recording frequency for inpatient monitoring.
+          Configure clinical documentation settings for your hospital. These settings control which
+          vitals are captured, which consultation sections are shown, and the default recording
+          frequency for inpatient monitoring.
         </Text>
       </Alert>
 

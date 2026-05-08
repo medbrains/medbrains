@@ -9,11 +9,11 @@
 //! reusable `SyncServer` struct that ties together a `DocStore` and
 //! a `MerkleAudit`. Tests at the bottom show the merge cycle.
 
+use crate::doc_store::{DocStore, DocStoreError};
+use crate::merkle::{MerkleAudit, MerkleError};
 use medbrains_offline_core::{
     AuthzCache, CacheKey, CacheSource, CheckOutcome, DenyReason, OfflinePolicy,
 };
-use crate::doc_store::{DocStore, DocStoreError};
-use crate::merkle::{MerkleAudit, MerkleError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -170,8 +170,8 @@ impl SyncServer {
                 .await;
         };
 
-        let (object_type, object_id, action) = parse_doc_id(doc_id)
-            .ok_or_else(|| SyncServerError::InvalidDocId(doc_id.to_owned()))?;
+        let (object_type, object_id, action) =
+            parse_doc_id(doc_id).ok_or_else(|| SyncServerError::InvalidDocId(doc_id.to_owned()))?;
 
         let key = CacheKey {
             tenant_id: session.tenant_id,
@@ -187,7 +187,8 @@ impl SyncServer {
 
         match outcome {
             CheckOutcome::Allow { .. } => {
-                self.handle_push(session.tenant_id, doc_id, update_b64).await
+                self.handle_push(session.tenant_id, doc_id, update_b64)
+                    .await
             }
             CheckOutcome::Deny { reason } => Err(SyncServerError::AuthzDenied(reason)),
         }
@@ -263,7 +264,11 @@ fn parse_doc_id(doc_id: &str) -> Option<(String, String, String)> {
     if action.is_empty() {
         return None;
     }
-    Some((object_type.to_owned(), object_id.to_owned(), action.to_owned()))
+    Some((
+        object_type.to_owned(),
+        object_id.to_owned(),
+        action.to_owned(),
+    ))
 }
 
 // Local tiny base64 (no extra dep — sha2 is already pulled in).

@@ -9,11 +9,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import {
-  IconDatabase,
-  IconLayersLinked,
-  IconTransform,
-} from "@tabler/icons-react";
+import { IconDatabase, IconLayersLinked, IconTransform } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────
@@ -205,9 +201,7 @@ export function MapperToolbar({
                       label={path}
                       placeholder={`e.g. "John", 42, true`}
                       value={parsedValues[path] ?? ""}
-                      onChange={(e) =>
-                        handleFieldChange(path, e.currentTarget.value)
-                      }
+                      onChange={(e) => handleFieldChange(path, e.currentTarget.value)}
                     />
                   ))
                 ) : (

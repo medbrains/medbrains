@@ -1,30 +1,62 @@
-import { useState } from "react";
 import {
-  Badge, Button, Card, Group, Loader, SimpleGrid, Slider,
-  Stack, Text, TextInput, Textarea, Title, Timeline, ThemeIcon,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Loader,
+  SimpleGrid,
+  Slider,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  ThemeIcon,
+  Timeline,
+  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconBell, IconHeartRateMonitor, IconPill, IconToolsKitchen2, IconVideo,
-  IconMoodSmile, IconBath, IconGlass, IconBed, IconArrowsMove, IconDots,
-  IconFlask, IconStethoscope,
-} from "@tabler/icons-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
-import type {
-  BedsideRequestType, BedsideDailyScheduleItem, BedsideMedicationItem,
-  BedsideVitalReading, BedsideEducationVideoRow,
-} from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import type {
+  BedsideDailyScheduleItem,
+  BedsideEducationVideoRow,
+  BedsideMedicationItem,
+  BedsideRequestType,
+  BedsideVitalReading,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
+import {
+  IconArrowsMove,
+  IconBath,
+  IconBed,
+  IconBell,
+  IconDots,
+  IconFlask,
+  IconGlass,
+  IconHeartRateMonitor,
+  IconMoodSmile,
+  IconPill,
+  IconStethoscope,
+  IconToolsKitchen2,
+  IconVideo,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Helpers ──
 
-const REQUEST_TYPE_CONFIG: Record<BedsideRequestType, { label: string; icon: React.ReactNode; color: string }> = {
+const REQUEST_TYPE_CONFIG: Record<
+  BedsideRequestType,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
   nurse_call: { label: "Nurse Call", icon: <IconBell size={28} />, color: "red" },
-  pain_management: { label: "Pain Help", icon: <IconHeartRateMonitor size={28} />, color: "orange" },
+  pain_management: {
+    label: "Pain Help",
+    icon: <IconHeartRateMonitor size={28} />,
+    color: "orange",
+  },
   bathroom_assist: { label: "Bathroom", icon: <IconBath size={28} />, color: "blue" },
   water_food: { label: "Water / Food", icon: <IconGlass size={28} />, color: "cyan" },
   blanket_pillow: { label: "Blanket / Pillow", icon: <IconBed size={28} />, color: "violet" },
@@ -34,19 +66,27 @@ const REQUEST_TYPE_CONFIG: Record<BedsideRequestType, { label: string; icon: Rea
 
 function scheduleIcon(eventType: string) {
   switch (eventType) {
-    case "medication": return <IconPill size={16} />;
-    case "nursing_task": return <IconStethoscope size={16} />;
-    case "meal": return <IconToolsKitchen2 size={16} />;
-    default: return <IconDots size={16} />;
+    case "medication":
+      return <IconPill size={16} />;
+    case "nursing_task":
+      return <IconStethoscope size={16} />;
+    case "meal":
+      return <IconToolsKitchen2 size={16} />;
+    default:
+      return <IconDots size={16} />;
   }
 }
 
 function scheduleColor(eventType: string) {
   switch (eventType) {
-    case "medication": return "blue";
-    case "nursing_task": return "green";
-    case "meal": return "orange";
-    default: return "gray";
+    case "medication":
+      return "blue";
+    case "nursing_task":
+      return "green";
+    case "meal":
+      return "orange";
+    default:
+      return "gray";
   }
 }
 
@@ -114,7 +154,11 @@ export function BedsidePortalPage() {
         notes: requestNote || undefined,
       }),
     onSuccess: () => {
-      notifications.show({ title: "Request Sent", message: "A nurse has been notified.", color: "green" });
+      notifications.show({
+        title: "Request Sent",
+        message: "A nurse has been notified.",
+        color: "green",
+      });
       setRequestNote("");
       void queryClient.invalidateQueries({ queryKey: ["bedside", "nurse-requests"] });
     },
@@ -133,7 +177,11 @@ export function BedsidePortalPage() {
         comments: feedbackComment || undefined,
       }),
     onSuccess: () => {
-      notifications.show({ title: "Thank You", message: "Your feedback has been recorded.", color: "green" });
+      notifications.show({
+        title: "Thank You",
+        message: "Your feedback has been recorded.",
+        color: "green",
+      });
       setFeedbackComment("");
       void queryClient.invalidateQueries({ queryKey: ["bedside", "feedback"] });
     },
@@ -150,7 +198,9 @@ export function BedsidePortalPage() {
         <Card shadow="sm" padding="xl" radius="md" withBorder maw={500} mx="auto" mt="xl">
           <Stack gap="md">
             <Title order={3}>Enter Session Details</Title>
-            <Text size="sm" c="dimmed">Enter the admission and patient IDs to start the bedside session.</Text>
+            <Text size="sm" c="dimmed">
+              Enter the admission and patient IDs to start the bedside session.
+            </Text>
             <TextInput
               label="Admission ID"
               placeholder="UUID of the admission"
@@ -181,10 +231,14 @@ export function BedsidePortalPage() {
         <Stack gap="lg">
           {/* Daily Schedule */}
           <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Today&apos;s Schedule</Title>
+            <Title order={4} mb="md">
+              Today&apos;s Schedule
+            </Title>
             {scheduleQ.isLoading && <Loader size="sm" />}
             {scheduleQ.data && scheduleQ.data.length === 0 && (
-              <Text c="dimmed" size="sm">No events scheduled for today.</Text>
+              <Text c="dimmed" size="sm">
+                No events scheduled for today.
+              </Text>
             )}
             {scheduleQ.data && scheduleQ.data.length > 0 && (
               <Timeline active={-1} bulletSize={28} lineWidth={2}>
@@ -192,13 +246,20 @@ export function BedsidePortalPage() {
                   <Timeline.Item
                     key={idx}
                     bullet={
-                      <ThemeIcon size={28} radius="xl" color={scheduleColor(item.event_type)} variant="light">
+                      <ThemeIcon
+                        size={28}
+                        radius="xl"
+                        color={scheduleColor(item.event_type)}
+                        variant="light"
+                      >
                         {scheduleIcon(item.event_type)}
                       </ThemeIcon>
                     }
                     title={
                       <Group gap="xs">
-                        <Text fw={600} size="md">{item.description}</Text>
+                        <Text fw={600} size="md">
+                          {item.description}
+                        </Text>
                         <Badge size="sm" color={scheduleColor(item.event_type)} variant="light">
                           {item.event_type}
                         </Badge>
@@ -206,7 +267,12 @@ export function BedsidePortalPage() {
                     }
                   >
                     <Text size="sm" c="dimmed">
-                      {item.scheduled_at ? new Date(item.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Time TBD"}
+                      {item.scheduled_at
+                        ? new Date(item.scheduled_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Time TBD"}
                       {item.status && ` — ${item.status}`}
                     </Text>
                   </Timeline.Item>
@@ -217,10 +283,14 @@ export function BedsidePortalPage() {
 
           {/* Current Medications */}
           <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Current Medications</Title>
+            <Title order={4} mb="md">
+              Current Medications
+            </Title>
             {medsQ.isLoading && <Loader size="sm" />}
             {medsQ.data && medsQ.data.length === 0 && (
-              <Text c="dimmed" size="sm">No scheduled medications.</Text>
+              <Text c="dimmed" size="sm">
+                No scheduled medications.
+              </Text>
             )}
             <Stack gap="xs">
               {medsQ.data?.map((med: BedsideMedicationItem) => (
@@ -228,13 +298,18 @@ export function BedsidePortalPage() {
                   <Group justify="space-between">
                     <Group gap="xs">
                       <IconPill size={20} color="var(--mantine-color-blue-6)" />
-                      <Text fw={600} size="md">{med.drug_name ?? "Medication"}</Text>
+                      <Text fw={600} size="md">
+                        {med.drug_name ?? "Medication"}
+                      </Text>
                     </Group>
-                    <Badge size="sm" variant="light">{med.status ?? "scheduled"}</Badge>
+                    <Badge size="sm" variant="light">
+                      {med.status ?? "scheduled"}
+                    </Badge>
                   </Group>
                   <Text size="sm" c="dimmed" mt={4}>
                     {[med.dose, med.route, med.frequency].filter(Boolean).join(" | ")}
-                    {med.scheduled_at && ` — ${new Date(med.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                    {med.scheduled_at &&
+                      ` — ${new Date(med.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
                   </Text>
                 </Card>
               ))}
@@ -243,7 +318,9 @@ export function BedsidePortalPage() {
 
           {/* Lab Results */}
           <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Recent Lab Results</Title>
+            <Title order={4} mb="md">
+              Recent Lab Results
+            </Title>
             <LabResultsSection admissionId={admissionId} />
           </Card>
         </Stack>
@@ -253,7 +330,9 @@ export function BedsidePortalPage() {
           {/* Quick Actions — Nurse Requests */}
           {canRequest && (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Title order={4} mb="md">Need Help?</Title>
+              <Title order={4} mb="md">
+                Need Help?
+              </Title>
               <Textarea
                 placeholder="Optional note for the nurse..."
                 value={requestNote}
@@ -264,41 +343,57 @@ export function BedsidePortalPage() {
                 minRows={2}
               />
               <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
-                {(Object.entries(REQUEST_TYPE_CONFIG) as [BedsideRequestType, typeof REQUEST_TYPE_CONFIG[BedsideRequestType]][]).map(
-                  ([type, cfg]) => (
-                    <Button
-                      key={type}
-                      variant="light"
-                      color={cfg.color}
-                      size="xl"
-                      h={90}
-                      loading={nurseRequestMut.isPending}
-                      onClick={() => nurseRequestMut.mutate(type)}
-                      styles={{ label: { flexDirection: "column", gap: 4 } }}
-                    >
-                      {cfg.icon}
-                      <Text size="xs" fw={600}>{cfg.label}</Text>
-                    </Button>
-                  ),
-                )}
+                {(
+                  Object.entries(REQUEST_TYPE_CONFIG) as [
+                    BedsideRequestType,
+                    (typeof REQUEST_TYPE_CONFIG)[BedsideRequestType],
+                  ][]
+                ).map(([type, cfg]) => (
+                  <Button
+                    key={type}
+                    variant="light"
+                    color={cfg.color}
+                    size="xl"
+                    h={90}
+                    loading={nurseRequestMut.isPending}
+                    onClick={() => nurseRequestMut.mutate(type)}
+                    styles={{ label: { flexDirection: "column", gap: 4 } }}
+                  >
+                    {cfg.icon}
+                    <Text size="xs" fw={600}>
+                      {cfg.label}
+                    </Text>
+                  </Button>
+                ))}
               </SimpleGrid>
             </Card>
           )}
 
           {/* Latest Vitals */}
           <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={4} mb="md">Your Vitals</Title>
+            <Title order={4} mb="md">
+              Your Vitals
+            </Title>
             {vitalsQ.isLoading && <Loader size="sm" />}
             {vitalsQ.data && vitalsQ.data.length === 0 && (
-              <Text c="dimmed" size="sm">No vitals recorded yet.</Text>
+              <Text c="dimmed" size="sm">
+                No vitals recorded yet.
+              </Text>
             )}
             <SimpleGrid cols={2} spacing="sm">
               {vitalsQ.data?.slice(0, 6).map((v: BedsideVitalReading) => (
                 <Card key={v.id} padding="sm" radius="sm" withBorder>
-                  <Text size="xs" c="dimmed" tt="uppercase">{v.vital_type ?? "Vital"}</Text>
+                  <Text size="xs" c="dimmed" tt="uppercase">
+                    {v.vital_type ?? "Vital"}
+                  </Text>
                   <Text fw={700} size="lg">
                     {v.value_numeric ?? v.value_text ?? "-"}
-                    {v.unit && <Text component="span" size="sm" c="dimmed"> {v.unit}</Text>}
+                    {v.unit && (
+                      <Text component="span" size="sm" c="dimmed">
+                        {" "}
+                        {v.unit}
+                      </Text>
+                    )}
                   </Text>
                 </Card>
               ))}
@@ -308,37 +403,63 @@ export function BedsidePortalPage() {
           {/* Feedback */}
           {canFeedback && (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Title order={4} mb="md">How Are You Feeling?</Title>
+              <Title order={4} mb="md">
+                How Are You Feeling?
+              </Title>
               <Stack gap="md">
                 <div>
-                  <Text size="sm" fw={600} mb={4}>Pain Level (0 = none, 10 = worst)</Text>
+                  <Text size="sm" fw={600} mb={4}>
+                    Pain Level (0 = none, 10 = worst)
+                  </Text>
                   <Slider
-                    min={0} max={10} step={1}
+                    min={0}
+                    max={10}
+                    step={1}
                     value={painLevel}
                     onChange={setPainLevel}
-                    marks={[{ value: 0, label: "0" }, { value: 5, label: "5" }, { value: 10, label: "10" }]}
+                    marks={[
+                      { value: 0, label: "0" },
+                      { value: 5, label: "5" },
+                      { value: 10, label: "10" },
+                    ]}
                     color={painLevel > 6 ? "red" : painLevel > 3 ? "yellow" : "green"}
                     size="lg"
                   />
                 </div>
                 <div>
-                  <Text size="sm" fw={600} mb={4}>Comfort (1 = poor, 5 = excellent)</Text>
+                  <Text size="sm" fw={600} mb={4}>
+                    Comfort (1 = poor, 5 = excellent)
+                  </Text>
                   <Slider
-                    min={1} max={5} step={1}
+                    min={1}
+                    max={5}
+                    step={1}
                     value={comfortLevel}
                     onChange={setComfortLevel}
-                    marks={[{ value: 1, label: "1" }, { value: 3, label: "3" }, { value: 5, label: "5" }]}
+                    marks={[
+                      { value: 1, label: "1" },
+                      { value: 3, label: "3" },
+                      { value: 5, label: "5" },
+                    ]}
                     color="blue"
                     size="lg"
                   />
                 </div>
                 <div>
-                  <Text size="sm" fw={600} mb={4}>Cleanliness (1 = poor, 5 = excellent)</Text>
+                  <Text size="sm" fw={600} mb={4}>
+                    Cleanliness (1 = poor, 5 = excellent)
+                  </Text>
                   <Slider
-                    min={1} max={5} step={1}
+                    min={1}
+                    max={5}
+                    step={1}
                     value={cleanlinessLevel}
                     onChange={setCleanlinessLevel}
-                    marks={[{ value: 1, label: "1" }, { value: 3, label: "3" }, { value: 5, label: "5" }]}
+                    marks={[
+                      { value: 1, label: "1" },
+                      { value: 3, label: "3" },
+                      { value: 5, label: "5" },
+                    ]}
                     color="teal"
                     size="lg"
                   />
@@ -366,7 +487,9 @@ export function BedsidePortalPage() {
           {/* Education Videos */}
           {canViewVideos && videosQ.data && videosQ.data.length > 0 && (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Title order={4} mb="md">Education Videos</Title>
+              <Title order={4} mb="md">
+                Education Videos
+              </Title>
               <Stack gap="sm">
                 {videosQ.data.map((video: BedsideEducationVideoRow) => (
                   <Card key={video.id} padding="sm" radius="sm" withBorder>
@@ -375,12 +498,20 @@ export function BedsidePortalPage() {
                         <IconVideo size={22} />
                       </ThemeIcon>
                       <div style={{ flex: 1 }}>
-                        <Text fw={600} size="sm">{video.title}</Text>
-                        <Text size="xs" c="dimmed" lineClamp={1}>{video.description}</Text>
+                        <Text fw={600} size="sm">
+                          {video.title}
+                        </Text>
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                          {video.description}
+                        </Text>
                         <Group gap="xs" mt={2}>
-                          <Badge size="xs" variant="light">{video.category}</Badge>
+                          <Badge size="xs" variant="light">
+                            {video.category}
+                          </Badge>
                           {video.duration_seconds && (
-                            <Text size="xs" c="dimmed">{Math.round(video.duration_seconds / 60)} min</Text>
+                            <Text size="xs" c="dimmed">
+                              {Math.round(video.duration_seconds / 60)} min
+                            </Text>
                           )}
                         </Group>
                       </div>
@@ -406,7 +537,12 @@ function LabResultsSection({ admissionId }: { admissionId: string }) {
   });
 
   if (labQ.isLoading) return <Loader size="sm" />;
-  if (!labQ.data || labQ.data.length === 0) return <Text c="dimmed" size="sm">No lab results available.</Text>;
+  if (!labQ.data || labQ.data.length === 0)
+    return (
+      <Text c="dimmed" size="sm">
+        No lab results available.
+      </Text>
+    );
 
   return (
     <Stack gap="xs">
@@ -414,14 +550,18 @@ function LabResultsSection({ admissionId }: { admissionId: string }) {
         <Group key={r.id} justify="space-between">
           <Group gap="xs">
             <IconFlask size={16} color="var(--mantine-color-violet-6)" />
-            <Text size="sm" fw={500}>{r.test_name ?? "Test"}</Text>
+            <Text size="sm" fw={500}>
+              {r.test_name ?? "Test"}
+            </Text>
           </Group>
           <Group gap="xs">
             <Text size="sm" fw={700} c={r.is_abnormal ? "red" : undefined}>
               {r.result_value ?? "-"} {r.unit ?? ""}
             </Text>
             {r.reference_range && (
-              <Text size="xs" c="dimmed">({r.reference_range})</Text>
+              <Text size="xs" c="dimmed">
+                ({r.reference_range})
+              </Text>
             )}
           </Group>
         </Group>

@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT name, generic_name, inn_name, atc_code, drug_class, drug_schedule,\n                       is_controlled, is_lasa, lasa_group, formulary_status,\n                       black_box_warning, max_dose_per_day, current_stock\n                FROM pharmacy_catalog\n                WHERE id = $1 AND tenant_id = $2\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "generic_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "inn_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "atc_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "drug_class",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "drug_schedule",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_controlled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_lasa",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "lasa_group",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "formulary_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "black_box_warning",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "max_dose_per_day",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "current_stock",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "769a8ced1804841bb8d6649700c4cad93d7c3de96a8380cbbeb7b73938b03d9a"
+}

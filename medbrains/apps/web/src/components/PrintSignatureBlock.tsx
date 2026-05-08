@@ -127,9 +127,7 @@ function SingleSignature({ sig, index }: { sig: PrintSignatureData; index: numbe
         </div>
       )}
 
-      <div style={{ fontSize: 11, fontWeight: 600 }}>
-        {sig.signer_name ?? "Doctor"}
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 600 }}>{sig.signer_name ?? "Doctor"}</div>
       <div style={{ fontSize: 10, color: "#555" }}>
         {role} • {formattedDate}
       </div>
@@ -281,9 +279,13 @@ function escapeHtml(s: string): string {
 
 function legalLabel(legalClass: string): string {
   switch (legalClass) {
-    case "medico_legal": return "MEDICO-LEGAL";
-    case "statutory_export": return "STATUTORY";
-    case "clinical": return "CLINICAL";
-    default: return legalClass.toUpperCase();
+    case "medico_legal":
+      return "MEDICO-LEGAL";
+    case "statutory_export":
+      return "STATUTORY";
+    case "clinical":
+      return "CLINICAL";
+    default:
+      return legalClass.toUpperCase();
   }
 }

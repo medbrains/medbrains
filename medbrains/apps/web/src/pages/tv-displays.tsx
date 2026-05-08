@@ -1,52 +1,52 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Drawer,
   Group,
+  MultiSelect,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
+  Switch,
   Tabs,
   Text,
-  TextInput,
   Textarea,
-  SimpleGrid,
-  Card,
-  Switch,
+  TextInput,
   Tooltip,
-  MultiSelect,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconPlus,
-  IconDeviceTv,
-  IconTicket,
-  IconBell,
-  IconCheck,
-  IconRefresh,
-  IconPlayerPlay,
-  IconUserOff,
-  IconPencil,
-  IconTrash,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  TvDisplay,
-  QueueToken,
-  CreateTvDisplayRequest,
-  UpdateTvDisplayRequest,
-  CreateQueueTokenRequest,
   BroadcastAnnouncementRequest,
+  CreateQueueTokenRequest,
+  CreateTvDisplayRequest,
   DepartmentRow,
-  QueueTokenStatus,
   QueuePriority,
+  QueueToken,
+  QueueTokenStatus,
+  TvDisplay,
+  UpdateTvDisplayRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconBell,
+  IconCheck,
+  IconDeviceTv,
+  IconPencil,
+  IconPlayerPlay,
+  IconPlus,
+  IconRefresh,
+  IconTicket,
+  IconTrash,
+  IconUserOff,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -126,12 +126,21 @@ export function TvDisplaysPage() {
 
   return (
     <div>
-      <PageHeader title="TV Displays & Queue" subtitle="Manage TV displays, queue tokens, and announcements" />
+      <PageHeader
+        title="TV Displays & Queue"
+        subtitle="Manage TV displays, queue tokens, and announcements"
+      />
       <Tabs defaultValue="displays">
         <Tabs.List>
-          <Tabs.Tab value="displays" leftSection={<IconDeviceTv size={16} />}>Displays</Tabs.Tab>
-          <Tabs.Tab value="tokens" leftSection={<IconTicket size={16} />}>Queue Tokens</Tabs.Tab>
-          <Tabs.Tab value="announcements" leftSection={<IconBell size={16} />}>Announcements</Tabs.Tab>
+          <Tabs.Tab value="displays" leftSection={<IconDeviceTv size={16} />}>
+            Displays
+          </Tabs.Tab>
+          <Tabs.Tab value="tokens" leftSection={<IconTicket size={16} />}>
+            Queue Tokens
+          </Tabs.Tab>
+          <Tabs.Tab value="announcements" leftSection={<IconBell size={16} />}>
+            Announcements
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="displays" pt="md">
@@ -188,7 +197,8 @@ function DisplaysTab({
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateTvDisplayRequest }) => api.updateTvDisplay(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateTvDisplayRequest }) =>
+      api.updateTvDisplay(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display updated", color: "success" });
@@ -247,9 +257,21 @@ function DisplaysTab({
       label: "Options",
       render: (row) => (
         <Group gap="xs">
-          {row.show_patient_name && <Badge size="xs" color="success">Name</Badge>}
-          {row.show_wait_time && <Badge size="xs" color="primary">Wait</Badge>}
-          {row.announcement_enabled && <Badge size="xs" color="orange">Announcements</Badge>}
+          {row.show_patient_name && (
+            <Badge size="xs" color="success">
+              Name
+            </Badge>
+          )}
+          {row.show_wait_time && (
+            <Badge size="xs" color="primary">
+              Wait
+            </Badge>
+          )}
+          {row.announcement_enabled && (
+            <Badge size="xs" color="orange">
+              Announcements
+            </Badge>
+          )}
         </Group>
       ),
     },
@@ -295,13 +317,14 @@ function DisplaysTab({
     const data: CreateTvDisplayRequest = {
       location_name: formData.get("location_name") as string,
       display_type: formData.get("display_type") as string,
-      department_id: formData.get("department_id") as string || undefined,
+      department_id: (formData.get("department_id") as string) || undefined,
       doctors_per_screen: Number(formData.get("doctors_per_screen")) || 4,
       show_patient_name: formData.get("show_patient_name") === "on",
       show_wait_time: formData.get("show_wait_time") === "on",
-      language: (formData.getAll("language") as string[]).length > 0
-        ? formData.getAll("language") as string[]
-        : ["en"],
+      language:
+        (formData.getAll("language") as string[]).length > 0
+          ? (formData.getAll("language") as string[])
+          : ["en"],
       announcement_enabled: formData.get("announcement_enabled") === "on",
       scroll_speed: Number(formData.get("scroll_speed")) || 5,
     };
@@ -329,12 +352,7 @@ function DisplaysTab({
         )}
       </Group>
 
-      <DataTable
-        columns={columns}
-        data={displays}
-        loading={isLoading}
-        rowKey={(row) => row.id}
-      />
+      <DataTable columns={columns} data={displays} loading={isLoading} rowKey={(row) => row.id} />
 
       <Drawer
         opened={opened}
@@ -403,7 +421,9 @@ function DisplaysTab({
               defaultChecked={selectedDisplay?.announcement_enabled ?? true}
             />
             <Group justify="flex-end" mt="md">
-              <Button variant="subtle" onClick={close}>Cancel</Button>
+              <Button variant="subtle" onClick={close}>
+                Cancel
+              </Button>
               <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
                 {selectedDisplay ? "Update" : "Create"}
               </Button>
@@ -485,7 +505,11 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
-      notifications.show({ title: "Success", message: "Token marked as no-show", color: "warning" });
+      notifications.show({
+        title: "Success",
+        message: "Token marked as no-show",
+        color: "warning",
+      });
     },
   });
 
@@ -493,14 +517,16 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     {
       key: "token_number",
       label: "Token",
-      render: (row) => <Badge size="lg" variant="filled">{row.token_number}</Badge>,
+      render: (row) => (
+        <Badge size="lg" variant="filled">
+          {row.token_number}
+        </Badge>
+      ),
     },
     {
       key: "status",
       label: "Status",
-      render: (row) => (
-        <Badge color={statusColors[row.status] || "slate"}>{row.status}</Badge>
-      ),
+      render: (row) => <Badge color={statusColors[row.status] || "slate"}>{row.status}</Badge>,
     },
     {
       key: "priority",
@@ -518,8 +544,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     {
       key: "called_at",
       label: "Called At",
-      render: (row) =>
-        row.called_at ? new Date(row.called_at).toLocaleTimeString() : "-",
+      render: (row) => (row.called_at ? new Date(row.called_at).toLocaleTimeString() : "-"),
     },
     {
       key: "created_at",
@@ -583,8 +608,8 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     const formData = new FormData(e.currentTarget);
     generateMutation.mutate({
       department_id: formData.get("department_id") as string,
-      patient_id: formData.get("patient_id") as string || undefined,
-      doctor_id: formData.get("doctor_id") as string || undefined,
+      patient_id: (formData.get("patient_id") as string) || undefined,
+      doctor_id: (formData.get("doctor_id") as string) || undefined,
       priority: ((formData.get("priority") as string) || "normal") as QueuePriority,
     });
   };
@@ -595,23 +620,38 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       {queueState && (
         <SimpleGrid cols={4} mb="md">
           <Card withBorder>
-            <Text size="sm" c="dimmed">Current Token</Text>
+            <Text size="sm" c="dimmed">
+              Current Token
+            </Text>
             <Text size="xl" fw={700}>
               {queueState.current_token?.token_number || "-"}
             </Text>
           </Card>
           <Card withBorder>
-            <Text size="sm" c="dimmed">Waiting</Text>
-            <Text size="xl" fw={700} c="primary">{queueState.waiting_count}</Text>
+            <Text size="sm" c="dimmed">
+              Waiting
+            </Text>
+            <Text size="xl" fw={700} c="primary">
+              {queueState.waiting_count}
+            </Text>
           </Card>
           <Card withBorder>
-            <Text size="sm" c="dimmed">Completed Today</Text>
-            <Text size="xl" fw={700} c="success">{queueState.completed_count}</Text>
+            <Text size="sm" c="dimmed">
+              Completed Today
+            </Text>
+            <Text size="xl" fw={700} c="success">
+              {queueState.completed_count}
+            </Text>
           </Card>
           <Card withBorder>
-            <Text size="sm" c="dimmed">Next Up</Text>
+            <Text size="sm" c="dimmed">
+              Next Up
+            </Text>
             <Text size="lg">
-              {queueState.next_tokens.slice(0, 3).map((t) => t.token_number).join(", ") || "-"}
+              {queueState.next_tokens
+                .slice(0, 3)
+                .map((t) => t.token_number)
+                .join(", ") || "-"}
             </Text>
           </Card>
         </SimpleGrid>
@@ -653,12 +693,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         )}
       </Group>
 
-      <DataTable
-        columns={columns}
-        data={tokens}
-        loading={isLoading}
-        rowKey={(row) => row.id}
-      />
+      <DataTable columns={columns} data={tokens} loading={isLoading} rowKey={(row) => row.id} />
 
       {/* Generate Token Drawer */}
       <Drawer
@@ -676,8 +711,16 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
               data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
               required
             />
-            <TextInput name="patient_id" label="Patient ID (optional)" placeholder="Leave blank for walk-in" />
-            <TextInput name="doctor_id" label="Doctor ID (optional)" placeholder="Leave blank for any doctor" />
+            <TextInput
+              name="patient_id"
+              label="Patient ID (optional)"
+              placeholder="Leave blank for walk-in"
+            />
+            <TextInput
+              name="doctor_id"
+              label="Doctor ID (optional)"
+              placeholder="Leave blank for any doctor"
+            />
             <Select
               name="priority"
               label="Priority"
@@ -692,8 +735,12 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
               defaultValue="normal"
             />
             <Group justify="flex-end" mt="md">
-              <Button variant="subtle" onClick={closeGenerate}>Cancel</Button>
-              <Button type="submit" loading={generateMutation.isPending}>Generate</Button>
+              <Button variant="subtle" onClick={closeGenerate}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={generateMutation.isPending}>
+                Generate
+              </Button>
             </Group>
           </Stack>
         </form>
@@ -729,7 +776,11 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
       setDisplayIds([]);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to broadcast announcement", color: "danger" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to broadcast announcement",
+        color: "danger",
+      });
     },
   });
 
@@ -783,7 +834,9 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
               onClick={handleBroadcast}
               loading={broadcastMutation.isPending}
               disabled={!canBroadcast || !message.trim()}
-              color={priority === "emergency" ? "danger" : priority === "warning" ? "orange" : "primary"}
+              color={
+                priority === "emergency" ? "danger" : priority === "warning" ? "orange" : "primary"
+              }
             >
               {priority === "emergency" ? "Send Emergency Alert" : "Broadcast"}
             </Button>

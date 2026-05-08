@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM bed_states WHERE location_id = $1 AND tenant_id = $2 AND status NOT IN ('vacant_clean', 'vacant_dirty')) AS \"occupied!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "occupied!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7eaa1a2f20d4034e283fdfe2d89f65dac3b1f428e5dc11bc31d9fb935803d34f"
+}

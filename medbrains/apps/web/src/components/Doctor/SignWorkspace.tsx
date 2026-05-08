@@ -17,10 +17,10 @@ import {
   Textarea,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconShield, IconSignature } from "@tabler/icons-react";
-import { useState } from "react";
 import { api } from "@medbrains/api";
 import type { PendingSignoffEntry } from "@medbrains/types";
+import { IconCheck, IconShield, IconSignature } from "@tabler/icons-react";
+import { useState } from "react";
 
 interface SignWorkspaceProps {
   opened: boolean;
@@ -95,15 +95,17 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
               Cryptographic + visual signature
             </Text>
             <Text size="xs" c="dimmed">
-              Ed25519 over canonical payload + scanned signature image stamped
-              onto the printed PDF. Both verifiable by any auditor.
+              Ed25519 over canonical payload + scanned signature image stamped onto the printed PDF.
+              Both verifiable by any auditor.
             </Text>
           </Stack>
         </Alert>
 
         <Stack gap={4}>
           <Group gap="xs">
-            <Badge size="sm" variant="light">{target.record_type}</Badge>
+            <Badge size="sm" variant="light">
+              {target.record_type}
+            </Badge>
             <Badge size="sm" color={legalColor(legalClassFor(target.record_type))}>
               {legalClassFor(target.record_type).replace("_", " ")}
             </Badge>
@@ -129,8 +131,8 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
 
         <Alert color="warning" variant="light">
           <Text size="xs">
-            Signing creates an immutable cryptographic record. Verify the
-            content above is correct before proceeding.
+            Signing creates an immutable cryptographic record. Verify the content above is correct
+            before proceeding.
           </Text>
         </Alert>
 
@@ -154,9 +156,13 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
 
 function legalColor(legalClass: string): string {
   switch (legalClass) {
-    case "medico_legal": return "red";
-    case "statutory_export": return "orange";
-    case "clinical": return "blue";
-    default: return "gray";
+    case "medico_legal":
+      return "red";
+    case "statutory_export":
+      return "orange";
+    case "clinical":
+      return "blue";
+    default:
+      return "gray";
   }
 }

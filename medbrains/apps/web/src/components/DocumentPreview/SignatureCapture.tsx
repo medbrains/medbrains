@@ -1,14 +1,6 @@
-import {
-  Button,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { IconSignature, IconEraser } from "@tabler/icons-react";
-import { useRef, useState, useCallback } from "react";
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { IconEraser, IconSignature } from "@tabler/icons-react";
+import { useCallback, useRef, useState } from "react";
 
 interface SignatureCaptureProps {
   opened: boolean;
@@ -156,9 +148,7 @@ export function SignatureCapture({
         </Group>
 
         <Text size="sm" fw={500} mt="xs">
-          {mode === "thumb"
-            ? "Place thumb impression below"
-            : "Sign in the box below"}
+          {mode === "thumb" ? "Place thumb impression below" : "Sign in the box below"}
         </Text>
 
         <div

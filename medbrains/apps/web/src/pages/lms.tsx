@@ -1,39 +1,39 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
   Card,
   Group,
   Progress,
+  Select,
   SimpleGrid,
   Stack,
+  Table,
   Tabs,
   Text,
   TextInput,
-  Select,
-  Table,
 } from "@mantine/core";
-import {
-  IconSchool,
-  IconBook,
-  IconCertificate,
-  IconRoute,
-  IconChartBar,
-  IconSearch,
-  IconPlus,
-  IconClipboardCheck,
-} from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  LmsCourse,
   EnrollmentWithCourse,
-  LmsLearningPath,
   LmsCertificate,
   LmsComplianceRow,
+  LmsCourse,
+  LmsLearningPath,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import {
+  IconBook,
+  IconCertificate,
+  IconChartBar,
+  IconClipboardCheck,
+  IconPlus,
+  IconRoute,
+  IconSchool,
+  IconSearch,
+} from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
@@ -58,7 +58,11 @@ const CATEGORY_OPTIONS = [
 ];
 
 function EmptyState({ message }: { message: string }) {
-  return <Text c="dimmed" ta="center" py="xl">{message}</Text>;
+  return (
+    <Text c="dimmed" ta="center" py="xl">
+      {message}
+    </Text>
+  );
 }
 
 // ── Course Catalog Tab ─────────────────────────────────
@@ -69,10 +73,11 @@ function CourseCatalogTab() {
   const canCreate = useHasPermission(P.LMS.COURSES_CREATE);
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ["lms-courses", search, category],
-    queryFn: () => api.listLmsCourses({
-      search: search || undefined,
-      category: category || undefined,
-    }),
+    queryFn: () =>
+      api.listLmsCourses({
+        search: search || undefined,
+        category: category || undefined,
+      }),
   });
 
   return (
@@ -96,23 +101,41 @@ function CourseCatalogTab() {
           />
         </Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} size="sm">Add Course</Button>
+          <Button leftSection={<IconPlus size={16} />} size="sm">
+            Add Course
+          </Button>
         )}
       </Group>
-      {isLoading ? <EmptyState message="Loading courses..." /> : courses.length === 0 ? (
+      {isLoading ? (
+        <EmptyState message="Loading courses..." />
+      ) : courses.length === 0 ? (
         <EmptyState message="No courses found." />
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {courses.map((c: LmsCourse) => (
             <Card key={c.id} shadow="xs" radius="md" padding="md" withBorder>
               <Group justify="space-between" mb="xs">
-                <Text fw={600} size="sm" lineClamp={1}>{c.title}</Text>
-                {c.is_mandatory && <Badge size="xs" color="red" variant="light">Mandatory</Badge>}
+                <Text fw={600} size="sm" lineClamp={1}>
+                  {c.title}
+                </Text>
+                {c.is_mandatory && (
+                  <Badge size="xs" color="red" variant="light">
+                    Mandatory
+                  </Badge>
+                )}
               </Group>
-              <Text size="xs" c="dimmed" lineClamp={2} mb="sm">{c.description ?? "No description"}</Text>
+              <Text size="xs" c="dimmed" lineClamp={2} mb="sm">
+                {c.description ?? "No description"}
+              </Text>
               <Group gap="xs">
-                <Badge size="xs" variant="outline">{c.category}</Badge>
-                {c.duration_hours ? <Badge size="xs" variant="light" color="blue">{c.duration_hours}h</Badge> : null}
+                <Badge size="xs" variant="outline">
+                  {c.category}
+                </Badge>
+                {c.duration_hours ? (
+                  <Badge size="xs" variant="light" color="blue">
+                    {c.duration_hours}h
+                  </Badge>
+                ) : null}
                 <Badge size="xs" variant="dot" color={c.is_active ? "green" : "gray"}>
                   {c.is_active ? "Active" : "Inactive"}
                 </Badge>
@@ -139,17 +162,21 @@ function MyLearningTab() {
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
       {enrollments.map((e: EnrollmentWithCourse) => {
-        const isOverdue = e.due_date && e.status !== "completed" && new Date(e.due_date) < new Date();
+        const isOverdue =
+          e.due_date && e.status !== "completed" && new Date(e.due_date) < new Date();
         return (
           <Card key={e.id} shadow="xs" radius="md" padding="md" withBorder>
             <Group justify="space-between" mb="xs">
-              <Text fw={600} size="sm" lineClamp={1}>{e.course_title}</Text>
-              <Badge size="xs" color={isOverdue ? "red" : STATUS_COLORS[e.status] ?? "gray"}>
+              <Text fw={600} size="sm" lineClamp={1}>
+                {e.course_title}
+              </Text>
+              <Badge size="xs" color={isOverdue ? "red" : (STATUS_COLORS[e.status] ?? "gray")}>
                 {isOverdue ? "Overdue" : e.status.replace("_", " ")}
               </Badge>
             </Group>
             <Text size="xs" c="dimmed" mb="sm">
-              {e.course_code} &middot; {e.category}{e.is_mandatory ? " (Mandatory)" : ""}
+              {e.course_code} &middot; {e.category}
+              {e.is_mandatory ? " (Mandatory)" : ""}
             </Text>
             <Progress
               value={e.progress_percentage}
@@ -158,7 +185,9 @@ function MyLearningTab() {
               mb="xs"
             />
             <Group justify="space-between">
-              <Text size="xs" c="dimmed">{e.progress_percentage}% complete</Text>
+              <Text size="xs" c="dimmed">
+                {e.progress_percentage}% complete
+              </Text>
               {e.due_date && (
                 <Text size="xs" c={isOverdue ? "red" : "dimmed"}>
                   Due: {new Date(e.due_date).toLocaleDateString()}
@@ -178,7 +207,9 @@ function QuizzesTab() {
   return (
     <Stack align="center" py="xl" gap="md">
       <IconClipboardCheck size={48} stroke={1.2} color="var(--mantine-color-gray-5)" />
-      <Text c="dimmed" size="lg" fw={500}>Select a course to take quizzes</Text>
+      <Text c="dimmed" size="lg" fw={500}>
+        Select a course to take quizzes
+      </Text>
       <Text c="dimmed" size="sm" maw={400} ta="center">
         Navigate to a course from the Course Catalog or My Learning tab, then access its quizzes
         from the course detail view.
@@ -200,22 +231,36 @@ function LearningPathsTab() {
     <Stack gap="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} size="sm">Create Path</Button>
+          <Button leftSection={<IconPlus size={16} />} size="sm">
+            Create Path
+          </Button>
         </Group>
       )}
-      {isLoading ? <EmptyState message="Loading learning paths..." /> : paths.length === 0 ? (
+      {isLoading ? (
+        <EmptyState message="Loading learning paths..." />
+      ) : paths.length === 0 ? (
         <EmptyState message="No learning paths defined yet." />
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {paths.map((p: LmsLearningPath) => (
             <Card key={p.id} shadow="xs" radius="md" padding="md" withBorder>
               <Group justify="space-between" mb="xs">
-                <Text fw={600} size="sm" lineClamp={1}>{p.title}</Text>
-                {p.is_mandatory && <Badge size="xs" color="red" variant="light">Mandatory</Badge>}
+                <Text fw={600} size="sm" lineClamp={1}>
+                  {p.title}
+                </Text>
+                {p.is_mandatory && (
+                  <Badge size="xs" color="red" variant="light">
+                    Mandatory
+                  </Badge>
+                )}
               </Group>
-              <Text size="xs" c="dimmed" lineClamp={2} mb="sm">{p.description ?? "No description"}</Text>
+              <Text size="xs" c="dimmed" lineClamp={2} mb="sm">
+                {p.description ?? "No description"}
+              </Text>
               <Group gap="xs">
-                <Badge size="xs" variant="outline">{p.code}</Badge>
+                <Badge size="xs" variant="outline">
+                  {p.code}
+                </Badge>
                 <Badge size="xs" variant="dot" color={p.is_active ? "green" : "gray"}>
                   {p.is_active ? "Active" : "Inactive"}
                 </Badge>
@@ -253,20 +298,32 @@ function ComplianceTab() {
       </Table.Thead>
       <Table.Tbody>
         {rows.map((row: LmsComplianceRow) => {
-          const pct = row.total_enrolled > 0
-            ? Math.round((row.completed / row.total_enrolled) * 100) : 0;
+          const pct =
+            row.total_enrolled > 0 ? Math.round((row.completed / row.total_enrolled) * 100) : 0;
           return (
             <Table.Tr key={row.course_id}>
               <Table.Td>{row.course_title}</Table.Td>
               <Table.Td>
-                {row.is_mandatory
-                  ? <Badge size="xs" color="red" variant="light">Yes</Badge>
-                  : <Text size="xs" c="dimmed">No</Text>}
+                {row.is_mandatory ? (
+                  <Badge size="xs" color="red" variant="light">
+                    Yes
+                  </Badge>
+                ) : (
+                  <Text size="xs" c="dimmed">
+                    No
+                  </Text>
+                )}
               </Table.Td>
               <Table.Td ta="center">{row.total_enrolled}</Table.Td>
               <Table.Td ta="center">{row.completed}</Table.Td>
               <Table.Td ta="center">
-                {row.overdue > 0 ? <Badge size="xs" color="red">{row.overdue}</Badge> : 0}
+                {row.overdue > 0 ? (
+                  <Badge size="xs" color="red">
+                    {row.overdue}
+                  </Badge>
+                ) : (
+                  0
+                )}
               </Table.Td>
               <Table.Td ta="center">
                 <Progress value={pct} size="sm" color={pct >= 80 ? "green" : "yellow"} />
@@ -303,7 +360,11 @@ function CertificatesTab() {
       <Table.Tbody>
         {certs.map((c: LmsCertificate) => (
           <Table.Tr key={c.id}>
-            <Table.Td><Text size="sm" ff="monospace">{c.certificate_no}</Text></Table.Td>
+            <Table.Td>
+              <Text size="sm" ff="monospace">
+                {c.certificate_no}
+              </Text>
+            </Table.Td>
             <Table.Td>{c.course_id ?? c.path_id ?? "\u2014"}</Table.Td>
             <Table.Td>{new Date(c.issued_at).toLocaleDateString()}</Table.Td>
             <Table.Td>
@@ -311,7 +372,11 @@ function CertificatesTab() {
                 <Text size="sm" c={new Date(c.expires_at) < new Date() ? "red" : undefined}>
                   {new Date(c.expires_at).toLocaleDateString()}
                 </Text>
-              ) : <Text size="sm" c="dimmed">No expiry</Text>}
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No expiry
+                </Text>
+              )}
             </Table.Td>
           </Table.Tr>
         ))}
@@ -341,29 +406,63 @@ export function LmsPage() {
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           {canViewCourses && (
-            <Tabs.Tab value="catalog" leftSection={<IconBook size={16} />}>Course Catalog</Tabs.Tab>
+            <Tabs.Tab value="catalog" leftSection={<IconBook size={16} />}>
+              Course Catalog
+            </Tabs.Tab>
           )}
-          <Tabs.Tab value="my-learning" leftSection={<IconSchool size={16} />}>My Learning</Tabs.Tab>
+          <Tabs.Tab value="my-learning" leftSection={<IconSchool size={16} />}>
+            My Learning
+          </Tabs.Tab>
           {canAttemptQuizzes && (
-            <Tabs.Tab value="quizzes" leftSection={<IconClipboardCheck size={16} />}>Quizzes</Tabs.Tab>
+            <Tabs.Tab value="quizzes" leftSection={<IconClipboardCheck size={16} />}>
+              Quizzes
+            </Tabs.Tab>
           )}
           {canViewPaths && (
-            <Tabs.Tab value="paths" leftSection={<IconRoute size={16} />}>Learning Paths</Tabs.Tab>
+            <Tabs.Tab value="paths" leftSection={<IconRoute size={16} />}>
+              Learning Paths
+            </Tabs.Tab>
           )}
           {canViewCompliance && (
-            <Tabs.Tab value="compliance" leftSection={<IconChartBar size={16} />}>Compliance</Tabs.Tab>
+            <Tabs.Tab value="compliance" leftSection={<IconChartBar size={16} />}>
+              Compliance
+            </Tabs.Tab>
           )}
           {canViewCertificates && (
-            <Tabs.Tab value="certificates" leftSection={<IconCertificate size={16} />}>Certificates</Tabs.Tab>
+            <Tabs.Tab value="certificates" leftSection={<IconCertificate size={16} />}>
+              Certificates
+            </Tabs.Tab>
           )}
         </Tabs.List>
 
-        {canViewCourses && <Tabs.Panel value="catalog" pt="md"><CourseCatalogTab /></Tabs.Panel>}
-        <Tabs.Panel value="my-learning" pt="md"><MyLearningTab /></Tabs.Panel>
-        {canAttemptQuizzes && <Tabs.Panel value="quizzes" pt="md"><QuizzesTab /></Tabs.Panel>}
-        {canViewPaths && <Tabs.Panel value="paths" pt="md"><LearningPathsTab /></Tabs.Panel>}
-        {canViewCompliance && <Tabs.Panel value="compliance" pt="md"><ComplianceTab /></Tabs.Panel>}
-        {canViewCertificates && <Tabs.Panel value="certificates" pt="md"><CertificatesTab /></Tabs.Panel>}
+        {canViewCourses && (
+          <Tabs.Panel value="catalog" pt="md">
+            <CourseCatalogTab />
+          </Tabs.Panel>
+        )}
+        <Tabs.Panel value="my-learning" pt="md">
+          <MyLearningTab />
+        </Tabs.Panel>
+        {canAttemptQuizzes && (
+          <Tabs.Panel value="quizzes" pt="md">
+            <QuizzesTab />
+          </Tabs.Panel>
+        )}
+        {canViewPaths && (
+          <Tabs.Panel value="paths" pt="md">
+            <LearningPathsTab />
+          </Tabs.Panel>
+        )}
+        {canViewCompliance && (
+          <Tabs.Panel value="compliance" pt="md">
+            <ComplianceTab />
+          </Tabs.Panel>
+        )}
+        {canViewCertificates && (
+          <Tabs.Panel value="certificates" pt="md">
+            <CertificatesTab />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </Stack>
   );

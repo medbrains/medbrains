@@ -33,6 +33,11 @@ variable "ssh_private_key" {
 variable "image_uri" { type = string }
 variable "rds_instance_class" { type = string }
 variable "hot_to_cold_days" { type = number }
+variable "kms_key_arns" {
+  description = "Optional hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
+  type        = map(string)
+  default     = {}
+}
 
 variable "helm_chart_dir" {
   type        = string
@@ -198,6 +203,7 @@ resource "aws_instance" "node" {
     volume_size = 60
     volume_type = "gp3"
     encrypted   = true
+    kms_key_id  = local.app_kms_key_arn
   }
 
   metadata_options {
@@ -227,23 +233,25 @@ resource "random_password" "db" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier              = "${var.hostname}-pg"
-  engine                  = "postgres"
-  engine_version          = "17.2"
-  instance_class          = var.rds_instance_class
-  allocated_storage       = 20
-  storage_type            = "gp3"
-  storage_encrypted       = true
-  db_name                 = "medbrains"
-  username                = "medbrains_admin"
-  password                = random_password.db.result
-  multi_az                = true
-  publicly_accessible     = false
-  db_subnet_group_name    = aws_db_subnet_group.this.name
-  vpc_security_group_ids  = [aws_security_group.db.id]
-  backup_retention_period = 7
-  skip_final_snapshot     = true
-  deletion_protection     = false
+  identifier                = "${var.hostname}-pg"
+  engine                    = "postgres"
+  engine_version            = "17.2"
+  instance_class            = var.rds_instance_class
+  allocated_storage         = 20
+  storage_type              = "gp3"
+  storage_encrypted         = true
+  kms_key_id                = local.db_kms_key_arn
+  db_name                   = "medbrains"
+  username                  = "medbrains_admin"
+  password                  = random_password.db.result
+  multi_az                  = true
+  publicly_accessible       = false
+  db_subnet_group_name      = aws_db_subnet_group.this.name
+  vpc_security_group_ids    = [aws_security_group.db.id]
+  backup_retention_period   = 7
+  final_snapshot_identifier = "${var.hostname}-pg-final-snapshot"
+  skip_final_snapshot       = false
+  deletion_protection       = true
 
   tags = local.tags
 }
@@ -267,8 +275,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = local.app_kms_key_arn == null ? "AES256" : "aws:kms"
+      kms_master_key_id = local.app_kms_key_arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -425,6 +435,9 @@ resource "null_resource" "bootstrap_cluster" {
 # ── Tags ──────────────────────────────────────────────────────────────
 
 locals {
+  app_kms_key_arn = lookup(var.kms_key_arns, "app", null)
+  db_kms_key_arn  = lookup(var.kms_key_arns, "db", null)
+
   tags = {
     Name      = var.hostname
     Project   = "medbrains"

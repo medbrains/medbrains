@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -10,20 +9,21 @@ import {
   Switch,
   Table,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import type {
   ConsultationTemplate,
   CreateConsultationTemplateRequest,
   DepartmentRow,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 type FormState = {
   name: string;
@@ -72,8 +72,7 @@ export function ConsultationTemplatesSettings() {
   }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationTemplateRequest) =>
-      api.createConsultationTemplate(data),
+    mutationFn: (data: CreateConsultationTemplateRequest) => api.createConsultationTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
       notifications.show({
@@ -113,11 +112,17 @@ export function ConsultationTemplatesSettings() {
       department_id: form.department_id || undefined,
       is_shared: form.is_shared,
       chief_complaints: form.chief_complaints
-        ? form.chief_complaints.split(",").map((s) => s.trim()).filter(Boolean)
+        ? form.chief_complaints
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : undefined,
       default_plan: form.default_plan || undefined,
       common_diagnoses: form.common_diagnoses
-        ? form.common_diagnoses.split(",").map((s) => s.trim()).filter(Boolean)
+        ? form.common_diagnoses
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : undefined,
     };
     createMutation.mutate(data);
@@ -148,7 +153,9 @@ export function ConsultationTemplatesSettings() {
       </Group>
 
       {isLoading ? (
-        <Text size="sm" c="dimmed">Loading...</Text>
+        <Text size="sm" c="dimmed">
+          Loading...
+        </Text>
       ) : (templates as ConsultationTemplate[]).length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="lg">
           No consultation templates configured yet.
@@ -169,9 +176,13 @@ export function ConsultationTemplatesSettings() {
             {(templates as ConsultationTemplate[]).map((tmpl) => (
               <Table.Tr key={tmpl.id}>
                 <Table.Td>
-                  <Text size="sm" fw={500}>{tmpl.name}</Text>
+                  <Text size="sm" fw={500}>
+                    {tmpl.name}
+                  </Text>
                   {tmpl.description && (
-                    <Text size="xs" c="dimmed" lineClamp={1}>{tmpl.description}</Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {tmpl.description}
+                    </Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -181,21 +192,21 @@ export function ConsultationTemplatesSettings() {
                   <Text size="sm">{getDeptName(tmpl.department_id)}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={tmpl.is_shared ? "success" : "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge color={tmpl.is_shared ? "success" : "slate"} variant="light" size="sm">
                     {tmpl.is_shared ? "Shared" : "Private"}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
                   <Group gap={4} wrap="wrap">
                     {tmpl.chief_complaints.slice(0, 3).map((cc) => (
-                      <Badge key={cc} size="xs" variant="dot">{cc}</Badge>
+                      <Badge key={cc} size="xs" variant="dot">
+                        {cc}
+                      </Badge>
                     ))}
                     {tmpl.chief_complaints.length > 3 && (
-                      <Text size="xs" c="dimmed">+{tmpl.chief_complaints.length - 3}</Text>
+                      <Text size="xs" c="dimmed">
+                        +{tmpl.chief_complaints.length - 3}
+                      </Text>
                     )}
                   </Group>
                 </Table.Td>
@@ -286,11 +297,7 @@ export function ConsultationTemplatesSettings() {
             <Button variant="light" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              loading={createMutation.isPending}
-              disabled={!form.name}
-            >
+            <Button onClick={handleSubmit} loading={createMutation.isPending} disabled={!form.name}>
               Create Template
             </Button>
           </Group>

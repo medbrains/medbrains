@@ -8,9 +8,9 @@
  */
 
 import type { NavigatorRenderProps } from "@medbrains/mobile-shell";
+import { COLORS } from "@medbrains/ui-mobile";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { COLORS } from "@medbrains/ui-mobile";
 
 const Stack = createNativeStackNavigator();
 

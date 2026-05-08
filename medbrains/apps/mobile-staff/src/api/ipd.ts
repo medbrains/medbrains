@@ -3,8 +3,8 @@
  * `crates/medbrains-server/src/routes/ipd.rs`.
  */
 
-import { apiConfig } from "./config.js";
 import { request } from "./client.js";
+import { apiConfig } from "./config.js";
 
 export interface MarRow {
   id: string;
@@ -15,25 +15,14 @@ export interface MarRow {
   frequency: string | null;
   scheduled_at: string;
   administered_at: string | null;
-  status:
-    | "scheduled"
-    | "given"
-    | "missed"
-    | "refused"
-    | "held"
-    | "prn"
-    | "discontinued";
+  status: "scheduled" | "given" | "missed" | "refused" | "held" | "prn" | "discontinued";
   is_high_alert: boolean;
   barcode_verified: boolean;
   hold_reason: string | null;
 }
 
 export async function listMar(admissionId: string): Promise<MarRow[]> {
-  return request<MarRow[]>(
-    apiConfig,
-    "GET",
-    `/api/ipd/admissions/${admissionId}/mar`,
-  );
+  return request<MarRow[]>(apiConfig, "GET", `/api/ipd/admissions/${admissionId}/mar`);
 }
 
 export type MarStatus = MarRow["status"];

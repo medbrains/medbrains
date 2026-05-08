@@ -2,7 +2,7 @@ import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ActivityIndicator,
@@ -71,10 +71,14 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
 
   const collections = data || [];
   const pendingCount = collections.filter(
-    (c) => c.status === "scheduled" || c.status === "assigned" || c.status === "in_transit" || c.status === "arrived"
+    (c) =>
+      c.status === "scheduled" ||
+      c.status === "assigned" ||
+      c.status === "in_transit" ||
+      c.status === "arrived",
   ).length;
   const collectedCount = collections.filter(
-    (c) => c.status === "collected" || c.status === "returned_to_lab"
+    (c) => c.status === "collected" || c.status === "returned_to_lab",
   ).length;
 
   const renderCollectionCard = ({ item }: { item: LabHomeCollection }) => {
@@ -98,12 +102,7 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
                   {item.scheduled_date}
                 </Text>
               </View>
-              <Badge
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: `${statusColor}20` },
-                ]}
-              >
+              <Badge style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
                 {item.status.replace("_", " ")}
               </Badge>
             </View>
@@ -149,15 +148,21 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
       <View style={styles.statsContainer}>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#fab005" }]}>{pendingCount}</Text>
-          <Text variant="labelSmall" style={styles.statLabel}>Pending</Text>
+          <Text variant="labelSmall" style={styles.statLabel}>
+            Pending
+          </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#40c057" }]}>{collectedCount}</Text>
-          <Text variant="labelSmall" style={styles.statLabel}>Collected</Text>
+          <Text variant="labelSmall" style={styles.statLabel}>
+            Collected
+          </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#228be6" }]}>{collections.length}</Text>
-          <Text variant="labelSmall" style={styles.statLabel}>Total</Text>
+          <Text variant="labelSmall" style={styles.statLabel}>
+            Total
+          </Text>
         </Surface>
       </View>
 

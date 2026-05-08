@@ -5,13 +5,13 @@
  * the demographics get captured later at the kiosk.
  */
 
-import { useState } from "react";
+import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { View } from "react-native";
 import { Button, HelperText, SegmentedButtons, TextInput } from "react-native-paper";
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
-import { createPatient } from "../../api/patients.js";
 import type { CreatePatientPayload } from "../../api/patients.js";
+import { createPatient } from "../../api/patients.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 
@@ -61,12 +61,7 @@ export function RegisterPatientScreen(): ReactNode {
           value={firstName}
           onChangeText={setFirstName}
         />
-        <TextInput
-          mode="outlined"
-          label="Last name"
-          value={lastName}
-          onChangeText={setLastName}
-        />
+        <TextInput mode="outlined" label="Last name" value={lastName} onChangeText={setLastName} />
         <SegmentedButtons
           value={gender}
           onValueChange={(v) => setGender(v as "male" | "female" | "other")}
@@ -95,12 +90,7 @@ export function RegisterPatientScreen(): ReactNode {
             {error}
           </HelperText>
         )}
-        <Button
-          mode="contained"
-          loading={busy}
-          disabled={!valid || busy}
-          onPress={submit}
-        >
+        <Button mode="contained" loading={busy} disabled={!valid || busy} onPress={submit}>
           Register patient
         </Button>
         <Button mode="outlined" onPress={router.pop} disabled={busy}>

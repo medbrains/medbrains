@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -12,11 +11,25 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import type {
+  CreateDocumentTemplateRequest,
+  CreateReviewScheduleRequest,
+  DocumentFormReviewSchedule,
+  DocumentOutput,
+  DocumentPrintFormat,
+  DocumentTemplate,
+  DocumentTemplateCategory,
+  DocumentWatermark,
+  UpdateDocumentTemplateRequest,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCalendarEvent,
   IconEye,
@@ -30,23 +43,10 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  DocumentTemplate,
-  DocumentOutput,
-  DocumentFormReviewSchedule,
-  CreateDocumentTemplateRequest,
-  UpdateDocumentTemplateRequest,
-  CreateReviewScheduleRequest,
-  DocumentTemplateCategory,
-  DocumentPrintFormat,
-  DocumentWatermark,
-} from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
 import { DocumentPreviewModal } from "../components/DocumentPreview/DocumentPreviewModal";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -167,7 +167,11 @@ function TemplatesTab() {
     mutationFn: (data: CreateDocumentTemplateRequest) => api.createDocumentTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({ title: "Template Created", message: "Document template created", color: "success" });
+      notifications.show({
+        title: "Template Created",
+        message: "Document template created",
+        color: "success",
+      });
       closeDrawer();
       resetForm();
     },
@@ -181,7 +185,11 @@ function TemplatesTab() {
       api.updateDocumentTemplate(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({ title: "Template Updated", message: "Document template updated", color: "success" });
+      notifications.show({
+        title: "Template Updated",
+        message: "Document template updated",
+        color: "success",
+      });
       closeDrawer();
       resetForm();
     },
@@ -194,7 +202,11 @@ function TemplatesTab() {
     mutationFn: (id: string) => api.deleteDocumentTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({ title: "Template Deleted", message: "Document template deleted", color: "orange" });
+      notifications.show({
+        title: "Template Deleted",
+        message: "Document template deleted",
+        color: "orange",
+      });
     },
   });
 
@@ -202,7 +214,11 @@ function TemplatesTab() {
     mutationFn: (id: string) => api.setDefaultTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({ title: "Default Set", message: "Template set as default", color: "success" });
+      notifications.show({
+        title: "Default Set",
+        message: "Template set as default",
+        color: "success",
+      });
     },
   });
 
@@ -345,15 +361,15 @@ function TemplatesTab() {
       key: "code",
       label: "Code",
       render: (row: DocumentTemplate) => (
-        <Text size="sm" fw={500}>{row.code}</Text>
+        <Text size="sm" fw={500}>
+          {row.code}
+        </Text>
       ),
     },
     {
       key: "name",
       label: "Name",
-      render: (row: DocumentTemplate) => (
-        <Text size="sm">{row.name}</Text>
-      ),
+      render: (row: DocumentTemplate) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "category",
@@ -375,7 +391,9 @@ function TemplatesTab() {
       key: "version",
       label: "Version",
       render: (row: DocumentTemplate) => (
-        <Badge size="sm" variant="outline">{row.version}</Badge>
+        <Badge size="sm" variant="outline">
+          {row.version}
+        </Badge>
       ),
     },
     {
@@ -383,7 +401,9 @@ function TemplatesTab() {
       label: "Default",
       render: (row: DocumentTemplate) =>
         row.is_default ? (
-          <Badge size="sm" color="success" variant="light">Default</Badge>
+          <Badge size="sm" color="success" variant="light">
+            Default
+          </Badge>
         ) : (
           <Button
             variant="subtle"
@@ -398,11 +418,7 @@ function TemplatesTab() {
       key: "is_active",
       label: "Status",
       render: (row: DocumentTemplate) => (
-        <Badge
-          size="sm"
-          color={row.is_active ? "success" : "slate"}
-          variant="light"
-        >
+        <Badge size="sm" color={row.is_active ? "success" : "slate"} variant="light">
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -459,12 +475,7 @@ function TemplatesTab() {
           )}
         </Group>
 
-        <DataTable
-          columns={columns}
-          data={filtered}
-          loading={isLoading}
-          rowKey={(r) => r.id}
-        />
+        <DataTable columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} />
       </Stack>
 
       <Drawer
@@ -511,7 +522,9 @@ function TemplatesTab() {
             rows={2}
           />
 
-          <Text size="sm" fw={600} mt="sm">Print Settings</Text>
+          <Text size="sm" fw={600} mt="sm">
+            Print Settings
+          </Text>
           <Group grow>
             <Select
               label="Print Format"
@@ -541,27 +554,81 @@ function TemplatesTab() {
             />
           </Group>
 
-          <Text size="sm" fw={600} mt="sm">Margins (mm)</Text>
+          <Text size="sm" fw={600} mt="sm">
+            Margins (mm)
+          </Text>
           <Group grow>
-            <NumberInput label="Top" value={marginTop} onChange={(v) => setMarginTop(typeof v === "number" ? v : 15)} min={0} max={50} />
-            <NumberInput label="Bottom" value={marginBottom} onChange={(v) => setMarginBottom(typeof v === "number" ? v : 15)} min={0} max={50} />
-            <NumberInput label="Left" value={marginLeft} onChange={(v) => setMarginLeft(typeof v === "number" ? v : 15)} min={0} max={50} />
-            <NumberInput label="Right" value={marginRight} onChange={(v) => setMarginRight(typeof v === "number" ? v : 15)} min={0} max={50} />
+            <NumberInput
+              label="Top"
+              value={marginTop}
+              onChange={(v) => setMarginTop(typeof v === "number" ? v : 15)}
+              min={0}
+              max={50}
+            />
+            <NumberInput
+              label="Bottom"
+              value={marginBottom}
+              onChange={(v) => setMarginBottom(typeof v === "number" ? v : 15)}
+              min={0}
+              max={50}
+            />
+            <NumberInput
+              label="Left"
+              value={marginLeft}
+              onChange={(v) => setMarginLeft(typeof v === "number" ? v : 15)}
+              min={0}
+              max={50}
+            />
+            <NumberInput
+              label="Right"
+              value={marginRight}
+              onChange={(v) => setMarginRight(typeof v === "number" ? v : 15)}
+              min={0}
+              max={50}
+            />
           </Group>
 
-          <Text size="sm" fw={600} mt="sm">Branding</Text>
+          <Text size="sm" fw={600} mt="sm">
+            Branding
+          </Text>
           <Group>
-            <Checkbox label="Show Logo" checked={showLogo} onChange={(e) => setShowLogo(e.currentTarget.checked)} />
-            <Checkbox label="Hospital Name" checked={showHospitalName} onChange={(e) => setShowHospitalName(e.currentTarget.checked)} />
-            <Checkbox label="Address" checked={showHospitalAddress} onChange={(e) => setShowHospitalAddress(e.currentTarget.checked)} />
+            <Checkbox
+              label="Show Logo"
+              checked={showLogo}
+              onChange={(e) => setShowLogo(e.currentTarget.checked)}
+            />
+            <Checkbox
+              label="Hospital Name"
+              checked={showHospitalName}
+              onChange={(e) => setShowHospitalName(e.currentTarget.checked)}
+            />
+            <Checkbox
+              label="Address"
+              checked={showHospitalAddress}
+              onChange={(e) => setShowHospitalAddress(e.currentTarget.checked)}
+            />
           </Group>
           <Group>
-            <Checkbox label="Page Numbers" checked={showPageNumbers} onChange={(e) => setShowPageNumbers(e.currentTarget.checked)} />
-            <Checkbox label="QR Code" checked={showQrCode} onChange={(e) => setShowQrCode(e.currentTarget.checked)} />
-            <Checkbox label="Print Metadata" checked={showPrintMetadata} onChange={(e) => setShowPrintMetadata(e.currentTarget.checked)} />
+            <Checkbox
+              label="Page Numbers"
+              checked={showPageNumbers}
+              onChange={(e) => setShowPageNumbers(e.currentTarget.checked)}
+            />
+            <Checkbox
+              label="QR Code"
+              checked={showQrCode}
+              onChange={(e) => setShowQrCode(e.currentTarget.checked)}
+            />
+            <Checkbox
+              label="Print Metadata"
+              checked={showPrintMetadata}
+              onChange={(e) => setShowPrintMetadata(e.currentTarget.checked)}
+            />
           </Group>
 
-          <Text size="sm" fw={600} mt="sm">Layout (JSON)</Text>
+          <Text size="sm" fw={600} mt="sm">
+            Layout (JSON)
+          </Text>
           <JsonInput
             label="Header Layout"
             value={headerLayout}
@@ -641,7 +708,11 @@ function OutputsTab() {
     mutationFn: (id: string) => api.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
-      notifications.show({ title: "Document Voided", message: "Document has been voided", color: "orange" });
+      notifications.show({
+        title: "Document Voided",
+        message: "Document has been voided",
+        color: "orange",
+      });
     },
   });
 
@@ -657,15 +728,15 @@ function OutputsTab() {
       key: "document_number",
       label: "Doc #",
       render: (row: DocumentOutput) => (
-        <Text size="sm" fw={500}>{row.document_number}</Text>
+        <Text size="sm" fw={500}>
+          {row.document_number}
+        </Text>
       ),
     },
     {
       key: "title",
       label: "Title",
-      render: (row: DocumentOutput) => (
-        <Text size="sm">{row.title}</Text>
-      ),
+      render: (row: DocumentOutput) => <Text size="sm">{row.title}</Text>,
     },
     {
       key: "category",
@@ -692,7 +763,9 @@ function OutputsTab() {
         <Group gap={4}>
           <Text size="sm">{row.print_count}</Text>
           {row.watermark && row.watermark !== "none" && (
-            <Badge size="xs" color="orange" variant="light">{row.watermark}</Badge>
+            <Badge size="xs" color="orange" variant="light">
+              {row.watermark}
+            </Badge>
           )}
         </Group>
       ),
@@ -700,17 +773,13 @@ function OutputsTab() {
     {
       key: "module_code",
       label: "Module",
-      render: (row: DocumentOutput) => (
-        <Text size="sm">{row.module_code ?? "—"}</Text>
-      ),
+      render: (row: DocumentOutput) => <Text size="sm">{row.module_code ?? "—"}</Text>,
     },
     {
       key: "created_at",
       label: "Generated",
       render: (row: DocumentOutput) => (
-        <Text size="sm">
-          {new Date(row.created_at).toLocaleString()}
-        </Text>
+        <Text size="sm">{new Date(row.created_at).toLocaleString()}</Text>
       ),
     },
     {
@@ -779,12 +848,7 @@ function OutputsTab() {
           />
         </Group>
 
-        <DataTable
-          columns={columns}
-          data={filtered}
-          loading={isLoading}
-          rowKey={(r) => r.id}
-        />
+        <DataTable columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} />
       </Stack>
 
       {previewDocId && (
@@ -826,7 +890,11 @@ function ReviewScheduleTab() {
     mutationFn: (data: CreateReviewScheduleRequest) => api.createReviewSchedule(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
-      notifications.show({ title: "Schedule Created", message: "Review schedule added", color: "success" });
+      notifications.show({
+        title: "Schedule Created",
+        message: "Review schedule added",
+        color: "success",
+      });
       closeDrawer();
     },
     onError: () => {
@@ -838,7 +906,11 @@ function ReviewScheduleTab() {
     mutationFn: (id: string) => api.markReviewed(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
-      notifications.show({ title: "Reviewed", message: "Schedule marked as reviewed", color: "success" });
+      notifications.show({
+        title: "Reviewed",
+        message: "Schedule marked as reviewed",
+        color: "success",
+      });
     },
   });
 
@@ -932,12 +1004,7 @@ function ReviewScheduleTab() {
           )}
         </Group>
 
-        <DataTable
-          columns={columns}
-          data={schedules}
-          loading={isLoading}
-          rowKey={(r) => r.id}
-        />
+        <DataTable columns={columns} data={schedules} loading={isLoading} rowKey={(r) => r.id} />
       </Stack>
 
       <Drawer
@@ -976,7 +1043,9 @@ function ReviewScheduleTab() {
             rows={3}
           />
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={closeDrawer}>Cancel</Button>
+            <Button variant="subtle" onClick={closeDrawer}>
+              Cancel
+            </Button>
             <Button
               onClick={() =>
                 createMutation.mutate({
@@ -1008,8 +1077,8 @@ function PrintQueueTab() {
         Print Queue Management
       </Text>
       <Text size="sm" c="dimmed" ta="center" maw={400}>
-        Direct printer dispatch and print job queue management will be available
-        in Phase 2. Currently, documents are printed via browser print dialog.
+        Direct printer dispatch and print job queue management will be available in Phase 2.
+        Currently, documents are printed via browser print dialog.
       </Text>
     </Stack>
   );
@@ -1025,8 +1094,8 @@ function PrintersTab() {
         Printer Configuration
       </Text>
       <Text size="sm" c="dimmed" ta="center" maw={400}>
-        Department printer mapping and configuration will be available in Phase 2.
-        Configure thermal, laser, and label printers per department.
+        Department printer mapping and configuration will be available in Phase 2. Configure
+        thermal, laser, and label printers per department.
       </Text>
     </Stack>
   );

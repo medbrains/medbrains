@@ -26,6 +26,7 @@
 //! and a new `on_<event>` function below. Keep each handler ≤ 50
 //! lines; complex logic belongs in a dedicated module.
 
+use medbrains_core::clinical_events::ClinicalEventName;
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -37,22 +38,40 @@ use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
 /// UI can label events as "BUILT-IN" and warn before users build a
 /// duplicate pipeline.
 pub const DEFAULT_SUBSCRIBERS: &[(&str, &str)] = &[
-    ("ipd.discharge.initiated", "Bed → housekeeping + MRD file + discharge SMS"),
-    ("pharmacy.order.dispensed", "NDPS register row (Sched H1/X) + low-stock check"),
-    ("lab.order.completed", "Critical-value SMS to ordering doctor"),
-    ("billing.invoice.created", "Payment link to patient (WhatsApp)"),
-    ("billing.payment.received", "Receipt email to patient"),
-    ("opd.encounter.created", "Appointment confirmation SMS"),
+    (
+        ClinicalEventName::IpdDischargeInitiated.as_str(),
+        "Bed → housekeeping + MRD file + discharge SMS",
+    ),
+    (
+        ClinicalEventName::PharmacyOrderDispensed.as_str(),
+        "NDPS register row (Sched H1/X) + low-stock check",
+    ),
+    (
+        ClinicalEventName::LabOrderCompleted.as_str(),
+        "Critical-value SMS to ordering doctor",
+    ),
+    (
+        ClinicalEventName::BillingInvoiceCreated.as_str(),
+        "Payment link to patient (WhatsApp)",
+    ),
+    (
+        ClinicalEventName::BillingPaymentReceived.as_str(),
+        "Receipt email to patient",
+    ),
+    (
+        ClinicalEventName::OpdEncounterCreated.as_str(),
+        "Appointment confirmation SMS",
+    ),
 ];
 
 /// Per-tenant opt-out check. Reads `tenant_settings` row with
-/// scope=`default_pipelines` and a JSON array of disabled event_types.
+/// category=`default_pipelines` and a JSON array of disabled event_types.
 /// Failures (missing table, unparseable value) default to enabled —
 /// the safe choice is "fire the baseline workflow."
 async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
     let res: Result<Option<Value>, _> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND scope = 'default_pipelines' AND key = 'disabled' \
+         WHERE tenant_id = $1 AND category = 'default_pipelines' AND key = 'disabled' \
          LIMIT 1",
     )
     .bind(tenant_id)
@@ -61,10 +80,7 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
     match res {
         Ok(Some(v)) => v
             .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .any(|item| item.as_str() == Some(event_type))
-            })
+            .map(|arr| arr.iter().any(|item| item.as_str() == Some(event_type)))
             .unwrap_or(false),
         _ => false,
     }
@@ -94,15 +110,25 @@ pub async fn dispatch_default_pipelines(
         return;
     }
 
-    let result = match event_type {
-        "ipd.discharge.initiated" => on_ipd_discharge_initiated(pool, tenant_id, payload).await,
-        "pharmacy.order.dispensed" => {
+    let result = match event_type.parse::<ClinicalEventName>() {
+        Ok(ClinicalEventName::IpdDischargeInitiated) => {
+            on_ipd_discharge_initiated(pool, tenant_id, payload).await
+        }
+        Ok(ClinicalEventName::PharmacyOrderDispensed) => {
             on_pharmacy_order_dispensed(pool, tenant_id, payload).await
         }
-        "lab.order.completed" => on_lab_order_completed(pool, tenant_id, payload).await,
-        "billing.invoice.created" => on_billing_invoice_created(pool, tenant_id, payload).await,
-        "billing.payment.received" => on_billing_payment_received(pool, tenant_id, payload).await,
-        "opd.encounter.created" => on_opd_encounter_created(pool, tenant_id, payload).await,
+        Ok(ClinicalEventName::LabOrderCompleted) => {
+            on_lab_order_completed(pool, tenant_id, payload).await
+        }
+        Ok(ClinicalEventName::BillingInvoiceCreated) => {
+            on_billing_invoice_created(pool, tenant_id, payload).await
+        }
+        Ok(ClinicalEventName::BillingPaymentReceived) => {
+            on_billing_payment_received(pool, tenant_id, payload).await
+        }
+        Ok(ClinicalEventName::OpdEncounterCreated) => {
+            on_opd_encounter_created(pool, tenant_id, payload).await
+        }
         _ => Ok(()), // No default subscriber — DB-backed dispatcher may match.
     };
 
@@ -225,9 +251,8 @@ async fn on_pharmacy_order_dispensed(
     //    indents within the same window.
     if let Some(items) = items {
         for item in items {
-            let drug_id = match uuid_from_value(item.get("drug_id")) {
-                Some(d) => d,
-                None => continue,
+            let Some(drug_id) = uuid_from_value(item.get("drug_id")) else {
+                continue;
             };
             let _ = enqueue(
                 &mut tx,
@@ -237,7 +262,10 @@ async fn on_pharmacy_order_dispensed(
                 "pharmacy.stock_check",
                 json!({ "drug_id": drug_id, "trigger": "post_dispense" }),
                 // Idempotency: at most one stock_check per drug per day.
-                Some(format!("stock_check:{drug_id}:{}", chrono::Utc::now().date_naive())),
+                Some(format!(
+                    "stock_check:{drug_id}:{}",
+                    chrono::Utc::now().date_naive()
+                )),
             )
             .await;
         }
@@ -373,7 +401,9 @@ async fn on_opd_encounter_created(
     let encounter_id = uuid_from_payload(payload, "encounter_id");
     let patient_id = uuid_from_payload(payload, "patient_id");
 
-    let Some(enc) = encounter_id else { return Ok(()) };
+    let Some(enc) = encounter_id else {
+        return Ok(());
+    };
     let mut tx = pool.begin().await?;
 
     let _ = enqueue(
@@ -401,7 +431,8 @@ fn uuid_from_payload(payload: &Value, key: &str) -> Option<Uuid> {
 }
 
 fn uuid_from_value(v: Option<&Value>) -> Option<Uuid> {
-    v.and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok())
+    v.and_then(Value::as_str)
+        .and_then(|s| Uuid::parse_str(s).ok())
 }
 
 async fn enqueue(

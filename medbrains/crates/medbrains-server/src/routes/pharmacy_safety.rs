@@ -173,7 +173,8 @@ pub async fn list_recalls(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyDrugRecall>(
         "SELECT * FROM pharmacy_drug_recalls \
@@ -198,7 +199,8 @@ pub async fn create_recall(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let now = Utc::now();
     let ts = now.format("%Y%m%d%H%M%S");
@@ -237,7 +239,8 @@ pub async fn complete_recall(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyDrugRecall>(
         "UPDATE pharmacy_drug_recalls SET \
@@ -272,7 +275,8 @@ pub async fn get_recall_affected_patients(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let recall = sqlx::query_as::<_, PharmacyDrugRecall>(
         "SELECT * FROM pharmacy_drug_recalls WHERE id = $1 AND tenant_id = $2",
@@ -333,7 +337,8 @@ pub async fn list_destructions(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyDestructionLog>(
         "SELECT * FROM pharmacy_destruction_log \
@@ -356,7 +361,8 @@ pub async fn create_destruction(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let now = Utc::now();
     let ts = now.format("%Y%m%d%H%M%S");
@@ -398,7 +404,8 @@ pub async fn get_destruction_certificate(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyDestructionLog>(
         "SELECT * FROM pharmacy_destruction_log WHERE id = $1 AND tenant_id = $2",
@@ -425,7 +432,8 @@ pub async fn list_substitutes(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacySubstitute>(
         "SELECT ps.*, \
@@ -456,7 +464,8 @@ pub async fn create_substitute(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacySubstitute>(
         "WITH prices AS ( \
@@ -504,7 +513,8 @@ pub async fn list_kits(
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, PharmacyEmergencyKit>(
         "SELECT * FROM pharmacy_emergency_kits \
@@ -527,7 +537,8 @@ pub async fn create_kit(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let interval_days = body.check_interval_days.unwrap_or(30);
 
@@ -564,7 +575,8 @@ pub async fn check_kit(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyEmergencyKit>(
         "UPDATE pharmacy_emergency_kits SET \
@@ -595,7 +607,8 @@ pub async fn restock_kit(
     require_permission(&claims, permissions::pharmacy::safety::OVERRIDE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PharmacyEmergencyKit>(
         "UPDATE pharmacy_emergency_kits SET \

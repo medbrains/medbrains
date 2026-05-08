@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Badge,
   Button,
@@ -14,12 +13,13 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
+import type { AuditLogEntry, AuditLogQuery, AuditLogSummary } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import type { AuditLogSummary, AuditLogEntry, AuditLogQuery } from "@medbrains/types";
+import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
 
@@ -149,9 +149,7 @@ export function AuditLogTab() {
     {
       key: "created_at",
       label: "Time",
-      render: (r) => (
-        <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>
-      ),
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleString()}</Text>,
     },
     {
       key: "user_name",
@@ -272,11 +270,7 @@ export function AuditLogTab() {
           size="sm"
           color="teal"
           leftSection={
-            integrityMutation.isPending ? (
-              <Loader size={14} />
-            ) : (
-              <IconShieldCheck size={14} />
-            )
+            integrityMutation.isPending ? <Loader size={14} /> : <IconShieldCheck size={14} />
           }
           onClick={() => integrityMutation.mutate()}
           disabled={integrityMutation.isPending}
@@ -312,11 +306,7 @@ export function AuditLogTab() {
       </div>
 
       {/* Detail Drawer */}
-      <AuditDetailDrawer
-        entry={detailEntry ?? null}
-        opened={detailOpened}
-        onClose={closeDetail}
-      />
+      <AuditDetailDrawer entry={detailEntry ?? null} opened={detailOpened} onClose={closeDetail} />
     </Stack>
   );
 }
@@ -333,13 +323,7 @@ function AuditDetailDrawer({
   onClose: () => void;
 }) {
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Audit Entry Detail"
-      position="right"
-      size="lg"
-    >
+    <Drawer opened={opened} onClose={onClose} title="Audit Entry Detail" position="right" size="lg">
       {entry ? (
         <Stack gap="md">
           <Group gap="xs">

@@ -64,13 +64,7 @@ const SUBJECT_TYPES: { value: SubjectType; label: string }[] = [
   { value: "group", label: "Group (e.g. lab_seniors)" },
 ];
 
-export function ShareDrawer({
-  opened,
-  onClose,
-  objectType,
-  objectId,
-  objectLabel,
-}: Props) {
+export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel }: Props) {
   const qc = useQueryClient();
 
   const [subjectType, setSubjectType] = useState<SubjectType>("user");
@@ -110,11 +104,7 @@ export function ShareDrawer({
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (g: {
-      relation: string;
-      subject_type: string;
-      subject_id: string;
-    }) =>
+    mutationFn: (g: { relation: string; subject_type: string; subject_id: string }) =>
       api.revokeSharingGrant({
         object_type: objectType,
         object_id: objectId,
@@ -141,11 +131,7 @@ export function ShareDrawer({
       onClose={onClose}
       position="right"
       size="md"
-      title={
-        <Title order={4}>
-          Share {objectLabel ? `"${objectLabel}"` : objectType}
-        </Title>
-      }
+      title={<Title order={4}>Share {objectLabel ? `"${objectLabel}"` : objectType}</Title>}
     >
       <Stack gap="lg">
         <Stack gap="sm">
@@ -159,17 +145,11 @@ export function ShareDrawer({
           <TextInput
             label="Subject ID"
             description={
-              subjectType === "role"
-                ? "Role code (e.g. nurse, doctor)"
-                : `${subjectType} UUID`
+              subjectType === "role" ? "Role code (e.g. nurse, doctor)" : `${subjectType} UUID`
             }
             value={subjectId}
             onChange={(e) => setSubjectId(e.currentTarget.value)}
-            placeholder={
-              subjectType === "role"
-                ? "doctor"
-                : "00000000-0000-0000-0000-000000000000"
-            }
+            placeholder={subjectType === "role" ? "doctor" : "00000000-0000-0000-0000-000000000000"}
           />
           <Select
             label="Relation"
@@ -229,9 +209,7 @@ export function ShareDrawer({
                     </Table.Td>
                     <Table.Td>{g.relation}</Table.Td>
                     <Table.Td>
-                      {g.expires_at
-                        ? new Date(g.expires_at).toLocaleString()
-                        : "permanent"}
+                      {g.expires_at ? new Date(g.expires_at).toLocaleString() : "permanent"}
                     </Table.Td>
                     <Table.Td>
                       <Button
@@ -250,8 +228,8 @@ export function ShareDrawer({
             </Table>
           ) : (
             <Text c="dimmed" size="sm">
-              No grants yet. The resource is visible only to its owner /
-              attending / department members.
+              No grants yet. The resource is visible only to its owner / attending / department
+              members.
             </Text>
           )}
         </Stack>

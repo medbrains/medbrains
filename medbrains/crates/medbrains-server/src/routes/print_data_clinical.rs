@@ -47,7 +47,8 @@ pub async fn get_wristband_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, WristbandRow>(
         "SELECT \
@@ -129,7 +130,8 @@ pub async fn get_discharge_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, DischargeSummaryRow>(
         "SELECT \
@@ -226,7 +228,8 @@ pub async fn get_token_slip_print_data(
     require_permission(&claims, permissions::front_office::queue::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TokenSlipRow>(
         "SELECT \
@@ -302,7 +305,8 @@ pub async fn get_visitor_pass_print_data(
     require_permission(&claims, permissions::front_office::passes::LIST)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, VisitorPassRow>(
         "SELECT \
@@ -383,7 +387,8 @@ pub async fn get_treatment_chart_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TreatmentChartRow>(
         "SELECT \
@@ -541,7 +546,8 @@ pub async fn get_transfer_summary_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, TransferSummaryRow>(
         "SELECT \
@@ -693,7 +699,8 @@ pub async fn get_patient_education_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, PatientEducationRow>(
         "SELECT \
@@ -779,7 +786,8 @@ pub async fn get_registration_card_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, RegistrationCardRow>(
         "SELECT \
@@ -872,7 +880,8 @@ pub async fn get_infant_wristband_print_data(
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, InfantWristbandRow>(
         "SELECT \
@@ -981,7 +990,8 @@ pub async fn get_opd_prescription_print_data(
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, OpdPrescriptionRow>(
         "SELECT \
@@ -1198,7 +1208,8 @@ pub async fn get_lab_report_full_print_data(
     require_permission(&claims, permissions::lab::reports::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, LabReportFullRow>(
         "SELECT \
@@ -1373,7 +1384,8 @@ pub async fn get_cumulative_lab_report_print_data(
     require_permission(&claims, permissions::lab::reports::VIEW)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let patient = sqlx::query_as::<_, CumulativeLabRow>(
         "SELECT \
@@ -1525,7 +1537,8 @@ pub async fn get_radiology_report_full_print_data(
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, RadiologyReportFullRow>(
         "SELECT \
@@ -1718,7 +1731,8 @@ pub async fn get_death_certificate_print_data(
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, DeathCertRow>(
         "SELECT \

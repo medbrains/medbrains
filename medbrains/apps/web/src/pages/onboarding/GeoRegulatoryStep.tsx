@@ -1,12 +1,4 @@
-import {
-  Button,
-  Checkbox,
-  Loader,
-  Select,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Button, Checkbox, Loader, Select, Stack, Text, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { RegulatoryBody } from "@medbrains/types";
@@ -24,18 +16,10 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
   const storedRegulatorIds = useOnboardingStore((s) => s.regulatorIds);
   const setGeo = useOnboardingStore((s) => s.setGeo);
 
-  const [countryId, setCountryId] = useState<string | null>(
-    storedGeo?.country_id ?? null,
-  );
-  const [stateId, setStateId] = useState<string | null>(
-    storedGeo?.state_id ?? null,
-  );
-  const [districtId, setDistrictId] = useState<string | null>(
-    storedGeo?.district_id ?? null,
-  );
-  const [selectedRegulators, setSelectedRegulators] = useState<string[]>(
-    storedRegulatorIds,
-  );
+  const [countryId, setCountryId] = useState<string | null>(storedGeo?.country_id ?? null);
+  const [stateId, setStateId] = useState<string | null>(storedGeo?.state_id ?? null);
+  const [districtId, setDistrictId] = useState<string | null>(storedGeo?.district_id ?? null);
+  const [selectedRegulators, setSelectedRegulators] = useState<string[]>(storedRegulatorIds);
 
   const { data: countries } = useQuery({
     queryKey: ["geo-countries"],
@@ -107,9 +91,7 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
         <Select
           label="Country"
           placeholder="Select country"
-          data={
-            countries?.map((c) => ({ value: c.id, label: c.name })) ?? []
-          }
+          data={countries?.map((c) => ({ value: c.id, label: c.name })) ?? []}
           value={countryId}
           onChange={handleCountryChange}
           searchable
@@ -126,9 +108,7 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
         <Select
           label="District"
           placeholder="Select district"
-          data={
-            districts?.map((d) => ({ value: d.id, label: d.name })) ?? []
-          }
+          data={districts?.map((d) => ({ value: d.id, label: d.name })) ?? []}
           value={districtId}
           onChange={setDistrictId}
           searchable
@@ -141,8 +121,7 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
           Applicable Regulatory Bodies
         </Title>
         <Text size="sm" c="dimmed" mb="md">
-          Based on your location, these regulatory bodies are auto-detected.
-          Adjust as needed.
+          Based on your location, these regulatory bodies are auto-detected. Adjust as needed.
         </Text>
 
         {detectingRegulators && <Loader size="sm" />}
@@ -163,9 +142,7 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
         <Button variant="default" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={handleSave}>
-          Save & Continue
-        </Button>
+        <Button onClick={handleSave}>Save & Continue</Button>
       </div>
     </Stack>
   );

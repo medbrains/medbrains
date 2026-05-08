@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ActivityIndicator,
@@ -62,30 +62,35 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
 
   // Filter invoices based on selected filter
   const allInvoices = data || [];
-  const invoices = filter === "all"
-    ? allInvoices
-    : allInvoices.filter((inv) => {
-        if (filter === "pending") return inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid";
-        if (filter === "paid") return inv.status === "paid";
-        return true;
-      });
+  const invoices =
+    filter === "all"
+      ? allInvoices
+      : allInvoices.filter((inv) => {
+          if (filter === "pending")
+            return (
+              inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid"
+            );
+          if (filter === "paid") return inv.status === "paid";
+          return true;
+        });
 
   const totalPending = allInvoices
-    .filter((inv) => inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid")
+    .filter(
+      (inv) => inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid",
+    )
     .reduce((sum, inv) => sum + Number.parseFloat(inv.balance || "0"), 0);
 
   const renderInvoiceCard = ({ item }: { item: (typeof invoices)[0] }) => {
     const invoiceDate = new Date(item.issued_at || item.created_at);
     const statusColor = getStatusColor(item.status);
-    const isPending = item.status === "draft" || item.status === "issued" || item.status === "partially_paid";
+    const isPending =
+      item.status === "draft" || item.status === "issued" || item.status === "partially_paid";
     const totalAmount = Number.parseFloat(item.total_amount || "0");
     const paidAmount = Number.parseFloat(item.paid_amount || "0");
     const balance = Number.parseFloat(item.balance || "0");
 
     return (
-      <TouchableOpacity
-        onPress={() => navigation.navigate("BillDetail", { invoiceId: item.id })}
-      >
+      <TouchableOpacity onPress={() => navigation.navigate("BillDetail", { invoiceId: item.id })}>
         <Card style={styles.invoiceCard}>
           <Card.Content>
             <View style={styles.cardHeader}>
@@ -239,10 +244,18 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
           Accepted Payment Methods
         </Text>
         <View style={styles.methodsRow}>
-          <Chip compact icon="cellphone">UPI</Chip>
-          <Chip compact icon="credit-card">Card</Chip>
-          <Chip compact icon="bank">Net Banking</Chip>
-          <Chip compact icon="cash">Cash</Chip>
+          <Chip compact icon="cellphone">
+            UPI
+          </Chip>
+          <Chip compact icon="credit-card">
+            Card
+          </Chip>
+          <Chip compact icon="bank">
+            Net Banking
+          </Chip>
+          <Chip compact icon="cash">
+            Cash
+          </Chip>
         </View>
       </Surface>
     </SafeAreaView>

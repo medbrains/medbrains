@@ -1,8 +1,5 @@
 import { NumberInput, Textarea, TextInput } from "@mantine/core";
-import type {
-  MappingOperationConfig,
-  MappingOperationType,
-} from "@medbrains/types";
+import type { MappingOperationConfig, MappingOperationType } from "@medbrains/types";
 
 interface OperationConfigProps {
   operation: MappingOperationType;
@@ -10,11 +7,7 @@ interface OperationConfigProps {
   onChange: (config: MappingOperationConfig) => void;
 }
 
-export function OperationConfig({
-  operation,
-  config,
-  onChange,
-}: OperationConfigProps) {
+export function OperationConfig({ operation, config, onChange }: OperationConfigProps) {
   switch (operation) {
     // ── String: no-config ops ──
     case "uppercase":
@@ -73,9 +66,7 @@ export function OperationConfig({
           label="Separator"
           placeholder=","
           value={config.separator ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, separator: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, separator: e.currentTarget.value })}
         />
       );
 
@@ -88,9 +79,7 @@ export function OperationConfig({
             label="Start"
             placeholder="0"
             value={config.start ?? ""}
-            onChange={(v) =>
-              onChange({ ...config, start: typeof v === "number" ? v : 0 })
-            }
+            onChange={(v) => onChange({ ...config, start: typeof v === "number" ? v : 0 })}
           />
           <NumberInput
             size="xs"
@@ -116,9 +105,7 @@ export function OperationConfig({
             label="Start"
             placeholder="0"
             value={config.start ?? ""}
-            onChange={(v) =>
-              onChange({ ...config, start: typeof v === "number" ? v : 0 })
-            }
+            onChange={(v) => onChange({ ...config, start: typeof v === "number" ? v : 0 })}
           />
           <NumberInput
             size="xs"
@@ -144,18 +131,14 @@ export function OperationConfig({
             label="Find"
             placeholder="search text"
             value={config.find ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, find: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, find: e.currentTarget.value })}
           />
           <TextInput
             size="xs"
             label="Replace With"
             placeholder="replacement"
             value={config.replaceWith ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, replaceWith: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, replaceWith: e.currentTarget.value })}
           />
         </>
       );
@@ -169,27 +152,21 @@ export function OperationConfig({
             label="Pattern"
             placeholder="[a-z]+"
             value={config.regex ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, regex: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, regex: e.currentTarget.value })}
           />
           <TextInput
             size="xs"
             label="Flags"
             placeholder="gi"
             value={config.regexFlags ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, regexFlags: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, regexFlags: e.currentTarget.value })}
           />
           <TextInput
             size="xs"
             label="Replace With"
             placeholder="replacement"
             value={config.replaceWith ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, replaceWith: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, replaceWith: e.currentTarget.value })}
           />
         </>
       );
@@ -202,18 +179,14 @@ export function OperationConfig({
             label="Pattern"
             placeholder="(\d+)"
             value={config.regex ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, regex: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, regex: e.currentTarget.value })}
           />
           <TextInput
             size="xs"
             label="Flags"
             placeholder="gi"
             value={config.regexFlags ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, regexFlags: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, regexFlags: e.currentTarget.value })}
           />
         </>
       );
@@ -228,9 +201,7 @@ export function OperationConfig({
             label="Pad Character"
             placeholder="0"
             value={config.padChar ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, padChar: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, padChar: e.currentTarget.value })}
           />
           <NumberInput
             size="xs"
@@ -268,9 +239,7 @@ export function OperationConfig({
             label="Suffix"
             placeholder="..."
             value={config.suffix ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, suffix: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, suffix: e.currentTarget.value })}
           />
         </>
       );
@@ -284,9 +253,7 @@ export function OperationConfig({
           placeholder="Hello {{value}}"
           rows={2}
           value={config.templateString ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, templateString: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, templateString: e.currentTarget.value })}
         />
       );
 
@@ -298,9 +265,7 @@ export function OperationConfig({
           label="Index"
           placeholder="0"
           value={config.index ?? ""}
-          onChange={(v) =>
-            onChange({ ...config, index: typeof v === "number" ? v : 0 })
-          }
+          onChange={(v) => onChange({ ...config, index: typeof v === "number" ? v : 0 })}
         />
       );
 
@@ -330,9 +295,7 @@ export function OperationConfig({
           label="Condition"
           placeholder="value > 0"
           value={config.condition ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, condition: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, condition: e.currentTarget.value })}
         />
       );
 
@@ -345,9 +308,7 @@ export function OperationConfig({
           label="Field"
           placeholder="name"
           value={config.field ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, field: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, field: e.currentTarget.value })}
         />
       );
 
@@ -359,9 +320,7 @@ export function OperationConfig({
           label="Value to Push"
           placeholder="new_item"
           value={config.defaultValue ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, defaultValue: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, defaultValue: e.currentTarget.value })}
         />
       );
 
@@ -377,9 +336,7 @@ export function OperationConfig({
           label="Operand"
           placeholder="0"
           value={config.operand ?? ""}
-          onChange={(v) =>
-            onChange({ ...config, operand: typeof v === "number" ? v : 0 })
-          }
+          onChange={(v) => onChange({ ...config, operand: typeof v === "number" ? v : 0 })}
         />
       );
 
@@ -454,9 +411,7 @@ export function OperationConfig({
             label="Locale"
             placeholder="en-US"
             value={config.locale ?? ""}
-            onChange={(e) =>
-              onChange({ ...config, locale: e.currentTarget.value })
-            }
+            onChange={(e) => onChange({ ...config, locale: e.currentTarget.value })}
           />
         </>
       );
@@ -471,9 +426,7 @@ export function OperationConfig({
           label="Date Format"
           placeholder="YYYY-MM-DD"
           value={config.dateFormat ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, dateFormat: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, dateFormat: e.currentTarget.value })}
         />
       );
 
@@ -486,9 +439,7 @@ export function OperationConfig({
           label="Days"
           placeholder="1"
           value={config.days ?? ""}
-          onChange={(v) =>
-            onChange({ ...config, days: typeof v === "number" ? v : 0 })
-          }
+          onChange={(v) => onChange({ ...config, days: typeof v === "number" ? v : 0 })}
         />
       );
 
@@ -500,9 +451,7 @@ export function OperationConfig({
           label="Hours"
           placeholder="1"
           value={config.hours ?? ""}
-          onChange={(v) =>
-            onChange({ ...config, hours: typeof v === "number" ? v : 0 })
-          }
+          onChange={(v) => onChange({ ...config, hours: typeof v === "number" ? v : 0 })}
         />
       );
 
@@ -514,9 +463,7 @@ export function OperationConfig({
           label="Default Value"
           placeholder="fallback value"
           value={config.defaultValue ?? ""}
-          onChange={(e) =>
-            onChange({ ...config, defaultValue: e.currentTarget.value })
-          }
+          onChange={(e) => onChange({ ...config, defaultValue: e.currentTarget.value })}
         />
       );
 

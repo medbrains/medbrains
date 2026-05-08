@@ -31,7 +31,7 @@ const EMERGENCY_CASE_ID: &str = "10000000-0000-4000-8000-000000000140";
 /// Seed canonical fixtures for the given tenant. Pulls a pre-existing
 /// demo department + doctor + admin user from the demo data already
 /// inserted by `demo_patients::seed_demo_patients`.
-pub async fn seed_canonical_fixtures(
+pub(super) async fn seed_canonical_fixtures(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -169,8 +169,6 @@ pub async fn seed_canonical_fixtures(
 
     tx.commit().await?;
 
-    tracing::info!(
-        "Seeded canonical fixtures (patient/encounter/appointment/admission/invoice)"
-    );
+    tracing::info!("Seeded canonical fixtures (patient/encounter/appointment/admission/invoice)");
     Ok(())
 }

@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Combobox, Group, InputBase, Text, Badge, useCombobox } from "@mantine/core";
+import { Badge, Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { api } from "@medbrains/api";
 import type { Employee } from "@medbrains/types";
+import { IconSearch } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface EmployeeSearchSelectProps {
   value: string;
@@ -43,9 +43,7 @@ export function EmployeeSearchSelect({
     staleTime: 30_000,
   });
 
-  const employees = (data ?? []).filter(
-    (e: Employee) => !excludeIds?.includes(e.id),
-  );
+  const employees = (data ?? []).filter((e: Employee) => !excludeIds?.includes(e.id));
 
   const handleSelect = (employeeId: string) => {
     const emp = employees.find((e: Employee) => e.id === employeeId);
@@ -97,11 +95,19 @@ export function EmployeeSearchSelect({
               <Combobox.Option key={e.id} value={e.id}>
                 <Group gap={8} wrap="nowrap" justify="space-between">
                   <div style={{ flex: 1 }}>
-                    <Text size="sm" fw={500}>{formatEmployeeName(e)}</Text>
+                    <Text size="sm" fw={500}>
+                      {formatEmployeeName(e)}
+                    </Text>
                     <Group gap={6}>
-                      <Text size="xs" c="primary" fw={600}>{e.employee_code}</Text>
+                      <Text size="xs" c="primary" fw={600}>
+                        {e.employee_code}
+                      </Text>
                       {e.status && (
-                        <Badge size="xs" variant="light" color={e.status === "active" ? "green" : "gray"}>
+                        <Badge
+                          size="xs"
+                          variant="light"
+                          color={e.status === "active" ? "green" : "gray"}
+                        >
                           {e.status}
                         </Badge>
                       )}

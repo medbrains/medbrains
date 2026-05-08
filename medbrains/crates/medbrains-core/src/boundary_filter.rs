@@ -72,7 +72,8 @@ impl BoundaryFilter {
         S: Into<String>,
     {
         for f in fields {
-            self.classifications.insert(f.into().to_lowercase(), Classification::Phi);
+            self.classifications
+                .insert(f.into().to_lowercase(), Classification::Phi);
         }
         self
     }
@@ -83,7 +84,8 @@ impl BoundaryFilter {
         S: Into<String>,
     {
         for f in fields {
-            self.classifications.insert(f.into().to_lowercase(), Classification::None);
+            self.classifications
+                .insert(f.into().to_lowercase(), Classification::None);
         }
         self
     }
@@ -149,9 +151,7 @@ impl BoundaryFilter {
             "event_code",
             "correlation_id",
         ];
-        Self::new(true)
-            .with_phi_fields(phi)
-            .with_safe_fields(safe)
+        Self::new(true).with_phi_fields(phi).with_safe_fields(safe)
     }
 
     /// Apply to a JSON payload. Returns the decision.
@@ -228,7 +228,14 @@ impl BoundaryFilter {
                         Some(Classification::Metadata) | Some(Classification::None) => {
                             // Safe; recurse for nested objects
                             if let Some(child) = map.get_mut(&key) {
-                                Self::walk(child, &dotted, classifications, fail_closed, redacted, unknown);
+                                Self::walk(
+                                    child,
+                                    &dotted,
+                                    classifications,
+                                    fail_closed,
+                                    redacted,
+                                    unknown,
+                                );
                             }
                         }
                         None => {
@@ -238,10 +245,24 @@ impl BoundaryFilter {
                                 // CI lint that drives the classification table.
                                 unknown.push(dotted.clone());
                                 if let Some(child) = map.get_mut(&key) {
-                                    Self::walk(child, &dotted, classifications, fail_closed, redacted, unknown);
+                                    Self::walk(
+                                        child,
+                                        &dotted,
+                                        classifications,
+                                        fail_closed,
+                                        redacted,
+                                        unknown,
+                                    );
                                 }
                             } else if let Some(child) = map.get_mut(&key) {
-                                Self::walk(child, &dotted, classifications, fail_closed, redacted, unknown);
+                                Self::walk(
+                                    child,
+                                    &dotted,
+                                    classifications,
+                                    fail_closed,
+                                    redacted,
+                                    unknown,
+                                );
                             }
                         }
                     }
@@ -250,7 +271,14 @@ impl BoundaryFilter {
             Value::Array(arr) => {
                 for (i, child) in arr.iter_mut().enumerate() {
                     let dotted = format!("{path}[{i}]");
-                    Self::walk(child, &dotted, classifications, fail_closed, redacted, unknown);
+                    Self::walk(
+                        child,
+                        &dotted,
+                        classifications,
+                        fail_closed,
+                        redacted,
+                        unknown,
+                    );
                 }
             }
             _ => {} // primitives — nothing to do

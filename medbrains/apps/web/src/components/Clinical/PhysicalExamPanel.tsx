@@ -11,11 +11,27 @@ interface PhysicalExamPanelProps {
 const EXAM_SYSTEMS: { key: keyof PhysicalExamination; label: string; placeholder: string }[] = [
   { key: "heent", label: "HEENT", placeholder: "Head, eyes, ears, nose, throat findings..." },
   { key: "neck", label: "Neck", placeholder: "Thyroid, lymph nodes, JVP..." },
-  { key: "cardiovascular", label: "Cardiovascular", placeholder: "Heart sounds, murmurs, peripheral pulses..." },
-  { key: "respiratory", label: "Respiratory", placeholder: "Breath sounds, percussion, chest expansion..." },
+  {
+    key: "cardiovascular",
+    label: "Cardiovascular",
+    placeholder: "Heart sounds, murmurs, peripheral pulses...",
+  },
+  {
+    key: "respiratory",
+    label: "Respiratory",
+    placeholder: "Breath sounds, percussion, chest expansion...",
+  },
   { key: "abdomen", label: "Abdomen", placeholder: "Tenderness, organomegaly, bowel sounds..." },
-  { key: "musculoskeletal", label: "Musculoskeletal", placeholder: "ROM, deformity, swelling, tenderness..." },
-  { key: "neurological", label: "Neurological", placeholder: "Cranial nerves, reflexes, motor, sensory..." },
+  {
+    key: "musculoskeletal",
+    label: "Musculoskeletal",
+    placeholder: "ROM, deformity, swelling, tenderness...",
+  },
+  {
+    key: "neurological",
+    label: "Neurological",
+    placeholder: "Cranial nerves, reflexes, motor, sensory...",
+  },
   { key: "skin", label: "Skin", placeholder: "Lesions, rash, color, turgor..." },
   { key: "extremities", label: "Extremities", placeholder: "Edema, cyanosis, clubbing..." },
   { key: "genitourinary", label: "Genitourinary", placeholder: "If examined..." },
@@ -30,7 +46,9 @@ export function PhysicalExamPanel({
 }: PhysicalExamPanelProps) {
   return (
     <Stack gap="sm">
-      <Text size="sm" fw={600}>Physical Examination</Text>
+      <Text size="sm" fw={600}>
+        Physical Examination
+      </Text>
 
       {/* General Appearance — standalone */}
       <Textarea
@@ -52,7 +70,9 @@ export function PhysicalExamPanel({
             key={sys.key}
             label={sys.label}
             value={data[sys.key] ?? ""}
-            onChange={(e) => onUpdate({ ...data, [sys.key]: e.currentTarget.value }, generalAppearance)}
+            onChange={(e) =>
+              onUpdate({ ...data, [sys.key]: e.currentTarget.value }, generalAppearance)
+            }
             placeholder={sys.placeholder}
             autosize
             minRows={2}

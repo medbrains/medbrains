@@ -95,17 +95,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // shared db_pool for both writer + reader. Tenants opted into
     // Patroni get lazily-built pools resolved per request via
     // tenant_db_topology lookups.
-    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> =
-        Arc::new(medbrains_db_topology::PostgresTopologyResolver::new(
-            db_pool.clone(),
-        ));
-    let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> = Arc::new(
-        medbrains_db_topology::TopologyRouter::new(
+    let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> = Arc::new(
+        medbrains_db_topology::PostgresTopologyResolver::new(db_pool.clone()),
+    );
+    let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> =
+        Arc::new(medbrains_db_topology::TopologyRouter::new(
             db_pool.clone(),
             db_pool.clone(),
             topology_resolver,
-        ),
-    );
+        ));
 
     // ── ReBAC backend (SpiceDB sidecar; falls back to Postgres-native) ──
     //
@@ -113,40 +111,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If unset (or connection fails), we silently fall back to the
     // Postgres-native AuthzPgBackend so dev environments without
     // SpiceDB running still boot. Production deploys always set these.
-    eprintln!("[boot] SPICEDB_ENDPOINT={:?}", std::env::var("SPICEDB_ENDPOINT").ok());
-    let authz: Arc<dyn medbrains_authz::AuthzBackend> = match std::env::var("SPICEDB_ENDPOINT") {
-        Ok(endpoint) => {
-            let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
-            match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await
-            {
-                Ok(client) => {
-                    eprintln!("[boot] rebac: USING SpiceDB at {endpoint}");
-                    tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
-                    Arc::new(client)
-                }
-                Err(e) => {
-                    eprintln!("[boot] rebac: SpiceDB connect FAILED ({e}); using Postgres fallback");
-                    tracing::warn!(error = %e, endpoint = %endpoint,
-                        "rebac: SpiceDB connect failed, falling back to Postgres backend");
-                    Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db_pool.clone()))
-                }
+    eprintln!(
+        "[boot] SPICEDB_ENDPOINT={:?}",
+        std::env::var("SPICEDB_ENDPOINT").ok()
+    );
+    // SpiceDB connect outcome — used to decide whether the Watch consumer
+    // should also be spawned (a Postgres fallback has nothing to watch).
+    let mut spicedb_live: Option<(String, String)> = None;
+    let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Ok(endpoint) =
+        std::env::var("SPICEDB_ENDPOINT")
+    {
+        let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+        match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await {
+            Ok(client) => {
+                eprintln!("[boot] rebac: USING SpiceDB at {endpoint}");
+                tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
+                spicedb_live = Some((endpoint, token));
+                Arc::new(client)
+            }
+            Err(e) => {
+                eprintln!("[boot] rebac: SpiceDB connect FAILED ({e}); using Postgres fallback");
+                tracing::warn!(error = %e, endpoint = %endpoint,
+                    "rebac: SpiceDB connect failed, falling back to Postgres backend");
+                Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(
+                    db_pool.clone(),
+                ))
             }
         }
-        Err(_) => {
-            eprintln!("[boot] rebac: SPICEDB_ENDPOINT unset; using Postgres fallback");
-            tracing::warn!(
-                "rebac: SPICEDB_ENDPOINT unset, using Postgres-native authz backend"
-            );
-            Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db_pool.clone()))
-        }
+    } else {
+        eprintln!("[boot] rebac: SPICEDB_ENDPOINT unset; using Postgres fallback");
+        tracing::warn!("rebac: SPICEDB_ENDPOINT unset, using Postgres-native authz backend");
+        Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(
+            db_pool.clone(),
+        ))
     };
 
     // ── SpiceDB Watch consumer — bumps users.perm_version when tuples change ──
     // Without this, revoking a permission only takes effect at JWT expiry.
     // With it, the change propagates within ~1 s of the SpiceDB write.
-    if let Ok(spicedb_endpoint) = std::env::var("SPICEDB_ENDPOINT") {
-        let watch_token =
-            std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
+    // Only spawn when SpiceDB actually connected — a dead endpoint produces a
+    // 5-second reconnect loop that floods the logs (no SpiceDB → no tuples →
+    // nothing to watch).
+    if let Some((spicedb_endpoint, watch_token)) = spicedb_live {
         let watch_db = db_pool.clone();
         tokio::spawn(async move {
             medbrains_authz::watch::run_user_watcher(
@@ -179,6 +185,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await;
         });
         tracing::info!("watch consumer spawned");
+    } else {
+        tracing::info!("watch consumer not spawned because authz is using Postgres fallback");
     }
 
     // Build shared state
@@ -253,16 +261,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let csp = SetResponseHeaderLayer::overriding(
         HeaderName::from_static("content-security-policy"),
         HeaderValue::from_static(
+            // No 'unsafe-inline' on script-src — Vite emits all JS as
+            // external bundles. Inline styles still allowed (Mantine
+            // generates them at runtime). 'wasm-unsafe-eval' permits
+            // Loro CRDT wasm without enabling JS eval.
             "default-src 'self'; \
-             script-src 'self'; \
-             style-src 'self' 'unsafe-inline'; \
-             img-src 'self' data: blob:; \
-             font-src 'self' data:; \
-             connect-src 'self'; \
+             script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; \
+             script-src-elem 'self' https://*.razorpay.com; \
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+             style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+             img-src 'self' data: blob: https:; \
+             font-src 'self' data: https://fonts.gstatic.com; \
+             connect-src 'self' https://*.razorpay.com wss:; \
              worker-src 'self' blob:; \
              manifest-src 'self'; \
              object-src 'none'; \
-             frame-src 'none'; \
+             frame-src https://*.razorpay.com; \
              frame-ancestors 'none'; \
              base-uri 'self'; \
              form-action 'self'; \
@@ -337,30 +351,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // etc. from process env). Prod will swap to AwsSecretsManagerResolver
     // in a follow-up PR; dispatch is via trait object so the swap is
     // a 2-line change at startup.
-    if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER").ok().as_deref() != Some("true") {
+    if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER")
+        .ok()
+        .as_deref()
+        == Some("true")
+    {
+        tracing::warn!("MEDBRAINS_DISABLE_OUTBOX_WORKER=true — outbox worker NOT spawned");
+    } else {
         let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(Duration::from_secs(15))
             .user_agent(concat!("medbrains-outbox/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("build outbox http client");
 
-        let secret_resolver: std::sync::Arc<dyn medbrains_core::secrets::SecretResolver> =
-            std::sync::Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+        let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
+            Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
 
-        let worker_config = medbrains_outbox::WorkerConfig::with_substrate(
-            secret_resolver,
-            http_client,
-        );
+        let worker_config =
+            medbrains_outbox::WorkerConfig::with_substrate(secret_resolver, http_client);
 
-        let outbox_worker = medbrains_outbox::Worker::new(
-            db_pool.clone(),
-            outbox_registry,
-            worker_config,
-        );
+        let outbox_worker =
+            medbrains_outbox::Worker::new(db_pool.clone(), outbox_registry, worker_config);
         let _shutdown_tx = outbox_worker.spawn();
         tracing::info!("outbox worker spawned");
-    } else {
-        tracing::warn!("MEDBRAINS_DISABLE_OUTBOX_WORKER=true — outbox worker NOT spawned");
     }
 
     // Start server
@@ -375,13 +388,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Sprint A.8 — assemble the outbox Handler Registry.
 ///
-/// Registers typed handlers for known event_types and a pipeline_fallback
+/// Registers typed handlers for known `event_types` and a `pipeline_fallback`
 /// that delegates to `events::dispatch_to_pipelines` for everything else.
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
+    use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
         abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio, whatsapp,
     };
-    use medbrains_outbox::Registry;
 
     let mut registry = Registry::new();
 
@@ -402,20 +415,36 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
-    registry.register(email_stub::SmtpSendHandler::new("email.appointment_confirmation"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.appointment_confirmation",
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
     registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
-    registry.register(email_stub::SmtpSendHandler::new("email.refund_notification"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.refund_notification",
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.dunning_notice"));
 
     // WhatsApp — Meta Cloud API (falls back to stub if creds unset).
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_confirmation"));
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_reminder_24h"));
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.appointment_reminder_2h"));
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.discharge_summary"));
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.lab_report_ready"));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.appointment_confirmation",
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.appointment_reminder_24h",
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.appointment_reminder_2h",
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.discharge_summary",
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.lab_report_ready",
+    ));
     registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.payment_link"));
-    registry.register(whatsapp::WhatsAppSendHandler::new("whatsapp.vaccination_reminder"));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.vaccination_reminder",
+    ));
     registry.register(abdm_stub::VerifyAbhaHandler);
     registry.register(abdm_stub::HieBundlePushHandler);
     registry.register(tpa_stub::PreauthSubmitHandler);
@@ -456,9 +485,9 @@ impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
 }
 
 /// `medbrains-server audit verify-chain` subcommand.
-/// Walks the audit_log hash chain for one or all tenants and writes a row
+/// Walks the `audit_log` hash chain for one or all tenants and writes a row
 /// to `audit_chain_verifications` with the result. Exits non-zero if any
-/// chain breaks — the K8s CronJob alerts on non-zero exit.
+/// chain breaks — the K8s `CronJob` alerts on non-zero exit.
 async fn run_verify_chain(
     config: &AppConfig,
     args: &[String],

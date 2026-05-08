@@ -27,7 +27,9 @@ import { IconCheck, IconLock, IconPlus, IconSearch, IconTrash, IconX } from "@ta
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../DataTable";
+import { PatientNameCell } from "../PatientNameCell";
 import { PatientSearchSelect } from "../PatientSearchSelect";
+import { VendorSearchSelect } from "../VendorSearchSelect";
 
 const statusColors: Record<PharmacyCreditNoteStatus, string> = {
   draft: "gray",
@@ -51,6 +53,7 @@ const typeLabels: Record<PharmacyCreditNoteType, string> = {
 };
 
 interface CreditNoteItem {
+  rowId: string;
   drug_id: string;
   drug_name: string;
   batch_number: string;
@@ -60,7 +63,11 @@ interface CreditNoteItem {
   reason: string;
 }
 
+const createFormRowId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 const emptyItem = (): CreditNoteItem => ({
+  rowId: createFormRowId(),
   drug_id: "",
   drug_name: "",
   batch_number: "",
@@ -129,9 +136,12 @@ export function CreditNotesTab() {
     {
       key: "party",
       label: "Patient / Vendor",
-      render: (row: PharmacyCreditNote) => (
-        <Text size="sm">{row.patient_id?.slice(0, 8) ?? row.vendor_id?.slice(0, 8) ?? "-"}</Text>
-      ),
+      render: (row: PharmacyCreditNote) =>
+        row.patient_id ? (
+          <PatientNameCell patientId={row.patient_id} showUhid={false} />
+        ) : (
+          <Text size="sm">{row.vendor_id?.slice(0, 8) ?? "-"}</Text>
+        ),
     },
     {
       key: "items_count",
@@ -229,7 +239,7 @@ export function CreditNotesTab() {
           ]}
         />
         <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          New Credit Note
+          New Return
         </Button>
       </Group>
       <DataTable
@@ -253,21 +263,35 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   const [receiptSearch, setReceiptSearch] = useState("");
 
   function lookupReceipt() {
-    api.lookupPosSale(receiptSearch).then((sale) => {
-      const saleItems = (typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items) as Array<Record<string, unknown>>;
-      setItems(saleItems.filter((i) => !i.is_cancelled).map((i) => ({
-        drug_id: (i.catalog_item_id as string) ?? "",
-        drug_name: (i.drug_name as string) ?? "",
-        batch_number: "",
-        quantity: (i.quantity as number) ?? 1,
-        unit_price: Number(i.unit_price ?? 0),
-        amount: Number(i.total_price ?? 0),
-        reason: "",
-      })));
-      setPatientId("");
-    }).catch(() => {
-      notifications.show({ title: "Not found", message: "No sale found with that receipt number", color: "red" });
-    });
+    api
+      .lookupPosSale(receiptSearch)
+      .then((sale) => {
+        const saleItems = (
+          typeof sale.items === "string" ? JSON.parse(sale.items) : sale.items
+        ) as Array<Record<string, unknown>>;
+        setItems(
+          saleItems
+            .filter((i) => !i.is_cancelled)
+            .map((i) => ({
+              rowId: createFormRowId(),
+              drug_id: (i.catalog_item_id as string) ?? "",
+              drug_name: (i.drug_name as string) ?? "",
+              batch_number: "",
+              quantity: (i.quantity as number) ?? 1,
+              unit_price: Number(i.unit_price ?? 0),
+              amount: Number(i.total_price ?? 0),
+              reason: "",
+            })),
+        );
+        setPatientId("");
+      })
+      .catch(() => {
+        notifications.show({
+          title: "Not found",
+          message: "No sale found with that receipt number",
+          color: "red",
+        });
+      });
   }
 
   // Fetch drug catalog for drug selector
@@ -277,9 +301,18 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   });
 
   const drugOptions = useMemo(() => {
-    if (!drugs) return [];
-    return drugs.map((d) => ({ value: d.id, label: `${d.name} (${d.generic_name ?? d.code})` }));
-  }, [drugs]);
+    const base = drugs
+      ? drugs.map((d) => ({ value: d.id, label: `${d.name} (${d.generic_name ?? d.code})` }))
+      : [];
+    // Auto-filled rows from past orders may carry a drug_id that isn't in
+    // the catalog query slice (or the drug was de-listed). Synthesize an
+    // option so the Select renders the drug_name instead of going blank.
+    const known = new Set(base.map((o) => o.value));
+    const extras = items
+      .filter((i) => i.drug_id && !known.has(i.drug_id) && i.drug_name)
+      .map((i) => ({ value: i.drug_id, label: i.drug_name }));
+    return [...base, ...extras];
+  }, [drugs, items]);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),
@@ -324,8 +357,13 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
     const payload: CreatePharmacyCreditNoteRequest = {
       note_type: noteType,
       items: items.map((item) => ({
-        ...item,
+        drug_id: item.drug_id,
+        drug_name: item.drug_name,
+        batch_number: item.batch_number,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
         amount: item.quantity * item.unit_price,
+        reason: item.reason,
       })),
       total_amount: totalAmount,
       notes: notes || undefined,
@@ -336,7 +374,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   }
 
   return (
-    <Modal opened={opened} onClose={resetAndClose} title="New Credit Note" size="xl">
+    <Modal opened={opened} onClose={resetAndClose} title="New Return" size="xl">
       <Stack>
         <Group grow>
           <Select
@@ -385,15 +423,18 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
           <OrderLookupSection
             patientId={patientId}
             onSelectItems={(orderItems) => {
-              setItems(orderItems.map(oi => ({
-                drug_id: oi.catalog_item_id ?? "",
-                drug_name: oi.drug_name,
-                batch_number: oi.batch_number ?? "",
-                quantity: oi.quantity,
-                unit_price: Number(oi.unit_price),
-                amount: Number(oi.total_price),
-                reason: "",
-              })));
+              setItems(
+                orderItems.map((oi) => ({
+                  rowId: createFormRowId(),
+                  drug_id: oi.catalog_item_id ?? "",
+                  drug_name: oi.drug_name,
+                  batch_number: oi.batch_number ?? "",
+                  quantity: oi.quantity,
+                  unit_price: Number(oi.unit_price),
+                  amount: Number(oi.total_price),
+                  reason: "",
+                })),
+              );
             }}
           />
         )}
@@ -415,7 +456,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
           </Table.Thead>
           <Table.Tbody>
             {items.map((item, index) => (
-              <Table.Tr key={`item-${index}`}>
+              <Table.Tr key={item.rowId}>
                 <Table.Td>
                   <Select
                     size="xs"
@@ -533,7 +574,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
               loading={createMutation.isPending}
               disabled={items.length === 0 || totalAmount <= 0}
             >
-              Create Credit Note
+              Create Return
             </Button>
           </Stack>
         </Group>
@@ -543,9 +584,21 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
 }
 
 /** Order lookup for customer returns — shows recent patient orders to auto-fill items. */
-function OrderLookupSection({ patientId, onSelectItems }: {
+function OrderLookupSection({
+  patientId,
+  onSelectItems,
+}: {
   patientId: string;
-  onSelectItems: (items: Array<{catalog_item_id: string; drug_name: string; batch_number: string; quantity: number; unit_price: string; total_price: string}>) => void;
+  onSelectItems: (
+    items: Array<{
+      catalog_item_id: string;
+      drug_name: string;
+      batch_number: string;
+      quantity: number;
+      unit_price: string;
+      total_price: string;
+    }>,
+  ) => void;
 }) {
   const { data: orders } = useQuery({
     queryKey: ["pharmacy", "patient-orders", patientId],
@@ -553,11 +606,18 @@ function OrderLookupSection({ patientId, onSelectItems }: {
     enabled: Boolean(patientId),
   });
 
-  if (!orders?.length) return <Text size="xs" c="dimmed">No recent orders found</Text>;
+  if (!orders?.length)
+    return (
+      <Text size="xs" c="dimmed">
+        No recent orders found
+      </Text>
+    );
 
   return (
     <Stack gap={4}>
-      <Text size="xs" fw={600} tt="uppercase" c="dimmed">Recent Orders — click to auto-fill</Text>
+      <Text size="xs" fw={600} tt="uppercase" c="dimmed">
+        Recent Orders — click to auto-fill
+      </Text>
       {orders.map((order) => (
         <Button
           key={order.order_id}
@@ -566,18 +626,24 @@ function OrderLookupSection({ patientId, onSelectItems }: {
           fullWidth
           justify="space-between"
           onClick={() => {
-            const parsed = (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) as Array<Record<string, unknown>>;
-            onSelectItems(parsed.map(i => ({
-              catalog_item_id: (i.catalog_item_id as string) ?? "",
-              drug_name: (i.drug_name as string) ?? "",
-              batch_number: (i.batch_number as string) ?? "",
-              quantity: (i.quantity as number) ?? 1,
-              unit_price: String(i.unit_price ?? "0"),
-              total_price: String(i.total_price ?? "0"),
-            })));
+            const parsed = (
+              typeof order.items === "string" ? JSON.parse(order.items) : order.items
+            ) as Array<Record<string, unknown>>;
+            onSelectItems(
+              parsed.map((i) => ({
+                catalog_item_id: (i.catalog_item_id as string) ?? "",
+                drug_name: (i.drug_name as string) ?? "",
+                batch_number: (i.batch_number as string) ?? "",
+                quantity: (i.quantity as number) ?? 1,
+                unit_price: String(i.unit_price ?? "0"),
+                total_price: String(i.total_price ?? "0"),
+              })),
+            );
           }}
         >
-          <Text size="xs">{new Date(order.order_date).toLocaleDateString()} — {order.status}</Text>
+          <Text size="xs">
+            {new Date(order.order_date).toLocaleDateString()} — {order.status}
+          </Text>
           <Badge size="xs">{Array.isArray(order.items) ? order.items.length : 0} items</Badge>
         </Button>
       ))}
@@ -587,27 +653,10 @@ function OrderLookupSection({ patientId, onSelectItems }: {
 
 /** Vendor select dropdown for supplier returns. */
 function VendorSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { data: vendors } = useQuery({
-    queryKey: ["procurement", "vendors"],
-    queryFn: () => api.listVendors(),
-  });
-
-  const options = useMemo(() => {
-    if (!vendors) return [];
-    return vendors.map((v) => ({
-      value: v.id,
-      label: `${v.name} (${v.code})`,
-    }));
-  }, [vendors]);
-
   return (
-    <Select
-      label="Vendor"
-      data={options}
-      value={value || null}
-      onChange={(v) => onChange(v ?? "")}
-      searchable
-      clearable
+    <VendorSearchSelect
+      value={value}
+      onChange={onChange}
       placeholder="Select vendor..."
       size="sm"
     />

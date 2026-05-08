@@ -142,7 +142,7 @@ pub async fn detect_bottlenecks(
                ELSE (COUNT(*) FILTER (WHERE bs.status::text = 'occupied'))::float8 \
                  * 100.0 / COUNT(*)::float8 END > 85 THEN 'warning' \
                ELSE 'ok' END AS severity \
-           FROM locations bs WHERE bs.tenant_id = $1 AND bs.location_type::text = 'bed' \
+           FROM locations bs WHERE bs.tenant_id = $1 AND bs.level::text = 'bed' \
          ) sub WHERE severity != 'ok'",
     )
     .bind(claims.tenant_id)
@@ -741,7 +741,7 @@ pub async fn all_kpis(
         "SELECT \
            COUNT(*) FILTER (WHERE status::text = 'occupied')::float8 AS numerator, \
            NULLIF(COUNT(*), 0)::float8 AS denominator \
-         FROM locations WHERE tenant_id = $1 AND location_type::text = 'bed'",
+         FROM locations WHERE tenant_id = $1 AND level::text = 'bed'",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
@@ -802,7 +802,7 @@ pub async fn all_kpis(
     // Mortality Rate (last 30 days)
     let mort = sqlx::query_as::<_, TwoFloatRow>(
         "SELECT \
-           COUNT(*) FILTER (WHERE discharge_disposition = 'expired')::float8 AS numerator, \
+           COUNT(*) FILTER (WHERE discharge_type::text IN ('deceased', 'death'))::float8 AS numerator, \
            NULLIF(COUNT(*), 0)::float8 AS denominator \
          FROM admissions WHERE tenant_id = $1 \
            AND discharged_at IS NOT NULL \

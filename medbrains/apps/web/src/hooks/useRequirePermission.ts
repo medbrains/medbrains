@@ -1,6 +1,6 @@
+import { usePermissionStore } from "@medbrains/stores";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { usePermissionStore } from "@medbrains/stores";
 
 /**
  * Guard hook — redirects to /dashboard if the user lacks the required permission.

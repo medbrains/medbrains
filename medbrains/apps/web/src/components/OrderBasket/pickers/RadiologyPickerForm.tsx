@@ -1,8 +1,8 @@
 import { Button, Checkbox, Group, Select, Stack, TextInput } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { api } from "@medbrains/api";
 import type { BasketItem, BasketRadiologyItem } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 interface RadiologyPickerFormProps {
   onAdd: (item: BasketItem) => void;
@@ -100,11 +100,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
           onChange={(e) => setAllergy(e.currentTarget.checked)}
         />
       </Group>
-      <TextInput
-        label="Notes"
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
+      <TextInput label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Group justify="flex-end">
         <Button onClick={handleAdd} disabled={!modalityId}>
           Add to basket

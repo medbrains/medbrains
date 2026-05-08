@@ -19,12 +19,12 @@
 
 use async_trait::async_trait;
 use medbrains_outbox::{
-    backoff::{next_retry_at, MAX_ATTEMPTS},
+    backoff::{MAX_ATTEMPTS, next_retry_at},
     handler::{Handler, HandlerCtx, HandlerError, Registry},
 };
 use serde_json::Value;
-use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 
 // ── Test handlers ────────────────────────────────────────────────────
 
@@ -81,7 +81,9 @@ impl Handler for FlapTransientHandler {
     async fn handle(&self, _ctx: &HandlerCtx, _payload: &Value) -> Result<Value, HandlerError> {
         let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
         if n <= self.fail_first_n {
-            Err(HandlerError::Transient(format!("simulated gateway 502 (call {n})")))
+            Err(HandlerError::Transient(format!(
+                "simulated gateway 502 (call {n})"
+            )))
         } else {
             Ok(serde_json::json!({"ok": true, "call": n}))
         }
@@ -194,7 +196,10 @@ async fn backoff_returns_future_timestamps() {
     let now = chrono::Utc::now();
     for attempts in 1..=10 {
         let next = next_retry_at(attempts);
-        assert!(next > now, "attempt {attempts} returned non-future timestamp");
+        assert!(
+            next > now,
+            "attempt {attempts} returned non-future timestamp"
+        );
     }
 }
 
@@ -260,9 +265,7 @@ fn test_ctx(event_type: &str) -> HandlerCtx {
         event_type: event_type.to_string(),
         actor_user_id: Some(uuid::Uuid::new_v4()),
         attempts: 1,
-        secret_resolver: std::sync::Arc::new(
-            medbrains_core::secrets::EnvSecretResolver::new(),
-        ),
+        secret_resolver: std::sync::Arc::new(medbrains_core::secrets::EnvSecretResolver::new()),
         http_client: reqwest::Client::new(),
     }
 }

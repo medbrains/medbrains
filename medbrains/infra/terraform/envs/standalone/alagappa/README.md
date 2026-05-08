@@ -6,8 +6,8 @@ End-to-end deploy of MedBrains for **Alagappa Hospital** at
 1. A DigitalOcean droplet in Bangalore (`s-2vcpu-4gb`, ~$24/mo).
 2. Cloud firewall opening 22 / 80 / 443.
 3. Pre-built MedBrains binaries + SPA + deploy kit pushed to the host.
-4. `install.sh` run on the host (postgres-17, systemd units, Caddy
-   with auto Let's Encrypt).
+4. `install.sh` run on the host (postgres-17, systemd units, Pingora
+   edge proxy with Certbot-issued TLS).
 5. GoDaddy A record `hims.alagappahospital.com → <droplet IP>`.
 
 Total wall time: 5-7 minutes.
@@ -36,11 +36,13 @@ Total wall time: 5-7 minutes.
 # In the repo root:
 cargo build --release -p medbrains-server --bin medbrains-server
 cargo build --release -p medbrains-server --bin medbrains-archive
+cargo build --release -p medbrains-proxy --bin medbrains-proxy
 pnpm --filter @medbrains/web build
 ```
 
 These produce `target/release/medbrains-server`,
-`target/release/medbrains-archive`, and `apps/web/dist/`. Terraform
+`target/release/medbrains-archive`, `target/release/medbrains-proxy`,
+and `apps/web/dist/`. Terraform
 references these paths via `binaries_dir`, `spa_dist_dir`, and
 `deploy_kit_dir` in `terraform.tfvars`.
 
@@ -68,7 +70,7 @@ Wait ~30 seconds for ACME, then `curl $health_url` returns
 
 ## Re-deploy
 
-Anything from a binary update to a Caddyfile change is one command:
+Anything from a binary update to a Pingora config change is one command:
 
 ```sh
 # Rebuild what changed:

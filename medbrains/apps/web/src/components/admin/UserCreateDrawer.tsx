@@ -27,7 +27,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
-import { PERMISSIONS, buildPermissionTree } from "@medbrains/types";
+import { buildPermissionTree, PERMISSIONS } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -151,27 +151,21 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
               <TextInput
                 label="Username"
                 value={identity.username}
-                onChange={(e) =>
-                  setIdentity({ ...identity, username: e.currentTarget.value })
-                }
+                onChange={(e) => setIdentity({ ...identity, username: e.currentTarget.value })}
                 required
                 description="≥ 3 chars, unique within tenant"
               />
               <TextInput
                 label="Prefix"
                 value={identity.prefix}
-                onChange={(e) =>
-                  setIdentity({ ...identity, prefix: e.currentTarget.value })
-                }
+                onChange={(e) => setIdentity({ ...identity, prefix: e.currentTarget.value })}
                 placeholder="Dr. / Nurse / Mr. / Ms."
               />
             </Group>
             <TextInput
               label="Full name"
               value={identity.full_name}
-              onChange={(e) =>
-                setIdentity({ ...identity, full_name: e.currentTarget.value })
-              }
+              onChange={(e) => setIdentity({ ...identity, full_name: e.currentTarget.value })}
               required
             />
             <Group grow>
@@ -179,25 +173,19 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
                 label="Email"
                 type="email"
                 value={identity.email}
-                onChange={(e) =>
-                  setIdentity({ ...identity, email: e.currentTarget.value })
-                }
+                onChange={(e) => setIdentity({ ...identity, email: e.currentTarget.value })}
                 required
               />
               <TextInput
                 label="Phone"
                 value={identity.phone}
-                onChange={(e) =>
-                  setIdentity({ ...identity, phone: e.currentTarget.value })
-                }
+                onChange={(e) => setIdentity({ ...identity, phone: e.currentTarget.value })}
               />
             </Group>
             <PasswordInput
               label="Password"
               value={identity.password}
-              onChange={(e) =>
-                setIdentity({ ...identity, password: e.currentTarget.value })
-              }
+              onChange={(e) => setIdentity({ ...identity, password: e.currentTarget.value })}
               required
               description="≥ 8 chars. User can change after first login."
             />
@@ -261,8 +249,8 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
         <Stepper.Step label="Overrides" description="Extra / Denied">
           <Stack gap="sm" mt="md">
             <Text size="sm" c="dimmed">
-              Optional fine-tuning on top of the role's permission set. Most
-              users need none — leave blank.
+              Optional fine-tuning on top of the role's permission set. Most users need none — leave
+              blank.
             </Text>
             <PermissionPicker
               label="Extra permissions (grant)"
@@ -285,21 +273,17 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
           <Stack gap="sm" mt="md">
             <Title order={5}>Review</Title>
             <Text size="sm">
-              <b>{identity.full_name}</b> ({identity.username}) — role:{" "}
-              <b>{role ?? "—"}</b>
+              <b>{identity.full_name}</b> ({identity.username}) — role: <b>{role ?? "—"}</b>
             </Text>
             <Text size="sm">
-              Departments: {departmentIds.length} · Groups: {groupIds.length} ·
-              Extra perms: {extra.size} · Denied perms: {denied.size}
+              Departments: {departmentIds.length} · Groups: {groupIds.length} · Extra perms:{" "}
+              {extra.size} · Denied perms: {denied.size}
             </Text>
             <Group justify="flex-end" mt="md">
               <Button variant="default" onClick={() => setActive(0)}>
                 Edit
               </Button>
-              <Button
-                onClick={() => createMutation.mutate()}
-                loading={createMutation.isPending}
-              >
+              <Button onClick={() => createMutation.mutate()} loading={createMutation.isPending}>
                 Create user
               </Button>
             </Group>
@@ -319,8 +303,7 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
           <Button
             onClick={() => setActive((s) => s + 1)}
             disabled={
-              (active === 0 && !canAdvanceFromIdentity) ||
-              (active === 1 && !canAdvanceFromRole)
+              (active === 0 && !canAdvanceFromIdentity) || (active === 1 && !canAdvanceFromRole)
             }
           >
             {active === 3 ? "Review" : "Next"}
@@ -341,20 +324,11 @@ interface PermissionPickerProps {
   onChange: (next: Set<string>) => void;
 }
 
-function PermissionPicker({
-  label,
-  color,
-  tree,
-  selected,
-  onChange,
-}: PermissionPickerProps) {
+function PermissionPicker({ label, color, tree, selected, onChange }: PermissionPickerProps) {
   // Flatten the tree into top-level module groups for a MultiSelect.
   const data = useMemo(() => {
     const out: { value: string; label: string; group: string }[] = [];
-    const walk = (
-      nodes: ReturnType<typeof buildPermissionTree>,
-      moduleLabel: string,
-    ) => {
+    const walk = (nodes: ReturnType<typeof buildPermissionTree>, moduleLabel: string) => {
       for (const node of nodes) {
         for (const p of node.permissions) {
           out.push({
