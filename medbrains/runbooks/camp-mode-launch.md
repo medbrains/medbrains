@@ -42,7 +42,55 @@ Offline writes for launch:
 1. Camp intake registration
 2. Camp screening with all vitals
 3. Camp lab sample collection with barcode
-4. Local sync metadata: idempotency key, device id, user id, camp id, local timestamp
+4. Camp referral creation for patients who need transfer or hospital follow-up
+5. Camp incident / near-miss reporting for patient safety, IPC/BMW, equipment, data privacy, or crowd-control issues
+6. Remote readiness checklist updates and supply consumed/returned quantity updates
+7. Local sync metadata: idempotency key, device id, user id, camp id, local timestamp
+
+## Remote village operating model
+
+Remote camps must be treated as temporary care sites, not just registration drives. Before a team leaves
+the hospital, the Camp command center must show:
+
+1. Local authority / village contact and site permission confirmed.
+2. Site access route, patient flow, waiting area, emergency exit, lighting, water, toilets, and hand hygiene checked.
+3. Privacy setup for screening/examination, with local-language patient rights and consent instructions.
+4. Infection-control kit packed: PPE, disinfection, sharps container, colour-coded BMW bags/bins, spill response.
+5. Biomedical waste temporary storage and authorised handoff plan confirmed.
+6. Triage and referral protocol briefed, including red flags, ambulance/transport contact, route notes, and receiving facility.
+7. Doctor/nurse/lab tech/volunteer/crowd-control roles assigned and briefed.
+8. Offline packet downloaded, devices charged, backup power available, and paper fallback forms packed.
+9. Incident, near-miss, referral, corrective-action, and post-camp closure owners assigned.
+10. Equipment, consumables, test kits, labels/barcodes, medicines/PPE, batch and expiry checks complete.
+
+The backend stores this evidence in:
+
+- `camp_remote_setups`
+- `camp_remote_checklist_items`
+- `camp_supply_items`
+- `camp_referrals`
+- `camp_incidents`
+- `camp_sync_events`
+
+These rows are tenant-scoped, RLS-protected, and audit-triggered. They are also included in the camp
+offline packet so the field team can see the operating controls even when the network is down.
+
+Sync-back endpoint:
+
+- `POST /api/camp/sync/inbound`
+- Device sends `{ camp_id, device_id, events[] }`
+- Every event has `idempotency_key`, `event_type`, optional `client_entity_id`, `occurred_at`, and `payload`
+- Supported event types:
+  - `camp.registration.create`
+  - `camp.screening.create`
+  - `camp.lab_sample.create`
+  - `camp.referral.create`
+  - `camp.incident.create`
+  - `camp.checklist.update`
+  - `camp.supply.create`
+  - `camp.supply.update`
+- The server stores every event in `camp_sync_events` and returns per-event `applied`, `duplicate`, or `failed`.
+- For offline-created records, the device should generate a UUID and send it as `client_entity_id`; the server preserves that UUID so later offline events can link to it safely.
 
 Read-only packet for launch:
 
@@ -51,6 +99,7 @@ Read-only packet for launch:
 3. Minimal linked patient summary only where `patient_id` already exists
 4. Recent vitals needed for camp care
 5. Allergy and clinical warning summary only if already available and permitted
+6. Remote-site readiness checklist and supply/equipment pack list
 
 Out of offline MVP:
 

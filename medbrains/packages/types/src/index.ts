@@ -1,12 +1,13 @@
 // Permissions
+
+export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {
-  PERMISSIONS,
-  P,
-  ROLE_TEMPLATES,
   buildPermissionTree,
   isValidPermissionCode,
+  P,
+  PERMISSIONS,
+  ROLE_TEMPLATES,
 } from "./permissions.js";
-export type { PermissionDef, PermissionGroup } from "./permissions.js";
 
 // Health
 export interface HealthResponse {
@@ -8232,6 +8233,250 @@ export interface CampFollowup {
   updated_at: string;
 }
 
+export interface CampPacketPatientSummary {
+  patient_id: string;
+  uhid: string;
+  display_name: string;
+  gender: string;
+  date_of_birth: string | null;
+  age_years: number | null;
+  phone_last4: string | null;
+  blood_group: string | null;
+  no_known_allergies: boolean | null;
+  last_visit_date: string | null;
+  is_vip: boolean;
+  is_medico_legal: boolean;
+  updated_at: string;
+}
+
+export interface CampPacketAllergy {
+  patient_id: string;
+  allergy_type: string;
+  allergen_name: string;
+  allergen_code: string | null;
+  reaction: string | null;
+  severity: string | null;
+}
+
+export interface CampPacketVital {
+  patient_id: string;
+  encounter_id: string;
+  temperature: number | null;
+  pulse: number | null;
+  systolic_bp: number | null;
+  diastolic_bp: number | null;
+  respiratory_rate: number | null;
+  spo2: number | null;
+  weight_kg: number | null;
+  height_cm: number | null;
+  bmi: number | null;
+  notes: string | null;
+  recorded_at: string;
+}
+
+export interface CampRemoteSetup {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  village_name: string | null;
+  block_name: string | null;
+  district_name: string | null;
+  site_landmark: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  expected_footfall: number | null;
+  site_contact_name: string | null;
+  site_contact_phone: string | null;
+  local_authority_name: string | null;
+  local_authority_phone: string | null;
+  referral_facility_name: string | null;
+  referral_facility_phone: string | null;
+  ambulance_contact_name: string | null;
+  ambulance_contact_phone: string | null;
+  emergency_route_notes: string | null;
+  network_plan: string | null;
+  power_plan: string | null;
+  water_sanitation_plan: string | null;
+  privacy_plan: string | null;
+  crowd_control_plan: string | null;
+  bmw_plan: string | null;
+  infection_control_plan: string | null;
+  status: "draft" | "ready" | "blocked" | "closed";
+  readiness_score: number;
+  completed_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampRemoteChecklistItem {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  category: string;
+  code: string;
+  label: string;
+  nabh_chapter: string;
+  required: boolean;
+  status: "pending" | "ok" | "issue" | "not_applicable";
+  notes: string | null;
+  evidence_attachment_id: string | null;
+  checked_by: string | null;
+  checked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampSupplyItem {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  category:
+    | "equipment"
+    | "consumable"
+    | "medicine"
+    | "ppe"
+    | "biomedical_waste"
+    | "document"
+    | "it"
+    | "other";
+  item_name: string;
+  unit: string | null;
+  planned_qty: number;
+  packed_qty: number;
+  consumed_qty: number;
+  returned_qty: number;
+  batch_no: string | null;
+  expiry_date: string | null;
+  is_critical: boolean;
+  shortage_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampReferral {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  registration_id: string | null;
+  referred_to_facility: string;
+  referral_department: string | null;
+  urgency: "routine" | "urgent" | "emergency";
+  reason: string;
+  transport_mode: string | null;
+  ambulance_required: boolean;
+  attendant_name: string | null;
+  attendant_phone: string | null;
+  status: "created" | "sent" | "accepted" | "completed" | "cancelled";
+  referred_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampIncident {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  registration_id: string | null;
+  incident_type:
+    | "patient_safety"
+    | "infection_control"
+    | "biomedical_waste"
+    | "facility_safety"
+    | "staff_safety"
+    | "data_privacy"
+    | "equipment"
+    | "network"
+    | "crowd_control"
+    | "other";
+  severity: "low" | "moderate" | "high" | "critical";
+  description: string;
+  immediate_action: string | null;
+  status: "open" | "contained" | "closed";
+  reported_by: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampReadinessSummary {
+  required_total: number;
+  required_done: number;
+  issue_count: number;
+  score: number;
+  ready: boolean;
+}
+
+export interface CampRemoteOperationsResponse {
+  setup: CampRemoteSetup;
+  checklist: CampRemoteChecklistItem[];
+  supplies: CampSupplyItem[];
+  referrals: CampReferral[];
+  incidents: CampIncident[];
+  readiness: CampReadinessSummary;
+}
+
+export interface CampPacketResponse {
+  camp: Camp;
+  team: CampTeamMember[];
+  registrations: CampRegistration[];
+  screenings: CampScreening[];
+  lab_samples: CampLabSample[];
+  remote_setup: CampRemoteSetup | null;
+  remote_checklist: CampRemoteChecklistItem[];
+  supplies: CampSupplyItem[];
+  patient_summaries: CampPacketPatientSummary[];
+  active_allergies: CampPacketAllergy[];
+  recent_vitals: CampPacketVital[];
+  downloaded_at: string;
+  expires_at: string;
+  packet_revision: string;
+}
+
+export type CampSyncEventType =
+  | "camp.registration.create"
+  | "camp.screening.create"
+  | "camp.lab_sample.create"
+  | "camp.referral.create"
+  | "camp.incident.create"
+  | "camp.checklist.update"
+  | "camp.supply.create"
+  | "camp.supply.update";
+
+export interface CampSyncInboundEvent {
+  idempotency_key: string;
+  event_type: CampSyncEventType;
+  client_entity_id?: string;
+  occurred_at?: string;
+  payload: Record<string, unknown>;
+}
+
+export interface CampSyncInboundRequest {
+  camp_id: string;
+  device_id: string;
+  events: CampSyncInboundEvent[];
+}
+
+export interface CampSyncEventResult {
+  idempotency_key: string;
+  event_type: string;
+  status: "applied" | "duplicate" | "failed";
+  server_entity_type: string | null;
+  server_entity_id: string | null;
+  message: string | null;
+}
+
+export interface CampSyncInboundResponse {
+  camp_id: string;
+  device_id: string;
+  accepted: number;
+  applied: number;
+  duplicates: number;
+  failed: number;
+  results: CampSyncEventResult[];
+}
+
 export interface CreateCampRequest {
   name: string;
   camp_type: string;
@@ -8288,6 +8533,89 @@ export interface AddCampTeamMemberRequest {
   role_in_camp: string;
   is_confirmed?: boolean;
   notes?: string;
+}
+
+export interface UpsertCampRemoteSetupRequest {
+  village_name?: string;
+  block_name?: string;
+  district_name?: string;
+  site_landmark?: string;
+  latitude?: number;
+  longitude?: number;
+  expected_footfall?: number;
+  site_contact_name?: string;
+  site_contact_phone?: string;
+  local_authority_name?: string;
+  local_authority_phone?: string;
+  referral_facility_name?: string;
+  referral_facility_phone?: string;
+  ambulance_contact_name?: string;
+  ambulance_contact_phone?: string;
+  emergency_route_notes?: string;
+  network_plan?: string;
+  power_plan?: string;
+  water_sanitation_plan?: string;
+  privacy_plan?: string;
+  crowd_control_plan?: string;
+  bmw_plan?: string;
+  infection_control_plan?: string;
+  status?: "draft" | "ready" | "blocked" | "closed";
+}
+
+export interface UpdateCampRemoteChecklistItemRequest {
+  status: "pending" | "ok" | "issue" | "not_applicable";
+  notes?: string;
+}
+
+export interface CreateCampSupplyItemRequest {
+  category: CampSupplyItem["category"];
+  item_name: string;
+  unit?: string;
+  planned_qty?: number;
+  packed_qty?: number;
+  batch_no?: string;
+  expiry_date?: string;
+  is_critical?: boolean;
+  shortage_notes?: string;
+}
+
+export interface UpdateCampSupplyItemRequest {
+  packed_qty?: number;
+  consumed_qty?: number;
+  returned_qty?: number;
+  shortage_notes?: string;
+}
+
+export interface CreateCampReferralRequest {
+  registration_id?: string;
+  referred_to_facility: string;
+  referral_department?: string;
+  urgency?: CampReferral["urgency"];
+  reason: string;
+  transport_mode?: string;
+  ambulance_required?: boolean;
+  attendant_name?: string;
+  attendant_phone?: string;
+}
+
+export interface UpdateCampReferralRequest {
+  status?: CampReferral["status"];
+  transport_mode?: string;
+  attendant_name?: string;
+  attendant_phone?: string;
+}
+
+export interface CreateCampIncidentRequest {
+  registration_id?: string;
+  incident_type: CampIncident["incident_type"];
+  severity?: CampIncident["severity"];
+  description: string;
+  immediate_action?: string;
+}
+
+export interface UpdateCampIncidentRequest {
+  status?: CampIncident["status"];
+  immediate_action?: string;
 }
 
 export interface CreateCampRegistrationRequest {

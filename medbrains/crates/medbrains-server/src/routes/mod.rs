@@ -3864,6 +3864,50 @@ pub fn build_router(state: AppState) -> Router {
             get(camp::get_camp).put(camp::update_camp),
         )
         .route(
+            "/api/camp/camps/{id}/packet",
+            get(camp::get_camp_packet),
+        )
+        .route(
+            "/api/camp/sync/inbound",
+            post(camp::sync_camp_inbound),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/remote-operations",
+            get(camp::get_remote_operations),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/remote-setup",
+            put(camp::upsert_remote_setup),
+        )
+        .route(
+            "/api/camp/remote-checklist/{id}",
+            put(camp::update_remote_checklist_item),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/supplies",
+            post(camp::create_supply_item),
+        )
+        .route(
+            "/api/camp/supplies/{id}",
+            put(camp::update_supply_item),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/referrals",
+            post(camp::create_camp_referral),
+        )
+        .route(
+            "/api/camp/referrals/{id}",
+            put(camp::update_camp_referral),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/incidents",
+            post(camp::create_camp_incident),
+        )
+        .route(
+            "/api/camp/incidents/{id}",
+            put(camp::update_camp_incident),
+        )
+        .route(
             "/api/camp/camps/{id}/approve",
             put(camp::approve_camp),
         )

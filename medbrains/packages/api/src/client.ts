@@ -605,6 +605,23 @@ import type {
   CreateCampFollowupRequest,
   UpdateCampFollowupRequest,
   CampStatsResponse,
+  CampPacketResponse,
+  CampRemoteOperationsResponse,
+  CampRemoteSetup,
+  CampRemoteChecklistItem,
+  CampSupplyItem,
+  CampReferral,
+  CampIncident,
+  CampSyncInboundRequest,
+  CampSyncInboundResponse,
+  UpsertCampRemoteSetupRequest,
+  UpdateCampRemoteChecklistItemRequest,
+  CreateCampSupplyItemRequest,
+  UpdateCampSupplyItemRequest,
+  CreateCampReferralRequest,
+  UpdateCampReferralRequest,
+  CreateCampIncidentRequest,
+  UpdateCampIncidentRequest,
   // CSSD
   CssdSterilizer,
   CssdInstrument,
@@ -5568,6 +5585,59 @@ export const api = {
       method: "DELETE",
     }),
   getCampStats: (campId: string) => request<CampStatsResponse>(`/camp/camps/${campId}/stats`),
+  getCampPacket: (campId: string, params?: { device_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.device_id) sp.set("device_id", params.device_id);
+    const qs = sp.toString();
+    return request<CampPacketResponse>(`/camp/camps/${campId}/packet${qs ? `?${qs}` : ""}`);
+  },
+  syncCampInbound: (data: CampSyncInboundRequest) =>
+    request<CampSyncInboundResponse>("/camp/sync/inbound", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getCampRemoteOperations: (campId: string) =>
+    request<CampRemoteOperationsResponse>(`/camp/camps/${campId}/remote-operations`),
+  upsertCampRemoteSetup: (campId: string, data: UpsertCampRemoteSetupRequest) =>
+    request<CampRemoteSetup>(`/camp/camps/${campId}/remote-setup`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  updateCampRemoteChecklistItem: (id: string, data: UpdateCampRemoteChecklistItemRequest) =>
+    request<CampRemoteChecklistItem>(`/camp/remote-checklist/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  createCampSupplyItem: (campId: string, data: CreateCampSupplyItemRequest) =>
+    request<CampSupplyItem>(`/camp/camps/${campId}/supplies`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateCampSupplyItem: (id: string, data: UpdateCampSupplyItemRequest) =>
+    request<CampSupplyItem>(`/camp/supplies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  createCampReferral: (campId: string, data: CreateCampReferralRequest) =>
+    request<CampReferral>(`/camp/camps/${campId}/referrals`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateCampReferral: (id: string, data: UpdateCampReferralRequest) =>
+    request<CampReferral>(`/camp/referrals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  createCampIncident: (campId: string, data: CreateCampIncidentRequest) =>
+    request<CampIncident>(`/camp/camps/${campId}/incidents`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateCampIncident: (id: string, data: UpdateCampIncidentRequest) =>
+    request<CampIncident>(`/camp/incidents/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listCampRegistrations: (params: { camp_id: string; status?: string }) => {
     const sp = new URLSearchParams();
     sp.set("camp_id", params.camp_id);

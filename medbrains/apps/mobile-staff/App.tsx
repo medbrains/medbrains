@@ -1,8 +1,8 @@
 /**
  * MedBrains Staff — entry component.
  *
- * Composes the medbrains mobile-shell with this app's 11 modules
- * (doctor / nurse / pharmacy / lab / billing / bme / facilities /
+ * Composes the medbrains mobile-shell with the staff modules
+ * (camp / doctor / nurse / pharmacy / lab / billing / bme / facilities /
  * housekeeping / security / hr / reception). Login gate is the
  * `StaffLoginGate` — hits the shared `/api/auth/login` endpoint.
  */

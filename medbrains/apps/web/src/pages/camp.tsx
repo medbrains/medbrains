@@ -26,10 +26,12 @@ import type {
   Camp,
   CampAnalytics as CampAnalyticsType,
   CampFollowup,
+  CampIncident,
   CampLabSample,
   CampRegistration,
   CampReport as CampReportType,
   CampScreening,
+  CampSupplyItem,
   CampTeamMember,
   CreateCampFollowupRequest,
   CreateCampLabSampleRequest,
@@ -43,6 +45,7 @@ import {
   IconCalendarCheck,
   IconChartBar,
   IconCheck,
+  IconDownload,
   IconFirstAidKit,
   IconPencil,
   IconPlayerPlay,
@@ -521,9 +524,35 @@ function CampsTab() {
 
 function CampDetail({ camp }: { camp: Camp }) {
   const canUpdate = useHasPermission(P.CAMP.UPDATE);
+  const canListRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
+  const canListScreenings = useHasPermission(P.CAMP.SCREENINGS_LIST);
+  const canListLab = useHasPermission(P.CAMP.LAB_LIST);
   const qc = useQueryClient();
   const [addOpen, addHandlers] = useDisclosure(false);
   const [teamForm, setTeamForm] = useState({ employee_id: "", role_in_camp: "volunteer" });
+  const [supplyForm, setSupplyForm] = useState<{
+    category: CampSupplyItem["category"];
+    item_name: string;
+    unit: string;
+    planned_qty: number;
+    is_critical: boolean;
+  }>({
+    category: "consumable",
+    item_name: "",
+    unit: "pcs",
+    planned_qty: 0,
+    is_critical: false,
+  });
+  const [incidentForm, setIncidentForm] = useState<{
+    incident_type: CampIncident["incident_type"];
+    severity: CampIncident["severity"];
+    description: string;
+  }>({
+    incident_type: "patient_safety",
+    severity: "low",
+    description: "",
+  });
+  const canDownloadPacket = canListRegistrations && canListScreenings && canListLab;
 
   const { data: team = [] } = useQuery({
     queryKey: ["camp-team", camp.id],
@@ -533,6 +562,11 @@ function CampDetail({ camp }: { camp: Camp }) {
   const { data: stats } = useQuery({
     queryKey: ["camp-stats", camp.id],
     queryFn: () => api.getCampStats(camp.id),
+  });
+
+  const { data: remoteOps } = useQuery({
+    queryKey: ["camp-remote-operations", camp.id],
+    queryFn: () => api.getCampRemoteOperations(camp.id),
   });
 
   const addMut = useMutation({
@@ -551,6 +585,63 @@ function CampDetail({ camp }: { camp: Camp }) {
   const removeMut = useMutation({
     mutationFn: (memberId: string) => api.removeCampTeamMember(camp.id, memberId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["camp-team", camp.id] }),
+  });
+
+  const packetMut = useMutation({
+    mutationFn: () => api.getCampPacket(camp.id, { device_id: "web-admin-preview" }),
+    onSuccess: (packet) => {
+      notifications.show({
+        title: "Packet ready",
+        message: `${packet.registrations.length} registrations, ${packet.screenings.length} screenings, ${packet.lab_samples.length} samples, ${packet.patient_summaries.length} linked patients`,
+        color: "success",
+      });
+    },
+  });
+
+  const checklistMut = useMutation({
+    mutationFn: (input: { id: string; status: "ok" | "issue" | "not_applicable" }) =>
+      api.updateCampRemoteChecklistItem(input.id, { status: input.status }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["camp-remote-operations", camp.id] });
+    },
+  });
+
+  const supplyMut = useMutation({
+    mutationFn: () =>
+      api.createCampSupplyItem(camp.id, {
+        category: supplyForm.category,
+        item_name: supplyForm.item_name,
+        unit: supplyForm.unit || undefined,
+        planned_qty: supplyForm.planned_qty,
+        is_critical: supplyForm.is_critical,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["camp-remote-operations", camp.id] });
+      setSupplyForm({
+        category: "consumable",
+        item_name: "",
+        unit: "pcs",
+        planned_qty: 0,
+        is_critical: false,
+      });
+    },
+  });
+
+  const incidentMut = useMutation({
+    mutationFn: () =>
+      api.createCampIncident(camp.id, {
+        incident_type: incidentForm.incident_type,
+        severity: incidentForm.severity,
+        description: incidentForm.description,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["camp-remote-operations", camp.id] });
+      setIncidentForm({
+        incident_type: "patient_safety",
+        severity: "low",
+        description: "",
+      });
+    },
   });
 
   const teamCols: Column<CampTeamMember>[] = [
@@ -594,6 +685,26 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   return (
     <Stack>
+      <Group justify="space-between" align="flex-end">
+        <Stack gap={2}>
+          <Text fw={600}>Camp Packet</Text>
+          <Text size="sm" c="dimmed">
+            Segmented camp data for offline intake, screening, vitals, and sample collection.
+          </Text>
+        </Stack>
+        {canDownloadPacket && (
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconDownload size={14} />}
+            loading={packetMut.isPending}
+            onClick={() => packetMut.mutate()}
+          >
+            Check Packet
+          </Button>
+        )}
+      </Group>
+
       {stats && (
         <SimpleGrid cols={4}>
           <StatCard label="Registrations" value={stats.total_registrations} />
@@ -605,6 +716,288 @@ function CampDetail({ camp }: { camp: Camp }) {
           <StatCard label="FU Completed" value={stats.followups_completed} />
           <StatCard label="Billing Total" value={stats.billing_total} prefix="₹" />
         </SimpleGrid>
+      )}
+
+      {remoteOps && (
+        <Card withBorder>
+          <Group justify="space-between" mb="sm">
+            <Stack gap={2}>
+              <Text fw={600}>Remote Village Readiness</Text>
+              <Text size="sm" c="dimmed">
+                NABH mapped controls for site safety, IPC/BMW, privacy, referral, staff briefing,
+                and offline records.
+              </Text>
+            </Stack>
+            <Badge
+              color={remoteOps.readiness.ready ? "success" : "orange"}
+              variant="filled"
+              size="lg"
+            >
+              {remoteOps.readiness.score}% ready
+            </Badge>
+          </Group>
+
+          <SimpleGrid cols={4} mb="sm">
+            <StatCard label="Required Done" value={remoteOps.readiness.required_done} />
+            <StatCard label="Required Total" value={remoteOps.readiness.required_total} />
+            <StatCard label="Issues" value={remoteOps.readiness.issue_count} />
+            <StatCard label="Supplies" value={remoteOps.supplies.length} />
+          </SimpleGrid>
+
+          <Stack gap="xs">
+            {remoteOps.checklist.map((item) => (
+              <Group key={item.id} justify="space-between" align="flex-start" wrap="nowrap">
+                <Stack gap={2} style={{ flex: 1 }}>
+                  <Group gap="xs">
+                    <Badge size="xs" variant="light">
+                      {item.nabh_chapter}
+                    </Badge>
+                    <Badge
+                      size="xs"
+                      color={
+                        item.status === "ok" || item.status === "not_applicable"
+                          ? "success"
+                          : item.status === "issue"
+                            ? "danger"
+                            : "slate"
+                      }
+                    >
+                      {item.status.replace("_", " ")}
+                    </Badge>
+                  </Group>
+                  <Text size="sm">{item.label}</Text>
+                </Stack>
+                {canUpdate && (
+                  <Group gap={4} wrap="nowrap">
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      color="success"
+                      onClick={() => checklistMut.mutate({ id: item.id, status: "ok" })}
+                    >
+                      OK
+                    </Button>
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      color="danger"
+                      onClick={() => checklistMut.mutate({ id: item.id, status: "issue" })}
+                    >
+                      Issue
+                    </Button>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      onClick={() => checklistMut.mutate({ id: item.id, status: "not_applicable" })}
+                    >
+                      N/A
+                    </Button>
+                  </Group>
+                )}
+              </Group>
+            ))}
+          </Stack>
+
+          <SimpleGrid cols={2} mt="md">
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text fw={600}>Supplies</Text>
+                <Badge variant="light">{remoteOps.supplies.length}</Badge>
+              </Group>
+              {remoteOps.supplies.slice(0, 6).map((item) => (
+                <Group key={item.id} justify="space-between" wrap="nowrap">
+                  <Stack gap={0}>
+                    <Text size="sm" fw={500}>
+                      {item.item_name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {item.category} · packed {item.packed_qty}/{item.planned_qty}{" "}
+                      {item.unit ?? ""}
+                    </Text>
+                  </Stack>
+                  {item.is_critical && (
+                    <Badge size="xs" color="danger">
+                      Critical
+                    </Badge>
+                  )}
+                </Group>
+              ))}
+              {canUpdate && (
+                <Stack gap="xs">
+                  <Select
+                    label="Category"
+                    size="xs"
+                    value={supplyForm.category}
+                    data={[
+                      "equipment",
+                      "consumable",
+                      "medicine",
+                      "ppe",
+                      "biomedical_waste",
+                      "document",
+                      "it",
+                      "other",
+                    ]}
+                    onChange={(value) =>
+                      value &&
+                      setSupplyForm((current) => ({
+                        ...current,
+                        category: value as CampSupplyItem["category"],
+                      }))
+                    }
+                  />
+                  <TextInput
+                    label="Item"
+                    size="xs"
+                    value={supplyForm.item_name}
+                    onChange={(event) =>
+                      setSupplyForm((current) => ({
+                        ...current,
+                        item_name: event.currentTarget.value,
+                      }))
+                    }
+                  />
+                  <Group grow align="flex-end">
+                    <NumberInput
+                      label="Planned"
+                      size="xs"
+                      min={0}
+                      value={supplyForm.planned_qty}
+                      onChange={(value) =>
+                        setSupplyForm((current) => ({
+                          ...current,
+                          planned_qty: typeof value === "number" ? value : 0,
+                        }))
+                      }
+                    />
+                    <TextInput
+                      label="Unit"
+                      size="xs"
+                      value={supplyForm.unit}
+                      onChange={(event) =>
+                        setSupplyForm((current) => ({
+                          ...current,
+                          unit: event.currentTarget.value,
+                        }))
+                      }
+                    />
+                  </Group>
+                  <Switch
+                    size="xs"
+                    label="Critical item"
+                    checked={supplyForm.is_critical}
+                    onChange={(event) =>
+                      setSupplyForm((current) => ({
+                        ...current,
+                        is_critical: event.currentTarget.checked,
+                      }))
+                    }
+                  />
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconPlus size={14} />}
+                    disabled={!supplyForm.item_name}
+                    loading={supplyMut.isPending}
+                    onClick={() => supplyMut.mutate()}
+                  >
+                    Add Supply
+                  </Button>
+                </Stack>
+              )}
+            </Stack>
+
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text fw={600}>Incidents / Near Miss</Text>
+                <Badge variant="light" color={remoteOps.incidents.length > 0 ? "danger" : "slate"}>
+                  {remoteOps.incidents.length}
+                </Badge>
+              </Group>
+              {remoteOps.incidents.slice(0, 6).map((item) => (
+                <Group key={item.id} justify="space-between" align="flex-start" wrap="nowrap">
+                  <Stack gap={0}>
+                    <Text size="sm" fw={500}>
+                      {item.incident_type.replace("_", " ")}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {item.description}
+                    </Text>
+                  </Stack>
+                  <Badge size="xs" color={item.severity === "critical" ? "danger" : "orange"}>
+                    {item.severity}
+                  </Badge>
+                </Group>
+              ))}
+              {canUpdate && (
+                <Stack gap="xs">
+                  <Group grow>
+                    <Select
+                      label="Type"
+                      size="xs"
+                      value={incidentForm.incident_type}
+                      data={[
+                        "patient_safety",
+                        "infection_control",
+                        "biomedical_waste",
+                        "facility_safety",
+                        "staff_safety",
+                        "data_privacy",
+                        "equipment",
+                        "network",
+                        "crowd_control",
+                        "other",
+                      ]}
+                      onChange={(value) =>
+                        value &&
+                        setIncidentForm((current) => ({
+                          ...current,
+                          incident_type: value as CampIncident["incident_type"],
+                        }))
+                      }
+                    />
+                    <Select
+                      label="Severity"
+                      size="xs"
+                      value={incidentForm.severity}
+                      data={["low", "moderate", "high", "critical"]}
+                      onChange={(value) =>
+                        value &&
+                        setIncidentForm((current) => ({
+                          ...current,
+                          severity: value as CampIncident["severity"],
+                        }))
+                      }
+                    />
+                  </Group>
+                  <Textarea
+                    label="Description"
+                    size="xs"
+                    minRows={2}
+                    value={incidentForm.description}
+                    onChange={(event) =>
+                      setIncidentForm((current) => ({
+                        ...current,
+                        description: event.currentTarget.value,
+                      }))
+                    }
+                  />
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="danger"
+                    leftSection={<IconPlus size={14} />}
+                    disabled={!incidentForm.description}
+                    loading={incidentMut.isPending}
+                    onClick={() => incidentMut.mutate()}
+                  >
+                    Record Incident
+                  </Button>
+                </Stack>
+              )}
+            </Stack>
+          </SimpleGrid>
+        </Card>
       )}
 
       <Group justify="space-between">
