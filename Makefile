@@ -1,5 +1,7 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
        build build-backend build-frontend \
+       camp-mobile camp-mobile-ios camp-mobile-android \
+       mobile-staff-start mobile-staff-start-lan mobile-staff-ios mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api \
        check-ui-api check-types check-all \
        test-frontend test-frontend-coverage analyze \
@@ -33,6 +35,32 @@ dev-backend: db ## Start database + backend only
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	cd $(ROOT) && pnpm dev:web
+
+# ── Mobile / Camp Mode ───────────────────────────────────────
+
+camp-mobile: mobile-staff-start-lan ## Start Camp Mode staff mobile app (LAN QR, port 8082)
+
+camp-mobile-ios: mobile-staff-ios ## Open Camp Mode staff mobile app on iOS
+
+camp-mobile-android: mobile-staff-android ## Open Camp Mode staff mobile app on Android
+
+mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff start
+
+mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
+
+mobile-staff-ios: ## Build/open staff mobile app on iOS simulator/device
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff ios
+
+mobile-staff-android: ## Build/open staff mobile app on Android emulator/device
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff android
+
+mobile-staff-prebuild: ## Regenerate native projects for staff mobile app
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff prebuild
+
+mobile-staff-typecheck: ## Typecheck staff mobile app
+	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff typecheck
 
 watch: db ## Auto-restart backend on code changes (requires cargo-watch)
 	cd $(ROOT) && cargo watch -w crates -w Cargo.toml -w Cargo.lock -x 'run --bin medbrains-server'
