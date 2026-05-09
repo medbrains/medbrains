@@ -57,7 +57,7 @@ const fn default_port() -> u16 {
 }
 
 fn default_cors_origin() -> String {
-    "http://localhost:5173".to_owned()
+    "https://medbrains.localhost".to_owned()
 }
 
 const fn default_db_pool_max_connections() -> u32 {

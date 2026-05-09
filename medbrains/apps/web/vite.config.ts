@@ -6,6 +6,7 @@ import path from "path";
 
 export default defineConfig(async () => {
   const plugins: PluginOption[] = [react(), wasm(), topLevelAwait()];
+  const devHttpsDomain = process.env.DEV_HTTPS_DOMAIN ?? "medbrains.localhost";
 
   if (process.env.ANALYZE === "true") {
     const { visualizer } = await import("rollup-plugin-visualizer");
@@ -54,6 +55,12 @@ export default defineConfig(async () => {
     server: {
       port: 5173,
       strictPort: true,
+      hmr: {
+        protocol: "wss",
+        host: devHttpsDomain,
+        clientPort: 443,
+        path: "/vite-hmr",
+      },
       proxy: {
         "/api": {
           target: "http://localhost:3000",

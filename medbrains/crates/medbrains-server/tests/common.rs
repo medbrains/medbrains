@@ -139,7 +139,7 @@ pub async fn spawn_app() -> TestApp {
         cookie_config: CookieConfig {
             domain: None, // no domain restriction for tests
             secure: false,
-            cors_origin: "http://localhost:5173".to_owned(),
+            cors_origin: "https://medbrains.localhost".to_owned(),
         },
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         trusted_proxies: Arc::new(vec![]),

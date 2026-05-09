@@ -1,8 +1,8 @@
-.PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
+.PHONY: help dev dev-fast dev-backend dev-frontend local-https-cert dev-proxy dev-https db db-stop db-reset \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
        mobile-staff-start mobile-staff-start-lan \
-       mobile-staff-ios mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
+       mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api \
        check-ui-api check-types check-all \
@@ -17,6 +17,9 @@ IOS_DEVICE ?=
 ANDROID_DEVICE ?=
 IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
 ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
+DEV_HTTPS_DOMAIN ?= medbrains.localhost
+DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
+DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 
 # Default
 help: ## Show this help
@@ -25,22 +28,25 @@ help: ## Show this help
 
 # ── Development ──────────────────────────────────────────────
 
-dev: ## Start everything (db + backend with watch + frontend)
-	@echo "Starting PostgreSQL..."
-	@cd $(ROOT) && docker compose up -d postgres
-	@echo "Waiting for PostgreSQL..."
-	@cd $(ROOT) && until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
-	@echo "PostgreSQL ready. Starting backend (watch) & frontend..."
-	@cd $(ROOT) && trap 'kill 0' EXIT; \
-		cargo watch -w crates -w Cargo.toml -w Cargo.lock -x 'run --bin medbrains-server' & \
-		sleep 5 && pnpm dev:web & \
-		wait
+dev: ## Start everything through the local HTTPS proxy
+	@$(MAKE) -C $(ROOT) dev DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+
+dev-fast: ## Start everything through HTTPS, skipping unchanged backend rebuilds
+	@$(MAKE) -C $(ROOT) dev-fast DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
 
 dev-backend: db ## Start database + backend only
 	cd $(ROOT) && cargo run --bin medbrains-server
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	cd $(ROOT) && pnpm dev:web
+
+local-https-cert: ## Generate local HTTPS certificate for medbrains.localhost
+	@$(MAKE) -C $(ROOT) local-https-cert DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN)
+
+dev-proxy: ## Start local Pingora HTTPS proxy on https://medbrains.localhost
+	@$(MAKE) -C $(ROOT) dev-proxy DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+
+dev-https: dev ## Alias for make dev
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
@@ -56,8 +62,10 @@ mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
 mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
 	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
 
-mobile-staff-ios: ## Build/open staff mobile app on iOS; set IOS_DEVICE="iPhone 17"
-	cd $(ROOT) && pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
+mobile-staff-ios: ## Build/open staff mobile app on iOS with local HTTPS API base
+	@$(MAKE) -C $(ROOT) mobile-staff-ios DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) IOS_DEVICE="$(IOS_DEVICE)"
+
+mobile-staff-ios-https: mobile-staff-ios ## Alias for HTTPS staff iOS run
 
 mobile-staff-ios-devices: ## List available iOS simulators/devices
 	xcrun simctl list devices available

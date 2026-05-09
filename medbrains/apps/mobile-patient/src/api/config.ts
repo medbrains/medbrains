@@ -6,7 +6,7 @@
 import { ExpoSecureStoreAdapter } from "@medbrains/mobile-shell";
 import type { ApiConfig } from "./client.js";
 
-const DEFAULT_BASE = "http://127.0.0.1:8080";
+const DEFAULT_BASE = "https://medbrains.localhost";
 
 interface ProcessEnvShape {
   env?: Record<string, string | undefined>;

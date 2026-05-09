@@ -1,8 +1,9 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
+       local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
        mobile-staff-start mobile-staff-start-lan \
-       mobile-staff-ios mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
+       mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-all \
@@ -28,6 +29,9 @@ IOS_DEVICE ?=
 ANDROID_DEVICE ?=
 IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
 ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
+DEV_HTTPS_DOMAIN ?= medbrains.localhost
+DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
+DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 
 # Default
 help: ## Show this help
@@ -36,26 +40,17 @@ help: ## Show this help
 
 # ── Development ──────────────────────────────────────────────
 
-dev: ## Start everything (db + compile backend + frontend)
+dev: local-https-cert ## Start everything with local HTTPS proxy
 	@echo "Starting PostgreSQL..."
 	@docker compose up -d postgres
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
-	@echo "PostgreSQL ready. Compiling backend..."
-	@cargo build 2>&1 || { echo "❌ Backend compilation failed"; exit 1; }
-	@echo "✅ Backend compiled. Starting backend + frontend..."
-	@trap 'kill 0' EXIT; \
-		cargo run & \
-		pnpm dev:web & \
-		wait
+	@DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
-dev-fast: ## Start everything (skip compile check — use when already compiled)
+dev-fast: local-https-cert ## Start everything with HTTPS proxy, skip compile check
 	@docker compose up -d postgres 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
-	@trap 'kill 0' EXIT; \
-		cargo run & \
-		pnpm dev:web & \
-		wait
+	@SKIP_BACKEND_BUILD=true DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-backend: db ## Start database + backend only
 	cargo run
@@ -66,6 +61,23 @@ dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web
+
+local-https-cert: ## Generate local HTTPS certificate for medbrains.localhost
+	DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) scripts/local_https_cert.sh
+
+dev-proxy: local-https-cert ## Start local Pingora HTTPS proxy on https://medbrains.localhost
+	cargo build -p medbrains-proxy
+	sudo -E target/debug/medbrains-proxy --config $(DEV_PROXY_CONFIG)
+
+dev-https: dev ## Alias for make dev
+
+dev-split: ## Start backend + web without local HTTPS proxy
+	@docker compose up -d postgres 2>/dev/null
+	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+	@trap 'kill 0' EXIT; \
+		cargo run & \
+		pnpm dev:web & \
+		wait
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
@@ -81,8 +93,10 @@ mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
 mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
 	pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
 
-mobile-staff-ios: ## Build/open staff mobile app on iOS; set IOS_DEVICE="iPhone 17"
-	pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
+mobile-staff-ios: ## Build/open staff iOS app using local HTTPS API base
+	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
+
+mobile-staff-ios-https: mobile-staff-ios ## Alias for HTTPS staff iOS run
 
 mobile-staff-ios-devices: ## List available iOS simulators/devices
 	xcrun simctl list devices available
