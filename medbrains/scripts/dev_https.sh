@@ -12,6 +12,7 @@ export DEV_HTTPS_DOMAIN
 PROXY_CONFIG="${DEV_PROXY_CONFIG:-infra/local/pingora-dev.toml}"
 SKIP_BACKEND_BUILD="${SKIP_BACKEND_BUILD:-false}"
 STOP_STALE_DEV_PORTS="${STOP_STALE_DEV_PORTS:-true}"
+PROXY_RUST_LOG="${PROXY_RUST_LOG:-medbrains_proxy=info,pingora_proxy=off,pingora_core::services::listening=off,pingora=warn}"
 BACKEND_BIN="$ROOT_DIR/target/debug/medbrains-server"
 PROXY_BIN="$ROOT_DIR/target/debug/medbrains-proxy"
 
@@ -207,7 +208,7 @@ echo
 backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
 web_pid="$!"
-sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
+RUST_LOG="$PROXY_RUST_LOG" sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
 proxy_pid="$!"
 
 sleep 2

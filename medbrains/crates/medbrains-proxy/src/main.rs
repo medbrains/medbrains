@@ -592,6 +592,21 @@ impl ProxyHttp for MedBrainsProxy {
         let req = session.req_header();
 
         if let Some(error) = error {
+            if is_expected_vite_hmr_disconnect(session, error, status, &ctx.edge_policy) {
+                return;
+            }
+            if is_expected_websocket_disconnect(error, status, &ctx.edge_policy) {
+                tracing::info!(
+                    request_id = %ctx.request_id,
+                    class = %ctx.edge_policy.class,
+                    method = %req.method,
+                    path = %req.uri.path(),
+                    status,
+                    elapsed_ms,
+                    "proxy websocket disconnected"
+                );
+                return;
+            }
             tracing::warn!(
                 request_id = %ctx.request_id,
                 class = %ctx.edge_policy.class,
@@ -614,6 +629,28 @@ impl ProxyHttp for MedBrainsProxy {
             );
         }
     }
+}
+
+fn is_expected_vite_hmr_disconnect(
+    session: &Session,
+    error: &pingora::Error,
+    status: u16,
+    policy: &EdgePolicy,
+) -> bool {
+    matches!(error.esource(), ErrorSource::Downstream)
+        && status == 101
+        && policy.class == "websocket"
+        && session.req_header().uri.path() == "/vite-hmr"
+}
+
+fn is_expected_websocket_disconnect(
+    error: &pingora::Error,
+    status: u16,
+    policy: &EdgePolicy,
+) -> bool {
+    matches!(error.esource(), ErrorSource::Downstream)
+        && status == 101
+        && policy.class == "websocket"
 }
 
 #[async_trait]
