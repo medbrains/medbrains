@@ -12,6 +12,23 @@ http_port = 80
 https_port = 443
 body_limit_bytes = 26214400
 block_source_maps = false
+content_security_policy = """
+default-src 'self';
+base-uri 'self';
+object-src 'none';
+frame-ancestors 'self';
+script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';
+script-src-elem 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com;
+img-src 'self' data: blob: https:;
+font-src 'self' data: https://fonts.gstatic.com;
+connect-src 'self' https: ws: wss:;
+worker-src 'self' blob:;
+frame-src 'self';
+form-action 'self';
+upgrade-insecure-requests
+"""
 downstream_read_timeout_ms = 30000
 downstream_write_timeout_ms = 30000
 upstream_connect_timeout_ms = 5000

@@ -31,6 +31,7 @@ struct MedBrainsProxy {
     upstream_read_timeout: Duration,
     upstream_idle_timeout: Duration,
     drain_timeout: Duration,
+    content_security_policy: String,
 }
 
 struct RequestContext {
@@ -101,6 +102,7 @@ impl MedBrainsProxy {
             upstream_read_timeout: Duration::from_millis(cfg.upstream_read_timeout_ms()),
             upstream_idle_timeout: Duration::from_millis(cfg.upstream_idle_timeout_ms()),
             drain_timeout: Duration::from_millis(cfg.drain_timeout_ms()),
+            content_security_policy: cfg.content_security_policy(),
         })
     }
 
@@ -526,7 +528,7 @@ impl ProxyHttp for MedBrainsProxy {
         resp.insert_header("X-Permitted-Cross-Domain-Policies", "none")?;
         resp.insert_header(
             "Content-Security-Policy",
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'wasm-unsafe-eval'; script-src-elem 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss:; worker-src 'self' blob:; frame-src 'self'; form-action 'self'; upgrade-insecure-requests",
+            self.content_security_policy.as_str(),
         )?;
         resp.insert_header(
             "Strict-Transport-Security",

@@ -7,6 +7,7 @@ pub struct ProxyConfig {
     pub https_port: Option<u16>,
     pub body_limit_bytes: Option<u64>,
     pub block_source_maps: Option<bool>,
+    pub content_security_policy: Option<String>,
     pub downstream_read_timeout_ms: Option<u64>,
     pub downstream_write_timeout_ms: Option<u64>,
     pub upstream_connect_timeout_ms: Option<u64>,
@@ -67,6 +68,15 @@ impl ProxyConfig {
 
     pub fn block_source_maps(&self) -> bool {
         self.block_source_maps.unwrap_or(true)
+    }
+
+    pub fn content_security_policy(&self) -> String {
+        self.content_security_policy
+            .as_deref()
+            .unwrap_or(DEFAULT_CONTENT_SECURITY_POLICY)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     pub fn downstream_read_timeout_ms(&self) -> u64 {
@@ -149,3 +159,21 @@ impl ProxyConfig {
         Ok(())
     }
 }
+
+const DEFAULT_CONTENT_SECURITY_POLICY: &str = concat!(
+    "default-src 'self'; ",
+    "base-uri 'self'; ",
+    "object-src 'none'; ",
+    "frame-ancestors 'self'; ",
+    "script-src 'self' 'wasm-unsafe-eval'; ",
+    "script-src-elem 'self'; ",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; ",
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; ",
+    "img-src 'self' data: blob: https:; ",
+    "font-src 'self' data: https://fonts.gstatic.com; ",
+    "connect-src 'self' https: wss:; ",
+    "worker-src 'self' blob:; ",
+    "frame-src 'self'; ",
+    "form-action 'self'; ",
+    "upgrade-insecure-requests"
+);

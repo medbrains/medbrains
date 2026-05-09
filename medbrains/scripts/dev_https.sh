@@ -11,6 +11,7 @@ DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN%%/*}"
 export DEV_HTTPS_DOMAIN
 PROXY_CONFIG="${DEV_PROXY_CONFIG:-infra/local/pingora-dev.toml}"
 SKIP_BACKEND_BUILD="${SKIP_BACKEND_BUILD:-false}"
+STOP_STALE_DEV_PORTS="${STOP_STALE_DEV_PORTS:-true}"
 BACKEND_BIN="$ROOT_DIR/target/debug/medbrains-server"
 PROXY_BIN="$ROOT_DIR/target/debug/medbrains-proxy"
 
@@ -20,6 +21,46 @@ mkdir -p "$log_dir"
 port_listeners() {
   local port="$1"
   lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+port_listener_pids() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+stop_stale_port_listeners() {
+  local port="$1"
+  local service="$2"
+  local pids
+  local remaining
+
+  if [[ "$STOP_STALE_DEV_PORTS" != "true" ]]; then
+    return
+  fi
+
+  pids="$(port_listener_pids "$port")"
+  if [[ -z "$pids" ]]; then
+    return
+  fi
+
+  echo "Stopping stale $service listener(s) on port $port: $pids"
+  if ! kill $pids 2>/dev/null; then
+    if [[ "$port" == "80" || "$port" == "443" ]]; then
+      sudo kill $pids 2>/dev/null || true
+    fi
+  fi
+  sleep 1
+
+  remaining="$(port_listener_pids "$port")"
+  if [[ -n "$remaining" ]]; then
+    echo "Force-stopping stale $service listener(s) on port $port: $remaining"
+    if ! kill -9 $remaining 2>/dev/null; then
+      if [[ "$port" == "80" || "$port" == "443" ]]; then
+        sudo kill -9 $remaining 2>/dev/null || true
+      fi
+    fi
+    sleep 1
+  fi
 }
 
 require_port_free() {
@@ -65,6 +106,11 @@ echo "  backend: $log_dir/backend.log"
 echo "  web:     $log_dir/web.log"
 echo "  proxy:   $log_dir/proxy.log"
 echo
+
+stop_stale_port_listeners 3000 "backend"
+stop_stale_port_listeners 5173 "Vite web"
+stop_stale_port_listeners 80 "Pingora HTTP proxy"
+stop_stale_port_listeners 443 "Pingora HTTPS proxy"
 
 require_port_free 3000 "backend"
 require_port_free 5173 "Vite web"
@@ -132,6 +178,7 @@ tail -n +1 -f "$log_dir/backend.log" | sed -u "s/^/[backend] /" &
 tail -n +1 -f "$log_dir/web.log" \
   | sed -u \
     -e "s#http://localhost:5173/#$ORIGIN/#g" \
+    -e "s#http://127.0.0.1:5173/#$ORIGIN/#g" \
     -e "s#Network: use --host to expose#Proxy:   $ORIGIN#g" \
     -e "s/^/[web] /" &
 tail -n +1 -f "$log_dir/proxy.log" | sed -u "s/^/[proxy] /" &
