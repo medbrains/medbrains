@@ -194,9 +194,6 @@ fi
 echo "Compiling Pingora proxy before launch..."
 cargo build -p medbrains-proxy >/dev/null
 
-echo "Authorizing sudo for local HTTPS ports 80/443..."
-sudo -v
-
 cleanup() {
   trap - EXIT INT TERM
   kill 0 2>/dev/null || true
@@ -210,7 +207,7 @@ echo
 backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
 web_pid="$!"
-sudo -n -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
+sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
 proxy_pid="$!"
 
 sleep 2
