@@ -24,8 +24,8 @@ function shapeIdentity(result: AuthResponse): {
       userId: result.user.id,
       jwt: result.token,
       role: result.user.role,
-      permissions: result.user.permissions,
-      departmentIds: result.user.department_ids,
+      permissions: result.permissions,
+      departmentIds: result.department_ids,
     },
     refreshToken: result.refresh_token,
   };

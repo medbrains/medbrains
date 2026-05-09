@@ -43,9 +43,14 @@ pub struct UserInfo {
 
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
     pub user: UserInfo,
     pub csrf_token: String,
     pub permissions: Vec<String>,
+    pub department_ids: Vec<Uuid>,
     pub field_access: HashMap<String, String>,
 }
 
@@ -71,6 +76,15 @@ fn field_access_to_wire(
             (k, s.to_owned())
         })
         .collect()
+}
+
+fn wants_native_token_response(headers: &HeaderMap) -> bool {
+    matches!(
+        headers
+            .get("x-medbrains-client")
+            .and_then(|value| value.to_str().ok()),
+        Some(value) if value.starts_with("mobile-") || value == "mobile"
+    )
 }
 
 #[allow(clippy::too_many_lines)]
@@ -109,6 +123,7 @@ pub async fn login(
     // Resolve department_ids for scoping
     let department_ids =
         resolve_department_ids(&state.db, row.tenant_id, row.id, &row.role).await?;
+    let include_native_tokens = wants_native_token_response(&headers);
 
     let field_access = field_access_to_wire(
         field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
@@ -123,7 +138,7 @@ pub async fn login(
         role: row.role.clone(),
         // permissions are resolved per-request by middleware, not embedded.
         permissions: Vec::new(),
-        department_ids,
+        department_ids: department_ids.clone(),
         perm_version: row.perm_version,
         exp: (now + chrono::Duration::minutes(15)).timestamp() as usize,
     };
@@ -205,6 +220,8 @@ pub async fn login(
         .add(build_csrf_cookie(&csrf_token, cfg));
 
     let body = LoginResponse {
+        token: include_native_tokens.then(|| access_token.clone()),
+        refresh_token: include_native_tokens.then(|| refresh_raw.clone()),
         user: UserInfo {
             id: row.id,
             tenant_id: row.tenant_id,
@@ -215,6 +232,7 @@ pub async fn login(
         },
         csrf_token,
         permissions,
+        department_ids,
         field_access,
     };
 

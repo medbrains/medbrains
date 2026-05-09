@@ -38,6 +38,7 @@ export async function request<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    "X-MedBrains-Client": "mobile-patient",
   };
   if (jwt) {
     headers.Authorization = `Bearer ${jwt}`;
@@ -75,10 +76,13 @@ export interface AuthResponse {
   user: {
     id: string;
     tenant_id: string;
+    username: string;
+    email: string;
+    full_name: string;
     role: string | null;
-    permissions: string[];
-    department_ids: string[];
   };
+  permissions: string[];
+  department_ids: string[];
 }
 
 export async function loginWithPassword(

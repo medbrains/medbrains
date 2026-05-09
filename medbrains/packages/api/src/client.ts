@@ -2032,6 +2032,8 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
+  token?: string;
+  refresh_token?: string;
   user: {
     id: string;
     tenant_id: string;
@@ -2042,6 +2044,7 @@ export interface LoginResponse {
   };
   csrf_token: string;
   permissions: string[];
+  department_ids: string[];
   field_access: Record<string, FieldAccessLevel>;
 }
 

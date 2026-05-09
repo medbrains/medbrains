@@ -18,8 +18,8 @@ export async function staffSignIn(
     userId: result.user.id,
     jwt: result.token,
     role: result.user.role,
-    permissions: result.user.permissions,
-    departmentIds: result.user.department_ids,
+    permissions: result.permissions,
+    departmentIds: result.department_ids,
   };
   return { identity, refreshToken: result.refresh_token };
 }
