@@ -91,6 +91,41 @@ check_child_started() {
   fi
 }
 
+wait_for_port() {
+  local port="$1"
+  local service="$2"
+  local timeout_seconds="${3:-15}"
+  local pid="${4:-}"
+  local log_path="${5:-}"
+  local started_at
+  local now
+
+  started_at="$(date +%s)"
+  echo "Waiting for $service on port $port..."
+  while true; do
+    if [[ -n "$(port_listener_pids "$port")" ]]; then
+      return
+    fi
+
+    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+      echo "$service exited before binding port $port. Last log lines:"
+      tail -80 "${log_path:-$log_dir/proxy.log}" 2>/dev/null || true
+      exit 1
+    fi
+
+    now="$(date +%s)"
+    if (( now - started_at >= timeout_seconds )); then
+      echo "$service did not bind port $port within ${timeout_seconds}s."
+      echo
+      echo "Last $service log lines:"
+      tail -80 "${log_path:-$log_dir/proxy.log}" 2>/dev/null || true
+      exit 1
+    fi
+
+    sleep 1
+  done
+}
+
 echo "MedBrains local HTTPS: $ORIGIN"
 echo "  web UI:  $ORIGIN"
 echo "  API:     $ORIGIN/api"
@@ -148,6 +183,9 @@ fi
 echo "Compiling Pingora proxy before launch..."
 cargo build -p medbrains-proxy >/dev/null
 
+echo "Authorizing sudo for local HTTPS ports 80/443..."
+sudo -v
+
 cleanup() {
   trap - EXIT INT TERM
   kill 0 2>/dev/null || true
@@ -161,7 +199,7 @@ echo
 backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
 web_pid="$!"
-sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
+sudo -n -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
 proxy_pid="$!"
 
 sleep 2
@@ -169,6 +207,9 @@ sleep 2
 check_child_started "$backend_pid" "Backend" "$log_dir/backend.log"
 check_child_started "$web_pid" "Vite web" "$log_dir/web.log"
 check_child_started "$proxy_pid" "Pingora" "$log_dir/proxy.log"
+wait_for_port 3000 "Backend" 15 "$backend_pid" "$log_dir/backend.log"
+wait_for_port 5173 "Vite web" 15 "$web_pid" "$log_dir/web.log"
+wait_for_port 443 "Pingora HTTPS proxy" 15 "$proxy_pid" "$log_dir/proxy.log"
 
 echo "Ready URL: $ORIGIN"
 echo "Use Ctrl+C to stop all dev services."

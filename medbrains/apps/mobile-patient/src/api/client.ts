@@ -28,6 +28,9 @@ export class ApiError extends Error {
   }
 }
 
+const LOCAL_HTTPS_BASE = "https://medbrains.localhost";
+const IOS_SIMULATOR_HTTP_BASE = "http://127.0.0.1:3000";
+
 export async function request<T>(
   config: ApiConfig,
   method: string,
@@ -43,11 +46,12 @@ export async function request<T>(
   if (jwt) {
     headers.Authorization = `Bearer ${jwt}`;
   }
-  const res = await fetch(`${config.baseUrl}${path}`, {
+  const requestInit: RequestInit = {
     method,
     headers,
     body: body == null ? undefined : JSON.stringify(body),
-  });
+  };
+  const res = await fetchWithLocalDevFallback(config.baseUrl, path, requestInit);
   const text = await res.text();
   const payload = text ? safeParse(text) : undefined;
   if (!res.ok) {
@@ -60,6 +64,21 @@ export async function request<T>(
     );
   }
   return payload as T;
+}
+
+async function fetchWithLocalDevFallback(
+  baseUrl: string,
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(`${baseUrl}${path}`, init);
+  } catch (error) {
+    if (baseUrl === LOCAL_HTTPS_BASE) {
+      return fetch(`${IOS_SIMULATOR_HTTP_BASE}${path}`, init);
+    }
+    throw error;
+  }
 }
 
 function safeParse(text: string): unknown {
