@@ -17,6 +17,39 @@ PROXY_BIN="$ROOT_DIR/target/debug/medbrains-proxy"
 log_dir="$ROOT_DIR/var/log/dev"
 mkdir -p "$log_dir"
 
+port_listeners() {
+  local port="$1"
+  lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+require_port_free() {
+  local port="$1"
+  local service="$2"
+  local listeners
+
+  listeners="$(port_listeners "$port")"
+  if [[ -n "$listeners" ]]; then
+    echo "Cannot start $service: port $port is already in use."
+    echo
+    echo "$listeners"
+    echo
+    echo "Stop the process above, then rerun: make dev"
+    exit 1
+  fi
+}
+
+check_child_started() {
+  local pid="$1"
+  local service="$2"
+  local log_path="$3"
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "$service failed to start. Last log lines:"
+    tail -80 "$log_path" 2>/dev/null || true
+    exit 1
+  fi
+}
+
 echo "MedBrains local HTTPS: $ORIGIN"
 echo "  web UI:  $ORIGIN"
 echo "  API:     $ORIGIN/api"
@@ -32,6 +65,11 @@ echo "  backend: $log_dir/backend.log"
 echo "  web:     $log_dir/web.log"
 echo "  proxy:   $log_dir/proxy.log"
 echo
+
+require_port_free 3000 "backend"
+require_port_free 5173 "Vite web"
+require_port_free 80 "Pingora HTTP proxy"
+require_port_free 443 "Pingora HTTPS proxy"
 
 backend_needs_build=false
 migrations_dir="$ROOT_DIR/crates/medbrains-db/src/migrations"
@@ -74,16 +112,17 @@ echo "Starting backend, web, and Pingora. Open: $ORIGIN"
 echo
 
 "$BACKEND_BIN" >"$log_dir/backend.log" 2>&1 &
+backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
+web_pid="$!"
 sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
+proxy_pid="$!"
 
 sleep 2
 
-if ! kill -0 "$!" 2>/dev/null; then
-  echo "Pingora failed to start. Last proxy log lines:"
-  tail -80 "$log_dir/proxy.log"
-  exit 1
-fi
+check_child_started "$backend_pid" "Backend" "$log_dir/backend.log"
+check_child_started "$web_pid" "Vite web" "$log_dir/web.log"
+check_child_started "$proxy_pid" "Pingora" "$log_dir/proxy.log"
 
 echo "Ready URL: $ORIGIN"
 echo "Use Ctrl+C to stop all dev services."
