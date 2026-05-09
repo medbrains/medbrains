@@ -28,6 +28,17 @@ port_listener_pids() {
   lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
 }
 
+port_accepts_connections() {
+  local port="$1"
+
+  if command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "$port" >/dev/null 2>&1
+    return
+  fi
+
+  [[ -n "$(port_listener_pids "$port")" ]]
+}
+
 stop_stale_port_listeners() {
   local port="$1"
   local service="$2"
@@ -103,7 +114,7 @@ wait_for_port() {
   started_at="$(date +%s)"
   echo "Waiting for $service on port $port..."
   while true; do
-    if [[ -n "$(port_listener_pids "$port")" ]]; then
+    if port_accepts_connections "$port"; then
       return
     fi
 
