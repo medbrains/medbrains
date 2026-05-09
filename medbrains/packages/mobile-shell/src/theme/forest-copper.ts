@@ -1,3 +1,5 @@
+import type { MD3Theme } from "react-native-paper";
+
 /**
  * Forest + Copper palette ported to React Native Paper v5.
  *
@@ -31,47 +33,151 @@ export const EMERGENCY_CODES = {
 
 export type ColorScheme = "light" | "dark";
 
-export interface PaperColors {
-  primary: string;
-  onPrimary: string;
-  primaryContainer: string;
-  onPrimaryContainer: string;
-  secondary: string;
-  onSecondary: string;
-  secondaryContainer: string;
-  onSecondaryContainer: string;
-  background: string;
-  onBackground: string;
-  surface: string;
-  onSurface: string;
-  surfaceVariant: string;
-  onSurfaceVariant: string;
-  outline: string;
-  outlineVariant: string;
-  error: string;
-  onError: string;
-  elevation: { level0: string; level1: string; level2: string; level3: string };
-}
+export type PaperColors = MD3Theme["colors"];
+export type PaperFont = MD3Theme["fonts"]["bodyMedium"];
 
-export interface PaperTheme {
-  dark: boolean;
-  roundness: number;
-  colors: PaperColors;
-  fonts: {
-    regular: { fontFamily: string };
-    medium: { fontFamily: string };
-    bold: { fontFamily: string };
-    display: { fontFamily: string };
-    mono: { fontFamily: string };
+type PaperFontAlias = {
+  fontFamily: string;
+  fontWeight?: PaperFont["fontWeight"];
+};
+
+export type PaperTheme = MD3Theme & {
+  fonts: MD3Theme["fonts"] & {
+    regular: PaperFontAlias;
+    medium: PaperFontAlias;
+    bold: PaperFontAlias;
+    display: PaperFontAlias;
+    mono: PaperFontAlias;
   };
-}
+};
+
+const typography: PaperTheme["fonts"] = {
+  default: {
+    fontFamily: "InterTight-Regular",
+    fontWeight: "400",
+    letterSpacing: 0,
+  },
+  regular: { fontFamily: "InterTight-Regular", fontWeight: "400" },
+  medium: { fontFamily: "InterTight-Medium", fontWeight: "500" },
+  bold: { fontFamily: "InterTight-Bold", fontWeight: "700" },
+  display: { fontFamily: "Fraunces-Regular", fontWeight: "400" },
+  mono: { fontFamily: "JetBrainsMono-Regular", fontWeight: "400" },
+  displayLarge: {
+    fontFamily: "Fraunces-Regular",
+    fontSize: 57,
+    fontWeight: "400",
+    letterSpacing: 0,
+    lineHeight: 64,
+  },
+  displayMedium: {
+    fontFamily: "Fraunces-Regular",
+    fontSize: 45,
+    fontWeight: "400",
+    letterSpacing: 0,
+    lineHeight: 52,
+  },
+  displaySmall: {
+    fontFamily: "Fraunces-Regular",
+    fontSize: 36,
+    fontWeight: "400",
+    letterSpacing: 0,
+    lineHeight: 44,
+  },
+  headlineLarge: {
+    fontFamily: "InterTight-Bold",
+    fontSize: 32,
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: 40,
+  },
+  headlineMedium: {
+    fontFamily: "InterTight-Bold",
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: 36,
+  },
+  headlineSmall: {
+    fontFamily: "InterTight-Bold",
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: 32,
+  },
+  titleLarge: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 22,
+    fontWeight: "500",
+    letterSpacing: 0,
+    lineHeight: 28,
+  },
+  titleMedium: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 16,
+    fontWeight: "500",
+    letterSpacing: 0.15,
+    lineHeight: 24,
+  },
+  titleSmall: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 14,
+    fontWeight: "500",
+    letterSpacing: 0.1,
+    lineHeight: 20,
+  },
+  bodyLarge: {
+    fontFamily: "InterTight-Regular",
+    fontSize: 16,
+    fontWeight: "400",
+    letterSpacing: 0.5,
+    lineHeight: 24,
+  },
+  bodyMedium: {
+    fontFamily: "InterTight-Regular",
+    fontSize: 14,
+    fontWeight: "400",
+    letterSpacing: 0.25,
+    lineHeight: 20,
+  },
+  bodySmall: {
+    fontFamily: "InterTight-Regular",
+    fontSize: 12,
+    fontWeight: "400",
+    letterSpacing: 0.4,
+    lineHeight: 16,
+  },
+  labelLarge: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 14,
+    fontWeight: "500",
+    letterSpacing: 0.1,
+    lineHeight: 20,
+  },
+  labelMedium: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.5,
+    lineHeight: 16,
+  },
+  labelSmall: {
+    fontFamily: "InterTight-Medium",
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 0.5,
+    lineHeight: 16,
+  },
+};
 
 export function buildForestCopperTheme(scheme: ColorScheme): PaperTheme {
   const isDark = scheme === "dark";
   const p = FOREST_COPPER_PALETTE;
   return {
     dark: isDark,
+    isV3: true,
     roundness: 8,
+    version: 3,
+    animation: { scale: 1 },
     colors: {
       primary: p.brand,
       onPrimary: p.canvas,
@@ -81,29 +187,39 @@ export function buildForestCopperTheme(scheme: ColorScheme): PaperTheme {
       onSecondary: p.canvas,
       secondaryContainer: "#f3ead6",
       onSecondaryContainer: "#553e15",
+      tertiary: p.emerald,
+      onTertiary: p.brandDeep,
+      tertiaryContainer: "#d7f8e9",
+      onTertiaryContainer: p.brandDeep,
       background: isDark ? "#0a0d0b" : p.canvas,
       onBackground: isDark ? "#e8ece9" : p.ink,
       surface: isDark ? "#0f1412" : p.canvas,
       onSurface: isDark ? "#e8ece9" : p.ink,
       surfaceVariant: p.panel,
       onSurfaceVariant: "#3a4540",
+      surfaceDisabled: isDark ? "rgba(232, 236, 233, 0.12)" : "rgba(15, 20, 18, 0.12)",
+      onSurfaceDisabled: isDark ? "rgba(232, 236, 233, 0.38)" : "rgba(15, 20, 18, 0.38)",
       outline: p.rule,
       outlineVariant: p.rule,
       error: EMERGENCY_CODES.red,
       onError: p.canvas,
+      errorContainer: "#fde7ea",
+      onErrorContainer: "#5a0815",
+      inverseSurface: isDark ? "#e8ece9" : "#223027",
+      inverseOnSurface: isDark ? p.ink : "#eef4ef",
+      inversePrimary: isDark ? "#9fc8b2" : "#7fb39a",
+      shadow: "#000000",
+      scrim: "#000000",
+      backdrop: "rgba(31, 67, 50, 0.4)",
       elevation: {
         level0: "transparent",
         level1: p.panel,
         level2: p.tint,
         level3: p.tint,
+        level4: p.tint,
+        level5: p.tint,
       },
     },
-    fonts: {
-      regular: { fontFamily: "InterTight-Regular" },
-      medium: { fontFamily: "InterTight-Medium" },
-      bold: { fontFamily: "InterTight-Bold" },
-      display: { fontFamily: "Fraunces-Regular" },
-      mono: { fontFamily: "JetBrainsMono-Regular" },
-    },
+    fonts: typography,
   };
 }

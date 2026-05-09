@@ -10,6 +10,10 @@
     ".": {
       "types": "./lib/index.d.ts",
       "import": "./lib/index.js"
+    },
+    "./runtime-polyfills": {
+      "import": "./runtime-polyfills.cjs",
+      "require": "./runtime-polyfills.cjs"
     }
   },
   "scripts": {
@@ -26,17 +30,17 @@
   "peerDependencies": {
     "@react-navigation/native": ">=7",
     "@react-navigation/native-stack": ">=7",
-    "expo-camera": ">=15",
-    "expo-local-authentication": ">=14",
-    "expo-secure-store": ">=13",
+    "expo-camera": ">=17",
+    "expo-local-authentication": ">=17",
+    "expo-secure-store": ">=15",
     "react": ">=19",
     "react-native": ">=0.76",
     "react-native-paper": ">=5"
   },
   "devDependencies": {
-    "@types/react": "^19.2.0",
-    "react": "^19.2.4",
-    "react-native": "^0.84.1",
+    "@types/react": "~19.1.10",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.5"
   }

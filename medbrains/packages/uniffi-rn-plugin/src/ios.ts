@@ -2,30 +2,21 @@
  * iOS mod — drops the iOS staticlib(s) into the host's `ios/`
  * directory and patches the Podfile so CocoaPods picks them up.
  *
- * Universal binary: when both `aarch64-apple-ios` (device) and
- * `aarch64-apple-ios-sim` (simulator) targets are configured, we
- * use `lipo` to fat-merge them into a single `.a` so the host can
- * build for either context without conditional linking.
+ * Device and simulator archives can both be arm64 on Apple Silicon, so
+ * they cannot be merged with `lipo`. We copy each archive into a
+ * platform-specific directory and link via `$(PLATFORM_NAME)`.
  */
 
-import {
-  withDangerousMod,
-  withXcodeProject,
-  type ConfigPlugin,
-} from "@expo/config-plugins";
-import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { type ConfigPlugin, withDangerousMod, withXcodeProject } from "@expo/config-plugins";
 import type { UniffiRnPluginOptions } from "./index.js";
 
 type ResolvedOptions = Required<UniffiRnPluginOptions>;
 
 const LIB_BASENAME = "libmedbrains_edge_rn";
 
-export const withMedbrainsUniffiIos: ConfigPlugin<ResolvedOptions> = (
-  config,
-  options,
-) => {
+export const withMedbrainsUniffiIos: ConfigPlugin<ResolvedOptions> = (config, options) => {
   let next = withDangerousMod(config, [
     "ios",
     async (cfg) => {
@@ -45,20 +36,19 @@ export const withMedbrainsUniffiIos: ConfigPlugin<ResolvedOptions> = (
   return next;
 };
 
-function copyIosArtifact(
-  projectRoot: string,
-  iosRoot: string,
-  options: ResolvedOptions,
-): void {
+function copyIosArtifact(projectRoot: string, iosRoot: string, options: ResolvedOptions): void {
   const crateRoot = path.resolve(projectRoot, options.cratePath);
   const profileDir = options.cargoProfile === "release" ? "release" : "debug";
-  const destDir = path.join(iosRoot, "MedbrainsEdgeRn");
-  fs.mkdirSync(destDir, { recursive: true });
+  const artifactsDir = path.join(iosRoot, "MedbrainsEdgeRn");
+  fs.mkdirSync(artifactsDir, { recursive: true });
 
-  const archives = options.iosTargets.map((target) =>
-    path.join(crateRoot, "target", target, profileDir, `${LIB_BASENAME}.a`),
-  );
-  for (const archive of archives) {
+  const artifacts = options.iosTargets.map((target) => ({
+    archive: path.join(crateRoot, "target", target, profileDir, `${LIB_BASENAME}.a`),
+    platformName: platformNameForRustTarget(target),
+    target,
+  }));
+
+  for (const { archive } of artifacts) {
     if (!fs.existsSync(archive)) {
       throw new Error(
         `expected iOS archive missing: ${archive}\n` +
@@ -67,20 +57,23 @@ function copyIosArtifact(
     }
   }
 
-  const destArchive = path.join(destDir, `${LIB_BASENAME}.a`);
-
-  if (archives.length === 1) {
-    fs.copyFileSync(archives[0]!, destArchive);
-    log(`copied ${archives[0]} → ${destArchive}`);
-    return;
+  for (const { archive, platformName, target } of artifacts) {
+    const destDir = path.join(artifactsDir, platformName);
+    const destArchive = path.join(destDir, `${LIB_BASENAME}.a`);
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(archive, destArchive);
+    log(`copied ${target} archive → ${destArchive}`);
   }
+}
 
-  // Multiple targets → fat binary via lipo. Apple-only tool; not
-  // available on Linux EAS Build runners. EAS Build for iOS runs on
-  // macOS so this is fine.
-  const lipoCmd = `lipo -create -output ${destArchive} ${archives.join(" ")}`;
-  log(`lipo merge: ${archives.length} archives → ${destArchive}`);
-  execSync(lipoCmd, { stdio: "inherit" });
+function platformNameForRustTarget(target: string): string {
+  if (target.endsWith("-apple-ios-sim")) {
+    return "iphonesimulator";
+  }
+  if (target.endsWith("-apple-ios")) {
+    return "iphoneos";
+  }
+  throw new Error(`unsupported iOS Rust target: ${target}`);
 }
 
 function patchPodfile(iosRoot: string): void {
@@ -113,7 +106,7 @@ function patchPodfile(iosRoot: string): void {
     `            bc.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']`,
     `            unless bc.build_settings['OTHER_LDFLAGS'].include?('-l${LIB_BASENAME.replace(/^lib/, "")}')`,
     `              bc.build_settings['OTHER_LDFLAGS'] << '-l${LIB_BASENAME.replace(/^lib/, "")}'`,
-    `              bc.build_settings['OTHER_LDFLAGS'] << '-L$(PROJECT_DIR)/MedbrainsEdgeRn'`,
+    `              bc.build_settings['OTHER_LDFLAGS'] << '-L$(PROJECT_DIR)/MedbrainsEdgeRn/$(PLATFORM_NAME)'`,
     `            end`,
     `          end`,
     `        end`,

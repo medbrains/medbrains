@@ -15,6 +15,18 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, "node_modules"),
 ];
 config.resolver.disableHierarchicalLookup = true;
+const defaultGetModulesRunBeforeMainModule =
+  config.serializer?.getModulesRunBeforeMainModule;
+config.serializer = {
+  ...config.serializer,
+  getModulesRunBeforeMainModule(entryFile) {
+    const defaults = defaultGetModulesRunBeforeMainModule?.(entryFile) ?? [];
+    return [
+      require.resolve("@medbrains/mobile-shell/runtime-polyfills"),
+      ...defaults,
+    ];
+  },
+};
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName.startsWith(".") && moduleName.endsWith(".js")) {
     const basePath = path.resolve(path.dirname(context.originModulePath), moduleName.slice(0, -3));

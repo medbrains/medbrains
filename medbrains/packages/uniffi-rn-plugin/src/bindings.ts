@@ -11,29 +11,41 @@
  * a clean run each time, which is intentional — no cache poisoning.
  */
 
-import { withDangerousMod, type ConfigPlugin } from "@expo/config-plugins";
 import { execSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
+import { type ConfigPlugin, withDangerousMod } from "@expo/config-plugins";
 import type { UniffiRnPluginOptions } from "./index.js";
 
 type ResolvedOptions = Required<UniffiRnPluginOptions>;
+type NativePlatform = "ios" | "android";
 
-export const withMedbrainsUniffiBindings: ConfigPlugin<ResolvedOptions> = (
-  config,
-  options,
-) =>
-  withDangerousMod(config, [
+export const withMedbrainsUniffiBindings: ConfigPlugin<ResolvedOptions> = (config, options) => {
+  let next = withDangerousMod(config, [
     "ios",
     async (configWithProps) => {
       const projectRoot = configWithProps.modRequest.projectRoot;
-      runBindingsGeneration(projectRoot, options);
+      runBindingsGeneration(projectRoot, options, "ios");
       return configWithProps;
     },
   ]);
 
+  next = withDangerousMod(next, [
+    "android",
+    async (configWithProps) => {
+      const projectRoot = configWithProps.modRequest.projectRoot;
+      runBindingsGeneration(projectRoot, options, "android");
+      return configWithProps;
+    },
+  ]);
+
+  return next;
+};
+
 function runBindingsGeneration(
   projectRoot: string,
   options: ResolvedOptions,
+  platform: NativePlatform,
 ): void {
   if (options.skipBuild) {
     log("skipBuild=true; skipping cargo + uniffi-bindgen invocation");
@@ -47,22 +59,20 @@ function runBindingsGeneration(
   log(`udl: ${udlAbs}`);
   log(`profile: ${options.cargoProfile}`);
 
-  // 1. iOS targets — cargo build per triple, leave artifacts in
-  //    target/<triple>/<profile>/. The iOS mod picks them up.
-  for (const target of options.iosTargets) {
-    log(`cargo build iOS target: ${target}`);
-    cargoBuild(crateAbs, target, options.cargoProfile);
+  if (platform === "ios") {
+    for (const target of options.iosTargets) {
+      log(`cargo build iOS target: ${target}`);
+      cargoBuild(crateAbs, target, options.cargoProfile);
+    }
+  } else {
+    for (const abi of options.androidAbis) {
+      const triple = abiToTriple(abi);
+      log(`cargo build Android ABI: ${abi} (${triple})`);
+      cargoBuild(crateAbs, triple, options.cargoProfile);
+    }
   }
 
-  // 2. Android ABIs — cargo build via cargo-ndk wrapper if available;
-  //    falls back to direct triple if cargo-ndk isn't installed.
-  for (const abi of options.androidAbis) {
-    const triple = abiToTriple(abi);
-    log(`cargo build Android ABI: ${abi} (${triple})`);
-    cargoBuild(crateAbs, triple, options.cargoProfile);
-  }
-
-  // 3. uniffi-bindgen-react-native — emit TypeScript Turbo Module
+  // 2. uniffi-bindgen-react-native — emit TypeScript Turbo Module
   //    bindings into packages/edge-rn-bindings.
   generateTsBindings(projectRoot, crateAbs, udlAbs, options);
 }
@@ -94,32 +104,63 @@ function generateTsBindings(
   // (apps/<name>/ → ../../). Adjust if invoked from a non-standard
   // workspace structure.
   const workspaceRoot = path.resolve(projectRoot, "..", "..");
-  const bindingsOutDir = path.join(
-    workspaceRoot,
-    "packages",
-    "edge-rn-bindings",
-  );
+  const bindingsOutDir = path.join(workspaceRoot, "packages", "edge-rn-bindings");
 
   log(`bindings out: ${bindingsOutDir}`);
 
-  // Invoke uniffi-bindgen-react-native. The CLI is installed via
-  // `npx uniffi-bindgen-react-native` so it's available without a
-  // global install.
-  const cmd = [
-    "npx --yes uniffi-bindgen-react-native",
-    `--ts-out-dir ${bindingsOutDir}`,
-    `--cpp-out-dir ${path.join(bindingsOutDir, "cpp")}`,
-    `--config ${path.join(crateRoot, "ubrn.config.yaml")}`,
-    udlPath,
+  const configPath = path.join(crateRoot, "ubrn.config.yaml");
+  if (!fileExists(configPath)) {
+    log(
+      `ubrn.config.yaml not found at ${configPath}; keeping existing ` +
+        "@medbrains/edge-rn-bindings placeholder package",
+    );
+    return;
+  }
+
+  // Invoke the current uniffi-bindgen-react-native CLI. The bindings
+  // command expects a UniFFI TOML path via --config, while the turbo
+  // module command expects ubrn.config.yaml. If the crate provides a
+  // dedicated uniffi.toml, use it; otherwise rely on generator defaults.
+  const uniffiToml = path.join(crateRoot, "uniffi.toml");
+  const bindingsCmd = [
+    "pnpm dlx uniffi-bindgen-react-native generate jsi bindings",
+    `--ts-dir ${shellQuote(bindingsOutDir)}`,
+    `--cpp-dir ${shellQuote(path.join(bindingsOutDir, "cpp"))}`,
+    fileExists(uniffiToml) ? `--config ${shellQuote(uniffiToml)}` : "",
+    shellQuote(udlPath),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const turboModuleCmd = [
+    "pnpm dlx uniffi-bindgen-react-native generate jsi turbo-module",
+    `--config ${shellQuote(configPath)}`,
+    namespaceFromUdl(udlPath),
   ].join(" ");
 
   try {
-    execSync(cmd, { cwd: workspaceRoot, stdio: "inherit" });
+    execSync(bindingsCmd, { cwd: workspaceRoot, stdio: "inherit" });
+    execSync(turboModuleCmd, { cwd: bindingsOutDir, stdio: "inherit" });
   } catch (err) {
-    throw new Error(
-      `uniffi-bindgen-react-native failed: ${(err as Error).message}`,
-    );
+    throw new Error(`uniffi-bindgen-react-native failed: ${(err as Error).message}`);
   }
+}
+
+function fileExists(filePath: string): boolean {
+  return fs.existsSync(filePath);
+}
+
+function namespaceFromUdl(udlPath: string): string {
+  const source = fs.readFileSync(udlPath, "utf-8");
+  const match = source.match(/\bnamespace\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/);
+  if (!match?.[1]) {
+    throw new Error(`could not read UniFFI namespace from ${udlPath}`);
+  }
+  return match[1];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function abiToTriple(abi: string): string {
