@@ -5,7 +5,7 @@
  * through the AuthzCache + Loro bridge directly.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface FetchState<T> {
   data: T | null;
@@ -16,14 +16,14 @@ export interface FetchState<T> {
 
 export function useFetch<T>(
   fn: () => Promise<T>,
-  _deps: ReadonlyArray<unknown> = [],
+  deps: ReadonlyArray<unknown> = [],
 ): FetchState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [_tick, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
-  const run = useCallback(() => {
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -42,13 +42,9 @@ export function useFetch<T>(
     return () => {
       cancelled = true;
     };
-    // The dependency list is forwarded by the caller; effect
-    // re-runs when any of those change.
+    // The caller owns `deps`; `fn` is often inline and must not force a render loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fn]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => run(), [run]);
+  }, [tick, ...deps]);
 
   return {
     data,
