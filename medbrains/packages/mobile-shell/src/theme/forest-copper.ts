@@ -1,7 +1,7 @@
 import type { MD3Theme } from "react-native-paper";
 
 /**
- * Forest + Copper palette ported to React Native Paper v5.
+ * MedBrains clinical teal + copper palette ported to React Native Paper v5.
  *
  * The web design system locks these tokens; mobile mirrors them so a
  * patient or clinician sees the same visual identity across surfaces.
@@ -10,16 +10,17 @@ import type { MD3Theme } from "react-native-paper";
  */
 
 export const FOREST_COPPER_PALETTE = {
-  brand: "#1F4332",
-  brandHover: "#153325",
-  brandDeep: "#0d2417",
+  brand: "#0F766E",
+  brandHover: "#0d6b63",
+  brandDeep: "#042f2e",
   ink: "#0F1412",
   canvas: "#FFFFFF",
-  panel: "#f7f8f6",
-  rule: "#e7ebe8",
+  panel: "#f8fafc",
+  rule: "#e2e8f0",
+  muted: "#64748b",
   copper: "#B8924A",
-  tint: "#e4ede9",
-  emerald: "#34d399",
+  tint: "#d1fae5",
+  emerald: "#10b981",
 } as const;
 
 export const EMERGENCY_CODES = {

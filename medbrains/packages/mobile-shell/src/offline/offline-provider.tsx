@@ -1,8 +1,8 @@
 /**
  * `OfflineProvider` opens the Rust-backed AuthzCache + RevocationCache
- * once per app and exposes them via context. Hosts wrap their root
- * tree in this; hooks (`useAuthzCache`, `useJwtVerify`,
- * `useRevocationCache`, `usePermissionCheck`) read from context.
+ * once per app and exposes them via context. Offline support is optional
+ * at shell startup: online-first app navigation must still render when
+ * native edge bindings are unavailable in a dev build.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -30,6 +30,10 @@ export interface OfflineProviderProps {
 }
 
 const OfflineContext = createContext<OfflineHandles | null>(null);
+type OfflineProviderState =
+  | { status: "loading"; handles: null }
+  | { status: "ready"; handles: OfflineHandles }
+  | { status: "unavailable"; handles: null };
 
 export function OfflineProvider(props: OfflineProviderProps): ReactNode {
   const {
@@ -40,10 +44,14 @@ export function OfflineProvider(props: OfflineProviderProps): ReactNode {
     fallback = null,
     children,
   } = props;
-  const [handles, setHandles] = useState<OfflineHandles | null>(null);
+  const [state, setState] = useState<OfflineProviderState>({
+    status: "loading",
+    handles: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
+    setState({ status: "loading", handles: null });
     loadEdgeRnBindings()
       .then((bindings) => {
         if (cancelled) {
@@ -58,11 +66,11 @@ export function OfflineProvider(props: OfflineProviderProps): ReactNode {
           `${cachePath}/revocations`,
           revocationCapacity,
         );
-        setHandles({ bindings, authz, revocations });
+        setState({ status: "ready", handles: { bindings, authz, revocations } });
       })
       .catch(() => {
         if (!cancelled) {
-          setHandles(null);
+          setState({ status: "unavailable", handles: null });
         }
       });
     return () => {
@@ -70,9 +78,12 @@ export function OfflineProvider(props: OfflineProviderProps): ReactNode {
     };
   }, [cachePath, authzCapacity, authzDefaultTtlSecs, revocationCapacity]);
 
-  const value = useMemo(() => handles, [handles]);
-  if (!value) {
+  const value = useMemo(() => state.handles, [state.handles]);
+  if (state.status === "loading") {
     return fallback;
+  }
+  if (state.status === "unavailable" || !value) {
+    return <>{children}</>;
   }
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;
 }

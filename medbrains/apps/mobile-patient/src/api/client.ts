@@ -10,7 +10,7 @@
  */
 
 import type { SecretStore } from "@medbrains/mobile-shell";
-import { SECRET_KEYS } from "@medbrains/mobile-shell";
+import { SECRET_KEYS, useAuthStore } from "@medbrains/mobile-shell";
 
 export interface ApiConfig {
   baseUrl: string;
@@ -28,9 +28,6 @@ export class ApiError extends Error {
   }
 }
 
-const LOCAL_HTTPS_BASE = "https://medbrains.localhost";
-const IOS_SIMULATOR_HTTP_BASE = "http://127.0.0.1:3000";
-
 export async function request<T>(
   config: ApiConfig,
   method: string,
@@ -46,15 +43,17 @@ export async function request<T>(
   if (jwt) {
     headers.Authorization = `Bearer ${jwt}`;
   }
-  const requestInit: RequestInit = {
+  const res = await fetch(`${config.baseUrl}${path}`, {
     method,
     headers,
     body: body == null ? undefined : JSON.stringify(body),
-  };
-  const res = await fetchWithLocalDevFallback(config.baseUrl, path, requestInit);
+  });
   const text = await res.text();
   const payload = text ? safeParse(text) : undefined;
   if (!res.ok) {
+    if (res.status === 401) {
+      await useAuthStore.getState().signOut(config.store);
+    }
     throw new ApiError(
       res.status,
       typeof payload === "object" && payload && "error" in payload
@@ -64,21 +63,6 @@ export async function request<T>(
     );
   }
   return payload as T;
-}
-
-async function fetchWithLocalDevFallback(
-  baseUrl: string,
-  path: string,
-  init: RequestInit,
-): Promise<Response> {
-  try {
-    return await fetch(`${baseUrl}${path}`, init);
-  } catch (error) {
-    if (baseUrl === LOCAL_HTTPS_BASE) {
-      return fetch(`${IOS_SIMULATOR_HTTP_BASE}${path}`, init);
-    }
-    throw error;
-  }
 }
 
 function safeParse(text: string): unknown {
