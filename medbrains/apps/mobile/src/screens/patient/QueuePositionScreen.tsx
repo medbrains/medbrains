@@ -99,7 +99,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           icon: "doctor",
           title: "In Consultation",
           subtitle: "Doctor is with you now",
-          color: "#228be6",
+          color: "#0F766E",
           bgColor: "#e7f5ff",
         };
       case "completed":
@@ -107,7 +107,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           icon: "check-circle",
           title: "Visit Complete",
           subtitle: "Thank you for visiting",
-          color: "#40c057",
+          color: "#10b981",
           bgColor: "#d3f9d8",
         };
       case "confirmed":
@@ -115,7 +115,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           icon: "clock-outline",
           title: "Confirmed",
           subtitle: "Please check in on arrival",
-          color: "#228be6",
+          color: "#0F766E",
           bgColor: "#e7f5ff",
         };
       default:
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   tokenCard: {
     borderRadius: 16,
     marginBottom: 16,
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   tokenContent: {
     alignItems: "center",
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   yourToken: {
-    color: "#228be6",
+    color: "#0F766E",
   },
   progressLabel: {
     opacity: 0.6,

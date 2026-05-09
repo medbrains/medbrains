@@ -117,13 +117,13 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#228be6" }]}>{stats.called}</Text>
+          <Text style={[styles.statValue, { color: "#0F766E" }]}>{stats.called}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             Called
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#40c057" }]}>{stats.inProgress}</Text>
+          <Text style={[styles.statValue, { color: "#10b981" }]}>{stats.inProgress}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             In Progress
           </Text>
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bannerIcon: {
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
   },
   bannerText: {
     flex: 1,
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tokenBadge: {
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
     fontSize: 14,
   },
 });

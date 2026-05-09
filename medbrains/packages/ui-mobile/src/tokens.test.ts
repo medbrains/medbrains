@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  APP_BAR,
   COLORS,
   INTENT_BG,
   INTENT_FG,
@@ -9,10 +10,14 @@ import {
 } from "./tokens.js";
 
 describe("tokens", () => {
-  it("color tokens match the locked Forest+Copper hexes", () => {
-    expect(COLORS.brand).toBe("#1F4332");
+  it("color tokens match the locked web clinical teal and copper hexes", () => {
+    expect(COLORS.brand).toBe("#0F766E");
     expect(COLORS.copper).toBe("#B8924A");
-    expect(COLORS.emerald).toBe("#34d399");
+    expect(COLORS.emerald).toBe("#10b981");
+    expect(COLORS.navActiveBg).toBe("#ccfbf1");
+    expect(COLORS.accentGradientEnd).toBe("#f59e0b");
+    expect(APP_BAR.background).toBe(COLORS.navActiveBg);
+    expect(APP_BAR.title).toBe(COLORS.brandDeep);
   });
 
   it("every intent has both bg and fg", () => {

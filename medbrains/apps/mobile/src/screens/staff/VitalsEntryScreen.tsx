@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bmiIcon: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   bmiInfo: {
     flex: 1,
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   },
   bmiValue: {
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   bmiUnit: {
     opacity: 0.6,

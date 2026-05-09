@@ -21,6 +21,7 @@ export function PatientLoginGate() {
       subtitle="Sign in to view your records"
       identifierLabel="Email or phone"
       passwordLabel="Password"
+      logoSource={require("../assets/icon.png")}
       onSubmit={patientPasswordSignIn}
     />
   );

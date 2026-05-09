@@ -177,7 +177,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
           <Card style={styles.alertCard}>
             <Card.Content>
               <View style={styles.alertHeader}>
-                <Avatar.Icon size={24} icon="alert" style={styles.alertIcon} color="#fa5252" />
+                <Avatar.Icon size={24} icon="alert" style={styles.alertIcon} color="#C8102E" />
                 <Text variant="titleSmall" style={styles.alertTitle}>
                   Allergies
                 </Text>
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   headerInfo: {
     flex: 1,
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffe3e3",
   },
   alertTitle: {
-    color: "#fa5252",
+    color: "#C8102E",
     fontWeight: "600",
   },
   allergyChips: {

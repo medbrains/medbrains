@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   progressPercent: {
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   progressBar: {
     height: 8,
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
     borderRadius: 4,
   },
   sectionIndicators: {
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#dee2e6",
   },
   sectionDotFilled: {
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
   },
   segmented: {
     marginBottom: 16,

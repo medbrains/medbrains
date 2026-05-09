@@ -10,7 +10,7 @@ function StatusChip({ label, status }: { label: string; status: string }) {
       <Chip
         icon={isConnected ? "check-circle" : "alert-circle"}
         mode="outlined"
-        selectedColor={isConnected ? "#40c057" : "#fa5252"}
+        selectedColor={isConnected ? "#10b981" : "#C8102E"}
       >
         {label}
       </Chip>

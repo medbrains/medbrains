@@ -23,10 +23,10 @@ interface QueueItemProps {
 
 const STATUS_CONFIG: Record<QueueStatus, { color: string; label: string }> = {
   waiting: { color: "#868e96", label: "Waiting" },
-  called: { color: "#228be6", label: "Called" },
-  in_consultation: { color: "#40c057", label: "In Progress" },
-  completed: { color: "#40c057", label: "Completed" },
-  no_show: { color: "#fa5252", label: "No Show" },
+  called: { color: "#0F766E", label: "Called" },
+  in_consultation: { color: "#10b981", label: "In Progress" },
+  completed: { color: "#10b981", label: "Completed" },
+  no_show: { color: "#C8102E", label: "No Show" },
 };
 
 export function QueueItem({
@@ -112,14 +112,14 @@ export function QueueItem({
               compact
               onPress={onComplete}
               icon="check"
-              style={[styles.actionButton, { backgroundColor: "#40c057" }]}
+              style={[styles.actionButton, { backgroundColor: "#10b981" }]}
             >
               Done
             </Button>
           )}
 
           {(isWaiting || isCalled) && onNoShow && (
-            <Avatar.Icon size={32} icon="account-off" style={styles.noShowIcon} color="#fa5252" />
+            <Avatar.Icon size={32} icon="account-off" style={styles.noShowIcon} color="#C8102E" />
           )}
         </View>
       </Card.Content>

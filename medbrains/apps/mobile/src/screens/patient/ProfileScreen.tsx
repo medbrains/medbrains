@@ -325,7 +325,7 @@ export function ProfileScreen() {
           mode="outlined"
           onPress={() => setLogoutDialogVisible(true)}
           style={styles.logoutButton}
-          textColor="#fa5252"
+          textColor="#C8102E"
           icon="logout"
         >
           Sign Out
@@ -345,7 +345,7 @@ export function ProfileScreen() {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setLogoutDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleLogout} textColor="#fa5252">
+            <Button onPress={handleLogout} textColor="#C8102E">
               Sign Out
             </Button>
           </Dialog.Actions>
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
     marginBottom: 16,
   },
   name: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   bloodText: {
-    color: "#fa5252",
+    color: "#C8102E",
     fontWeight: "600",
   },
   genderChip: {
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   genderText: {
-    color: "#228be6",
+    color: "#0F766E",
     fontWeight: "600",
   },
   sectionCard: {
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     marginTop: 8,
-    borderColor: "#fa5252",
+    borderColor: "#C8102E",
     borderRadius: 12,
   },
   versionText: {

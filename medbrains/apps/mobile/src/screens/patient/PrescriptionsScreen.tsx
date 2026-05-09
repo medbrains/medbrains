@@ -99,7 +99,7 @@ export function PrescriptionsScreen() {
           {/* Medication Items */}
           {item.items.map((medication) => (
             <View key={medication.id} style={styles.medicationRow}>
-              <Avatar.Icon size={36} icon="pill" style={styles.drugIcon} color="#228be6" />
+              <Avatar.Icon size={36} icon="pill" style={styles.drugIcon} color="#0F766E" />
               <View style={styles.medicationInfo}>
                 <Text variant="titleSmall" style={styles.drugName}>
                   {medication.drug_name}
@@ -283,11 +283,11 @@ const styles = StyleSheet.create({
   dateDay: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   dateMonth: {
     fontSize: 11,
-    color: "#228be6",
+    color: "#0F766E",
     textTransform: "uppercase",
   },
   headerInfo: {
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   countBadge: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   dialogContent: {
     gap: 8,

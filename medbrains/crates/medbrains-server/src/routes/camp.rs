@@ -844,7 +844,7 @@ async fn apply_camp_sync_event(
 ) -> Result<AppliedSyncEvent, AppError> {
     match event.event_type.as_str() {
         "camp.registration.create" => {
-            require_permission(&claims, permissions::camp::registrations::CREATE)?;
+            require_permission(claims, permissions::camp::registrations::CREATE)?;
             let body: CreateRegistrationRequest = parse_sync_payload(event)?;
             if body.camp_id != camp_id {
                 return Err(AppError::BadRequest(
@@ -904,7 +904,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.screening.create" => {
-            require_permission(&claims, permissions::camp::screenings::MANAGE)?;
+            require_permission(claims, permissions::camp::screenings::MANAGE)?;
             let body: CreateScreeningRequest = parse_sync_payload(event)?;
             ensure_registration_belongs_to_camp(
                 tx,
@@ -968,7 +968,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.lab_sample.create" => {
-            require_permission(&claims, permissions::camp::lab::MANAGE)?;
+            require_permission(claims, permissions::camp::lab::MANAGE)?;
             let body: CreateLabSampleRequest = parse_sync_payload(event)?;
             ensure_registration_belongs_to_camp(
                 tx,
@@ -1002,7 +1002,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.referral.create" => {
-            require_permission(&claims, permissions::camp::screenings::MANAGE)?;
+            require_permission(claims, permissions::camp::screenings::MANAGE)?;
             let body: CreateCampReferralRequest = parse_sync_payload(event)?;
             if let Some(registration_id) = body.registration_id {
                 ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
@@ -1041,7 +1041,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.incident.create" => {
-            require_permission(&claims, permissions::camp::LIST)?;
+            require_permission(claims, permissions::camp::LIST)?;
             let body: CreateCampIncidentRequest = parse_sync_payload(event)?;
             if let Some(registration_id) = body.registration_id {
                 ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
@@ -1074,7 +1074,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.checklist.update" => {
-            require_permission(&claims, permissions::camp::UPDATE)?;
+            require_permission(claims, permissions::camp::UPDATE)?;
             let body: UpdateChecklistSyncPayload = parse_sync_payload(event)?;
             let checklist_id = body.checklist_item_id.or(event.client_entity_id);
 
@@ -1140,7 +1140,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.supply.create" => {
-            require_permission(&claims, permissions::camp::UPDATE)?;
+            require_permission(claims, permissions::camp::UPDATE)?;
             let body: CreateSupplyItemRequest = parse_sync_payload(event)?;
             let entity_id = event.client_entity_id.unwrap_or_else(Uuid::new_v4);
 
@@ -1173,7 +1173,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.supply.update" => {
-            require_permission(&claims, permissions::camp::UPDATE)?;
+            require_permission(claims, permissions::camp::UPDATE)?;
             let body: UpdateSupplySyncPayload = parse_sync_payload(event)?;
 
             let server_id = sqlx::query_scalar::<_, Uuid>(

@@ -30,13 +30,13 @@ interface AppointmentsScreenProps {
 function getStatusColor(status: string): string {
   switch (status) {
     case "confirmed":
-      return "#40c057";
+      return "#10b981";
     case "pending":
       return "#fab005";
     case "cancelled":
-      return "#fa5252";
+      return "#C8102E";
     case "completed":
-      return "#228be6";
+      return "#0F766E";
     case "no_show":
       return "#868e96";
     default:
@@ -143,7 +143,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
                 icon="close"
                 onPress={() => handleCancelPress(item.id)}
                 style={[styles.actionButton, styles.cancelButton]}
-                textColor="#fa5252"
+                textColor="#C8102E"
               >
                 Cancel
               </Button>
@@ -245,7 +245,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
             <Button
               onPress={handleConfirmCancel}
               loading={cancelMutation.isPending}
-              textColor="#fa5252"
+              textColor="#C8102E"
             >
               Yes, Cancel
             </Button>
@@ -294,11 +294,11 @@ const styles = StyleSheet.create({
   dateDay: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   dateMonth: {
     fontSize: 12,
-    color: "#228be6",
+    color: "#0F766E",
     textTransform: "uppercase",
   },
   cardInfo: {
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cancelButton: {
-    borderColor: "#fa5252",
+    borderColor: "#C8102E",
   },
   queueButton: {
     marginTop: 12,

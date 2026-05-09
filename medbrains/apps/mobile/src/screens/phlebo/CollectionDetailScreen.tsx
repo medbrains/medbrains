@@ -30,15 +30,15 @@ function getStatusColor(status: string): string {
   switch (status) {
     case "collected":
     case "returned_to_lab":
-      return "#40c057";
+      return "#10b981";
     case "in_transit":
     case "arrived":
-      return "#228be6";
+      return "#0F766E";
     case "scheduled":
     case "assigned":
       return "#fab005";
     case "cancelled":
-      return "#fa5252";
+      return "#C8102E";
     default:
       return "#868e96";
   }
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   },
   collectButton: {
     borderRadius: 12,
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
   },
   collectButtonContent: {
     paddingVertical: 8,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   collectedIcon: {
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
   },
   collectedInfo: {},
 });

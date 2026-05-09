@@ -30,15 +30,15 @@ function getStatusColor(status: string): string {
   switch (status) {
     case "collected":
     case "returned_to_lab":
-      return "#40c057";
+      return "#10b981";
     case "in_transit":
     case "arrived":
-      return "#228be6";
+      return "#0F766E";
     case "scheduled":
     case "assigned":
       return "#fab005";
     case "cancelled":
-      return "#fa5252";
+      return "#C8102E";
     default:
       return "#868e96";
   }
@@ -153,13 +153,13 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#40c057" }]}>{collectedCount}</Text>
+          <Text style={[styles.statValue, { color: "#10b981" }]}>{collectedCount}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             Collected
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#228be6" }]}>{collections.length}</Text>
+          <Text style={[styles.statValue, { color: "#0F766E" }]}>{collections.length}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             Total
           </Text>

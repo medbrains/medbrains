@@ -5,13 +5,14 @@
  */
 
 export { Badge } from "./components/badge.js";
+export { AppBarGradient } from "./components/app-bar-gradient.js";
 export { Card } from "./components/card.js";
 export { DataTable } from "./components/data-table.js";
 export { EcgLoader } from "./components/ecg-loader.js";
 export { Empty } from "./components/empty.js";
-export { COLORS, INTENT_BG, INTENT_FG, RADIUS, SPACING } from "./tokens.js";
+export { APP_BAR, COLORS, INTENT_BG, INTENT_FG, RADIUS, SPACING } from "./tokens.js";
 export type { BadgeProps } from "./components/badge.js";
-export type { CardProps } from "./components/card.js";
+export type { CardPattern, CardProps } from "./components/card.js";
 export type { DataTableColumn, DataTableProps } from "./components/data-table.js";
 export type { EcgLoaderProps } from "./components/ecg-loader.js";
 export type { EmptyProps } from "./components/empty.js";

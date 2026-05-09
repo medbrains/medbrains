@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatar: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   info: {
     flex: 1,

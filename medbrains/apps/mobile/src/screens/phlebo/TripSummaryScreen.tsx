@@ -104,7 +104,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
 
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text variant="displaySmall" style={[styles.statValue, { color: "#228be6" }]}>
+              <Text variant="displaySmall" style={[styles.statValue, { color: "#0F766E" }]}>
                 {collections.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
@@ -112,7 +112,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               </Text>
             </View>
             <View style={styles.statItem}>
-              <Text variant="displaySmall" style={[styles.statValue, { color: "#40c057" }]}>
+              <Text variant="displaySmall" style={[styles.statValue, { color: "#10b981" }]}>
                 {completed.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
@@ -128,7 +128,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               </Text>
             </View>
             <View style={styles.statItem}>
-              <Text variant="displaySmall" style={[styles.statValue, { color: "#fa5252" }]}>
+              <Text variant="displaySmall" style={[styles.statValue, { color: "#C8102E" }]}>
                 {cancelled.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   },
   progressPercent: {
     fontWeight: "bold",
-    color: "#40c057",
+    color: "#10b981",
   },
   progressBar: {
     height: 8,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
     borderRadius: 4,
   },
   samplesCard: {
@@ -403,12 +403,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   samplesIcon: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   samplesInfo: {},
   samplesCount: {
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   listCard: {
     borderRadius: 12,
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
   },
   pendingWarning: {
     textAlign: "center",
-    color: "#fa5252",
+    color: "#C8102E",
     marginTop: 8,
   },
   dialogText: {

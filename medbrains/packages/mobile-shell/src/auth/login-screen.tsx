@@ -7,7 +7,8 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { Image, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 import { Button, HelperText, Surface, Text, TextInput } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import type { TenantIdentity } from "../types.js";
@@ -19,6 +20,7 @@ export interface LoginScreenProps {
   subtitle?: string;
   identifierLabel?: string;
   passwordLabel?: string;
+  logoSource?: ImageSourcePropType;
   onSubmit: (
     identifier: string,
     password: string,
@@ -32,6 +34,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
     subtitle = "Sign in to continue",
     identifierLabel = "Username or email",
     passwordLabel = "Password",
+    logoSource,
     onSubmit,
     footer,
   } = props;
@@ -66,6 +69,37 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
         justifyContent: "center",
       }}
     >
+      <View style={{ alignItems: "center", marginBottom: 18 }}>
+        {logoSource ? (
+          <Image
+            source={logoSource}
+            resizeMode="contain"
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 16,
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: FOREST_COPPER_PALETTE.brand,
+            }}
+          >
+            <Text
+              variant="headlineMedium"
+              style={{ color: FOREST_COPPER_PALETTE.canvas, fontWeight: "700" }}
+            >
+              MB
+            </Text>
+          </View>
+        )}
+      </View>
       <View style={{ marginBottom: 32 }}>
         <Text
           variant="displaySmall"

@@ -111,9 +111,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If unset (or connection fails), we silently fall back to the
     // Postgres-native AuthzPgBackend so dev environments without
     // SpiceDB running still boot. Production deploys always set these.
-    eprintln!(
-        "[boot] SPICEDB_ENDPOINT={:?}",
-        std::env::var("SPICEDB_ENDPOINT").ok()
+    tracing::info!(
+        endpoint = ?std::env::var("SPICEDB_ENDPOINT").ok(),
+        "spicedb endpoint config"
     );
     // SpiceDB connect outcome — used to decide whether the Watch consumer
     // should also be spawned (a Postgres fallback has nothing to watch).
@@ -124,13 +124,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
         match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await {
             Ok(client) => {
-                eprintln!("[boot] rebac: USING SpiceDB at {endpoint}");
                 tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
                 spicedb_live = Some((endpoint, token));
                 Arc::new(client)
             }
             Err(e) => {
-                eprintln!("[boot] rebac: SpiceDB connect FAILED ({e}); using Postgres fallback");
                 tracing::warn!(error = %e, endpoint = %endpoint,
                     "rebac: SpiceDB connect failed, falling back to Postgres backend");
                 Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(
@@ -139,7 +137,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     } else {
-        eprintln!("[boot] rebac: SPICEDB_ENDPOINT unset; using Postgres fallback");
         tracing::warn!("rebac: SPICEDB_ENDPOINT unset, using Postgres-native authz backend");
         Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(
             db_pool.clone(),
@@ -202,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         trusted_proxies: Arc::new(config.trusted_proxies.clone()),
         system_state_cache: SystemStateCache::new(),
-        outbox: outbox_registry.clone(),
+        outbox: Arc::clone(&outbox_registry),
         topology: topology_router,
         authz,
         secret_resolver: state_secret_resolver,
@@ -361,8 +358,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .user_agent(concat!("medbrains-outbox/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("build outbox http client");
+            .build()?;
 
         let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
             Arc::new(medbrains_core::secrets::EnvSecretResolver::new());

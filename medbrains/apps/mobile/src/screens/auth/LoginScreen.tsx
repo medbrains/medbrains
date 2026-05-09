@@ -47,20 +47,18 @@ export function LoginScreen() {
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Logo & Title */}
         <View style={styles.header}>
-          <Text style={styles.logo}>🏥</Text>
-          <Text variant="headlineLarge" style={styles.title}>
+          <BrandMark />
+          <Text variant="headlineLarge" style={[styles.title, { color: theme.colors.primary }]}>
             MedBrains
           </Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
+          <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurface }]}>
             Hospital Management System
           </Text>
         </View>
 
-        {/* Login Form */}
         <Surface style={styles.formCard} elevation={2}>
-          <Text variant="titleLarge" style={styles.formTitle}>
+          <Text variant="titleLarge" style={[styles.formTitle, { color: theme.colors.onSurface }]}>
             Sign In
           </Text>
 
@@ -135,6 +133,17 @@ export function LoginScreen() {
   );
 }
 
+function BrandMark() {
+  return (
+    <View style={styles.logoTile}>
+      <Text variant="headlineMedium" style={styles.logoText}>
+        MB
+      </Text>
+      <View style={styles.logoAccent} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -148,9 +157,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 32,
   },
-  logo: {
-    fontSize: 64,
+  logoTile: {
+    width: 74,
+    height: 74,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0F766E",
     marginBottom: 16,
+  },
+  logoText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  logoAccent: {
+    width: 26,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#B8924A",
+    marginTop: 4,
   },
   title: {
     fontWeight: "bold",

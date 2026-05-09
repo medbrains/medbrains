@@ -8,7 +8,7 @@
  */
 
 import type { NavigatorRenderProps } from "@medbrains/mobile-shell";
-import { COLORS } from "@medbrains/ui-mobile";
+import { APP_BAR, AppBarGradient } from "@medbrains/ui-mobile";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
@@ -19,8 +19,11 @@ export function Navigator({ modules }: NavigatorRenderProps) {
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: COLORS.brand },
-          headerTintColor: COLORS.canvas,
+          headerBackground: () => <AppBarGradient />,
+          headerStyle: { backgroundColor: "transparent" },
+          headerTintColor: APP_BAR.foreground,
+          headerShadowVisible: true,
+          headerTitleStyle: { color: APP_BAR.title, fontWeight: "700" },
         }}
       >
         {modules.map((mod) => (

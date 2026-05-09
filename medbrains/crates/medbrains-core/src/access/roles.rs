@@ -1014,6 +1014,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::camp::screenings::LIST,
             permissions::camp::screenings::MANAGE,
             permissions::camp::lab::LIST,
+            permissions::camp::lab::MANAGE,
         ],
     },
     BuiltInRole {

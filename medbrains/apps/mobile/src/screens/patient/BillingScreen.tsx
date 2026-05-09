@@ -27,12 +27,12 @@ interface BillingScreenProps {
 function getStatusColor(status: string): string {
   switch (status) {
     case "paid":
-      return "#40c057";
+      return "#10b981";
     case "partial":
       return "#fab005";
     case "pending":
     case "unpaid":
-      return "#fa5252";
+      return "#C8102E";
     case "cancelled":
       return "#868e96";
     default:
@@ -140,7 +140,7 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
                 <Text variant="labelSmall" style={styles.paymentLabel}>
                   Paid
                 </Text>
-                <Text variant="bodyMedium" style={[styles.paymentValue, { color: "#40c057" }]}>
+                <Text variant="bodyMedium" style={[styles.paymentValue, { color: "#10b981" }]}>
                   {formatCurrency(paidAmount)}
                 </Text>
               </View>
@@ -150,7 +150,7 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
                 </Text>
                 <Text
                   variant="bodyMedium"
-                  style={[styles.paymentValue, { color: isPending ? "#fa5252" : "#868e96" }]}
+                  style={[styles.paymentValue, { color: isPending ? "#C8102E" : "#868e96" }]}
                 >
                   {formatCurrency(balance)}
                 </Text>
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   },
   outstandingAmount: {
     fontWeight: "bold",
-    color: "#fa5252",
+    color: "#C8102E",
   },
   filterContainer: {
     paddingHorizontal: 16,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   amountDue: {
-    color: "#fa5252",
+    color: "#C8102E",
   },
   servicesRow: {
     flexDirection: "row",

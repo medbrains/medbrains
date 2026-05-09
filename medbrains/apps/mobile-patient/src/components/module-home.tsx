@@ -99,16 +99,24 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
   );
 }
 
+const summaryPatterns = ["aqua", "sky", "copper", "violet"] as const;
+
 function SummaryTile({ tile }: { tile: ModuleSummaryTile }) {
+  const pattern = summaryPatterns[Math.abs(hashKey(tile.eyebrow)) % summaryPatterns.length];
+
   return (
     <View style={{ minWidth: 140, flexGrow: 1 }}>
-      <Card eyebrow={tile.eyebrow} title={String(tile.count)}>
+      <Card eyebrow={tile.eyebrow} title={String(tile.count)} pattern={pattern}>
         <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
           {tile.title}
         </Text>
       </Card>
     </View>
   );
+}
+
+function hashKey(value: string): number {
+  return Array.from(value).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 }
 
 function ActionRow({ action }: { action: ModuleAction }) {

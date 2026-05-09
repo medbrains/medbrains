@@ -24,16 +24,16 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "appointment",
     icon: "calendar-plus",
     label: "Book Appointment",
-    color: "#228be6",
+    color: "#0F766E",
     onPress: () => {},
   },
-  { id: "lab", icon: "flask", label: "Lab Results", color: "#40c057", onPress: () => {} },
+  { id: "lab", icon: "flask", label: "Lab Results", color: "#10b981", onPress: () => {} },
   { id: "prescription", icon: "pill", label: "Prescriptions", color: "#fab005", onPress: () => {} },
   {
     id: "records",
     icon: "file-document",
     label: "Medical Records",
-    color: "#7950f2",
+    color: "#B8924A",
     onPress: () => {},
   },
 ];
@@ -303,11 +303,11 @@ const styles = StyleSheet.create({
   dateDay: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   dateMonth: {
     fontSize: 12,
-    color: "#228be6",
+    color: "#0F766E",
     textTransform: "uppercase",
   },
   appointmentRight: {

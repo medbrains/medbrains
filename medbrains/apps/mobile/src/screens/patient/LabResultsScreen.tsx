@@ -28,9 +28,9 @@ function getStatusColor(status: string): string {
   switch (status) {
     case "completed":
     case "verified":
-      return "#40c057";
+      return "#10b981";
     case "processing":
-      return "#228be6";
+      return "#0F766E";
     case "collected":
       return "#fab005";
     case "pending":
@@ -85,7 +85,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
               size={48}
               icon={isReady ? "flask-empty" : "flask"}
               style={[styles.orderIcon, { backgroundColor: isReady ? "#d3f9d8" : "#e7f5ff" }]}
-              color={isReady ? "#40c057" : "#228be6"}
+              color={isReady ? "#10b981" : "#0F766E"}
             />
             <View style={styles.orderInfo}>
               <Text variant="titleMedium" style={styles.testName}>
@@ -232,7 +232,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text variant="titleLarge" style={[styles.statValue, { color: "#40c057" }]}>
+            <Text variant="titleLarge" style={[styles.statValue, { color: "#10b981" }]}>
               {allOrders.filter((i) => i.status === "completed" || i.status === "verified").length}
             </Text>
             <Text variant="labelSmall" style={styles.statLabel}>

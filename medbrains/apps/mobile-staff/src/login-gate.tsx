@@ -23,6 +23,7 @@ export function StaffLoginGate() {
       title="MedBrains Staff"
       subtitle="Sign in with your hospital credentials"
       identifierLabel="Username"
+      logoSource={require("../assets/icon.png")}
       onSubmit={staffSignIn}
     />
   );

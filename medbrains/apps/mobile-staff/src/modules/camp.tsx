@@ -133,7 +133,7 @@ function PacketSummary({ packet }: { packet: CampPacketResponse }): ReactNode {
         <Metric label="Readiness items" value={packet.remote_checklist.length} />
         <Metric label="Supplies" value={packet.supplies.length} />
       </View>
-      <Card eyebrow="Packet" title={packet.packet_revision}>
+      <Card eyebrow="Packet" title={packet.packet_revision} pattern="aqua">
         <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
           Expires {new Date(packet.expires_at).toLocaleString()}
         </Text>
@@ -142,7 +142,11 @@ function PacketSummary({ packet }: { packet: CampPacketResponse }): ReactNode {
           active allergy warnings for linked patients only.
         </Text>
       </Card>
-      <Card eyebrow="Remote setup" title={packet.remote_setup?.status ?? "Not initialized"}>
+      <Card
+        eyebrow="Remote setup"
+        title={packet.remote_setup?.status ?? "Not initialized"}
+        pattern="copper"
+      >
         <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
           Village/site readiness, IPC/BMW controls, referral route, staff briefing, and paper
           fallback must be completed before field use.
@@ -272,7 +276,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
           </Text>
         )}
 
-        <Card eyebrow="Registration" title="Walk-in">
+        <Card eyebrow="Registration" title="Walk-in" pattern="aqua">
           <View style={{ gap: SPACING.sm }}>
             <TextInput label="Name" value={personName} onChangeText={setPersonName} />
             <TextInput label="Age" value={age} keyboardType="number-pad" onChangeText={setAge} />
@@ -299,7 +303,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
           </View>
         </Card>
 
-        <Card eyebrow="Screening" title="Vitals">
+        <Card eyebrow="Screening" title="Vitals" pattern="sky">
           <View style={{ gap: SPACING.sm }}>
             <TextInput
               label="BP systolic"
@@ -337,7 +341,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
           </View>
         </Card>
 
-        <Card eyebrow="Lab" title="Sample">
+        <Card eyebrow="Lab" title="Sample" pattern="violet">
           <View style={{ gap: SPACING.sm }}>
             <TextInput label="Sample type" value={sampleType} onChangeText={setSampleType} />
             <TextInput label="Barcode" value={barcode} onChangeText={setBarcode} />

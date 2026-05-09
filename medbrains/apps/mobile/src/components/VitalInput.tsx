@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   required: {
-    color: "#fa5252",
+    color: "#C8102E",
   },
   range: {
     opacity: 0.6,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   unitText: {
-    color: "#228be6",
+    color: "#0F766E",
     fontWeight: "600",
   },
 });

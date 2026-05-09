@@ -1,5 +1,7 @@
 import { useAuthStore } from "@medbrains/stores";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { AppBarGradient } from "../components/AppBarGradient";
+import { APP_BAR_COLORS } from "../theme/paper-theme";
 import {
   // Patient screens
   AppointmentsScreen,
@@ -63,6 +65,12 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const appBarScreenOptions = {
+  headerBackground: () => <AppBarGradient />,
+  headerStyle: { backgroundColor: "transparent" },
+  headerTintColor: APP_BAR_COLORS.foreground,
+  headerTitleStyle: { color: APP_BAR_COLORS.title, fontWeight: "700" as const },
+};
 
 function AuthStack() {
   return (
@@ -74,12 +82,7 @@ function AuthStack() {
 
 function PatientStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: "#228be6" },
-        headerTintColor: "#ffffff",
-      }}
-    >
+    <Stack.Navigator screenOptions={appBarScreenOptions}>
       <Stack.Screen
         name="PatientDashboard"
         component={PatientDashboard}
@@ -122,12 +125,7 @@ function PatientStack() {
 
 function StaffStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: "#228be6" },
-        headerTintColor: "#ffffff",
-      }}
-    >
+    <Stack.Navigator screenOptions={appBarScreenOptions}>
       <Stack.Screen
         name="StaffDashboard"
         component={StaffDashboard}
@@ -171,12 +169,7 @@ function StaffStack() {
 
 function PhlebotomistStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: "#40c057" },
-        headerTintColor: "#ffffff",
-      }}
-    >
+    <Stack.Navigator screenOptions={appBarScreenOptions}>
       <Stack.Screen
         name="CollectionList"
         component={CollectionListScreen}

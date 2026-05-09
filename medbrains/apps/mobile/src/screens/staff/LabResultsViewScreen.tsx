@@ -59,13 +59,13 @@ function getResultStatus(
 function getStatusColor(status: string): string {
   switch (status) {
     case "normal":
-      return "#40c057";
+      return "#10b981";
     case "low":
       return "#fab005";
     case "high":
       return "#fd7e14";
     case "critical":
-      return "#fa5252";
+      return "#C8102E";
     default:
       return "#868e96";
   }
@@ -130,7 +130,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                 styles.headerIcon,
                 { backgroundColor: orderStatus === "completed" ? "#d3f9d8" : "#e7f5ff" },
               ]}
-              color={orderStatus === "completed" ? "#40c057" : "#228be6"}
+              color={orderStatus === "completed" ? "#10b981" : "#0F766E"}
             />
             <View style={styles.headerInfo}>
               <Text variant="titleLarge" style={styles.orderTitle}>

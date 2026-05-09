@@ -1,4 +1,5 @@
 mod bed_types;
+mod camp_fixtures;
 mod canonical_fixtures;
 mod charge_master;
 mod default_dashboard;
@@ -125,6 +126,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;
+    camp_fixtures::seed_rural_camp_fixtures(pool, tenant_id).await?;
 
     // Canonical fixture rows with hardcoded UUIDs — must run AFTER
     // demo_patients so the dept + doctor + admin user FK refs exist.

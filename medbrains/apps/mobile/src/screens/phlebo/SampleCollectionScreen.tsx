@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
   },
   patientInfo: {
     flex: 1,
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 48,
     borderRadius: 4,
-    backgroundColor: "#fa5252",
+    backgroundColor: "#C8102E",
   },
   sampleInfo: {
     flex: 1,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     borderRadius: 12,
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
   },
   submitButtonContent: {
     paddingVertical: 8,
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#40c057",
+    backgroundColor: "#10b981",
     borderRadius: 4,
   },
   dialogWarning: {

@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   testPrice: {
-    color: "#228be6",
+    color: "#0F766E",
     marginRight: 8,
   },
   totalCard: {
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   totalAmount: {
     fontWeight: "bold",
-    color: "#228be6",
+    color: "#0F766E",
   },
   emptyState: {
     padding: 32,

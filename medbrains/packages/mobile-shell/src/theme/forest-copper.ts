@@ -20,6 +20,13 @@ export const FOREST_COPPER_PALETTE = {
   muted: "#64748b",
   copper: "#B8924A",
   tint: "#d1fae5",
+  navActiveBg: "#ccfbf1",
+  navActiveBgEnd: "#e0f2fe",
+  navChildActiveBg: "#e0f2fe",
+  navChildActiveText: "#0369a1",
+  accentGradientStart: "#14b8a6",
+  accentGradientMid: "#0ea5e9",
+  accentGradientEnd: "#f59e0b",
   emerald: "#10b981",
 } as const;
 

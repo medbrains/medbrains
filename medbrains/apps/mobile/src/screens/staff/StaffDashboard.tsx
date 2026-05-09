@@ -22,10 +22,10 @@ interface StatCard {
 }
 
 const TODAY_STATS: StatCard[] = [
-  { id: "patients", label: "Patients Today", value: 45, icon: "account-group", color: "#228be6" },
+  { id: "patients", label: "Patients Today", value: 45, icon: "account-group", color: "#0F766E" },
   { id: "waiting", label: "Waiting", value: 8, icon: "clock-outline", color: "#fab005" },
-  { id: "completed", label: "Completed", value: 37, icon: "check-circle", color: "#40c057" },
-  { id: "pending", label: "Pending Results", value: 12, icon: "flask", color: "#7950f2" },
+  { id: "completed", label: "Completed", value: 37, icon: "check-circle", color: "#10b981" },
+  { id: "pending", label: "Pending Results", value: 12, icon: "flask", color: "#B8924A" },
 ];
 
 function StatCardItem({ stat }: { stat: StatCard }) {
@@ -53,9 +53,9 @@ function QueueItem({ patient, onCall }: { patient: QueuePatient; onCall: () => v
   const isWaiting = patient.status === "waiting";
   const statusColor =
     patient.status === "in_consultation"
-      ? "#40c057"
+      ? "#10b981"
       : patient.status === "called"
-        ? "#228be6"
+        ? "#0F766E"
         : "#868e96";
 
   return (
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   tokenBadge: {
-    backgroundColor: "#228be6",
+    backgroundColor: "#0F766E",
     width: 48,
     height: 48,
     borderRadius: 24,
