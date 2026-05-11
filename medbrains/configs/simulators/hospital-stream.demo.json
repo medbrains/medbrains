@@ -1,0 +1,58 @@
+{
+  "profile": "nmc_demo_stream",
+  "profile_type": "demo",
+  "tenant_code": "DEFAULT",
+  "run_id": "nmc-demo",
+  "tick_seconds": 5,
+  "patients_per_tick": 3,
+  "total_patients": 60,
+  "batch_size": 20,
+  "seed": 42,
+  "modules": {
+    "opd": true,
+    "vitals": true,
+    "lab": true,
+    "radiology": true,
+    "pharmacy": true
+  },
+  "probabilities": {
+    "lab_order": 0.72,
+    "lab_result": 0.9,
+    "radiology_order": 0.28,
+    "pharmacy_order": 0.38,
+    "queue_completed": 0.55
+  },
+  "departments": [
+    "GEN-MEDICINE",
+    "PEDIATRICS",
+    "ORTHOPEDICS",
+    "ENT",
+    "OPHTHALMOLOGY"
+  ],
+  "villages": [
+    {
+      "name": "Keezhapattu",
+      "pincode": "630001",
+      "district": "Sivaganga",
+      "state": "Tamil Nadu"
+    },
+    {
+      "name": "Kallupatti",
+      "pincode": "625702",
+      "district": "Madurai",
+      "state": "Tamil Nadu"
+    },
+    {
+      "name": "Thiruppuvanam",
+      "pincode": "630611",
+      "district": "Sivaganga",
+      "state": "Tamil Nadu"
+    },
+    {
+      "name": "Aranthangi",
+      "pincode": "614616",
+      "district": "Pudukkottai",
+      "state": "Tamil Nadu"
+    }
+  ]
+}

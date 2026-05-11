@@ -126,23 +126,35 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
     role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
 
-    // Demo patients + OPD visits for testing
-    demo_patients::seed_demo_patients(pool, tenant_id).await?;
-    device_integration_fixtures::seed_device_integration_fixtures(pool, tenant_id).await?;
-    radiology_fixtures::seed_radiology_fixtures(pool, tenant_id).await?;
-    camp_fixtures::seed_rural_camp_fixtures(pool, tenant_id).await?;
+    if demo_fixture_seed_enabled() {
+        // Demo patients + OPD visits for explicit demo/test environments.
+        demo_patients::seed_demo_patients(pool, tenant_id).await?;
+        device_integration_fixtures::seed_device_integration_fixtures(pool, tenant_id).await?;
+        radiology_fixtures::seed_radiology_fixtures(pool, tenant_id).await?;
+        camp_fixtures::seed_rural_camp_fixtures(pool, tenant_id).await?;
 
-    // Canonical fixture rows with hardcoded UUIDs — must run AFTER
-    // demo_patients so the dept + doctor + admin user FK refs exist.
-    // See `apps/web/e2e/helpers/canonical-seed.ts` for the matching
-    // UUID map used by smoke + Vitest tests.
-    canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await?;
+        // Canonical fixture rows with hardcoded UUIDs — must run AFTER
+        // demo_patients so the dept + doctor + admin user FK refs exist.
+        // See `apps/web/e2e/helpers/canonical-seed.ts` for the matching
+        // UUID map used by smoke + Vitest tests.
+        canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await?;
+    } else {
+        tracing::info!(
+            "Demo fixture seed disabled. Set MEDBRAINS_SEED_DEMO_DATA=true for explicit demo/test fixtures."
+        );
+    }
 
     // Screen definitions removed — screen builder eradicated
     // (see migration 123_drop_builders.sql + RFC nuke-builders).
     let _ = pool;
 
     Ok(())
+}
+
+fn demo_fixture_seed_enabled() -> bool {
+    std::env::var("MEDBRAINS_SEED_DEMO_DATA")
+        .map(|value| matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
 }
 
 /// Insert built-in system roles into the `roles` table.

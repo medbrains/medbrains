@@ -11,8 +11,9 @@ import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
+    if (!pathname) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  }, [pathname]);
   return null;
 }
 
@@ -20,6 +21,9 @@ const LandingPage = lazy(() => import("./pages/landing").then((m) => ({ default:
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
 const OnboardingPage = lazy(() =>
   import("./pages/onboarding").then((m) => ({ default: m.OnboardingPage })),
+);
+const DemoDicomFixturesPage = lazy(() =>
+  import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
 const DashboardPage = lazy(() =>
   import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })),
@@ -205,6 +209,7 @@ export function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/demo/dicom/*" element={<DemoDicomFixturesPage />} />
 
             {/* Protected */}
             <Route

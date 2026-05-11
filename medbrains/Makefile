@@ -1,4 +1,5 @@
 .PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
+       sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
@@ -36,6 +37,10 @@ CAMP_ANDROID_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(ANDROID_DEVICE),--d
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
+SIM_CONFIG ?= configs/simulators/hospital-stream.demo.json
+SIM_RUN_ID ?= nmc-demo
+SIM_PATIENTS ?= 60
+SIM_RATE ?= 3
 
 # Default
 help: ## Show this help
@@ -82,6 +87,15 @@ dev-split: ## Start backend + web without local HTTPS proxy
 		cargo run & \
 		pnpm dev:web & \
 		wait
+
+sim-hospital: ## Stream synthetic OPD/lab/radiology/pharmacy traffic into local dev DB
+	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --stream
+
+sim-hospital-batch: ## Bulk-generate synthetic hospital traffic quickly
+	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --batch
+
+sim-hospital-clean: ## Remove only simulator records for SIM_RUN_ID
+	node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
