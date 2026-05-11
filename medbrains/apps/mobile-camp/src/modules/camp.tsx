@@ -727,7 +727,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
     try {
       const response = await syncCampInbound({
         camp_id: camp.id,
-        device_id: "mobile-staff-preview",
+        device_id: "mobile-camp-preview",
         events: [event],
       });
       const result = response.results[0];
@@ -758,7 +758,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
     try {
       const response = await syncCampInbound({
         camp_id: camp.id,
-        device_id: "mobile-staff-preview",
+        device_id: "mobile-camp-preview",
         events: [event],
       });
       setMessage(`Screening ${response.results[0]?.status ?? "submitted"}`);
@@ -782,7 +782,7 @@ function IntakeScreen({ camp }: { camp: Camp }): ReactNode {
     try {
       const response = await syncCampInbound({
         camp_id: camp.id,
-        device_id: "mobile-staff-preview",
+        device_id: "mobile-camp-preview",
         events: [event],
       });
       setMessage(`Lab sample ${response.results[0]?.status ?? "submitted"}`);

@@ -2,6 +2,7 @@
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
+       mobile-camp-start mobile-camp-start-lan mobile-camp-ios mobile-camp-android mobile-camp-prebuild mobile-camp-typecheck \
        mobile-staff-start mobile-staff-start-lan \
        mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
@@ -27,8 +28,11 @@ SQLX_DATABASE_URL ?= $(if $(DATABASE_URL),$(DATABASE_URL),$(LOCAL_SQLX_DATABASE_
 SQLX_PREPARE_CARGO_ARGS ?= --package medbrains-server
 IOS_DEVICE ?=
 ANDROID_DEVICE ?=
+CAMP_MOBILE_PORT ?= 8083
 IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
 ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
+CAMP_IOS_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
+CAMP_ANDROID_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
@@ -81,11 +85,29 @@ dev-split: ## Start backend + web without local HTTPS proxy
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
-camp-mobile: mobile-staff-start-lan ## Start Camp Mode staff mobile app (LAN QR, port 8082)
+camp-mobile: mobile-camp-start-lan ## Start dedicated Camp mobile app (LAN QR, port 8083)
 
-camp-mobile-ios: mobile-staff-ios ## Open Camp Mode staff mobile app on iOS
+camp-mobile-ios: mobile-camp-ios ## Open dedicated Camp mobile app on iOS
 
-camp-mobile-android: mobile-staff-android ## Open Camp Mode staff mobile app on Android
+camp-mobile-android: mobile-camp-android ## Open dedicated Camp mobile app on Android
+
+mobile-camp-start: ## Start Camp mobile Expo Metro using pnpm
+	pnpm --filter @medbrains/mobile-camp start
+
+mobile-camp-start-lan: ## Start Camp mobile Expo Metro on LAN port 8083
+	pnpm --filter @medbrains/mobile-camp start -- --host lan --port $(CAMP_MOBILE_PORT)
+
+mobile-camp-ios: ## Build/open Camp mobile app using local HTTPS API base
+	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp ios $(CAMP_IOS_RUN_ARGS)
+
+mobile-camp-android: ## Build/open Camp mobile app on Android emulator/device
+	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp android $(CAMP_ANDROID_RUN_ARGS)
+
+mobile-camp-prebuild: ## Regenerate native projects for Camp mobile app
+	pnpm --filter @medbrains/mobile-camp prebuild
+
+mobile-camp-typecheck: ## Typecheck Camp mobile app
+	pnpm --filter @medbrains/mobile-camp typecheck
 
 mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
 	pnpm --filter @medbrains/mobile-staff start

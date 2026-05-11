@@ -7,7 +7,7 @@
 
 import type { ComponentType } from "react";
 
-export type ShellVariant = "staff" | "patient" | "tv" | "vendor";
+export type ShellVariant = "staff" | "patient" | "tv" | "vendor" | "camp";
 
 export interface TenantIdentity {
   tenantId: string;

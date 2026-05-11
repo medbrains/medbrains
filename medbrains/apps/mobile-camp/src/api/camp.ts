@@ -14,7 +14,7 @@ export function listCamps(status?: string): Promise<Camp[]> {
 
 export function getCampPacket(
   campId: string,
-  deviceId = "mobile-staff-preview",
+  deviceId = "mobile-camp-preview",
 ): Promise<CampPacketResponse> {
   const qs = `?device_id=${encodeURIComponent(deviceId)}`;
   return request(apiConfig, "GET", `/api/camp/camps/${campId}/packet${qs}`);
