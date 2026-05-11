@@ -8274,6 +8274,64 @@ export interface CampPacketVital {
   recorded_at: string;
 }
 
+export interface CampPacketRegistrationHistory {
+  patient_id: string | null;
+  registration_id: string;
+  camp_id: string;
+  camp_code: string;
+  camp_name: string;
+  registration_number: string;
+  person_name: string;
+  age: number | null;
+  gender: string | null;
+  phone_last4: string | null;
+  chief_complaint: string | null;
+  status: string;
+  venue_city: string | null;
+  venue_state: string | null;
+  registered_at: string;
+  current_camp: boolean;
+}
+
+export interface CampPacketVisitHistory {
+  patient_id: string;
+  encounter_id: string;
+  encounter_type: string;
+  status: string;
+  encounter_date: string;
+  department_name: string | null;
+  doctor_name: string | null;
+  notes: string | null;
+  diagnosis_summary: string | null;
+  prescription_summary: string | null;
+}
+
+export interface CampPacketDiagnosisHistory {
+  patient_id: string;
+  encounter_id: string;
+  icd_code: string | null;
+  description: string;
+  is_primary: boolean;
+  severity: string | null;
+  certainty: string | null;
+  onset_date: string | null;
+  created_at: string;
+}
+
+export interface CampPacketMedicationHistory {
+  patient_id: string;
+  encounter_id: string;
+  prescription_id: string;
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  route: string | null;
+  instructions: string | null;
+  item_status: string;
+  prescribed_at: string;
+}
+
 export interface CampRemoteSetup {
   id: string;
   tenant_id: string;
@@ -8429,6 +8487,10 @@ export interface CampPacketResponse {
   patient_summaries: CampPacketPatientSummary[];
   active_allergies: CampPacketAllergy[];
   recent_vitals: CampPacketVital[];
+  registration_history: CampPacketRegistrationHistory[];
+  visit_history: CampPacketVisitHistory[];
+  diagnosis_history: CampPacketDiagnosisHistory[];
+  medication_history: CampPacketMedicationHistory[];
   downloaded_at: string;
   expires_at: string;
   packet_revision: string;

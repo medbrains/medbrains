@@ -425,6 +425,68 @@ pub struct CampPacketVital {
     pub recorded_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketRegistrationHistory {
+    pub patient_id: Option<Uuid>,
+    pub registration_id: Uuid,
+    pub camp_id: Uuid,
+    pub camp_code: String,
+    pub camp_name: String,
+    pub registration_number: String,
+    pub person_name: String,
+    pub age: Option<i32>,
+    pub gender: Option<String>,
+    pub phone_last4: Option<String>,
+    pub chief_complaint: Option<String>,
+    pub status: String,
+    pub venue_city: Option<String>,
+    pub venue_state: Option<String>,
+    pub registered_at: DateTime<Utc>,
+    pub current_camp: bool,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketVisitHistory {
+    pub patient_id: Uuid,
+    pub encounter_id: Uuid,
+    pub encounter_type: String,
+    pub status: String,
+    pub encounter_date: NaiveDate,
+    pub department_name: Option<String>,
+    pub doctor_name: Option<String>,
+    pub notes: Option<String>,
+    pub diagnosis_summary: Option<String>,
+    pub prescription_summary: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketDiagnosisHistory {
+    pub patient_id: Uuid,
+    pub encounter_id: Uuid,
+    pub icd_code: Option<String>,
+    pub description: String,
+    pub is_primary: bool,
+    pub severity: Option<String>,
+    pub certainty: Option<String>,
+    pub onset_date: Option<NaiveDate>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketMedicationHistory {
+    pub patient_id: Uuid,
+    pub encounter_id: Uuid,
+    pub prescription_id: Uuid,
+    pub drug_name: String,
+    pub dosage: String,
+    pub frequency: String,
+    pub duration: String,
+    pub route: Option<String>,
+    pub instructions: Option<String>,
+    pub item_status: String,
+    pub prescribed_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CampPacketResponse {
     pub camp: Camp,
@@ -438,6 +500,10 @@ pub struct CampPacketResponse {
     pub patient_summaries: Vec<CampPacketPatientSummary>,
     pub active_allergies: Vec<CampPacketAllergy>,
     pub recent_vitals: Vec<CampPacketVital>,
+    pub registration_history: Vec<CampPacketRegistrationHistory>,
+    pub visit_history: Vec<CampPacketVisitHistory>,
+    pub diagnosis_history: Vec<CampPacketDiagnosisHistory>,
+    pub medication_history: Vec<CampPacketMedicationHistory>,
     pub downloaded_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub packet_revision: String,
@@ -1427,6 +1493,176 @@ pub async fn get_camp_packet(
     .fetch_all(&mut *tx)
     .await?;
 
+    let registration_history = sqlx::query_as::<_, CampPacketRegistrationHistory>(
+        "WITH cohort AS ( \
+            SELECT DISTINCT patient_id \
+            FROM camp_registrations \
+            WHERE camp_id = $1 AND tenant_id = $2 AND patient_id IS NOT NULL \
+         ), ranked AS ( \
+            SELECT \
+                r.patient_id, \
+                r.id AS registration_id, \
+                c.id AS camp_id, \
+                c.camp_code, \
+                c.name AS camp_name, \
+                r.registration_number, \
+                r.person_name, \
+                r.age, \
+                r.gender, \
+                CASE WHEN r.phone IS NULL THEN NULL ELSE right(r.phone, 4) END AS phone_last4, \
+                r.chief_complaint, \
+                r.status::text AS status, \
+                c.venue_city, \
+                c.venue_state, \
+                r.created_at AS registered_at, \
+                (r.camp_id = $1) AS current_camp, \
+                row_number() OVER ( \
+                    PARTITION BY COALESCE(r.patient_id, r.id) \
+                    ORDER BY r.created_at DESC \
+                ) AS rn \
+            FROM camp_registrations r \
+            JOIN camps c ON c.id = r.camp_id AND c.tenant_id = r.tenant_id \
+            WHERE r.tenant_id = $2 \
+              AND (r.camp_id = $1 OR r.patient_id IN (SELECT patient_id FROM cohort)) \
+         ) \
+         SELECT patient_id, registration_id, camp_id, camp_code, camp_name, registration_number, \
+                person_name, age, gender, phone_last4, chief_complaint, status, venue_city, \
+                venue_state, registered_at, current_camp \
+         FROM ranked \
+         WHERE current_camp = true OR rn <= 5 \
+         ORDER BY current_camp DESC, registered_at DESC",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let visit_history = sqlx::query_as::<_, CampPacketVisitHistory>(
+        "WITH cohort AS ( \
+            SELECT DISTINCT patient_id \
+            FROM camp_registrations \
+            WHERE camp_id = $1 AND tenant_id = $2 AND patient_id IS NOT NULL \
+         ), ranked AS ( \
+            SELECT \
+                e.patient_id, \
+                e.id AS encounter_id, \
+                e.encounter_type::text AS encounter_type, \
+                e.status::text AS status, \
+                e.encounter_date, \
+                d.name AS department_name, \
+                u.full_name AS doctor_name, \
+                e.notes, \
+                ( \
+                    SELECT string_agg( \
+                        concat_ws(' ', NULLIF(dx.icd_code, ''), dx.description), \
+                        '; ' ORDER BY dx.is_primary DESC, dx.created_at DESC \
+                    ) \
+                    FROM diagnoses dx \
+                    WHERE dx.tenant_id = e.tenant_id AND dx.encounter_id = e.id \
+                ) AS diagnosis_summary, \
+                ( \
+                    SELECT string_agg( \
+                        concat_ws(' ', pi.drug_name, pi.dosage, pi.frequency), \
+                        '; ' ORDER BY pi.created_at DESC \
+                    ) \
+                    FROM prescriptions pr \
+                    JOIN prescription_items pi \
+                      ON pi.prescription_id = pr.id AND pi.tenant_id = pr.tenant_id \
+                    WHERE pr.tenant_id = e.tenant_id AND pr.encounter_id = e.id \
+                ) AS prescription_summary, \
+                row_number() OVER ( \
+                    PARTITION BY e.patient_id ORDER BY e.encounter_date DESC, e.created_at DESC \
+                ) AS rn \
+            FROM encounters e \
+            LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
+            LEFT JOIN users u ON u.id = e.doctor_id AND u.tenant_id = e.tenant_id \
+            WHERE e.tenant_id = $2 AND e.patient_id IN (SELECT patient_id FROM cohort) \
+         ) \
+         SELECT patient_id, encounter_id, encounter_type, status, encounter_date, \
+                department_name, doctor_name, notes, diagnosis_summary, prescription_summary \
+         FROM ranked \
+         WHERE rn <= 5 \
+         ORDER BY patient_id, encounter_date DESC",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let diagnosis_history = sqlx::query_as::<_, CampPacketDiagnosisHistory>(
+        "WITH cohort AS ( \
+            SELECT DISTINCT patient_id \
+            FROM camp_registrations \
+            WHERE camp_id = $1 AND tenant_id = $2 AND patient_id IS NOT NULL \
+         ), ranked AS ( \
+            SELECT \
+                e.patient_id, \
+                dx.encounter_id, \
+                dx.icd_code, \
+                dx.description, \
+                dx.is_primary, \
+                dx.severity, \
+                dx.certainty, \
+                dx.onset_date, \
+                dx.created_at, \
+                row_number() OVER ( \
+                    PARTITION BY e.patient_id ORDER BY dx.created_at DESC \
+                ) AS rn \
+            FROM diagnoses dx \
+            JOIN encounters e ON e.id = dx.encounter_id AND e.tenant_id = dx.tenant_id \
+            WHERE dx.tenant_id = $2 AND e.patient_id IN (SELECT patient_id FROM cohort) \
+         ) \
+         SELECT patient_id, encounter_id, icd_code, description, is_primary, severity, \
+                certainty, onset_date, created_at \
+         FROM ranked \
+         WHERE rn <= 10 \
+         ORDER BY patient_id, created_at DESC",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let medication_history = sqlx::query_as::<_, CampPacketMedicationHistory>(
+        "WITH cohort AS ( \
+            SELECT DISTINCT patient_id \
+            FROM camp_registrations \
+            WHERE camp_id = $1 AND tenant_id = $2 AND patient_id IS NOT NULL \
+         ), ranked AS ( \
+            SELECT \
+                e.patient_id, \
+                e.id AS encounter_id, \
+                pr.id AS prescription_id, \
+                pi.drug_name, \
+                pi.dosage, \
+                pi.frequency, \
+                pi.duration, \
+                pi.route, \
+                pi.instructions, \
+                pi.item_status, \
+                pr.created_at AS prescribed_at, \
+                row_number() OVER ( \
+                    PARTITION BY e.patient_id ORDER BY pr.created_at DESC, pi.created_at DESC \
+                ) AS rn \
+            FROM prescriptions pr \
+            JOIN prescription_items pi \
+              ON pi.prescription_id = pr.id AND pi.tenant_id = pr.tenant_id \
+            JOIN encounters e ON e.id = pr.encounter_id AND e.tenant_id = pr.tenant_id \
+            WHERE pr.tenant_id = $2 \
+              AND e.patient_id IN (SELECT patient_id FROM cohort) \
+              AND pi.item_status <> 'discontinued' \
+         ) \
+         SELECT patient_id, encounter_id, prescription_id, drug_name, dosage, frequency, \
+                duration, route, instructions, item_status, prescribed_at \
+         FROM ranked \
+         WHERE rn <= 12 \
+         ORDER BY patient_id, prescribed_at DESC",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
     let downloaded_at = Utc::now();
     let expires_naive = camp
         .scheduled_date
@@ -1453,6 +1689,10 @@ pub async fn get_camp_packet(
         "remote_checklist_count": remote_checklist.len(),
         "supply_count": supplies.len(),
         "linked_patient_count": patient_summaries.len(),
+        "registration_history_count": registration_history.len(),
+        "visit_history_count": visit_history.len(),
+        "diagnosis_history_count": diagnosis_history.len(),
+        "medication_history_count": medication_history.len(),
         "expires_at": expires_at,
     }))
     .bind("Camp offline packet downloaded")
@@ -1473,6 +1713,10 @@ pub async fn get_camp_packet(
         patient_summaries,
         active_allergies,
         recent_vitals,
+        registration_history,
+        visit_history,
+        diagnosis_history,
+        medication_history,
         downloaded_at,
         expires_at,
         packet_revision,

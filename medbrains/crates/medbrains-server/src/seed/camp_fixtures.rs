@@ -55,6 +55,29 @@ struct UserLite {
     email: Option<String>,
 }
 
+#[derive(sqlx::FromRow)]
+struct RuralEncounterBackfill {
+    encounter_id: Uuid,
+    patient_id: Uuid,
+    seed_index: i64,
+}
+
+struct DiagnosisSeed {
+    icd_code: &'static str,
+    description: &'static str,
+    severity: &'static str,
+    snomed_display: &'static str,
+}
+
+struct MedicationSeed {
+    drug_name: &'static str,
+    dosage: &'static str,
+    frequency: &'static str,
+    duration: &'static str,
+    route: &'static str,
+    instructions: &'static str,
+}
+
 const RURAL_CAMP_SITES: &[RuralCampSite] = &[
     RuralCampSite {
         code: "RURAL-SVG-001",
@@ -454,19 +477,6 @@ pub(super) async fn seed_rural_camp_fixtures(
         .execute(&mut *tx)
         .await?;
 
-    let existing: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM camps WHERE tenant_id = $1 AND camp_code LIKE 'RURAL-%'",
-    )
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    if existing > 0 {
-        tracing::debug!("Rural camp fixtures already seeded, skipping");
-        tx.commit().await?;
-        return Ok(());
-    }
-
     let Some(general_dept_id) = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM departments WHERE tenant_id = $1 AND code = 'GEN-MEDICINE'",
     )
@@ -485,6 +495,25 @@ pub(super) async fn seed_rural_camp_fixtures(
         tx.commit().await?;
         return Ok(());
     };
+
+    let existing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM camps WHERE tenant_id = $1 AND camp_code LIKE 'RURAL-%'",
+    )
+    .bind(tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if existing > 0 {
+        let history_backfilled =
+            backfill_existing_rural_patient_history(&mut tx, tenant_id, coordinator_user_id)
+                .await?;
+        tracing::debug!(
+            history_backfilled,
+            "Rural camp fixtures already seeded, applied history backfill"
+        );
+        tx.commit().await?;
+        return Ok(());
+    }
 
     let staff_employees = ensure_camp_staff_employees(&mut tx, tenant_id, general_dept_id).await?;
 
@@ -1084,6 +1113,148 @@ async fn seed_recent_vitals(
     .execute(&mut **tx)
     .await?;
 
+    seed_patient_history_for_encounter(
+        tx,
+        tenant_id,
+        patient_id,
+        encounter_id,
+        user_id,
+        person_index,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn backfill_existing_rural_patient_history(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<usize, sqlx::Error> {
+    let rows = sqlx::query_as::<_, RuralEncounterBackfill>(
+        "SELECT \
+            e.id AS encounter_id, \
+            e.patient_id, \
+            row_number() OVER (ORDER BY e.created_at, e.id)::bigint AS seed_index \
+         FROM encounters e \
+         WHERE e.tenant_id = $1 \
+           AND e.attributes->>'source' = 'rural_camp_fixture' \
+           AND ( \
+             NOT EXISTS ( \
+               SELECT 1 FROM diagnoses dx \
+               WHERE dx.tenant_id = e.tenant_id AND dx.encounter_id = e.id \
+             ) \
+             OR NOT EXISTS ( \
+               SELECT 1 FROM prescriptions pr \
+               WHERE pr.tenant_id = e.tenant_id AND pr.encounter_id = e.id \
+             ) \
+           ) \
+         ORDER BY e.created_at, e.id \
+         LIMIT 1000",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let count = rows.len();
+    for row in rows {
+        seed_patient_history_for_encounter(
+            tx,
+            tenant_id,
+            row.patient_id,
+            row.encounter_id,
+            user_id,
+            usize::try_from(row.seed_index).unwrap_or(0),
+        )
+        .await?;
+    }
+
+    Ok(count)
+}
+
+async fn seed_patient_history_for_encounter(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    encounter_id: Uuid,
+    user_id: Uuid,
+    person_index: usize,
+) -> Result<(), sqlx::Error> {
+    let diagnosis_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS( \
+            SELECT 1 FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2 \
+         )",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !diagnosis_exists {
+        let diagnosis = diagnosis_history_seed(person_index);
+        sqlx::query(
+            "INSERT INTO diagnoses \
+             (tenant_id, encounter_id, icd_code, description, is_primary, notes, severity, \
+              certainty, onset_date, snomed_display) \
+             VALUES ($1, $2, $3, $4, true, $5, $6, 'confirmed', \
+              CURRENT_DATE - (($7::int % 365) || ' days')::interval, $8)",
+        )
+        .bind(tenant_id)
+        .bind(encounter_id)
+        .bind(diagnosis.icd_code)
+        .bind(diagnosis.description)
+        .bind("Seeded prior condition for camp packet patient chart")
+        .bind(diagnosis.severity)
+        .bind(i32::try_from(person_index).unwrap_or(0))
+        .bind(diagnosis.snomed_display)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    let prescription_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS( \
+            SELECT 1 FROM prescriptions WHERE tenant_id = $1 AND encounter_id = $2 \
+         )",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !prescription_exists {
+        let prescription_id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO prescriptions \
+             (tenant_id, encounter_id, doctor_id, patient_id, notes) \
+             VALUES ($1, $2, $3, $4, 'Prior prescription included in rural camp safety packet') \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(encounter_id)
+        .bind(user_id)
+        .bind(patient_id)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        for item in medication_history_seed(person_index) {
+            sqlx::query(
+                "INSERT INTO prescription_items \
+                 (tenant_id, prescription_id, drug_name, dosage, frequency, duration, route, \
+                  instructions, item_status) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')",
+            )
+            .bind(tenant_id)
+            .bind(prescription_id)
+            .bind(item.drug_name)
+            .bind(item.dosage)
+            .bind(item.frequency)
+            .bind(item.duration)
+            .bind(item.route)
+            .bind(item.instructions)
+            .execute(&mut **tx)
+            .await?;
+        }
+    }
+
     Ok(())
 }
 
@@ -1412,6 +1583,172 @@ fn screening_diagnosis(systolic: i32, sugar: i32, person_index: usize) -> &'stat
         "Refractive error suspected"
     } else {
         "General health screening"
+    }
+}
+
+fn diagnosis_history_seed(person_index: usize) -> DiagnosisSeed {
+    match person_index % 8 {
+        0 => DiagnosisSeed {
+            icd_code: "I10",
+            description: "Essential hypertension",
+            severity: "moderate",
+            snomed_display: "Hypertensive disorder, systemic arterial",
+        },
+        1 => DiagnosisSeed {
+            icd_code: "E11.9",
+            description: "Type 2 diabetes mellitus without complications",
+            severity: "moderate",
+            snomed_display: "Type 2 diabetes mellitus",
+        },
+        2 => DiagnosisSeed {
+            icd_code: "J45.9",
+            description: "Asthma, unspecified",
+            severity: "mild",
+            snomed_display: "Asthma",
+        },
+        3 => DiagnosisSeed {
+            icd_code: "D50.9",
+            description: "Iron deficiency anaemia, unspecified",
+            severity: "mild",
+            snomed_display: "Iron deficiency anemia",
+        },
+        4 => DiagnosisSeed {
+            icd_code: "M54.5",
+            description: "Low back pain",
+            severity: "mild",
+            snomed_display: "Low back pain",
+        },
+        5 => DiagnosisSeed {
+            icd_code: "H52.7",
+            description: "Disorder of refraction, unspecified",
+            severity: "mild",
+            snomed_display: "Refractive error",
+        },
+        6 => DiagnosisSeed {
+            icd_code: "K29.7",
+            description: "Gastritis, unspecified",
+            severity: "mild",
+            snomed_display: "Gastritis",
+        },
+        _ => DiagnosisSeed {
+            icd_code: "Z13.9",
+            description: "Screening examination, unspecified",
+            severity: "mild",
+            snomed_display: "Screening for disorder",
+        },
+    }
+}
+
+fn medication_history_seed(person_index: usize) -> [MedicationSeed; 2] {
+    match person_index % 6 {
+        0 => [
+            MedicationSeed {
+                drug_name: "Amlodipine",
+                dosage: "5 mg",
+                frequency: "Once daily",
+                duration: "30 days",
+                route: "oral",
+                instructions: "Take after breakfast; monitor pedal edema",
+            },
+            MedicationSeed {
+                drug_name: "Paracetamol",
+                dosage: "500 mg",
+                frequency: "As needed",
+                duration: "3 days",
+                route: "oral",
+                instructions: "Maximum 3 tablets per day",
+            },
+        ],
+        1 => [
+            MedicationSeed {
+                drug_name: "Metformin",
+                dosage: "500 mg",
+                frequency: "Twice daily",
+                duration: "30 days",
+                route: "oral",
+                instructions: "Take with meals; avoid if vomiting/dehydrated",
+            },
+            MedicationSeed {
+                drug_name: "Vitamin B-complex",
+                dosage: "1 tablet",
+                frequency: "Once daily",
+                duration: "15 days",
+                route: "oral",
+                instructions: "Nutritional supplementation",
+            },
+        ],
+        2 => [
+            MedicationSeed {
+                drug_name: "Salbutamol inhaler",
+                dosage: "100 mcg",
+                frequency: "2 puffs as needed",
+                duration: "30 days",
+                route: "inhalation",
+                instructions: "Use with spacer if available",
+            },
+            MedicationSeed {
+                drug_name: "Cetirizine",
+                dosage: "10 mg",
+                frequency: "At night",
+                duration: "5 days",
+                route: "oral",
+                instructions: "May cause drowsiness",
+            },
+        ],
+        3 => [
+            MedicationSeed {
+                drug_name: "Ferrous ascorbate",
+                dosage: "100 mg",
+                frequency: "Once daily",
+                duration: "60 days",
+                route: "oral",
+                instructions: "Take after food; dark stools expected",
+            },
+            MedicationSeed {
+                drug_name: "Folic acid",
+                dosage: "5 mg",
+                frequency: "Once daily",
+                duration: "60 days",
+                route: "oral",
+                instructions: "Continue with iron therapy",
+            },
+        ],
+        4 => [
+            MedicationSeed {
+                drug_name: "Pantoprazole",
+                dosage: "40 mg",
+                frequency: "Once daily",
+                duration: "14 days",
+                route: "oral",
+                instructions: "Take before breakfast",
+            },
+            MedicationSeed {
+                drug_name: "ORS",
+                dosage: "1 sachet",
+                frequency: "As required",
+                duration: "2 days",
+                route: "oral",
+                instructions: "Mix with 1 litre clean water",
+            },
+        ],
+        _ => [
+            MedicationSeed {
+                drug_name: "Calcium carbonate + Vitamin D3",
+                dosage: "500 mg",
+                frequency: "Once daily",
+                duration: "30 days",
+                route: "oral",
+                instructions: "Take after food",
+            },
+            MedicationSeed {
+                drug_name: "Carboxymethylcellulose eye drops",
+                dosage: "0.5%",
+                frequency: "Four times daily",
+                duration: "7 days",
+                route: "ophthalmic",
+                instructions: "Avoid touching dropper tip",
+            },
+        ],
     }
 }
 
