@@ -1003,12 +1003,15 @@ pub async fn list_dicom_studies(
             Option<chrono::NaiveDate>,
             Option<String>,
             i32,
+            i32,
             Option<String>,
             Option<String>,
+            Option<String>,
+            Option<i64>,
         ),
     >(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
-         instance_count, viewer_url, orthanc_id \
+         instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
          WHERE ($1::uuid IS NULL OR patient_id = $1) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
@@ -1023,7 +1026,8 @@ pub async fn list_dicom_studies(
             serde_json::json!({
                 "id": r.0, "patient_id": r.1, "study_instance_uid": r.2, "modality": r.3,
                 "study_date": r.4, "study_description": r.5, "instance_count": r.6,
-                "viewer_url": r.7, "orthanc_id": r.8,
+                "series_count": r.7, "viewer_url": r.8, "orthanc_id": r.9,
+                "pacs_url": r.10, "file_size_bytes": r.11,
             })
         })
         .collect();
@@ -1048,8 +1052,23 @@ pub async fn get_prior_studies(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, (Uuid, String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
-        "SELECT id, study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            Option<chrono::NaiveDate>,
+            Option<String>,
+            i32,
+            i32,
+            Option<String>,
+            Option<String>,
+            Option<i64>,
+        ),
+    >(
+        "SELECT id, study_instance_uid, modality, study_date, study_description, \
+         instance_count, series_count, viewer_url, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies WHERE patient_id = $1 \
          ORDER BY study_date DESC LIMIT 50",
     )
@@ -1057,10 +1076,16 @@ pub async fn get_prior_studies(
     .fetch_all(&mut *tx)
     .await?;
 
-    let result: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.0, "study_instance_uid": r.1, "modality": r.2,
-        "study_date": r.3, "study_description": r.4, "instance_count": r.5, "viewer_url": r.6,
-    })).collect();
+    let result: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.0, "study_instance_uid": r.1, "modality": r.2,
+                "study_date": r.3, "study_description": r.4, "instance_count": r.5,
+                "series_count": r.6, "viewer_url": r.7, "pacs_url": r.8, "file_size_bytes": r.9,
+            })
+        })
+        .collect();
 
     tx.commit().await?;
     Ok(Json(result))

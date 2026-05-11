@@ -5,12 +5,14 @@ mod charge_master;
 mod default_dashboard;
 mod demo_patients;
 mod departments;
+mod device_integration_fixtures;
 mod insurance_providers;
 mod lab_catalog;
 mod locations;
 mod module_config;
 mod payment_methods;
 mod pharmacy_catalog;
+mod radiology_fixtures;
 mod role_dashboards;
 // Screen builder removed (see migration 123). seed/screens.rs retained as
 // dead code for git history but not compiled.
@@ -126,6 +128,8 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Demo patients + OPD visits for testing
     demo_patients::seed_demo_patients(pool, tenant_id).await?;
+    device_integration_fixtures::seed_device_integration_fixtures(pool, tenant_id).await?;
+    radiology_fixtures::seed_radiology_fixtures(pool, tenant_id).await?;
     camp_fixtures::seed_rural_camp_fixtures(pool, tenant_id).await?;
 
     // Canonical fixture rows with hardcoded UUIDs — must run AFTER

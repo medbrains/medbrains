@@ -6075,7 +6075,10 @@ export interface RadiologyDicomStudy {
   study_date: string | null;
   study_description: string | null;
   instance_count: number;
+  series_count: number;
   viewer_url: string | null;
+  pacs_url?: string | null;
+  file_size_bytes?: number | null;
   orthanc_id?: string | null;
 }
 

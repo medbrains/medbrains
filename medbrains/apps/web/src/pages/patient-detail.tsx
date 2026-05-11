@@ -742,7 +742,9 @@ function ImagingTab({ patientId }: { patientId: string }) {
               </Badge>
             </Table.Td>
             <Table.Td>
-              <Text size="sm">{study.instance_count}</Text>
+              <Text size="sm">
+                {study.series_count} series / {study.instance_count} images
+              </Text>
             </Table.Td>
             <Table.Td>
               <Text size="sm">
@@ -750,18 +752,34 @@ function ImagingTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              {study.viewer_url ? (
-                <Button
-                  component="a"
-                  href={study.viewer_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconEye size={14} />}
-                >
-                  Open
-                </Button>
+              {study.viewer_url || study.pacs_url ? (
+                <Group gap="xs" wrap="nowrap">
+                  {study.viewer_url ? (
+                    <Button
+                      component="a"
+                      href={study.viewer_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconEye size={14} />}
+                    >
+                      Viewer
+                    </Button>
+                  ) : null}
+                  {study.pacs_url ? (
+                    <Button
+                      component="a"
+                      href={study.pacs_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      size="xs"
+                      variant="subtle"
+                    >
+                      DICOM
+                    </Button>
+                  ) : null}
+                </Group>
               ) : (
                 <Text size="sm" c="dimmed">
                   Not linked

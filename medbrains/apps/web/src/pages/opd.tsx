@@ -11,6 +11,7 @@ import {
   Loader,
   Modal,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -55,6 +56,7 @@ import type {
   FamilyHistoryEntry,
   FollowupComplianceRow,
   LabOrder,
+  LabResult,
   LabTestCatalog,
   MedicalCertificate,
   PastMedicalEntry,
@@ -63,6 +65,7 @@ import type {
   PatientAllergy,
   PatientDiagnosisRow,
   PatientFeedback,
+  PatientLabOrderRow,
   PatientReminder,
   PatientVisitRow,
   PharmacyDispatchStatus as PharmacyDispatchStatusRow,
@@ -75,6 +78,7 @@ import type {
   ProcedureConsentType,
   ProcedureOrderWithName,
   QueueEntry,
+  RadiologyDicomStudy,
   ReferralTrackingRow,
   ReferralWithNames,
   ReminderType,
@@ -1617,6 +1621,15 @@ const LAB_PRIORITY_COLORS: Record<string, string> = {
   stat: "danger",
 };
 
+const LAB_RESULT_FLAG_COLORS: Record<string, string> = {
+  normal: "success",
+  low: "orange",
+  high: "orange",
+  critical_low: "danger",
+  critical_high: "danger",
+  abnormal: "warning",
+};
+
 function InvestigationsTab({
   encounterId,
   patientId,
@@ -1633,6 +1646,7 @@ function InvestigationsTab({
   const [priority, setPriority] = useState<string | null>("routine");
   const [notes, setNotes] = useState("");
   const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>([]);
+  const [selectedLabReportId, setSelectedLabReportId] = useState<string | null>(null);
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["lab-catalog"],
@@ -1644,6 +1658,28 @@ function InvestigationsTab({
     queryFn: () => api.listLabOrders({ encounter_id: encounterId }),
   });
   const orders = ordersResponse?.orders ?? [];
+
+  const { data: patientLabOrders = [] } = useQuery({
+    queryKey: ["patient-lab-orders", patientId],
+    queryFn: () => api.listPatientLabOrders(patientId),
+  });
+
+  const { data: imagingStudies = [] } = useQuery({
+    queryKey: ["patient-dicom-studies", patientId],
+    queryFn: () => api.getPriorRadiologyDicomStudies(patientId),
+  });
+
+  const { data: selectedLabReport, isLoading: selectedLabReportLoading } = useQuery({
+    queryKey: ["lab-order-detail", selectedLabReportId],
+    queryFn: () => api.getLabOrder(selectedLabReportId ?? ""),
+    enabled: selectedLabReportId !== null,
+  });
+
+  const recentLabReports = (patientLabOrders as PatientLabOrderRow[])
+    .filter((order) => (order.result_count ?? 0) > 0 || order.status === "verified")
+    .slice(0, 5);
+
+  const recentImagingStudies = (imagingStudies as RadiologyDicomStudy[]).slice(0, 5);
 
   const testOptions = catalog
     .filter((t: LabTestCatalog) => t.is_active)
@@ -1798,6 +1834,151 @@ function InvestigationsTab({
         </Card>
       )}
 
+      <Stack gap="sm">
+        <Group justify="space-between" align="center">
+          <div>
+            <Text fw={600}>Reports & Imaging</Text>
+            <Text size="xs" c="dimmed">
+              Doctor view for completed lab reports and X-ray/CT/MRI prior imaging.
+            </Text>
+          </div>
+          <Badge variant="light" color="primary">
+            Patient history
+          </Badge>
+        </Group>
+
+        <SimpleGrid cols={{ base: 1, lg: 2 }}>
+          <Card padding="xs" radius="md" withBorder>
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text size="sm" fw={600}>
+                  Lab Reports
+                </Text>
+                <Badge size="xs" variant="light" color="info">
+                  {recentLabReports.length}
+                </Badge>
+              </Group>
+              {recentLabReports.length > 0 ? (
+                <Table striped highlightOnHover>
+                  <Table.Tbody>
+                    {recentLabReports.map((report) => (
+                      <Table.Tr key={report.id}>
+                        <Table.Td>
+                          <Text size="sm" fw={500}>
+                            {report.test_name ?? "Lab test"}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {new Date(report.updated_at).toLocaleString()} ·{" "}
+                            {report.result_count ?? 0} result(s)
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge
+                            size="xs"
+                            variant="light"
+                            color={LAB_STATUS_COLORS[report.status] ?? "slate"}
+                          >
+                            {report.status.replace(/_/g, " ")}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconEye size={14} />}
+                            onClick={() => setSelectedLabReportId(report.id)}
+                          >
+                            View
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No completed lab reports yet.
+                </Text>
+              )}
+            </Stack>
+          </Card>
+
+          <Card padding="xs" radius="md" withBorder>
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text size="sm" fw={600}>
+                  Imaging
+                </Text>
+                <Badge size="xs" variant="light" color="violet">
+                  {recentImagingStudies.length}
+                </Badge>
+              </Group>
+              {recentImagingStudies.length > 0 ? (
+                <Table striped highlightOnHover>
+                  <Table.Tbody>
+                    {recentImagingStudies.map((study) => (
+                      <Table.Tr key={study.id}>
+                        <Table.Td>
+                          <Group gap="xs">
+                            <Badge size="xs" variant="light">
+                              {study.modality}
+                            </Badge>
+                            <div>
+                              <Text size="sm" fw={500}>
+                                {study.study_description ?? "Imaging study"}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {study.study_date
+                                  ? new Date(study.study_date).toLocaleDateString()
+                                  : "No date"}{" "}
+                                · {study.series_count} series / {study.instance_count} images
+                              </Text>
+                            </div>
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs" wrap="nowrap" justify="flex-end">
+                            {study.viewer_url ? (
+                              <Button
+                                component="a"
+                                href={study.viewer_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                size="xs"
+                                variant="light"
+                                leftSection={<IconEye size={14} />}
+                              >
+                                Viewer
+                              </Button>
+                            ) : null}
+                            {study.pacs_url ? (
+                              <Button
+                                component="a"
+                                href={study.pacs_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                size="xs"
+                                variant="subtle"
+                              >
+                                DICOM
+                              </Button>
+                            ) : null}
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  No X-ray, CT, MRI or ultrasound studies linked yet.
+                </Text>
+              )}
+            </Stack>
+          </Card>
+        </SimpleGrid>
+      </Stack>
+
       {orders.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -1868,6 +2049,69 @@ function InvestigationsTab({
           No investigations ordered yet.
         </Text>
       )}
+
+      <Modal
+        opened={selectedLabReportId !== null}
+        onClose={() => setSelectedLabReportId(null)}
+        title="Lab Report"
+        size="lg"
+      >
+        {selectedLabReportLoading ? (
+          <Loader size="sm" />
+        ) : selectedLabReport?.results.length ? (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Parameter</Table.Th>
+                <Table.Th>Result</Table.Th>
+                <Table.Th>Range</Table.Th>
+                <Table.Th>Flag</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {selectedLabReport.results.map((result: LabResult) => (
+                <Table.Tr key={result.id}>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {result.parameter_name}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">
+                      {result.value}
+                      {result.unit ? ` ${result.unit}` : ""}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {result.normal_range ?? "—"}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {result.flag ? (
+                      <Badge
+                        size="xs"
+                        variant="light"
+                        color={LAB_RESULT_FLAG_COLORS[result.flag] ?? "slate"}
+                      >
+                        {result.flag.replace(/_/g, " ")}
+                      </Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        ) : (
+          <Text size="sm" c="dimmed">
+            No structured result values are available for this report.
+          </Text>
+        )}
+      </Modal>
     </Stack>
   );
 }

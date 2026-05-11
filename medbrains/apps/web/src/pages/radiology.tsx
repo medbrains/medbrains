@@ -1040,7 +1040,8 @@ function DicomStudiesTab() {
     {
       key: "instance_count" as const,
       label: "Instances",
-      render: (study: RadiologyDicomStudy) => String(study.instance_count),
+      render: (study: RadiologyDicomStudy) =>
+        `${study.series_count} series / ${study.instance_count} images`,
     },
     {
       key: "study_date" as const,
@@ -1050,20 +1051,36 @@ function DicomStudiesTab() {
     },
     {
       key: "viewer_url" as const,
-      label: "Viewer",
+      label: "Links",
       render: (study: RadiologyDicomStudy) =>
-        study.viewer_url ? (
-          <Button
-            component="a"
-            href={study.viewer_url}
-            target="_blank"
-            rel="noreferrer"
-            size="xs"
-            variant="light"
-            leftSection={<IconEye size={14} />}
-          >
-            Open
-          </Button>
+        study.viewer_url || study.pacs_url ? (
+          <Group gap="xs" wrap="nowrap">
+            {study.viewer_url ? (
+              <Button
+                component="a"
+                href={study.viewer_url}
+                target="_blank"
+                rel="noreferrer"
+                size="xs"
+                variant="light"
+                leftSection={<IconEye size={14} />}
+              >
+                Viewer
+              </Button>
+            ) : null}
+            {study.pacs_url ? (
+              <Button
+                component="a"
+                href={study.pacs_url}
+                target="_blank"
+                rel="noreferrer"
+                size="xs"
+                variant="subtle"
+              >
+                DICOM
+              </Button>
+            ) : null}
+          </Group>
         ) : (
           <Text size="sm" c="dimmed">
             Not linked
