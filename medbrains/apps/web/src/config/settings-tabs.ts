@@ -25,6 +25,7 @@ import {
   IconShieldCheck,
   IconSitemap,
   IconStethoscope,
+  IconTableOptions,
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react";
@@ -54,6 +55,7 @@ import { PrintTemplateSettings } from "../pages/admin/settings/PrintTemplateSett
 import { SequencesSettings } from "../pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "../pages/admin/settings/ServicesSettings";
 import { SetupWizardSettings } from "../pages/admin/settings/SetupWizardSettings";
+import { StandardsSettings } from "../pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "../pages/admin/settings/SystemHealthSettings";
 import { UnitsLocaleSettings } from "../pages/admin/settings/UnitsLocaleSettings";
 import { UsersRolesSettings } from "../pages/admin/settings/UsersRolesSettings";
@@ -189,6 +191,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: DeviceIntegrationsSettings,
   },
   {
+    value: "standards",
+    i18nKey: "settings.standards",
+    icon: "IconTableOptions",
+    requiredPermission: "admin.settings.general.manage",
+    component: StandardsSettings,
+  },
+  {
     value: "print-templates",
     i18nKey: "settings.printTemplates",
     icon: "IconPrinter",
@@ -274,6 +283,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconBuildingCommunity,
   IconMapPin,
   IconSitemap,
+  IconTableOptions,
   IconUsers,
   IconApps,
   IconHash,
