@@ -44,6 +44,7 @@ import type {
   PatientMergeHistory,
   PatientVisitRow,
   PrescriptionHistoryItem,
+  RadiologyDicomStudy,
   TreatmentSummaryResponse,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -52,6 +53,7 @@ import {
   IconBed,
   IconCalendar,
   IconClock,
+  IconEye,
   IconFile,
   IconFlask,
   IconGitMerge,
@@ -686,6 +688,85 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
             </Table.Td>
             <Table.Td>
               <Text size="sm">{formatDate(o.updated_at)}</Text>
+            </Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  );
+}
+
+// ── Imaging Tab ────────────────────────────────────────────
+
+function ImagingTab({ patientId }: { patientId: string }) {
+  const { data: studies = [], isLoading } = useQuery({
+    queryKey: ["patient-dicom-studies", patientId],
+    queryFn: () => api.getPriorRadiologyDicomStudies(patientId),
+  });
+
+  if (isLoading) return <Loader size="sm" />;
+
+  if (studies.length === 0) {
+    return (
+      <Text c="dimmed" ta="center" py="xl">
+        No imaging studies found.
+      </Text>
+    );
+  }
+
+  return (
+    <Table striped highlightOnHover>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Study</Table.Th>
+          <Table.Th>Modality</Table.Th>
+          <Table.Th>Instances</Table.Th>
+          <Table.Th>Date</Table.Th>
+          <Table.Th>Viewer</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
+        {studies.map((study: RadiologyDicomStudy) => (
+          <Table.Tr key={study.id}>
+            <Table.Td>
+              <Text size="sm" fw={500}>
+                {study.study_description ?? "DICOM Study"}
+              </Text>
+              <Text size="xs" c="dimmed" ff="monospace">
+                {study.study_instance_uid}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              <Badge size="sm" variant="light">
+                {study.modality}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{study.instance_count}</Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">
+                {study.study_date ? new Date(study.study_date).toLocaleDateString() : "—"}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              {study.viewer_url ? (
+                <Button
+                  component="a"
+                  href={study.viewer_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconEye size={14} />}
+                >
+                  Open
+                </Button>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  Not linked
+                </Text>
+              )}
             </Table.Td>
           </Table.Tr>
         ))}
@@ -2450,6 +2531,9 @@ export function PatientDetailPage() {
           <Tabs.Tab value="lab" leftSection={<IconFlask size={14} />}>
             Lab Orders
           </Tabs.Tab>
+          <Tabs.Tab value="imaging" leftSection={<IconEye size={14} />}>
+            Imaging
+          </Tabs.Tab>
           <Tabs.Tab value="billing" leftSection={<IconReceipt size={14} />}>
             Billing
           </Tabs.Tab>
@@ -2490,6 +2574,9 @@ export function PatientDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="lab">
           <LabOrdersTab patientId={patient.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="imaging">
+          <ImagingTab patientId={patient.id} />
         </Tabs.Panel>
         <Tabs.Panel value="billing">
           <BillingTab patientId={patient.id} />

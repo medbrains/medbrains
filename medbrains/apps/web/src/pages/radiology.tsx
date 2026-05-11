@@ -23,6 +23,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateRadiologyAppointmentRequest,
   CreateRadiologyOrderRequest,
+  RadiologyDicomStudy,
   RadiologyModality,
   RadiologyOrder,
   RadiologyTatRow,
@@ -84,6 +85,9 @@ export function RadiologyPage() {
           <Tabs.Tab value="appointments" leftSection={<IconCalendar size={16} />}>
             Appointments
           </Tabs.Tab>
+          <Tabs.Tab value="dicom" leftSection={<IconEye size={16} />}>
+            DICOM Studies
+          </Tabs.Tab>
           <Tabs.Tab value="tat" leftSection={<IconChartBar size={16} />}>
             TAT Analytics
           </Tabs.Tab>
@@ -97,6 +101,9 @@ export function RadiologyPage() {
         </Tabs.Panel>
         <Tabs.Panel value="appointments" pt="md">
           <AppointmentsTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="dicom" pt="md">
+          <DicomStudiesTab />
         </Tabs.Panel>
         <Tabs.Panel value="tat" pt="md">
           <TatAnalyticsTab />
@@ -984,6 +991,111 @@ function AppointmentsTab() {
           </Button>
         </Stack>
       </Modal>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  DICOM Studies Tab
+// ══════════════════════════════════════════════════════════
+
+function DicomStudiesTab() {
+  const [patientId, setPatientId] = useState("");
+
+  const { data: studies = [], isLoading } = useQuery({
+    queryKey: ["radiology-dicom-studies", patientId],
+    queryFn: () => api.listRadiologyDicomStudies(patientId ? { patient_id: patientId } : undefined),
+  });
+
+  const columns = [
+    {
+      key: "patient_id" as const,
+      label: "Patient",
+      render: (study: RadiologyDicomStudy) =>
+        study.patient_id ? <PatientNameCell patientId={study.patient_id} showUhid={false} /> : "—",
+    },
+    {
+      key: "modality" as const,
+      label: "Modality",
+      render: (study: RadiologyDicomStudy) => (
+        <Badge size="xs" variant="light">
+          {study.modality}
+        </Badge>
+      ),
+    },
+    {
+      key: "study_description" as const,
+      label: "Study",
+      render: (study: RadiologyDicomStudy) => (
+        <div>
+          <Text size="sm" fw={500}>
+            {study.study_description ?? "DICOM Study"}
+          </Text>
+          <Text size="xs" c="dimmed" ff="monospace">
+            {study.study_instance_uid}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      key: "instance_count" as const,
+      label: "Instances",
+      render: (study: RadiologyDicomStudy) => String(study.instance_count),
+    },
+    {
+      key: "study_date" as const,
+      label: "Date",
+      render: (study: RadiologyDicomStudy) =>
+        study.study_date ? new Date(study.study_date).toLocaleDateString() : "—",
+    },
+    {
+      key: "viewer_url" as const,
+      label: "Viewer",
+      render: (study: RadiologyDicomStudy) =>
+        study.viewer_url ? (
+          <Button
+            component="a"
+            href={study.viewer_url}
+            target="_blank"
+            rel="noreferrer"
+            size="xs"
+            variant="light"
+            leftSection={<IconEye size={14} />}
+          >
+            Open
+          </Button>
+        ) : (
+          <Text size="sm" c="dimmed">
+            Not linked
+          </Text>
+        ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="DICOM Studies"
+        subtitle="PACS-linked studies, viewer URLs, and prior imaging"
+        actions={
+          <Group align="end">
+            <PatientSearchSelect
+              value={patientId}
+              onChange={setPatientId}
+              label="Filter by patient"
+              placeholder="Search patient..."
+              size="xs"
+            />
+          </Group>
+        }
+      />
+
+      <DataTable
+        columns={columns}
+        data={studies}
+        rowKey={(study) => study.id}
+        loading={isLoading}
+      />
     </>
   );
 }

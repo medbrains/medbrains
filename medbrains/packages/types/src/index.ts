@@ -6067,6 +6067,18 @@ export interface RadiologyOrderDetailResponse {
   dose_records: RadiationDoseRecord[];
 }
 
+export interface RadiologyDicomStudy {
+  id: string;
+  patient_id?: string;
+  study_instance_uid: string;
+  modality: string;
+  study_date: string | null;
+  study_description: string | null;
+  instance_count: number;
+  viewer_url: string | null;
+  orthanc_id?: string | null;
+}
+
 export interface CancelRadiologyOrderRequest {
   cancellation_reason: string;
 }

@@ -435,6 +435,7 @@ import type {
   RadiologyOrder,
   RadiologyReport,
   RadiologyModality,
+  RadiologyDicomStudy,
   RadiationDoseRecord,
   RadiologyTatRow,
   CreateRadiologyAppointmentRequest,
@@ -12786,9 +12787,14 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getLabB2bCreditSummary: () => request<unknown>("/lab/b2b-credit-summary"),
-  listRadiologyDicomStudies: () => request<unknown>("/radiology/dicom-studies"),
+  listRadiologyDicomStudies: (params?: { patient_id?: string }) => {
+    const qs = params?.patient_id
+      ? `?patient_id=${encodeURIComponent(params.patient_id)}`
+      : "";
+    return request<RadiologyDicomStudy[]>(`/radiology/dicom-studies${qs}`);
+  },
   getPriorRadiologyDicomStudies: (id: string) =>
-    request<unknown>(`/radiology/dicom-studies/${id}/prior`),
+    request<RadiologyDicomStudy[]>(`/radiology/dicom-studies/${id}/prior`),
   createRadiologyShareLink: (data: Record<string, unknown>) =>
     request<unknown>("/radiology/share-links", {
       method: "POST",

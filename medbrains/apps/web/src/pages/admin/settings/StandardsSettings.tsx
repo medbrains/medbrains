@@ -344,8 +344,8 @@ export function StandardsSettings() {
           : `${dicomStudies} studies`,
         description:
           "Radiology needs PACS/DICOM configuration, prior studies, viewer URLs, and later DICOMweb QIDO/WADO/STOW gateway coverage.",
-        actionLabel: "Device setup",
-        actionHref: "#device-integrations",
+        actionLabel: "Open studies",
+        actionHref: "/radiology",
       },
       {
         key: "abdm",
@@ -475,10 +475,17 @@ export function StandardsSettings() {
               Lab tests need LOINC mapping before external diagnostic reports are exchanged.
             </Text>
             <Text size="sm">
+              Lab records are viewed in Lab order details and Patient Detail &gt; Lab Orders.
+            </Text>
+            <Text size="sm">
               Pharmacy catalog needs INN, ATC/RxNorm/SNOMED and regulatory schedule fields.
             </Text>
             <Text size="sm">
               Radiology must route studies through PACS/DICOM with viewer URLs and audit trail.
+            </Text>
+            <Text size="sm">
+              DICOM studies are viewed in Radiology &gt; DICOM Studies and Patient Detail &gt;
+              Imaging.
             </Text>
           </Stack>
         </Card>
