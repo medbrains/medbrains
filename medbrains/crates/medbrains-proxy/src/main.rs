@@ -2,8 +2,9 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use pingora::ErrorSource;
-use pingora::prelude::*;
+use pingora_core::listeners::tls::TlsSettings;
+use pingora_core::prelude::*;
+use pingora_error::{Error, ErrorSource, ErrorType};
 use pingora_http::{RequestHeader, ResponseHeader, StatusCode};
 use pingora_proxy::{FailToProxy, ProxyHttp, Session, http_proxy_service};
 use std::collections::HashMap;
@@ -540,7 +541,7 @@ impl ProxyHttp for MedBrainsProxy {
     async fn fail_to_proxy(
         &self,
         session: &mut Session,
-        error: &pingora::Error,
+        error: &Error,
         ctx: &mut Self::CTX,
     ) -> FailToProxy
     where
@@ -582,7 +583,7 @@ impl ProxyHttp for MedBrainsProxy {
     async fn logging(
         &self,
         session: &mut Session,
-        error: Option<&pingora::Error>,
+        error: Option<&Error>,
         ctx: &mut Self::CTX,
     ) {
         let status = session
@@ -633,7 +634,7 @@ impl ProxyHttp for MedBrainsProxy {
 
 fn is_expected_vite_hmr_disconnect(
     session: &Session,
-    error: &pingora::Error,
+    error: &Error,
     status: u16,
     policy: &EdgePolicy,
 ) -> bool {
@@ -644,7 +645,7 @@ fn is_expected_vite_hmr_disconnect(
 }
 
 fn is_expected_websocket_disconnect(
-    error: &pingora::Error,
+    error: &Error,
     status: u16,
     policy: &EdgePolicy,
 ) -> bool {
@@ -680,7 +681,7 @@ impl ProxyHttp for RedirectProxy {
         _session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        Err(pingora::Error::new(pingora::ErrorType::InternalError))
+        Err(Error::new(ErrorType::InternalError))
     }
 }
 
@@ -937,7 +938,7 @@ fn main() -> anyhow::Result<()> {
         .key_path
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("TLS route missing key_path"))?;
-    let tls = pingora::listeners::tls::TlsSettings::intermediate(cert, key)
+    let tls = TlsSettings::intermediate(cert, key)
         .map_err(|e| anyhow::anyhow!("failed to initialize TLS: {e}"))?;
     https_service.add_tls_with_settings(&format!("0.0.0.0:{}", cfg.https_port()), None, tls);
 

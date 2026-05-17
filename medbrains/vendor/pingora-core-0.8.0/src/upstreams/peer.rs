@@ -26,7 +26,6 @@ use crate::protocols::ConnFdReusable;
 use crate::protocols::TcpKeepalive;
 use crate::utils::tls::{get_organization_unit, CertKey};
 use ahash::AHasher;
-use derivative::Derivative;
 use pingora_error::{
     ErrorType::{InternalError, SocketError},
     OrErr, Result,
@@ -404,8 +403,7 @@ impl Scheme {
 ///
 /// See [`Peer`] for the meaning of the fields
 #[non_exhaustive]
-#[derive(Clone, Derivative)]
-#[derivative(Debug)]
+#[derive(Clone)]
 pub struct PeerOptions {
     pub bind_to: Option<BindTo>,
     pub connection_timeout: Option<Duration>,
@@ -452,18 +450,41 @@ pub struct PeerOptions {
     pub tracer: Option<Tracer>,
     // A custom L4 connector to use to establish new L4 connections
     pub custom_l4: Option<Arc<dyn L4Connect + Send + Sync>>,
-    #[derivative(Debug = "ignore")]
     pub upstream_tcp_sock_tweak_hook:
         Option<Arc<dyn Fn(&TcpSocket) -> Result<()> + Send + Sync + 'static>>,
-    #[derivative(Debug = "ignore")]
     pub proxy_digest_user_data_hook: Option<ProxyDigestUserDataHook>,
     /// Hook that allows returning an optional `SslDigestExtension`.
     /// Any returned value will be saved into the `SslDigest`.
     ///
     /// Currently only enabled for openssl variants with meaningful `TlsRef`s.
     #[cfg(feature = "openssl_derived")]
-    #[derivative(Debug = "ignore")]
     pub upstream_tls_handshake_complete_hook: Option<HandshakeCompleteHook>,
+}
+
+impl std::fmt::Debug for PeerOptions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("PeerOptions")
+            .field("connection_timeout", &self.connection_timeout)
+            .field("total_connection_timeout", &self.total_connection_timeout)
+            .field("read_timeout", &self.read_timeout)
+            .field("idle_timeout", &self.idle_timeout)
+            .field("write_timeout", &self.write_timeout)
+            .field("verify_cert", &self.verify_cert)
+            .field("verify_hostname", &self.verify_hostname)
+            .field("alternative_cn", &self.alternative_cn)
+            .field("tcp_recv_buf", &self.tcp_recv_buf)
+            .field("dscp", &self.dscp)
+            .field("h2_ping_interval", &self.h2_ping_interval)
+            .field("max_h2_streams", &self.max_h2_streams)
+            .field(
+                "allow_h1_response_invalid_content_length",
+                &self.allow_h1_response_invalid_content_length,
+            )
+            .field("curves", &self.curves)
+            .field("second_keyshare", &self.second_keyshare)
+            .field("tcp_fast_open", &self.tcp_fast_open)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PeerOptions {

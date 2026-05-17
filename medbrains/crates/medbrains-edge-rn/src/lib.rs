@@ -23,6 +23,7 @@
 //!   location — defaults to RN's documents directory — and feeds
 //!   bytes in/out via `apply_update` / `export_since`)
 
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
@@ -100,6 +101,14 @@ pub struct TextSnapshot {
 pub struct DocHandle {
     inner: Arc<Mutex<loro::LoroDoc>>,
     doc_id: String,
+}
+
+impl fmt::Debug for DocHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DocHandle")
+            .field("doc_id", &self.doc_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl DocHandle {
@@ -429,6 +438,12 @@ pub struct AuthzCacheHandle {
     inner: offline::AuthzCache,
 }
 
+impl fmt::Debug for AuthzCacheHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AuthzCacheHandle").finish_non_exhaustive()
+    }
+}
+
 impl AuthzCacheHandle {
     pub fn new(path: String, capacity: u32, default_ttl_secs: u64) -> Result<Self, BridgeError> {
         let p = PathBuf::from(path);
@@ -473,6 +488,12 @@ impl AuthzCacheHandle {
 
 pub struct RevocationCacheHandle {
     inner: offline::RevocationCache,
+}
+
+impl fmt::Debug for RevocationCacheHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RevocationCacheHandle").finish_non_exhaustive()
+    }
 }
 
 impl RevocationCacheHandle {

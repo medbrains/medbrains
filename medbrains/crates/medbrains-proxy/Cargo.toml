@@ -10,11 +10,10 @@ name = "medbrains-proxy"
 path = "src/main.rs"
 
 [dependencies]
-pingora = { version = "0.8", features = ["lb", "proxy", "rustls"] }
 pingora-proxy = "0.8"
 pingora-http = "0.8"
-pingora-core = "0.8"
-pingora-load-balancing = "0.8"
+pingora-core = { version = "0.8", features = ["rustls"] }
+pingora-error = "0.8"
 
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
