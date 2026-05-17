@@ -198,7 +198,10 @@ function DepartmentModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.updateDepartment(editingDept?.id, data),
+    mutationFn: (data: Record<string, unknown>) => {
+      if (!editingDept) throw new Error("No department selected");
+      return api.updateDepartment(editingDept.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Department updated",

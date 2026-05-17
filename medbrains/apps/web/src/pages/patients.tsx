@@ -393,19 +393,19 @@ export function PatientsPage() {
           </Table.Thead>
           <Table.Tbody>
             {duplicateMatches.map((m) => (
-              <Table.Tr key={m.patient.id}>
+              <Table.Tr key={m.id}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
-                    {m.patient.uhid}
+                    {m.uhid}
                   </Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">
-                    {m.patient.first_name} {m.patient.last_name}
+                    {m.first_name} {m.last_name}
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm">{m.patient.phone ?? "—"}</Text>
+                  <Text size="sm">{m.phone || "—"}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Badge size="sm" color={m.score >= 0.8 ? "danger" : "orange"}>
@@ -418,7 +418,7 @@ export function PatientsPage() {
                     size="sm"
                     onClick={() => {
                       dupModalHandlers.close();
-                      navigate(`/patients/${m.patient.id}`);
+                      navigate(`/patients/${m.id}`);
                     }}
                   >
                     <IconEye size={14} />

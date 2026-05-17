@@ -21,7 +21,7 @@
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Utc};
 use medbrains_authz::{Relation, Subject};
-use medbrains_core::access::ROLE_POLICIES;
+use medbrains_core::{access::ROLE_POLICIES, permissions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -76,6 +76,84 @@ pub struct GrantResponse {
     pub status: String,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SharingSubjectOption {
+    pub id: String,
+    pub label: String,
+    pub subtitle: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SharingSubjectDirectory {
+    pub users: Vec<SharingSubjectOption>,
+    pub roles: Vec<SharingSubjectOption>,
+    pub departments: Vec<SharingSubjectOption>,
+    pub groups: Vec<SharingSubjectOption>,
+}
+
+/// GET /api/sharing/subjects — staff directory for the sharing drawer.
+///
+/// This intentionally returns only minimal staff / role / department labels,
+/// not patient data. The actual grant still goes through owner/admin checks.
+pub async fn list_subjects(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<SharingSubjectDirectory>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let users = sqlx::query_as::<_, SharingSubjectOption>(
+        "SELECT id::text AS id, full_name AS label, role::text AS subtitle \
+         FROM users \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY full_name \
+         LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let roles = sqlx::query_as::<_, SharingSubjectOption>(
+        "SELECT code AS id, name AS label, description AS subtitle \
+         FROM roles \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let departments = sqlx::query_as::<_, SharingSubjectOption>(
+        "SELECT id::text AS id, name AS label, code AS subtitle \
+         FROM departments \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let groups = sqlx::query_as::<_, SharingSubjectOption>(
+        "SELECT id::text AS id, name AS label, code AS subtitle \
+         FROM access_groups \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(SharingSubjectDirectory {
+        users,
+        roles,
+        departments,
+        groups,
+    }))
+}
+
 /// POST /api/sharing/grants — create a grant.
 pub async fn create_grant(
     State(state): State<AppState>,
@@ -84,8 +162,8 @@ pub async fn create_grant(
 ) -> Result<Json<GrantResponse>, AppError> {
     // Check 1: caller has the abstract `admin.sharing.manage` perm OR
     // is a bypass role OR holds `owner` on the target resource.
-    let is_admin_sharer =
-        require_permission(&claims, "admin.sharing.manage").is_ok() || is_bypass_role(&claims);
+    let is_admin_sharer = require_permission(&claims, permissions::admin::sharing::MANAGE).is_ok()
+        || is_bypass_role(&claims);
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
@@ -145,8 +223,8 @@ pub async fn revoke_grant(
     Extension(claims): Extension<Claims>,
     Json(body): Json<RevokeGrantRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let is_admin_sharer =
-        require_permission(&claims, "admin.sharing.manage").is_ok() || is_bypass_role(&claims);
+    let is_admin_sharer = require_permission(&claims, permissions::admin::sharing::MANAGE).is_ok()
+        || is_bypass_role(&claims);
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);

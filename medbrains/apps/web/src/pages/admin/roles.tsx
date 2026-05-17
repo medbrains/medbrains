@@ -651,7 +651,10 @@ function EditRoleModal({
   }
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; description?: string }) => api.updateRole(role?.id, data),
+    mutationFn: (data: { name?: string; description?: string }) => {
+      if (!role) throw new Error("No role selected");
+      return api.updateRole(role.id, data);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["roles"] });
       setLoadedId(null);

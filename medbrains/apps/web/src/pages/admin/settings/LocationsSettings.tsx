@@ -118,7 +118,10 @@ function LocationModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.updateLocation(editingLocation?.id, data),
+    mutationFn: (data: Record<string, unknown>) => {
+      if (!editingLocation) throw new Error("No location selected");
+      return api.updateLocation(editingLocation.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Location updated",

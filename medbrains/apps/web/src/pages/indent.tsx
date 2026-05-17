@@ -1354,14 +1354,16 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.updateStoreCatalogItem(initial?.id, {
+    mutationFn: () => {
+      if (!initial) throw new Error("No catalog item selected");
+      return api.updateStoreCatalogItem(initial.id, {
         name,
         category: category || undefined,
         unit: unit || undefined,
         base_price: basePrice,
         reorder_level: reorderLevel,
-      } as UpdateStoreCatalogRequest),
+      } as UpdateStoreCatalogRequest);
+    },
     onSuccess: () => {
       notifications.show({ title: "Updated", message: "Catalog item updated", color: "success" });
       onSuccess();

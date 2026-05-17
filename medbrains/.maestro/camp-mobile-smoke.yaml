@@ -1,0 +1,85 @@
+appId: com.medbrains.camp
+name: Camp Mobile Smoke
+---
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Camp"
+    timeout: 30000
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Camp Mode"
+    timeout: 30000
+- assertVisible: "Select camp workspace"
+- tapOn: "Select camp workspace"
+- extendedWaitUntil:
+    visible: "Select Camp"
+    timeout: 30000
+- assertVisible: "Search by camp code, name, village, district or pincode"
+- tapOn: "Kallal Block Multi-Specialty Rural Camp"
+- extendedWaitUntil:
+    visible: "Download Local Camp Packet"
+    timeout: 30000
+- tapOn: "Download Local Camp Packet"
+- extendedWaitUntil:
+    visible: "Open Existing Patients"
+    timeout: 60000
+- assertVisible: "Register New Patient"
+- assertVisible: "Field Readiness"
+- assertVisible: "Sync Center"
+- tapOn: "Register New Patient"
+- extendedWaitUntil:
+    visible: "Walk-in"
+    timeout: 10000
+- tapOn: "Name"
+- inputText: "Maestro Camp Patient"
+- tapOn: "Age"
+- inputText: "41"
+- tapOn: "Gender"
+- inputText: "Female"
+- tapOn: "Phone"
+- inputText: "9876543210"
+- tapOn: "Chief complaint"
+- inputText: "Fever and body pain"
+- tapOn: "Register Patient"
+- extendedWaitUntil:
+    visible: "Registration queued locally"
+    timeout: 10000
+- tapOn: "BP systolic"
+- inputText: "122"
+- tapOn: "BP diastolic"
+- inputText: "78"
+- tapOn: "Pulse"
+- inputText: "84"
+- tapOn: "SpO2"
+- inputText: "98"
+- tapOn: "Temperature"
+- inputText: "99.1"
+- tapOn: "Submit Vitals"
+- extendedWaitUntil:
+    visible: "Screening/vitals queued locally"
+    timeout: 10000
+- tapOn: "Sample type"
+- inputText: "Blood"
+- tapOn: "Test requested"
+- inputText: "CBC"
+- tapOn: "Barcode"
+- inputText: "MB-CAMP-TEST-001"
+- tapOn: "Submit Sample"
+- extendedWaitUntil:
+    visible: "Lab sample queued locally"
+    timeout: 10000
+- tapOn: "Referral facility"
+- inputText: "Base Hospital"
+- tapOn: "Department"
+- inputText: "General Medicine"
+- tapOn: "Reason"
+- inputText: "Needs review if fever persists"
+- tapOn: "Queue Referral"
+- extendedWaitUntil:
+    visible: "Referral queued locally"
+    timeout: 10000

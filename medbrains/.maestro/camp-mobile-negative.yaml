@@ -1,0 +1,37 @@
+appId: com.medbrains.camp
+name: Camp Mobile Negative Checks
+---
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Camp"
+    timeout: 30000
+- assertVisible: "Sign in"
+- tapOn: "Username"
+- inputText: "wrong-user"
+- tapOn: "Password"
+- inputText: "wrong-password"
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Sign in failed"
+    timeout: 15000
+- eraseText
+- tapOn: "Username"
+- eraseText
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Camp Mode"
+    timeout: 30000
+- assertVisible: "Select camp workspace"
+- tapOn: "Select camp workspace"
+- extendedWaitUntil:
+    visible: "Select Camp"
+    timeout: 30000
+- tapOn: "Kallal Block Multi-Specialty Rural Camp"
+- extendedWaitUntil:
+    visible: "Download Local Camp Packet"
+    timeout: 30000
+- assertVisible: "Not downloaded"

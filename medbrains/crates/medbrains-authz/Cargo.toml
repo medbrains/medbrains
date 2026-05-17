@@ -31,3 +31,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 [[bin]]
 name = "rebac-backfill"
 path = "src/bin/backfill.rs"
+
+[[bin]]
+name = "spicedb-schema-write"
+path = "src/bin/schema_write.rs"

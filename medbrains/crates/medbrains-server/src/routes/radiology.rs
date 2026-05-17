@@ -428,7 +428,7 @@ pub async fn update_order_status(
                 &claims.tenant_id,
                 super::billing::AutoChargeInput {
                     patient_id: order.patient_id,
-                    encounter_id,
+                    encounter_id: Some(encounter_id),
                     charge_code,
                     source: "radiology".to_owned(),
                     source_id: order.id,

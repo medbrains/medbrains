@@ -135,7 +135,10 @@ function ServiceModal({
       base_price?: number;
       department_id?: string | null;
       description?: string;
-    }) => api.updateService(editingService?.id, data),
+    }) => {
+      if (!editingService) throw new Error("No service selected");
+      return api.updateService(editingService.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Service updated",

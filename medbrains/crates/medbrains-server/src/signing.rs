@@ -5,18 +5,10 @@
 //!   1. Cryptographic — Ed25519 over SHA-256 of canonical JSON payload
 //!   2. Visual — image stamp on PDF documents (display_image_url)
 //!
-//! ## Phase-1 security caveat
-//!
-//! This module reads/writes private keys as **plain bytea** in the
-//! `doctor_signature_credentials.encrypted_private_key` column. Production
-//! deployments MUST enable pgcrypto and wrap the private key with a tenant
-//! master key before exposing to user data. Tracked as Phase 1.5.
-//!
-//! For demo/dev environments the plaintext path is acceptable because:
-//!   - Postgres role boundaries already prevent app-level reads
-//!   - RLS scopes credentials to the owning tenant
-//!   - The signing path requires both the credential row + the signer's
-//!     fresh JWT, so a stolen key alone cannot mint signatures
+//! Private-key storage is handled by `routes::signatures`: keys are wrapped
+//! with AES-GCM before they are stored in
+//! `doctor_signature_credentials.encrypted_private_key`. This module only owns
+//! canonicalization, key generation, signing, and verification.
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde_json::Value;

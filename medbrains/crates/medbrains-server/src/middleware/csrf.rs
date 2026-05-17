@@ -1,4 +1,9 @@
-use axum::{extract::Request, http::Method, middleware::Next, response::Response};
+use axum::{
+    extract::Request,
+    http::{Method, header::AUTHORIZATION},
+    middleware::Next,
+    response::Response,
+};
 
 use crate::{error::AppError, middleware::auth::AuthMethod};
 
@@ -20,6 +25,14 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, A
         if matches!(auth_method, AuthMethod::Bearer) {
             return Ok(next.run(request).await);
         }
+    }
+    if request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("Bearer "))
+    {
+        return Ok(next.run(request).await);
     }
 
     // For cookie-authenticated mutations: validate double-submit

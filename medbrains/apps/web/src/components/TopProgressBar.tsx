@@ -45,7 +45,7 @@ const TRACE_COLOR = "#34d399";
 // ── Component ──────────────────────────────────────────────────
 
 function TopProgressBarInner() {
-  const _location = useLocation();
+  const location = useLocation();
   const [visible, setVisible] = useState(false);
   const widthRef = useRef(0);
   const [width, setWidth] = useState(0);
@@ -74,7 +74,7 @@ function TopProgressBarInner() {
     return () => {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
-  }, [hide]);
+  }, [hide, location.key]);
 
   // Memoize all derived values
   const trace = useMemo(() => (width > 0 ? getTrace(width) : ""), [width]);

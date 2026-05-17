@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
-import type { QueueEntry } from "../../api/opd.js";
+import type { QueueEntry, QueueTransitionResponse } from "../../api/opd.js";
 import { callQueue, completeQueueEntry, startConsultation } from "../../api/opd.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
@@ -30,12 +30,12 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
   const canConsult = useHasPermission(P.OPD.VISIT_CREATE);
   const canComplete = useHasPermission(P.OPD.VISIT_UPDATE);
 
-  const run = async (fn: (id: string) => Promise<QueueEntry>) => {
+  const run = async (fn: (id: string) => Promise<QueueTransitionResponse>) => {
     setBusy(true);
     setError(null);
     try {
       const next = await fn(entry.id);
-      setEntry(next);
+      setEntry((current) => ({ ...current, ...next }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {

@@ -64,6 +64,7 @@ import {
   IconPrinter,
   IconReceipt,
   IconReportMedical,
+  IconShare,
   IconStethoscope,
   IconTrash,
   IconUser,
@@ -82,6 +83,7 @@ import { PatientContextBanner } from "../components/Patient/PatientContextBanner
 import { StartOpdVisitModal } from "../components/Patient/StartOpdVisitModal";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { ShareDrawer } from "../components/Sharing/ShareDrawer";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 
 // ── Helpers ────────────────────────────────────────────────
@@ -2417,6 +2419,7 @@ export function PatientDetailPage() {
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const [basketOpen, setBasketOpen] = useState(false);
   const [opdVisitOpen, { open: openOpdVisit, close: closeOpdVisit }] = useDisclosure(false);
+  const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -2493,6 +2496,16 @@ export function PatientDetailPage() {
                 Admit to IPD
               </Button>
             )}
+            <Tooltip label="Share record access">
+              <Button
+                variant="light"
+                size="sm"
+                leftSection={<IconShare size={14} />}
+                onClick={openShare}
+              >
+                Share
+              </Button>
+            </Tooltip>
             <Tooltip label="Print patient card">
               <ActionIcon
                 variant="light"
@@ -2507,6 +2520,14 @@ export function PatientDetailPage() {
       />
 
       <PatientContextBanner patientId={patient.id} />
+
+      <ShareDrawer
+        opened={shareOpen}
+        onClose={closeShare}
+        objectType="patient"
+        objectId={patient.id}
+        objectLabel={`${patient.first_name} ${patient.last_name} (${patient.uhid})`}
+      />
 
       <Group gap="xs" mb="md">
         <Badge color="primary" variant="light">

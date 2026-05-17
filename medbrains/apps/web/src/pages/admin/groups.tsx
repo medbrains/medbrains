@@ -189,12 +189,14 @@ function GroupFormModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.updateAccessGroup(target?.id, {
+    mutationFn: () => {
+      if (!target) throw new Error("No access group selected");
+      return api.updateAccessGroup(target.id, {
         code: code.trim(),
         name: name.trim(),
         description: description.trim() || undefined,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({ message: "Group updated", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-groups"] });
@@ -264,16 +266,19 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
 
   const membersQuery = useQuery({
     queryKey: ["access-group-members", group?.id],
-    queryFn: () => api.listAccessGroupMembers(group?.id),
+    queryFn: () => api.listAccessGroupMembers(group?.id ?? ""),
     enabled: !!group,
   });
 
   const addMutation = useMutation({
-    mutationFn: () =>
-      api.addAccessGroupMember(group?.id, {
-        user_id: userId!,
+    mutationFn: () => {
+      if (!group) throw new Error("No access group selected");
+      if (!userId) throw new Error("No user selected");
+      return api.addAccessGroupMember(group.id, {
+        user_id: userId,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({ message: "Member added", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });
@@ -284,7 +289,10 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
   });
 
   const removeMutation = useMutation({
-    mutationFn: (uid: string) => api.removeAccessGroupMember(group?.id, uid),
+    mutationFn: (uid: string) => {
+      if (!group) throw new Error("No access group selected");
+      return api.removeAccessGroupMember(group.id, uid);
+    },
     onSuccess: () => {
       notifications.show({ message: "Member removed", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });

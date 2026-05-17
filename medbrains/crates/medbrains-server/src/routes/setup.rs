@@ -1283,10 +1283,23 @@ pub async fn update_user_access_matrix(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let existing_matrix = sqlx::query_scalar::<_, Value>(
+        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
     let mut matrix = serde_json::json!({
         "extra": body.extra_permissions,
         "denied": body.denied_permissions,
     });
+
+    if let Some(temporary_grants) = existing_matrix.get("temporary_grants") {
+        matrix["temporary_grants"] = temporary_grants.clone();
+    }
 
     if let Some(fa) = &body.field_access {
         validate_field_access_map(fa)?;

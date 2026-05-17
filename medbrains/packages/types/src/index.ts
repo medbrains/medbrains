@@ -100,6 +100,42 @@ export interface SetupUser {
   access_matrix: Record<string, unknown>;
 }
 
+export type IamAccessRequestStatus = "pending" | "approved" | "rejected" | "revoked" | "expired";
+
+export interface IamAccessRequest {
+  id: string;
+  requester_id: string;
+  requester_name: string;
+  target_user_id: string;
+  target_user_name: string;
+  target_role: string;
+  requested_permissions: string[];
+  requested_modules: string[];
+  resource_scope: Record<string, unknown>;
+  reason: string;
+  requested_expires_at: string | null;
+  status: IamAccessRequestStatus;
+  reviewed_by: string | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  applied_at: string | null;
+  revoked_by: string | null;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateIamAccessRequest {
+  target_user_id?: string;
+  requested_permissions: string[];
+  requested_modules?: string[];
+  resource_scope?: Record<string, unknown>;
+  reason: string;
+  requested_expires_at?: string | null;
+}
+
 export interface UserFacilityAssignment {
   id: string;
   tenant_id: string;
@@ -1689,6 +1725,22 @@ export interface CreatePatientRequest {
   registration_type?: RegistrationType;
   registration_source?: RegistrationSource;
   financial_class?: FinancialClass;
+  abha_number?: string;
+  abha_address?: string;
+  aadhaar_number?: string;
+  referred_by_name?: string;
+  referred_by_phone?: string;
+  referred_by_facility?: string;
+  department_id?: string;
+  department_name?: string;
+  consultant_id?: string;
+  consultant_name?: string;
+  clinical_unit?: string;
+  camp_id?: string;
+  camp_name?: string;
+  initial_diagnosis_text?: string;
+  icd10_code?: string;
+  icd11_code?: string;
   is_medico_legal?: boolean;
   mlc_number?: string;
   is_vip?: boolean;
@@ -1800,9 +1852,14 @@ export interface MpiMatchRequest {
 }
 
 export interface MpiMatchResult {
-  patient: Patient;
+  id: string;
+  uhid: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  phone: string;
+  gender: Gender;
   score: number;
-  match_fields: string[];
 }
 
 // ── Data Source Binding ─────────────────────────────────
@@ -6226,6 +6283,9 @@ export interface PharmacyOrderItem {
   batch_stock_id: string | null;
   quantity_prescribed: number | null;
   quantity_returned: number;
+  removed_at: string | null;
+  removed_by: string | null;
+  remove_reason: string | null;
   created_at: string;
 }
 
@@ -6272,6 +6332,10 @@ export interface PharmacyOrderItemInput {
 export interface PharmacyOrderDetailResponse {
   order: PharmacyOrder;
   items: PharmacyOrderItem[];
+}
+
+export interface UpdatePharmacyOrderItemRequest {
+  quantity: number;
 }
 
 export interface CreatePharmacyCatalogRequest {
@@ -27539,6 +27603,44 @@ export interface RxQueueRow {
   allergy_count: number;
 }
 
+export interface PharmacyRxDetailItem {
+  id: string;
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  route: string | null;
+  instructions: string | null;
+  quantity: number;
+  catalog_item_id: string | null;
+  unit_price: number;
+  tax_percent: number;
+  taxable_amount: number;
+  tax_amount: number;
+  line_total: number;
+  price_source: "catalog" | "unmatched";
+}
+
+export interface PharmacyRxDetailResponse {
+  prescription: PharmacyPrescriptionRx;
+  items: PharmacyRxDetailItem[];
+  allergies: unknown[];
+}
+
+export interface PharmacyRxReviewItemInput {
+  prescription_item_id: string;
+  catalog_item_id?: string | null;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface ReviewPharmacyPrescriptionRequest {
+  action: string;
+  notes?: string;
+  rejection_reason?: string;
+  items?: PharmacyRxReviewItemInput[];
+}
+
 export interface PharmacyPosSale {
   id: string;
   tenant_id: string;
@@ -28373,6 +28475,7 @@ export interface SignedRecord {
   signer_role: "primary" | "co_signer" | "attestor" | "witness";
   signer_credential_id: string | null;
   signed_at: string;
+  payload_snapshot: Record<string, unknown> | null;
   payload_hash: number[];
   signature_bytes: number[];
   display_image_snapshot: string | null;
@@ -28384,11 +28487,28 @@ export interface SignedRecord {
 export interface SignRequest {
   record_type: string;
   record_id: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   signer_role?: string;
   legal_class?: string;
   credential_id?: string;
   notes?: string;
+}
+
+export interface SignPreviewRequest {
+  record_type: string;
+  record_id: string;
+  signer_role?: string;
+  legal_class?: string;
+}
+
+export interface SignPreviewResponse {
+  record_type: string;
+  record_id: string;
+  signer_role: "primary" | "co_signer" | "attestor" | "witness";
+  legal_class: "administrative" | "clinical" | "medico_legal" | "statutory_export";
+  payload_snapshot: Record<string, unknown>;
+  payload_hash_hex: string;
+  generated_at: string;
 }
 
 export interface SignResponse {
@@ -28399,7 +28519,7 @@ export interface SignResponse {
 
 export interface VerifyRequest {
   signed_record_id: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 }
 
 export interface VerifyResponse {
@@ -28443,6 +28563,12 @@ export interface PendingSignoffEntry {
   record_id: string;
   created_at: string;
   legal_class: string;
+  patient_id?: string | null;
+  patient_name?: string | null;
+  uhid?: string | null;
+  summary?: string | null;
+  context?: string | null;
+  risk_label?: string | null;
 }
 
 /**

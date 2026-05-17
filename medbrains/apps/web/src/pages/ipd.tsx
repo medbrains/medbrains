@@ -1012,9 +1012,8 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
         }
         const sortedDates = [...groups.keys()].sort((a, b) => b.localeCompare(a));
         return sortedDates.map((date) => {
-          const dayNotes = groups
-            .get(date)
-            ?.sort((a, b) => b.created_at.localeCompare(a.created_at));
+          const dayNotes =
+            groups.get(date)?.sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
           const dateLabel = new Date(date).toLocaleDateString(undefined, {
             weekday: "short",
             year: "numeric",

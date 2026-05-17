@@ -1,6 +1,6 @@
 /**
- * Nurse → active admissions worklist. Pick a bed to see its MAR
- * schedule.
+ * Nurse → active admissions worklist. Pick a bed to enter the
+ * bedside workspace.
  */
 
 import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
@@ -21,8 +21,8 @@ export function AdmissionsListScreen(): ReactNode {
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
         eyebrow="NURSE"
-        title="Active admissions"
-        description="Tap a patient to open their MAR schedule."
+        title="My shift"
+        description="Tap a patient to open bedside MAR, vitals, I/O and risk actions."
       />
       {loading && (
         <View style={{ alignItems: "center", paddingVertical: SPACING.lg }}>
@@ -41,7 +41,11 @@ export function AdmissionsListScreen(): ReactNode {
       {!loading && !error && data && data.length > 0 && (
         <ScrollView contentContainerStyle={{ padding: SPACING.md }}>
           {data.map((row) => (
-            <AdmissionRowView key={row.id} row={row} onPress={() => router.push("mar", row)} />
+            <AdmissionRowView
+              key={row.id}
+              row={row}
+              onPress={() => router.push("patient-workspace", row)}
+            />
           ))}
         </ScrollView>
       )}

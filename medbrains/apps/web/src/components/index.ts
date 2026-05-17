@@ -37,6 +37,7 @@ export { PatientSearchSelect } from "./PatientSearchSelect";
 export { PaymentModal } from "./PaymentModal";
 export { ProtectedRoute } from "./ProtectedRoute";
 export { SearchOrCreate } from "./SearchOrCreate";
+export { ShareDrawer } from "./Sharing/ShareDrawer";
 export { SelectLabel } from "./SelectLabel";
 export { StatCard } from "./StatCard";
 export { StatusBadge } from "./StatusBadge";

@@ -28,10 +28,11 @@ export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandP
 
   const detail = data as AdmissionDetailResponse | undefined;
   const adm = detail?.admission;
+  const patientId = adm?.patient_id ?? "";
   const { data: patient } = useQuery({
-    queryKey: ["patient-detail", adm?.patient_id],
-    queryFn: () => api.getPatient(adm?.patient_id),
-    enabled: !!adm?.patient_id,
+    queryKey: ["patient-detail", patientId],
+    queryFn: () => api.getPatient(patientId),
+    enabled: patientId.length > 0,
   });
 
   const handlePrint = () => {

@@ -168,6 +168,12 @@ const NabhIndicatorsPage = lazy(() => import("./pages/admin/nabh-indicators"));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
 const GroupsPage = lazy(() => import("./pages/admin/groups"));
+const AdminDoctorsPage = lazy(() =>
+  import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })),
+);
+const AccessRequestsPage = lazy(() =>
+  import("./pages/admin/access-requests").then((m) => ({ default: m.AccessRequestsPage })),
+);
 const SettingsPage = lazy(() =>
   import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })),
 );
@@ -179,6 +185,9 @@ const TvDisplaysPage = lazy(() =>
 );
 const DoctorSchedulesPage = lazy(() =>
   import("./pages/admin/doctor-schedules").then((m) => ({ default: m.DoctorSchedulesPage })),
+);
+const DoctorSignoffsPage = lazy(() =>
+  import("./pages/doctor/signoffs").then((m) => ({ default: m.SignoffsPage })),
 );
 const AnalyticsPage = lazy(() =>
   import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })),
@@ -231,6 +240,7 @@ export function App() {
               <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
               <Route path="opd/appointments" element={<AppointmentsPage />} />
               <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
+              <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
               <Route path="lab" element={<LabPage />} />
               <Route path="radiology" element={<RadiologyPage />} />
               <Route path="pharmacy" element={<PharmacyPage />} />
@@ -287,9 +297,11 @@ export function App() {
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="doctors" element={<AdminDoctorsPage />} />
                 <Route path="nabh-indicators" element={<NabhIndicatorsPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="groups" element={<GroupsPage />} />
+                <Route path="access-requests" element={<AccessRequestsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route
                   path="device-integrations"

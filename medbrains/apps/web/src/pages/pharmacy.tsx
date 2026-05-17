@@ -50,6 +50,9 @@ import type {
   PharmacyOrderItemInput,
   PharmacyPaymentMode,
   PharmacyPosSale,
+  PharmacyRxDetailItem,
+  PharmacyRxDetailResponse,
+  PharmacyRxReviewItemInput,
   PharmacyStoreAssignment,
   PharmacyTransferRequest,
   PrescriptionAuditEntry,
@@ -65,15 +68,18 @@ import {
   IconCheck,
   IconClipboardList,
   IconClock,
+  IconDeviceFloppy,
   IconEye,
   IconLock,
   IconPackage,
+  IconPencil,
   IconPill,
   IconPlus,
   IconPrescription,
   IconReceipt,
   IconShieldCheck,
   IconShoppingCart,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -98,6 +104,7 @@ import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
 import { usePatientName } from "../hooks/usePatientName";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { instructionsDisplayText } from "../lib/medication-timing-utils";
+import styles from "./pharmacy.module.scss";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -113,6 +120,75 @@ const dispensingTypeLabels: Record<string, string> = {
   package: "Package",
   emergency: "Emergency",
 };
+
+type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
+  catalog_item_id?: string;
+  tax_percent?: number;
+};
+
+function formatInr(value: number) {
+  return `₹${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
+}
+
+function draftItemTaxAmount(item: DraftPharmacyOrderItem) {
+  return item.quantity * item.unit_price * ((item.tax_percent ?? 0) / 100);
+}
+
+function draftItemTotal(item: DraftPharmacyOrderItem) {
+  return item.quantity * item.unit_price + draftItemTaxAmount(item);
+}
+
+function draftTotals(items: DraftPharmacyOrderItem[]) {
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const tax = items.reduce((sum, item) => sum + draftItemTaxAmount(item), 0);
+  return {
+    subtotal,
+    tax,
+    total: subtotal + tax,
+  };
+}
+
+function rxReviewInputFromItem(item: PharmacyRxDetailItem): PharmacyRxReviewItemInput {
+  return {
+    prescription_item_id: item.id,
+    catalog_item_id: item.catalog_item_id,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+  };
+}
+
+function applyRxReviewItems(
+  items: PharmacyRxDetailItem[],
+  reviewItems: PharmacyRxReviewItemInput[],
+) {
+  if (reviewItems.length === 0) return items;
+  return items.map((item) => {
+    const reviewed = reviewItems.find((line) => line.prescription_item_id === item.id);
+    if (!reviewed) return item;
+    const taxableAmount = reviewed.quantity * reviewed.unit_price;
+    const taxAmount = taxableAmount * (Number(item.tax_percent || 0) / 100);
+    return {
+      ...item,
+      quantity: reviewed.quantity,
+      unit_price: reviewed.unit_price,
+      taxable_amount: taxableAmount,
+      tax_amount: taxAmount,
+      line_total: taxableAmount + taxAmount,
+    };
+  });
+}
+
+function rxHasPriceOverride(
+  items: PharmacyRxDetailItem[],
+  reviewItems: PharmacyRxReviewItemInput[],
+) {
+  if (reviewItems.length === 0) return false;
+  return reviewItems.some((line) => {
+    const base = items.find((item) => item.id === line.prescription_item_id);
+    if (!base) return false;
+    return Math.abs(Number(line.unit_price) - Number(base.unit_price)) >= 0.01;
+  });
+}
 
 // Dropdown options for categorical fields - aligned with ATC classification
 const DRUG_CATEGORIES = [
@@ -227,7 +303,7 @@ function PharmacyPageInner() {
       <FormularyCheckModal opened={formularyModalOpen} onClose={closeFormularyModal} />
 
       <Tabs defaultValue={canViewRxQueue ? "rx-queue" : "orders"}>
-        <Tabs.List mb="md">
+        <Tabs.List mb="md" className={styles.tabsList}>
           {canViewRxQueue && (
             <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>
               {t("rxQueue")}
@@ -491,7 +567,11 @@ function PharmacyOrdersTab({
         size="xl"
       >
         {selectedOrderId && (
-          <PharmacyOrderDetail orderId={selectedOrderId} canViewReturns={canViewReturns} />
+          <PharmacyOrderDetail
+            orderId={selectedOrderId}
+            canEditItems={canDispense}
+            canViewReturns={canViewReturns}
+          />
         )}
       </Drawer>
     </Stack>
@@ -501,8 +581,8 @@ function PharmacyOrdersTab({
 function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<(PharmacyOrderItemInput & { catalog_item_id?: string })[]>([
-    { drug_name: "", quantity: 1, unit_price: 0 },
+  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([
+    { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 },
   ]);
 
   const createMutation = useMutation({
@@ -512,7 +592,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
       notifications.show({ title: "OTC Sale", message: "Walk-in sale recorded", color: "teal" });
       onClose();
       setNotes("");
-      setItems([{ drug_name: "", quantity: 1, unit_price: 0 }]);
+      setItems([{ drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }]);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to record OTC sale", color: "danger" });
@@ -531,6 +611,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
             key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
             withBorder
             padding="xs"
+            className={styles.medicationCard}
           >
             <Stack gap="xs">
               <DrugSearchSelect
@@ -542,6 +623,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
                     catalog_item_id: drugId,
                     drug_name: drug?.name ?? "",
                     unit_price: drug ? Number(drug.base_price) : 0,
+                    tax_percent: drug ? Number(drug.tax_percent) : 0,
                   };
                   setItems(updated);
                 }}
@@ -572,6 +654,14 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
                   }}
                 />
               </Group>
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">
+                  GST {item.tax_percent ?? 0}%: {formatInr(draftItemTaxAmount(item))}
+                </Text>
+                <Text size="sm" fw={700}>
+                  Total {formatInr(draftItemTotal(item))}
+                </Text>
+              </Group>
             </Stack>
           </Card>
         ))}
@@ -580,7 +670,9 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}
+            onClick={() =>
+              setItems([...items, { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }])
+            }
           >
             Add Drug
           </Button>
@@ -604,24 +696,25 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
   const [safetyOverrideReason, setSafetyOverrideReason] = useState("");
-  const [items, setItems] = useState<(PharmacyOrderItemInput & { catalog_item_id?: string })[]>([
-    { drug_name: "", quantity: 1, unit_price: 0 },
+  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([
+    { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 },
   ]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyOrderRequest) => api.createPharmacyOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       notifications.show({
         title: "Order created",
-        message: "Pharmacy order placed",
+        message: "Pharmacy order placed and draft billing indent updated",
         color: "success",
       });
       onClose();
       setPatientId("");
       setNotes("");
       setSafetyOverrideReason("");
-      setItems([{ drug_name: "", quantity: 1, unit_price: 0 }]);
+      setItems([{ drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }]);
     },
     onError: (error) => {
       notifications.show({
@@ -632,7 +725,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
     },
   });
 
-  const orderTotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+  const orderTotals = draftTotals(items);
   const createError =
     createMutation.error instanceof Error ? createMutation.error.message : undefined;
 
@@ -663,6 +756,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
             key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
             withBorder
             padding="xs"
+            className={styles.medicationCard}
           >
             <Stack gap="xs">
               <DrugSearchSelect
@@ -674,6 +768,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
                     catalog_item_id: drugId,
                     drug_name: drug?.name ?? "",
                     unit_price: drug ? Number(drug.base_price) : 0,
+                    tax_percent: drug ? Number(drug.tax_percent) : 0,
                   };
                   setItems(updated);
                 }}
@@ -692,7 +787,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
                   }}
                 />
                 <NumberInput
-                  label="Unit Price"
+                  label="Unit Price (ex-GST)"
                   min={0}
                   decimalScale={2}
                   prefix="₹"
@@ -708,9 +803,17 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
                     Subtotal
                   </Text>
                   <Text size="sm" fw={600}>
-                    ₹{(item.quantity * item.unit_price).toFixed(2)}
+                    {formatInr(item.quantity * item.unit_price)}
                   </Text>
                 </Stack>
+              </Group>
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">
+                  GST {item.tax_percent ?? 0}%: {formatInr(draftItemTaxAmount(item))}
+                </Text>
+                <Text size="sm" fw={700}>
+                  Total {formatInr(draftItemTotal(item))}
+                </Text>
               </Group>
               {items.length > 1 && (
                 <Button
@@ -730,11 +833,18 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setItems([...items, { drug_name: "", quantity: 1, unit_price: 0 }])}
+            onClick={() =>
+              setItems([...items, { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }])
+            }
           >
             Add Drug
           </Button>
-          <Text fw={700}>Total: ₹{orderTotal.toFixed(2)}</Text>
+          <Stack gap={0} align="flex-end">
+            <Text size="xs" c="dimmed">
+              Subtotal {formatInr(orderTotals.subtotal)} · GST {formatInr(orderTotals.tax)}
+            </Text>
+            <Text fw={700}>Payable: {formatInr(orderTotals.total)}</Text>
+          </Stack>
         </Group>
         <Button
           fullWidth
@@ -758,11 +868,14 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
 
 function PharmacyOrderDetail({
   orderId,
+  canEditItems,
   canViewReturns,
 }: {
   orderId: string;
+  canEditItems: boolean;
   canViewReturns: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [showAudit, setShowAudit] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
@@ -784,9 +897,39 @@ function PharmacyOrderDetail({
   // dispensed-medication label, so resolve to real name + UHID.
   const { data: patientName } = usePatientName(detail?.order.patient_id);
 
+  const updateItemMutation = useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      api.updatePharmacyOrderItem(orderId, itemId, { quantity }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      notifications.show({
+        title: "Quantity updated",
+        message: "Order item and draft billing line were updated",
+        color: "green",
+      });
+    },
+  });
+
+  const removeItemMutation = useMutation({
+    mutationFn: (itemId: string) => api.removePharmacyOrderItem(orderId, itemId),
+    onSuccess: (next) => {
+      queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      notifications.show({
+        title: "Item removed",
+        message: "Order item was removed and the draft billing line was reversed",
+        color: "green",
+      });
+    },
+  });
+
   if (!detail) return <Text c="dimmed">Loading...</Text>;
 
   const hasRxItems = rxData && rxData.items.length > 0;
+  const canEditOrderItems = canEditItems && detail.order.status === "ordered";
 
   return (
     <Stack>
@@ -805,6 +948,11 @@ function PharmacyOrderDetail({
         <Text size="xs" c="dimmed">
           Dispensed: {new Date(detail.order.dispensed_at).toLocaleString()}
         </Text>
+      )}
+      {canEditOrderItems && (
+        <Alert color="primary" variant="light" icon={<IconShieldCheck size={16} />}>
+          Edit or remove medicines before dispense. Draft billing lines stay synchronized.
+        </Alert>
       )}
       <PatientContextBanner patientId={detail.order.patient_id} hideLoadingState />
 
@@ -835,6 +983,7 @@ function PharmacyOrderDetail({
               <Table.Th>Unit Price</Table.Th>
               <Table.Th>Total</Table.Th>
               {canViewReturns && <Table.Th>Returned</Table.Th>}
+              {canEditOrderItems && <Table.Th>Actions</Table.Th>}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -845,17 +994,52 @@ function PharmacyOrderDetail({
                 <Table.Td>
                   {item.expiry_date ? <ExpiryCell date={item.expiry_date} /> : "\u2014"}
                 </Table.Td>
-                <Table.Td>{item.quantity}</Table.Td>
                 <Table.Td>
-                  {"\u20B9"}
-                  {item.unit_price}
+                  {canEditOrderItems ? (
+                    <EditablePharmacyQuantity
+                      key={`${item.id}-${item.quantity}`}
+                      item={item}
+                      isSaving={updateItemMutation.isPending}
+                      onSave={(quantity) =>
+                        updateItemMutation.mutate({ itemId: item.id, quantity })
+                      }
+                    />
+                  ) : (
+                    item.quantity
+                  )}
                 </Table.Td>
                 <Table.Td>
                   {"\u20B9"}
-                  {item.total_price}
+                  {Number(item.unit_price).toFixed(2)}
+                </Table.Td>
+                <Table.Td>
+                  {"\u20B9"}
+                  {Number(item.total_price).toFixed(2)}
                 </Table.Td>
                 {canViewReturns && (
                   <Table.Td>{item.quantity_returned > 0 ? item.quantity_returned : "—"}</Table.Td>
+                )}
+                {canEditOrderItems && (
+                  <Table.Td>
+                    <Tooltip
+                      label={
+                        detail.items.length <= 1
+                          ? "At least one item must remain"
+                          : "Remove item before dispense"
+                      }
+                    >
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="danger"
+                        disabled={detail.items.length <= 1 || removeItemMutation.isPending}
+                        onClick={() => removeItemMutation.mutate(item.id)}
+                        aria-label={`Remove ${item.drug_name}`}
+                      >
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
                 )}
               </Table.Tr>
             ))}
@@ -904,6 +1088,51 @@ function PharmacyOrderDetail({
         />
       )}
     </Stack>
+  );
+}
+
+function EditablePharmacyQuantity({
+  item,
+  isSaving,
+  onSave,
+}: {
+  item: PharmacyOrderDetailResponse["items"][number];
+  isSaving: boolean;
+  onSave: (quantity: number) => void;
+}) {
+  const [quantity, setQuantity] = useState(item.quantity);
+  const canSave = Number.isInteger(quantity) && quantity > 0 && quantity !== item.quantity;
+
+  return (
+    <Group gap={4} wrap="nowrap">
+      <NumberInput
+        value={quantity}
+        min={1}
+        step={1}
+        allowDecimal={false}
+        clampBehavior="strict"
+        hideControls
+        size="xs"
+        w={72}
+        onChange={(value) => {
+          const next = typeof value === "number" ? value : Number.parseInt(value || "0", 10);
+          setQuantity(Number.isFinite(next) ? next : 0);
+        }}
+      />
+      <Tooltip label="Save quantity">
+        <ActionIcon
+          size="sm"
+          variant="light"
+          color="primary"
+          disabled={!canSave || isSaving}
+          loading={isSaving && canSave}
+          onClick={() => onSave(quantity)}
+          aria-label={`Save ${item.drug_name} quantity`}
+        >
+          <IconDeviceFloppy size={14} />
+        </ActionIcon>
+      </Tooltip>
+    </Group>
   );
 }
 
@@ -2350,6 +2579,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   const [reviewAction, setReviewAction] = useState<string>("approved");
   const [reviewNotes, setReviewNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  const [reviewItems, setReviewItems] = useState<PharmacyRxReviewItemInput[]>([]);
 
   const params = filterStatus ? { status: filterStatus } : undefined;
   const { data: queue = [], isLoading } = useQuery({
@@ -2359,22 +2589,49 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: (data: { id: string; action: string; notes?: string; rejection_reason?: string }) =>
+    mutationFn: (data: {
+      id: string;
+      action: string;
+      notes?: string;
+      rejection_reason?: string;
+      items?: PharmacyRxReviewItemInput[];
+    }) =>
       api.reviewPrescription(data.id, {
         action: data.action,
         notes: data.notes,
         rejection_reason: data.rejection_reason,
+        items: data.items,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
       closeReview();
       setReviewNotes("");
       setRejectionReason("");
-      notifications.show({ title: "Success", message: "Prescription reviewed", color: "green" });
+      setReviewItems([]);
+      notifications.show({
+        title: "Prescription reviewed",
+        message:
+          reviewAction === "approved"
+            ? "Pharmacy order and draft billing indent were created"
+            : "Queue status updated",
+        color: "green",
+      });
     },
   });
 
+  const { data: reviewDetail, isLoading: reviewDetailLoading } = useQuery({
+    queryKey: ["pharmacy-rx-detail", selectedId],
+    queryFn: () => api.getRxDetail(selectedId as string),
+    enabled: reviewOpened && reviewAction === "approved" && Boolean(selectedId),
+  });
+
   function handleOpenReview(id: string, action: string) {
+    if (selectedId !== id) {
+      setReviewItems([]);
+    }
     setSelectedId(id);
     setReviewAction(action);
     openReview();
@@ -2382,11 +2639,19 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
   function handleSubmitReview() {
     if (!selectedId) return;
+    const baseItems = reviewDetail?.items ?? [];
+    const itemsForApproval =
+      reviewAction === "approved"
+        ? reviewItems.length > 0
+          ? reviewItems
+          : baseItems.map(rxReviewInputFromItem)
+        : undefined;
     reviewMutation.mutate({
       id: selectedId,
       action: reviewAction,
       notes: reviewNotes || undefined,
       rejection_reason: reviewAction === "rejected" ? rejectionReason || undefined : undefined,
+      items: itemsForApproval,
     });
   }
 
@@ -2466,6 +2731,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
               size="sm"
               variant="subtle"
               onClick={() => {
+                setReviewItems([]);
                 setSelectedId(row.id);
               }}
               aria-label="View details"
@@ -2515,6 +2781,11 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
     },
   ];
 
+  const needsPriceOverrideReason =
+    reviewAction === "approved" &&
+    rxHasPriceOverride(reviewDetail?.items ?? [], reviewItems) &&
+    !reviewNotes.trim();
+
   return (
     <Stack>
       <Group justify="space-between">
@@ -2548,6 +2819,8 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
           <RxDetailView
             rxQueueId={selectedId}
             canReview={canReview}
+            reviewItems={reviewItems}
+            onReviewItemsChange={setReviewItems}
             onReview={(action) => {
               handleOpenReview(selectedId, action);
             }}
@@ -2563,7 +2836,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       >
         <Stack>
           <Textarea
-            label="Notes"
+            label={reviewAction === "approved" ? "Review notes / price override reason" : "Notes"}
             value={reviewNotes}
             onChange={(e) => setReviewNotes(e.currentTarget.value)}
           />
@@ -2574,6 +2847,25 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.currentTarget.value)}
             />
+          )}
+          {reviewAction === "approved" && (
+            <RxBillingEstimate
+              items={applyRxReviewItems(reviewDetail?.items ?? [], reviewItems)}
+              loading={reviewDetailLoading}
+              editable
+              reviewItems={
+                reviewItems.length > 0
+                  ? reviewItems
+                  : (reviewDetail?.items ?? []).map(rxReviewInputFromItem)
+              }
+              onReviewItemsChange={setReviewItems}
+            />
+          )}
+          {needsPriceOverrideReason && (
+            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+              Enter a review note before approving because one or more item prices differ from
+              catalog price.
+            </Alert>
           )}
           <Group justify="flex-end">
             <Button variant="default" onClick={closeReview}>
@@ -2588,6 +2880,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
                     : "success"
               }
               loading={reviewMutation.isPending}
+              disabled={needsPriceOverrideReason}
               onClick={handleSubmitReview}
             >
               {reviewAction === "approved"
@@ -2607,10 +2900,14 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 function RxDetailView({
   rxQueueId,
   canReview,
+  reviewItems,
+  onReviewItemsChange,
   onReview,
 }: {
   rxQueueId: string;
   canReview: boolean;
+  reviewItems: PharmacyRxReviewItemInput[];
+  onReviewItemsChange: (items: PharmacyRxReviewItemInput[]) => void;
   onReview: (action: string) => void;
 }) {
   const { data, isLoading, error } = useQuery({
@@ -2628,46 +2925,35 @@ function RxDetailView({
     );
   if (!data) return <Text c="dimmed">No prescription data</Text>;
 
-  const { prescription, items, allergies } = data as unknown as {
-    prescription: Record<string, unknown>;
-    items: unknown[];
-    allergies: unknown[];
-  };
-  const rxItems = items as {
-    drug_name: string;
-    dosage: string;
-    frequency: string;
-    duration: string;
-    route?: string;
-    instructions?: string;
-  }[];
+  const { prescription, items: rxItems, allergies } = data as PharmacyRxDetailResponse;
+  const pricedRxItems = applyRxReviewItems(rxItems, reviewItems);
   const allergyNames = (allergies as { allergen_name: string }[]).map((a) => a.allergen_name);
-  const patientId = prescription.patient_id as string;
-  const status = prescription.status as string;
+  const patientId = prescription.patient_id;
+  const status = prescription.status;
 
   // Build PrescriptionWithItems format for the 4-view component
   const rxForViews: PrescriptionWithItems[] = [
     {
       prescription: {
         id: prescription.prescription_id as string,
-        tenant_id: prescription.tenant_id as string,
-        encounter_id: prescription.encounter_id as string,
-        doctor_id: prescription.doctor_id as string,
+        tenant_id: prescription.tenant_id,
+        encounter_id: prescription.encounter_id,
+        doctor_id: prescription.doctor_id,
         notes: null,
-        created_at: prescription.received_at as string,
-        updated_at: prescription.received_at as string,
+        created_at: prescription.received_at,
+        updated_at: prescription.received_at,
       },
       items: rxItems.map((it, idx) => ({
         id: `item-${idx}`,
-        tenant_id: prescription.tenant_id as string,
-        prescription_id: prescription.prescription_id as string,
+        tenant_id: prescription.tenant_id,
+        prescription_id: prescription.prescription_id,
         drug_name: it.drug_name,
         dosage: it.dosage,
         frequency: it.frequency,
         duration: it.duration,
         route: it.route ?? null,
         instructions: it.instructions ?? null,
-        created_at: prescription.received_at as string,
+        created_at: prescription.received_at,
       })),
     },
   ];
@@ -2692,6 +2978,13 @@ function RxDetailView({
           </Group>
         </Alert>
       )}
+
+      <RxBillingEstimate
+        items={pricedRxItems}
+        editable={canReview && status === "pending_review"}
+        reviewItems={reviewItems.length > 0 ? reviewItems : rxItems.map(rxReviewInputFromItem)}
+        onReviewItemsChange={onReviewItemsChange}
+      />
 
       {/* Status + actions */}
       <Group justify="space-between">
@@ -2779,6 +3072,174 @@ function RxDetailView({
         allergies={allergyNames}
       />
     </Stack>
+  );
+}
+
+function RxBillingEstimate({
+  items,
+  loading = false,
+  editable = false,
+  reviewItems,
+  onReviewItemsChange,
+}: {
+  items: PharmacyRxDetailItem[];
+  loading?: boolean;
+  editable?: boolean;
+  reviewItems?: PharmacyRxReviewItemInput[];
+  onReviewItemsChange?: (items: PharmacyRxReviewItemInput[]) => void;
+}) {
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const subtotal = items.reduce((sum, item) => sum + Number(item.taxable_amount || 0), 0);
+  const tax = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
+  const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const unmatchedCount = items.filter((item) => item.price_source === "unmatched").length;
+  const canEdit = editable && Boolean(onReviewItemsChange);
+
+  function updateReviewLine(item: PharmacyRxDetailItem, patch: Partial<PharmacyRxReviewItemInput>) {
+    if (!onReviewItemsChange) return;
+    const current = reviewItems?.length ? reviewItems : items.map(rxReviewInputFromItem);
+    const next = current.map((line) =>
+      line.prescription_item_id === item.id
+        ? {
+            ...line,
+            ...patch,
+          }
+        : line,
+    );
+    onReviewItemsChange(next);
+  }
+
+  if (loading) {
+    return (
+      <Card withBorder padding="sm" className={styles.rxEstimateCard}>
+        <Group gap="xs">
+          <Loader size="xs" />
+          <Text size="sm" c="dimmed">
+            Calculating price and GST...
+          </Text>
+        </Group>
+      </Card>
+    );
+  }
+
+  return (
+    <Card withBorder padding="sm" className={styles.rxEstimateCard}>
+      <Stack gap="xs">
+        <Group justify="space-between">
+          <Text fw={700}>Price & GST before approval</Text>
+          {unmatchedCount > 0 && (
+            <Badge color="warning" variant="light">
+              {unmatchedCount} unpriced
+            </Badge>
+          )}
+        </Group>
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Drug</Table.Th>
+              <Table.Th>Qty</Table.Th>
+              <Table.Th>Unit</Table.Th>
+              <Table.Th>GST</Table.Th>
+              <Table.Th>Tax</Table.Th>
+              <Table.Th>Total</Table.Th>
+              {canEdit && <Table.Th>Actions</Table.Th>}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {items.map((item) => {
+              const isEditing = editingItemId === item.id;
+              return (
+                <Table.Tr key={item.id}>
+                  <Table.Td>
+                    <Stack gap={0}>
+                      <Text size="sm" fw={600}>
+                        {item.drug_name}
+                      </Text>
+                      {item.price_source === "unmatched" && (
+                        <Text size="xs" c="warning">
+                          Not matched to formulary/catalog
+                        </Text>
+                      )}
+                    </Stack>
+                  </Table.Td>
+                  <Table.Td>
+                    {isEditing ? (
+                      <NumberInput
+                        value={item.quantity}
+                        min={1}
+                        step={1}
+                        allowDecimal={false}
+                        hideControls
+                        size="xs"
+                        w={72}
+                        onChange={(value) => {
+                          const next =
+                            typeof value === "number" ? value : Number.parseInt(value || "1", 10);
+                          updateReviewLine(item, {
+                            quantity: Number.isFinite(next) && next > 0 ? next : 1,
+                          });
+                        }}
+                      />
+                    ) : (
+                      item.quantity
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    {isEditing ? (
+                      <NumberInput
+                        value={item.unit_price}
+                        min={0}
+                        decimalScale={2}
+                        prefix="₹"
+                        hideControls
+                        size="xs"
+                        w={110}
+                        onChange={(value) => {
+                          const next =
+                            typeof value === "number" ? value : Number.parseFloat(value || "0");
+                          updateReviewLine(item, {
+                            unit_price: Number.isFinite(next) && next >= 0 ? next : 0,
+                          });
+                        }}
+                      />
+                    ) : (
+                      formatInr(Number(item.unit_price || 0))
+                    )}
+                  </Table.Td>
+                  <Table.Td>{Number(item.tax_percent || 0).toFixed(2)}%</Table.Td>
+                  <Table.Td>{formatInr(Number(item.tax_amount || 0))}</Table.Td>
+                  <Table.Td fw={700}>{formatInr(Number(item.line_total || 0))}</Table.Td>
+                  {canEdit && (
+                    <Table.Td>
+                      <Tooltip label={isEditing ? "Done editing" : "Edit quantity and price"}>
+                        <ActionIcon
+                          size="sm"
+                          variant={isEditing ? "light" : "subtle"}
+                          color={isEditing ? "primary" : "gray"}
+                          onClick={() => setEditingItemId(isEditing ? null : item.id)}
+                          aria-label={`${isEditing ? "Save" : "Edit"} ${item.drug_name}`}
+                        >
+                          {isEditing ? <IconDeviceFloppy size={14} /> : <IconPencil size={14} />}
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
+                  )}
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+        <Group justify="flex-end" gap="lg" className={styles.billingSummaryBand}>
+          <Text size="sm" c="dimmed">
+            Subtotal {formatInr(subtotal)}
+          </Text>
+          <Text size="sm" c="dimmed">
+            GST {formatInr(tax)}
+          </Text>
+          <Text fw={800}>Billing indent total {formatInr(total)}</Text>
+        </Group>
+      </Stack>
+    </Card>
   );
 }
 

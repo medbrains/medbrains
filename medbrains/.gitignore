@@ -37,6 +37,9 @@ coverage/
 # Local development logs
 var/log/dev/
 
+# Local CLI tools downloaded during checks
+.tools/
+
 # Local development certificates
 var/local-https/
 

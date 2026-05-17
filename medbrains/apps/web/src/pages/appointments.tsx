@@ -139,8 +139,8 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
         doctor_id: selectedDoctorId!,
         department_id: selectedDeptId!,
         appointment_date: dateStr,
-        slot_start: selectedSlot?.start_time,
-        slot_end: selectedSlot?.end_time,
+        slot_start: selectedSlot?.start_time ?? "",
+        slot_end: selectedSlot?.end_time ?? "",
         appointment_type: appointmentType as
           | "new_visit"
           | "follow_up"
@@ -421,10 +421,12 @@ export function AppointmentsPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () =>
-      api.cancelAppointment(cancelTarget?.id, {
+    mutationFn: () => {
+      if (!cancelTarget) throw new Error("No appointment selected");
+      return api.cancelAppointment(cancelTarget.id, {
         cancel_reason: cancelReason || undefined,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({
         title: "Cancelled",
@@ -447,13 +449,15 @@ export function AppointmentsPage() {
 
   const rescheduleSlots = useQuery({
     queryKey: ["available-slots", rescheduleTarget?.doctor_id, rescheduleDate],
-    queryFn: () => api.getAvailableSlots(rescheduleTarget?.doctor_id, rescheduleDate!),
+    queryFn: () => api.getAvailableSlots(rescheduleTarget?.doctor_id ?? "", rescheduleDate ?? ""),
     enabled: !!rescheduleTarget && !!rescheduleDate,
   });
 
   const rescheduleMutation = useMutation({
-    mutationFn: (data: RescheduleAppointmentRequest) =>
-      api.rescheduleAppointment(rescheduleTarget?.id, data),
+    mutationFn: (data: RescheduleAppointmentRequest) => {
+      if (!rescheduleTarget) throw new Error("No appointment selected");
+      return api.rescheduleAppointment(rescheduleTarget.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Rescheduled",

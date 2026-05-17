@@ -617,22 +617,22 @@ pub async fn get_indicators(
     // ── Access / OPD waiting time (NABH 6) ─────────────────
     let opd_wait = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(seen_at - registered_at))/60.0 \
+        "SELECT EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0 \
          FROM opd_queues \
          WHERE tenant_id = $1 \
-           AND seen_at IS NOT NULL AND registered_at IS NOT NULL \
-           AND seen_at >= date_trunc('month', now())",
+           AND COALESCE(called_at, completed_at) IS NOT NULL \
+           AND COALESCE(called_at, completed_at) >= date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
     let opd_wait_prev = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(seen_at - registered_at))/60.0 \
+        "SELECT EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0 \
          FROM opd_queues \
          WHERE tenant_id = $1 \
-           AND seen_at IS NOT NULL AND registered_at IS NOT NULL \
-           AND seen_at >= date_trunc('month', now() - interval '1 month') \
-           AND seen_at <  date_trunc('month', now())",
+           AND COALESCE(called_at, completed_at) IS NOT NULL \
+           AND COALESCE(called_at, completed_at) >= date_trunc('month', now() - interval '1 month') \
+           AND COALESCE(called_at, completed_at) <  date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
@@ -652,11 +652,11 @@ pub async fn get_indicators(
     // ── Access / ER triage TAT (NABH 3) ────────────────────
     let er_triage = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(triaged_at - arrived_at))/60.0 \
-         FROM emergency_visits \
+        "SELECT AVG(door_to_doctor_mins)::float \
+         FROM er_visits \
          WHERE tenant_id = $1 \
-           AND triaged_at IS NOT NULL AND arrived_at IS NOT NULL \
-           AND arrived_at >= date_trunc('month', now())",
+           AND door_to_doctor_mins IS NOT NULL \
+           AND arrival_time >= date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
@@ -699,9 +699,9 @@ pub async fn get_indicators(
     // ── Operations / Bed occupancy % ───────────────────────
     let occupancy = scalar_f64(
         &mut tx,
-        "SELECT 100.0 * COUNT(*) FILTER (WHERE status = 'occupied')::float \
+        "SELECT 100.0 * COUNT(*) FILTER (WHERE is_occupied)::float \
                 / NULLIF(COUNT(*), 0)::float \
-         FROM beds WHERE tenant_id = $1 AND is_active",
+         FROM beds WHERE tenant_id = $1",
         claims.tenant_id,
     )
     .await;
@@ -721,10 +721,10 @@ pub async fn get_indicators(
     // ── Clinical / Lab TAT (NABH 8) ────────────────────────
     let lab_tat = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(reported_at - ordered_at))/60.0 \
+        "SELECT EXTRACT(EPOCH FROM AVG(completed_at - created_at))/60.0 \
          FROM lab_orders \
-         WHERE tenant_id = $1 AND reported_at IS NOT NULL \
-           AND reported_at >= date_trunc('month', now())",
+         WHERE tenant_id = $1 AND completed_at IS NOT NULL \
+           AND completed_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
@@ -744,10 +744,20 @@ pub async fn get_indicators(
     // ── Clinical / Imaging TAT (NABH 11) ───────────────────
     let img_tat = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(reported_at - ordered_at))/60.0 \
-         FROM radiology_orders \
-         WHERE tenant_id = $1 AND reported_at IS NOT NULL \
-           AND reported_at >= date_trunc('month', now())",
+        "SELECT EXTRACT(EPOCH FROM AVG( \
+             COALESCE(rr.verified_at, rr.created_at, ro.completed_at) - ro.created_at \
+         ))/60.0 \
+         FROM radiology_orders ro \
+         LEFT JOIN LATERAL ( \
+             SELECT r.verified_at, r.created_at \
+             FROM radiology_reports r \
+             WHERE r.tenant_id = ro.tenant_id AND r.order_id = ro.id \
+             ORDER BY COALESCE(r.verified_at, r.created_at) DESC \
+             LIMIT 1 \
+         ) rr ON true \
+         WHERE ro.tenant_id = $1 \
+           AND COALESCE(rr.verified_at, rr.created_at, ro.completed_at) IS NOT NULL \
+           AND COALESCE(rr.verified_at, rr.created_at, ro.completed_at) >= date_trunc('month', now())",
         claims.tenant_id,
     )
     .await;
@@ -902,11 +912,14 @@ pub async fn get_indicators(
     .unwrap_or(0.0);
     let patient_days = scalar_f64(
         &mut tx,
-        "SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (LEAST(discharge_at, now()) - admission_at)) / 86400.0), 0)::float \
+        "SELECT COALESCE(SUM(EXTRACT(EPOCH FROM ( \
+             LEAST(COALESCE(discharged_at, now()), now()) \
+             - GREATEST(admitted_at, date_trunc('month', now())) \
+         )) / 86400.0), 0)::float \
          FROM admissions \
          WHERE tenant_id = $1 \
-           AND admission_at < now() \
-           AND admission_at >= date_trunc('month', now())",
+           AND admitted_at < now() \
+           AND (discharged_at IS NULL OR discharged_at >= date_trunc('month', now()))",
         claims.tenant_id,
     )
     .await
@@ -1153,13 +1166,17 @@ async fn scalar_f64(
     sql: &str,
     tenant_id: uuid::Uuid,
 ) -> Option<f64> {
-    sqlx::query_scalar::<_, Option<f64>>(sql)
+    match sqlx::query_scalar::<_, Option<f64>>(sql)
         .bind(tenant_id)
         .fetch_optional(&mut **tx)
         .await
-        .ok()
-        .flatten()
-        .flatten()
+    {
+        Ok(value) => value.flatten(),
+        Err(error) => {
+            tracing::warn!(%error, query = sql, "NABH indicator query failed");
+            None
+        }
+    }
 }
 
 async fn scalar_minutes(

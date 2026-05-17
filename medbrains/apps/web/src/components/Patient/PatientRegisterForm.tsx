@@ -1,15 +1,29 @@
-import { Box, Button, Grid, Select, Textarea, TextInput } from "@mantine/core";
+import {
+  Box,
+  Button,
+  Checkbox,
+  Grid,
+  NumberInput,
+  Select,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { api } from "@medbrains/api";
 import type {
   BloodGroup,
   CreatePatientRequest,
+  DepartmentRow,
   FinancialClass,
   Gender,
   MaritalStatus,
   PatientCategory,
   RegistrationSource,
   RegistrationType,
+  SetupUser,
 } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ClinicalForm, FormRow, FormSection } from "../ClinicalForm";
 import { AllergyField } from "../inputs";
@@ -52,6 +66,7 @@ interface FormValues {
   last_name: string;
   suffix?: string;
   date_of_birth?: Date | null;
+  age_years?: number;
   gender: Gender;
   blood_group?: BloodGroup;
   marital_status?: MaritalStatus;
@@ -67,6 +82,20 @@ interface FormValues {
   registration_type?: RegistrationType;
   registration_source?: RegistrationSource;
   financial_class?: FinancialClass;
+  abha_number?: string;
+  abha_address?: string;
+  aadhaar_number?: string;
+  referred_by_name?: string;
+  referred_by_phone?: string;
+  referred_by_facility?: string;
+  department_id?: string;
+  consultant_id?: string;
+  clinical_unit?: string;
+  camp_id?: string;
+  camp_name?: string;
+  initial_diagnosis_text?: string;
+  icd10_code?: string;
+  icd11_code?: string;
   is_medico_legal?: boolean;
   mlc_number?: string;
   is_vip?: boolean;
@@ -144,6 +173,29 @@ const categoryOptions: { value: PatientCategory; label: string }[] = [
   { value: "charity", label: "Charity" },
 ];
 
+const registrationTypeOptions: { value: RegistrationType; label: string }[] = [
+  { value: "new", label: "New" },
+  { value: "revisit", label: "Revisit" },
+  { value: "transfer_in", label: "Transfer in" },
+  { value: "referral", label: "Referral" },
+  { value: "emergency", label: "Emergency" },
+  { value: "camp", label: "Camp" },
+  { value: "telemedicine", label: "Telemedicine" },
+  { value: "pre_registration", label: "Pre-registration" },
+];
+
+const registrationSourceOptions: { value: RegistrationSource; label: string }[] = [
+  { value: "walk_in", label: "Walk-in" },
+  { value: "phone", label: "Phone" },
+  { value: "online_portal", label: "Online portal" },
+  { value: "mobile_app", label: "Mobile app" },
+  { value: "kiosk", label: "Kiosk" },
+  { value: "referral", label: "Referral" },
+  { value: "ambulance", label: "Ambulance" },
+  { value: "camp", label: "Camp" },
+  { value: "telemedicine", label: "Telemedicine" },
+];
+
 const prefixOptions = [
   { value: "Mr.", label: "Mr." },
   { value: "Mrs.", label: "Mrs." },
@@ -161,6 +213,23 @@ const prefixOptions = [
   { value: "Mx.", label: "Mx." },
 ];
 
+function estimateDobFromAge(ageYears: number): Date {
+  const today = new Date();
+  return new Date(today.getFullYear() - ageYears, 0, 1);
+}
+
+function trimOrUndefined(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function optionLabel<T extends { value: string; label: string }>(
+  options: T[],
+  value: string | undefined,
+): string | undefined {
+  return options.find((option) => option.value === value)?.label;
+}
+
 export function PatientRegisterForm({
   quickMode = false,
   isSubmitting,
@@ -172,6 +241,7 @@ export function PatientRegisterForm({
   const {
     register,
     control,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
@@ -194,11 +264,55 @@ export function PatientRegisterForm({
       guardian_name: initialValues?.guardian_name,
       guardian_relation: initialValues?.guardian_relation,
       category: initialValues?.category,
+      registration_type: "new",
+      registration_source: "walk_in",
       known_allergies: initialValues?.known_allergies,
     },
   });
 
+  const { data: departments = [] } = useQuery<DepartmentRow[]>({
+    queryKey: ["setup-departments"],
+    queryFn: () => api.listDepartments(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: doctors = [] } = useQuery<SetupUser[]>({
+    queryKey: ["setup-doctors"],
+    queryFn: () => api.listDoctors(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const departmentOptions = useMemo(
+    () =>
+      departments
+        .filter((department) => department.is_active)
+        .map((department) => ({
+          value: department.id,
+          label: `${department.name} (${department.code})`,
+        })),
+    [departments],
+  );
+  const consultantOptions = useMemo(
+    () =>
+      doctors
+        .filter((doctor) => doctor.is_active)
+        .map((doctor) => ({
+          value: doctor.id,
+          label: [doctor.full_name, doctor.specialization, doctor.medical_registration_number]
+            .filter(Boolean)
+            .join(" · "),
+        })),
+    [doctors],
+  );
+
   const submit = (values: FormValues) => {
+    const dateOfBirth =
+      values.date_of_birth ??
+      (typeof values.age_years === "number" ? estimateDobFromAge(values.age_years) : null);
+    const isDobEstimated = !values.date_of_birth && typeof values.age_years === "number";
+    const departmentName =
+      optionLabel(departmentOptions, values.department_id)?.replace(/\s+\([^)]*\)$/, "") ??
+      undefined;
+    const consultantName = optionLabel(consultantOptions, values.consultant_id);
     const address: Record<string, unknown> = {};
     if (values.line1) address.line1 = values.line1;
     if (values.line2) address.line2 = values.line2;
@@ -255,7 +369,8 @@ export function PatientRegisterForm({
       last_name: values.last_name,
       gender: values.gender,
       phone: values.phone,
-      date_of_birth: values.date_of_birth ? values.date_of_birth.toISOString().slice(0, 10) : null,
+      date_of_birth: dateOfBirth ? dateOfBirth.toISOString().slice(0, 10) : null,
+      is_dob_estimated: isDobEstimated,
       email: values.email || null,
       prefix: values.prefix || undefined,
       middle_name: values.middle_name || undefined,
@@ -272,6 +387,22 @@ export function PatientRegisterForm({
       registration_type: values.registration_type,
       registration_source: values.registration_source,
       financial_class: values.financial_class,
+      abha_number: trimOrUndefined(values.abha_number),
+      abha_address: trimOrUndefined(values.abha_address),
+      aadhaar_number: trimOrUndefined(values.aadhaar_number),
+      referred_by_name: trimOrUndefined(values.referred_by_name),
+      referred_by_phone: trimOrUndefined(values.referred_by_phone),
+      referred_by_facility: trimOrUndefined(values.referred_by_facility),
+      department_id: values.department_id || undefined,
+      department_name: departmentName,
+      consultant_id: values.consultant_id || undefined,
+      consultant_name: consultantName,
+      clinical_unit: trimOrUndefined(values.clinical_unit),
+      camp_id: trimOrUndefined(values.camp_id),
+      camp_name: trimOrUndefined(values.camp_name),
+      initial_diagnosis_text: trimOrUndefined(values.initial_diagnosis_text),
+      icd10_code: trimOrUndefined(values.icd10_code),
+      icd11_code: trimOrUndefined(values.icd11_code),
       is_medico_legal: values.is_medico_legal || undefined,
       mlc_number: values.mlc_number || undefined,
       is_vip: values.is_vip || undefined,
@@ -313,6 +444,7 @@ export function PatientRegisterForm({
                   name="prefix"
                   render={({ field }) => (
                     <Select
+                      aria-label="Prefix"
                       placeholder="Prefix"
                       data={prefixOptions}
                       value={field.value ?? null}
@@ -325,16 +457,22 @@ export function PatientRegisterForm({
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
+                  aria-label="First name"
                   placeholder="First name"
                   error={errors.first_name?.message}
                   {...register("first_name", { required: "First name required" })}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
-                <TextInput placeholder="Middle" {...register("middle_name")} />
+                <TextInput
+                  aria-label="Middle name"
+                  placeholder="Middle"
+                  {...register("middle_name")}
+                />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
                 <TextInput
+                  aria-label="Last name"
                   placeholder="Last name"
                   error={errors.last_name?.message}
                   {...register("last_name", { required: "Last name required" })}
@@ -343,7 +481,7 @@ export function PatientRegisterForm({
             </Grid>
           </FormRow>
 
-          <FormRow label="Date of birth · sex" required>
+          <FormRow label="Date of birth · age">
             <Grid>
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <Controller
@@ -351,6 +489,7 @@ export function PatientRegisterForm({
                   name="date_of_birth"
                   render={({ field }) => (
                     <DateInput
+                      aria-label="Date of birth"
                       placeholder="DD / MM / YYYY"
                       value={field.value ?? null}
                       onChange={(v) => field.onChange(v ? new Date(v) : null)}
@@ -363,10 +502,40 @@ export function PatientRegisterForm({
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <Controller
                   control={control}
+                  name="age_years"
+                  render={({ field }) => (
+                    <NumberInput
+                      aria-label="Age years"
+                      placeholder="Age in years"
+                      min={0}
+                      max={125}
+                      value={field.value ?? ""}
+                      onChange={(value) => {
+                        const age = typeof value === "number" ? value : undefined;
+                        field.onChange(age);
+                        if (typeof age === "number") {
+                          setValue("date_of_birth", estimateDobFromAge(age), {
+                            shouldDirty: true,
+                          });
+                        }
+                      }}
+                    />
+                  )}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+
+          <FormRow label="Sex · blood group" required>
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <Controller
+                  control={control}
                   name="gender"
                   rules={{ required: "Gender required" }}
                   render={({ field }) => (
                     <Select
+                      aria-label="Gender"
                       data={genderOptions}
                       value={field.value}
                       onChange={(v) => v && field.onChange(v)}
@@ -375,23 +544,23 @@ export function PatientRegisterForm({
                   )}
                 />
               </Grid.Col>
-            </Grid>
-          </FormRow>
-
-          <FormRow label="Blood group">
-            <Controller
-              control={control}
-              name="blood_group"
-              render={({ field }) => (
-                <Select
-                  placeholder="Unknown"
-                  data={bloodGroupOptions}
-                  value={field.value ?? null}
-                  onChange={(v) => field.onChange(v ?? undefined)}
-                  clearable
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <Controller
+                  control={control}
+                  name="blood_group"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Blood group"
+                      placeholder="Unknown"
+                      data={bloodGroupOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      clearable
+                    />
+                  )}
                 />
-              )}
-            />
+              </Grid.Col>
+            </Grid>
           </FormRow>
         </FormSection>
 
@@ -400,23 +569,259 @@ export function PatientRegisterForm({
             <Grid>
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <TextInput
+                  aria-label="Phone (primary)"
                   placeholder="+91 xxxxxxxxxx"
                   error={errors.phone?.message}
                   {...register("phone", { required: "Phone required" })}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput placeholder="Alternate phone" {...register("phone_secondary")} />
+                <TextInput
+                  aria-label="Phone (alternate)"
+                  placeholder="Alternate phone"
+                  {...register("phone_secondary")}
+                />
               </Grid.Col>
             </Grid>
           </FormRow>
 
           <FormRow label="Email">
-            <TextInput type="email" placeholder="patient@example.com" {...register("email")} />
+            <TextInput
+              aria-label="Email"
+              type="email"
+              placeholder="patient@example.com"
+              {...register("email")}
+            />
           </FormRow>
         </FormSection>
 
-        <FormSection num="03" name="Allergies">
+        <FormSection num="03" name="Digital identity">
+          <FormRow label="ABHA">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <TextInput
+                  aria-label="ABHA number"
+                  placeholder="14 digit ABHA number"
+                  {...register("abha_number")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 7 }}>
+                <TextInput
+                  aria-label="ABHA address"
+                  placeholder="name@abdm"
+                  {...register("abha_address")}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+          <FormRow label="Aadhaar">
+            <TextInput
+              aria-label="Aadhaar number"
+              placeholder="12 digit Aadhaar"
+              description="The server stores only a masked value and SHA-256 hash, not the raw Aadhaar number."
+              {...register("aadhaar_number")}
+            />
+          </FormRow>
+        </FormSection>
+
+        <FormSection num="04" name="Registration context">
+          <FormRow label="Patient type · source">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <Controller
+                  control={control}
+                  name="registration_type"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Registration type"
+                      data={registrationTypeOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => {
+                        field.onChange(v ?? undefined);
+                        if (v === "camp") {
+                          setValue("registration_source", "camp", { shouldDirty: true });
+                        }
+                      }}
+                      clearable
+                    />
+                  )}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <Controller
+                  control={control}
+                  name="registration_source"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Registration source"
+                      data={registrationSourceOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      clearable
+                    />
+                  )}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+          <FormRow label="Camp reference">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <TextInput
+                  aria-label="Camp ID"
+                  placeholder="Camp UUID if already created"
+                  {...register("camp_id")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 7 }}>
+                <TextInput
+                  aria-label="Camp name"
+                  placeholder="Village / school / outreach camp name"
+                  {...register("camp_name")}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+          <FormRow label="Referred by">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <TextInput
+                  aria-label="Referred by"
+                  placeholder="Doctor / ASHA / camp worker"
+                  {...register("referred_by_name")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <TextInput
+                  aria-label="Referred by phone"
+                  placeholder="Phone"
+                  {...register("referred_by_phone")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <TextInput
+                  aria-label="Referred by facility"
+                  placeholder="Facility / village / NGO"
+                  {...register("referred_by_facility")}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+        </FormSection>
+
+        <FormSection num="05" name="Clinical ownership">
+          <FormRow label="Department · consultant">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <Controller
+                  control={control}
+                  name="department_id"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Department"
+                      placeholder="Select department"
+                      data={departmentOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      searchable
+                      clearable
+                    />
+                  )}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <Controller
+                  control={control}
+                  name="consultant_id"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Concerned consultant"
+                      placeholder="Select concerned consultant"
+                      data={consultantOptions}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? undefined)}
+                      searchable
+                      clearable
+                    />
+                  )}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 2 }}>
+                <TextInput
+                  aria-label="Clinical unit"
+                  placeholder="Unit"
+                  {...register("clinical_unit")}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+          <FormRow label="Provisional diagnosis">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 6 }}>
+                <TextInput
+                  aria-label="Initial diagnosis"
+                  placeholder="Clinical impression at registration"
+                  {...register("initial_diagnosis_text")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 6, sm: 3 }}>
+                <TextInput
+                  aria-label="ICD-10 code"
+                  placeholder="ICD-10"
+                  {...register("icd10_code")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 6, sm: 3 }}>
+                <TextInput
+                  aria-label="ICD-11 code"
+                  placeholder="ICD-11"
+                  {...register("icd11_code")}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+          <FormRow label="Safety flags">
+            <Grid>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <Controller
+                  control={control}
+                  name="is_medico_legal"
+                  render={({ field }) => (
+                    <Checkbox
+                      aria-label="Medico-legal case"
+                      label="Medico-legal case"
+                      checked={field.value ?? false}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                    />
+                  )}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <TextInput
+                  aria-label="MLC number"
+                  placeholder="MLC number"
+                  {...register("mlc_number")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <Controller
+                  control={control}
+                  name="is_vip"
+                  render={({ field }) => (
+                    <Checkbox
+                      aria-label="VIP patient"
+                      label="VIP patient"
+                      checked={field.value ?? false}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                    />
+                  )}
+                />
+              </Grid.Col>
+            </Grid>
+          </FormRow>
+        </FormSection>
+
+        <FormSection num="06" name="Allergies">
           {/* Both fields are optional — many patients have no known
               allergies. Empty = "not yet recorded"; the prescriber
               still gets a banner before issuing meds, but registration
@@ -470,7 +875,7 @@ export function PatientRegisterForm({
 
         {!quickMode && (
           <>
-            <FormSection num="04" name="Family & background">
+            <FormSection num="07" name="Family & background">
               <FormRow label="Father's name">
                 <TextInput {...register("father_name")} />
               </FormRow>
@@ -511,7 +916,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="05" name="Address">
+            <FormSection num="08" name="Address">
               <FormRow label="Address line 1">
                 <Textarea
                   placeholder="House / building / street"
@@ -550,7 +955,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="06" name="Next of kin & emergency contact">
+            <FormSection num="09" name="Next of kin & emergency contact">
               <FormRow label="Next of kin">
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 5 }}>
@@ -579,7 +984,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="07" name="Preferences & care continuity">
+            <FormSection num="10" name="Preferences & care continuity">
               <FormRow label="Preferred ward / room class">
                 <Controller
                   control={control}
@@ -662,7 +1067,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="08" name="Insurance & visitor pass">
+            <FormSection num="11" name="Insurance & visitor pass">
               <FormRow label="Secondary insurance">
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
@@ -688,13 +1093,14 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="09" name="Registration">
+            <FormSection num="12" name="Registration">
               <FormRow label="Patient category">
                 <Controller
                   control={control}
                   name="category"
                   render={({ field }) => (
                     <Select
+                      aria-label="Patient category"
                       placeholder="General"
                       data={categoryOptions}
                       value={field.value ?? null}

@@ -24,6 +24,7 @@
  */
 
 import {
+  Badge,
   Button,
   Drawer,
   Group,
@@ -38,8 +39,9 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
+import { IconShare, IconShieldLock, IconUserCheck, IconUsersGroup } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 interface Props {
   opened: boolean;
@@ -78,6 +80,23 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
     queryFn: () => api.listSharingGrants(objectType, objectId),
     enabled: opened,
   });
+
+  const subjectsQuery = useQuery({
+    queryKey: ["sharing", "subjects"],
+    queryFn: () => api.listSharingSubjects(),
+    enabled: opened,
+  });
+
+  const subjectOptions = useMemo(() => {
+    const subjects = subjectsQuery.data;
+    if (!subjects) return [];
+    const byType = subjects[`${subjectType}s` as "users" | "roles" | "departments" | "groups"];
+    if (!byType) return [];
+    return byType.map((item) => ({
+      value: item.id,
+      label: item.subtitle ? `${item.label} (${item.subtitle})` : item.label,
+    }));
+  }, [subjectsQuery.data, subjectType]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -130,26 +149,57 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
       opened={opened}
       onClose={onClose}
       position="right"
-      size="md"
-      title={<Title order={4}>Share {objectLabel ? `"${objectLabel}"` : objectType}</Title>}
+      size="lg"
+      title={
+        <Group gap="sm">
+          <IconShare size={20} />
+          <Title order={4}>Share {objectLabel ? `"${objectLabel}"` : objectType}</Title>
+        </Group>
+      }
     >
       <Stack gap="lg">
         <Stack gap="sm">
-          <Title order={5}>Grant access</Title>
+          <Group justify="space-between" align="flex-start">
+            <div>
+              <Title order={5}>Grant access</Title>
+              <Text size="sm" c="dimmed">
+                Zanzibar-style resource sharing. Use expiry for temporary consults and audit-safe
+                delegation.
+              </Text>
+            </div>
+            <Badge variant="light" color="primary">
+              {objectType}
+            </Badge>
+          </Group>
           <Select
             label="Subject type"
             data={SUBJECT_TYPES}
             value={subjectType}
-            onChange={(v) => setSubjectType((v as SubjectType) ?? "user")}
-          />
-          <TextInput
-            label="Subject ID"
-            description={
-              subjectType === "role" ? "Role code (e.g. nurse, doctor)" : `${subjectType} UUID`
+            leftSection={
+              subjectType === "user" ? (
+                <IconUserCheck size={16} />
+              ) : subjectType === "role" ? (
+                <IconShieldLock size={16} />
+              ) : (
+                <IconUsersGroup size={16} />
+              )
             }
+            onChange={(v) => {
+              setSubjectType((v as SubjectType) ?? "user");
+              setSubjectId("");
+            }}
+          />
+          <Select
+            label={subjectType === "user" ? "Staff member" : subjectType}
+            description="Select who should receive this resource relationship"
+            data={subjectOptions}
             value={subjectId}
-            onChange={(e) => setSubjectId(e.currentTarget.value)}
-            placeholder={subjectType === "role" ? "doctor" : "00000000-0000-0000-0000-000000000000"}
+            onChange={(v) => setSubjectId(v ?? "")}
+            placeholder={subjectsQuery.isLoading ? "Loading..." : "Search and select"}
+            searchable
+            clearable
+            disabled={subjectsQuery.isLoading}
+            nothingFoundMessage="No matching subject"
           />
           <Select
             label="Relation"
@@ -159,7 +209,7 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
           />
           <DateTimePicker
             label="Expires at (optional)"
-            description="Leave empty for permanent grant. SpiceDB filters expired tuples automatically."
+            description="Set a time limit for temporary consults. Expired grants stop resolving automatically."
             value={expiresAt}
             onChange={(v) => setExpiresAt(v ? new Date(v) : null)}
             clearable
@@ -169,7 +219,7 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
             description="Captured in audit log for compliance review."
             value={reason}
             onChange={(e) => setReason(e.currentTarget.value)}
-            placeholder="second_opinion_consult"
+            placeholder="Second opinion consult, covering duty, emergency handover"
           />
           <Group justify="flex-end">
             <Button
@@ -197,8 +247,10 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {grantsQuery.data.map((g, i) => (
-                  <Table.Tr key={`${g.subject_type}-${g.subject_id}-${g.relation}-${i}`}>
+                {grantsQuery.data.map((g) => (
+                  <Table.Tr
+                    key={`${g.object_type}-${g.object_id}-${g.subject_type}-${g.subject_id}-${g.relation}`}
+                  >
                     <Table.Td>
                       <Text size="sm" fw={500}>
                         {g.subject_type}

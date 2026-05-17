@@ -145,12 +145,22 @@ function SignoffList({
                     </Badge>
                   )}
                 </Group>
-                <Text size="sm" fw={500}>
-                  {item.record_id.slice(0, 8)}…
+                <Text size="sm" fw={600} lineClamp={1}>
+                  {item.patient_name || item.summary || `${item.record_id.slice(0, 8)}…`}
                 </Text>
                 <Text size="xs" c="dimmed">
+                  {item.uhid ? `UHID ${item.uhid} • ` : ""}
+                  {item.summary || "No summary available"}
+                </Text>
+                <Text size="xs" c="dimmed" lineClamp={1}>
+                  {item.context ? `${item.context} • ` : ""}
                   Created {new Date(item.created_at).toLocaleString()} • {Math.round(ageHours)}h ago
                 </Text>
+                {item.risk_label && (
+                  <Badge size="xs" color="orange" leftSection={<IconAlertTriangle size={10} />}>
+                    {item.risk_label}
+                  </Badge>
+                )}
               </Stack>
               <Tooltip label="Sign">
                 <ActionIcon variant="filled" color="primary" size="lg" onClick={() => onSign(item)}>

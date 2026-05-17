@@ -11,7 +11,9 @@ import type { AdmissionRow } from "../api/ipd.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
+import { BedsideActionScreen } from "./nurse/bedside-action.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
+import { PatientWorkspaceScreen } from "./nurse/patient-workspace.js";
 
 function NurseHome(): ReactNode {
   const router = useModuleRouter();
@@ -27,34 +29,38 @@ function NurseHome(): ReactNode {
       actions={[
         {
           id: "mar",
-          label: "MAR — administer dose",
-          description: "Five-rights check + barcode scan + signature.",
-          permission: P.IPD.MAR_CREATE,
+          label: "My shift",
+          description: "Assigned beds with bedside MAR, vitals, I/O and risk actions.",
+          permission: P.NURSE.DASHBOARD_VIEW,
           onPress: () => router.push("admissions"),
         },
         {
           id: "vitals",
           label: "Record vitals",
-          description: "BP, HR, SpO₂, temp, pain — uses VitalSignField.",
-          permission: P.IPD.ASSESSMENTS_CREATE,
+          description: "Select a patient, then capture BP, HR, SpO2 and temperature.",
+          permission: P.NURSE.VITALS_RECORD,
+          onPress: () => router.push("admissions"),
         },
         {
           id: "handoff",
           label: "SBAR handoff",
           description: "Structured handoff for shift change.",
-          permission: P.IPD.HANDOVER_CREATE,
+          permission: P.NURSE.HANDOFF_RECORD,
+          onPress: () => router.push("admissions"),
         },
         {
           id: "io",
           label: "Intake / output",
           description: "Fluid balance and drain output capture.",
-          permission: P.IPD.IO_CHART_CREATE,
+          permission: P.NURSE.INTAKE_OUTPUT_RECORD,
+          onPress: () => router.push("admissions"),
         },
         {
           id: "fall-risk",
           label: "Fall risk assessment",
           description: "Morse scale + interventions.",
-          permission: P.IPD.CLINICAL_DOCS_CREATE,
+          permission: P.NURSE.FALL_RISK_RECORD,
+          onPress: () => router.push("admissions"),
         },
       ]}
     />
@@ -68,7 +74,17 @@ function NurseScreen(): ReactNode {
       screens={{
         home: <NurseHome />,
         admissions: <AdmissionsListScreen />,
+        "patient-workspace": (payload) => (
+          <PatientWorkspaceScreen admission={payload as AdmissionRow} />
+        ),
         mar: (payload) => <MarScheduleScreen admission={payload as AdmissionRow} />,
+        "bedside-action": (payload) => {
+          const params = payload as {
+            admission: AdmissionRow;
+            mode: "vitals" | "io" | "pain" | "fall-risk";
+          };
+          return <BedsideActionScreen admission={params.admission} mode={params.mode} />;
+        },
       }}
     />
   );
@@ -78,7 +94,7 @@ export const nurseModule: Module = {
   id: "nurse",
   displayName: "Nurse",
   icon: () => null,
-  requiredPermissions: [P.IPD.MAR_LIST],
+  requiredPermissions: [P.NURSE.DASHBOARD_VIEW],
   navigator: NurseScreen,
   offlineDocTypes: ["mar_admin", "vitals", "io_event", "handoff"],
 };

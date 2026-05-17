@@ -21,7 +21,7 @@ use medbrains_core::pharmacy_phase3::{
     PharmacyAllergyCheckLog, PharmacyPosSale, PharmacyPosSaleItem, PharmacyPrescriptionRx,
     PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary, RxQueueRow,
 };
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, prelude::ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -85,6 +85,11 @@ pub struct CreateOrderRequest {
     pub allergy_override_reason: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateOrderItemRequest {
+    pub quantity: i32,
+}
+
 #[derive(Debug, Clone)]
 pub struct MedicationSafetyItem {
     pub catalog_item_id: Option<Uuid>,
@@ -113,6 +118,34 @@ pub enum MedicationSafetySeverity {
 pub struct OrderDetailResponse {
     pub order: PharmacyOrder,
     pub items: Vec<PharmacyOrderItem>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CatalogPriceRow {
+    id: Uuid,
+    base_price: Decimal,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RxDetailItemPriceRow {
+    id: Uuid,
+    drug_name: String,
+    dosage: String,
+    frequency: String,
+    duration: String,
+    route: Option<String>,
+    instructions: Option<String>,
+    catalog_item_id: Option<Uuid>,
+    unit_price: Decimal,
+    tax_percent: Decimal,
+    price_source: String,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct LinkedPharmacyInvoiceItem {
+    invoice_item_id: Uuid,
+    invoice_id: Uuid,
+    invoice_status: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,6 +240,139 @@ fn medication_safety_severity_str(severity: MedicationSafetySeverity) -> &'stati
         MedicationSafetySeverity::Warn => "warn",
         MedicationSafetySeverity::Block => "block",
     }
+}
+
+fn decimal_as_f64(value: Decimal) -> f64 {
+    value.to_f64().unwrap_or(0.0)
+}
+
+fn first_number(text: &str) -> Option<f64> {
+    let mut buf = String::new();
+    let mut seen_digit = false;
+
+    for ch in text.chars() {
+        if ch.is_ascii_digit() || (ch == '.' && seen_digit && !buf.contains('.')) {
+            if ch.is_ascii_digit() {
+                seen_digit = true;
+            }
+            buf.push(ch);
+        } else if seen_digit {
+            break;
+        }
+    }
+
+    if seen_digit {
+        buf.parse::<f64>().ok()
+    } else {
+        None
+    }
+}
+
+fn dash_frequency_units_per_day(text: &str) -> Option<f64> {
+    let parts: Vec<&str> = text.split('-').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+
+    let mut sum = 0.0;
+    for part in parts {
+        let trimmed = part.trim();
+        if trimmed.is_empty() || !trimmed.chars().all(|ch| ch.is_ascii_digit()) {
+            return None;
+        }
+        sum += trimmed.parse::<f64>().ok()?;
+    }
+
+    (sum > 0.0).then_some(sum)
+}
+
+fn frequency_units_per_day(frequency: &str) -> f64 {
+    let f = frequency.trim().to_ascii_lowercase();
+    if f.is_empty() {
+        return 1.0;
+    }
+
+    if let Some(sum) = dash_frequency_units_per_day(&f) {
+        return sum;
+    }
+
+    if f.contains("q4h") || f.contains("4 hourly") || f.contains("every 4") {
+        return 6.0;
+    }
+    if f.contains("q6h") || f.contains("6 hourly") || f.contains("every 6") {
+        return 4.0;
+    }
+    if f.contains("q8h") || f.contains("8 hourly") || f.contains("every 8") {
+        return 3.0;
+    }
+    if f.contains("q12h") || f.contains("12 hourly") || f.contains("every 12") {
+        return 2.0;
+    }
+
+    if f.contains("qid") || f.contains("qds") || f.contains("four times") {
+        4.0
+    } else if f.contains("tid") || f.contains("tds") || f.contains("three times") {
+        3.0
+    } else if f.contains("bid") || f.contains("bd") || f.contains("twice") {
+        2.0
+    } else if f.contains("qod") || f.contains("alternate") {
+        0.5
+    } else {
+        1.0
+    }
+}
+
+fn duration_days(duration: &str) -> f64 {
+    let d = duration.trim().to_ascii_lowercase();
+    let Some(value) = first_number(&d) else {
+        return 1.0;
+    };
+
+    if d.contains("week") || d.contains(" wk") || d.ends_with("wk") {
+        value * 7.0
+    } else if d.contains("month") || d.contains(" mon") || d.ends_with("mo") {
+        value * 30.0
+    } else if d.contains("hour") || d.ends_with('h') {
+        (value / 24.0).max(1.0)
+    } else {
+        value
+    }
+}
+
+fn dose_units_per_administration(dosage: &str) -> f64 {
+    let d = dosage.trim().to_ascii_lowercase();
+    let Some(value) = first_number(&d) else {
+        return 1.0;
+    };
+
+    let countable_units = [
+        "tab",
+        "tablet",
+        "cap",
+        "capsule",
+        "vial",
+        "amp",
+        "ampoule",
+        "puff",
+        "drop",
+        "sachet",
+        "suppository",
+        "patch",
+        "ml",
+    ];
+
+    if countable_units.iter().any(|unit| d.contains(unit)) {
+        value.max(1.0)
+    } else {
+        1.0
+    }
+}
+
+fn estimate_rx_dispense_quantity(dosage: &str, frequency: &str, duration: &str) -> i32 {
+    let estimated = dose_units_per_administration(dosage)
+        * frequency_units_per_day(frequency)
+        * duration_days(duration);
+    estimated.ceil().clamp(1.0, 9_999.0) as i32
 }
 
 pub fn medication_safety_warning_is_overrideable(code: &str) -> bool {
@@ -374,12 +540,13 @@ pub async fn evaluate_medication_safety_in_tx(
             }
         }
 
-        let duplicate_count = sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)::bigint AS "count!"
+        let duplicate_count = sqlx::query_scalar::<_, i64>(
+            "
+            SELECT COUNT(*)::bigint
             FROM pharmacy_orders po
             JOIN pharmacy_order_items poi
               ON poi.order_id = po.id AND poi.tenant_id = po.tenant_id
+             AND poi.removed_at IS NULL
             WHERE po.tenant_id = $1
               AND po.patient_id = $2
               AND po.status = 'ordered'
@@ -387,12 +554,12 @@ pub async fn evaluate_medication_safety_in_tx(
                     ($3::uuid IS NOT NULL AND poi.catalog_item_id = $3)
                     OR ($3::uuid IS NULL AND lower(poi.drug_name) = lower($4))
                   )
-            "#,
-            *tenant_id,
-            *patient_id,
-            item.catalog_item_id,
-            item.drug_name
+            ",
         )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(item.catalog_item_id)
+        .bind(&item.drug_name)
         .fetch_one(&mut **tx)
         .await?;
 
@@ -936,27 +1103,23 @@ pub async fn create_order_in_tx(
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
         let total = item.unit_price * Decimal::from(item.quantity);
-        let oi = sqlx::query_as!(
-            PharmacyOrderItem,
-            r#"
+        let oi = sqlx::query_as::<_, PharmacyOrderItem>(
+            "
             INSERT INTO pharmacy_order_items
               (tenant_id, order_id, catalog_item_id, drug_name, quantity,
                unit_price, total_price, quantity_prescribed)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, tenant_id, order_id, catalog_item_id, drug_name,
-                      quantity, unit_price, total_price, batch_number,
-                      expiry_date, batch_stock_id, quantity_prescribed,
-                      quantity_returned, created_at
-            "#,
-            claims.tenant_id,
-            order.id,
-            item.catalog_item_id,
-            item.drug_name.as_str(),
-            item.quantity,
-            item.unit_price,
-            total,
-            item.quantity
+            RETURNING *
+            ",
         )
+        .bind(claims.tenant_id)
+        .bind(order.id)
+        .bind(item.catalog_item_id)
+        .bind(&item.drug_name)
+        .bind(item.quantity)
+        .bind(item.unit_price)
+        .bind(total)
+        .bind(item.quantity)
         .fetch_one(&mut **tx)
         .await?;
         items.push(oi);
@@ -1013,15 +1176,23 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
     order: &PharmacyOrder,
     items: &[PharmacyOrderItem],
 ) -> Result<(), AppError> {
-    let Some(encounter_id) = order.encounter_id else {
-        return Ok(());
-    };
-
     if !super::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy").await? {
         return Ok(());
     }
 
     for item in items {
+        let tax_percent = match item.catalog_item_id {
+            Some(catalog_id) => sqlx::query_scalar::<_, Decimal>(
+                "SELECT tax_percent FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(catalog_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .unwrap_or(Decimal::ZERO),
+            None => Decimal::ZERO,
+        };
+
         let code = item.catalog_item_id.map_or_else(
             || "PHARMA-GENERIC".to_owned(),
             |cid| format!("PHARMA-{cid}"),
@@ -1032,14 +1203,14 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
             tenant_id,
             super::billing::AutoChargeInput {
                 patient_id: order.patient_id,
-                encounter_id,
+                encounter_id: order.encounter_id,
                 charge_code: code,
                 source: "pharmacy".to_owned(),
                 source_id: item.id,
                 quantity: item.quantity,
                 description_override: Some(item.drug_name.clone()),
                 unit_price_override: Some(item.unit_price),
-                tax_percent_override: None,
+                tax_percent_override: Some(tax_percent),
             },
             super::billing::BatchTrace {
                 batch_number: item.batch_number.clone(),
@@ -1109,7 +1280,8 @@ pub async fn get_order(
     .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
          ORDER BY created_at",
     )
     .bind(id)
@@ -1119,6 +1291,298 @@ pub async fn get_order(
 
     tx.commit().await?;
     Ok(Json(OrderDetailResponse { order, items }))
+}
+
+async fn fetch_order_detail_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    order_id: Uuid,
+) -> Result<OrderDetailResponse, AppError> {
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let items = sqlx::query_as::<_, PharmacyOrderItem>(
+        "SELECT * FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
+         ORDER BY created_at",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    Ok(OrderDetailResponse { order, items })
+}
+
+async fn linked_pharmacy_invoice_item_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    item_id: Uuid,
+) -> Result<Option<LinkedPharmacyInvoiceItem>, AppError> {
+    let row = sqlx::query_as::<_, LinkedPharmacyInvoiceItem>(
+        "SELECT ii.id AS invoice_item_id, ii.invoice_id, i.status::text AS invoice_status \
+         FROM invoice_items ii \
+         JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
+         WHERE ii.tenant_id = $1 \
+           AND ii.source = 'pharmacy'::charge_source \
+           AND ii.source_id = $2 \
+           AND ii.reversal_of_id IS NULL \
+           AND ii.is_reversal = false \
+         ORDER BY ii.created_at \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(item_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(row)
+}
+
+fn ensure_invoice_can_follow_order_edit(
+    linked: &LinkedPharmacyInvoiceItem,
+) -> Result<(), AppError> {
+    if linked.invoice_status == "draft" {
+        return Ok(());
+    }
+
+    Err(AppError::Conflict(
+        "Pharmacy item can be edited only before the linked invoice is issued or paid".to_owned(),
+    ))
+}
+
+async fn sync_invoice_item_quantity_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    item: &PharmacyOrderItem,
+) -> Result<(), AppError> {
+    let Some(linked) = linked_pharmacy_invoice_item_in_tx(tx, tenant_id, item.id).await? else {
+        return Ok(());
+    };
+    ensure_invoice_can_follow_order_edit(&linked)?;
+
+    sqlx::query(
+        "UPDATE invoice_items \
+         SET quantity = $3, \
+             unit_price = $4, \
+             total_price = $4 * $3 * (1 + tax_percent / 100), \
+             description = $5, \
+             source_module = 'pharmacy' \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(linked.invoice_item_id)
+    .bind(tenant_id)
+    .bind(item.quantity)
+    .bind(item.unit_price)
+    .bind(&item.drug_name)
+    .execute(&mut **tx)
+    .await?;
+
+    super::billing::recalculate_invoice_totals(tx, linked.invoice_id, *tenant_id).await?;
+    Ok(())
+}
+
+async fn reverse_invoice_item_for_removed_order_item_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    item_id: Uuid,
+    removed_by: Uuid,
+) -> Result<(), AppError> {
+    let Some(linked) = linked_pharmacy_invoice_item_in_tx(tx, tenant_id, item_id).await? else {
+        return Ok(());
+    };
+    ensure_invoice_can_follow_order_edit(&linked)?;
+
+    super::billing::reverse_auto_charge_for_source(
+        tx,
+        tenant_id,
+        "pharmacy",
+        item_id,
+        removed_by,
+        "Pharmacy order item removed before dispense",
+    )
+    .await?;
+    Ok(())
+}
+
+// ══════════════════════════════════════════════════════════
+//  PUT /api/pharmacy/orders/{id}/items/{item_id}
+// ══════════════════════════════════════════════════════════
+
+pub async fn update_order_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((order_id, item_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateOrderItemRequest>,
+) -> Result<Json<OrderDetailResponse>, AppError> {
+    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+
+    if body.quantity <= 0 {
+        return Err(AppError::BadRequest(
+            "Quantity must be greater than zero".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if order.status != "ordered" {
+        return Err(AppError::Conflict(
+            "Pharmacy order items can be edited only before dispense".to_owned(),
+        ));
+    }
+
+    let existing = sqlx::query_as::<_, PharmacyOrderItem>(
+        "SELECT * FROM pharmacy_order_items \
+         WHERE id = $1 AND order_id = $2 AND tenant_id = $3 AND removed_at IS NULL",
+    )
+    .bind(item_id)
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if existing.quantity_returned > 0 {
+        return Err(AppError::Conflict(
+            "Returned pharmacy items cannot be edited".to_owned(),
+        ));
+    }
+
+    let total = existing.unit_price * Decimal::from(body.quantity);
+    let item = sqlx::query_as::<_, PharmacyOrderItem>(
+        "UPDATE pharmacy_order_items \
+         SET quantity = $1, total_price = $2 \
+         WHERE id = $3 AND order_id = $4 AND tenant_id = $5 \
+         RETURNING *",
+    )
+    .bind(body.quantity)
+    .bind(total)
+    .bind(item_id)
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sync_invoice_item_quantity_in_tx(&mut tx, &claims.tenant_id, &item).await?;
+
+    sqlx::query("UPDATE pharmacy_orders SET updated_at = now() WHERE id = $1 AND tenant_id = $2")
+        .bind(order_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let detail = fetch_order_detail_in_tx(&mut tx, &claims.tenant_id, order_id).await?;
+    tx.commit().await?;
+    Ok(Json(detail))
+}
+
+// ══════════════════════════════════════════════════════════
+//  DELETE /api/pharmacy/orders/{id}/items/{item_id}
+// ══════════════════════════════════════════════════════════
+
+pub async fn remove_order_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((order_id, item_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<OrderDetailResponse>, AppError> {
+    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if order.status != "ordered" {
+        return Err(AppError::Conflict(
+            "Pharmacy order items can be removed only before dispense".to_owned(),
+        ));
+    }
+
+    let item = sqlx::query_as::<_, PharmacyOrderItem>(
+        "SELECT * FROM pharmacy_order_items \
+         WHERE id = $1 AND order_id = $2 AND tenant_id = $3 AND removed_at IS NULL",
+    )
+    .bind(item_id)
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if item.quantity_returned > 0 {
+        return Err(AppError::Conflict(
+            "Returned pharmacy items cannot be removed".to_owned(),
+        ));
+    }
+
+    let item_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if item_count <= 1 {
+        return Err(AppError::BadRequest(
+            "At least one pharmacy item must remain on the order".to_owned(),
+        ));
+    }
+
+    reverse_invoice_item_for_removed_order_item_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        item.id,
+        claims.sub,
+    )
+    .await?;
+
+    sqlx::query(
+        "UPDATE pharmacy_order_items \
+         SET removed_at = now(), removed_by = $3, \
+             remove_reason = 'Removed before dispense by pharmacy' \
+         WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+    )
+    .bind(item.id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query("UPDATE pharmacy_orders SET updated_at = now() WHERE id = $1 AND tenant_id = $2")
+        .bind(order_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let detail = fetch_order_detail_in_tx(&mut tx, &claims.tenant_id, order_id).await?;
+    tx.commit().await?;
+    Ok(Json(detail))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1158,7 +1622,8 @@ pub async fn dispense_order(
 
     // Deduct stock for each item
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+        "SELECT * FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1290,7 +1755,8 @@ pub async fn dispense_order(
     }
 
     let billed_items = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+        "SELECT * FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1380,6 +1846,7 @@ async fn enforce_schedule_compliance(
          FROM pharmacy_order_items oi \
          JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id \
          WHERE oi.order_id = $1 AND oi.tenant_id = $2 \
+           AND oi.removed_at IS NULL \
            AND c.drug_schedule IS NOT NULL \
            AND c.drug_schedule::text IN ('H', 'H1', 'X')",
     )
@@ -1474,7 +1941,8 @@ pub async fn cancel_order(
 
     if let Some(ref o) = order {
         let order_item_ids = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+            "SELECT id FROM pharmacy_order_items \
+             WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
         )
         .bind(o.id)
         .bind(claims.tenant_id)
@@ -1534,7 +2002,8 @@ pub async fn validate_order(
         .await?;
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+        "SELECT * FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2650,7 +3119,8 @@ pub async fn process_return(
     .ok_or(AppError::NotFound)?;
 
     let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM pharmacy_order_items \
+         WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL",
     )
     .bind(row.order_item_id)
     .bind(claims.tenant_id)
@@ -2723,6 +3193,7 @@ pub async fn consumption_analysis(
         "o.tenant_id = $1".to_owned(),
         "o.status = 'dispensed'".to_owned(),
         "o.dispensed_at IS NOT NULL".to_owned(),
+        "oi.removed_at IS NULL".to_owned(),
     ];
     let mut bind_idx: usize = 2;
 
@@ -2796,6 +3267,7 @@ pub async fn abc_ved_analysis(
             JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
             WHERE o.tenant_id = $1 AND o.status = 'dispensed' \
               AND o.created_at >= now() - interval '1 year' \
+              AND oi.removed_at IS NULL \
               AND oi.catalog_item_id IS NOT NULL \
             GROUP BY oi.catalog_item_id \
          ), ranked AS ( \
@@ -2841,6 +3313,7 @@ pub async fn drug_utilization_review(
          JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
          LEFT JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id AND c.tenant_id = oi.tenant_id \
          WHERE o.tenant_id = $1 AND o.status = 'dispensed' \
+           AND oi.removed_at IS NULL \
            AND o.created_at >= now() - interval '90 days' \
          GROUP BY oi.drug_name, c.generic_name, c.aware_category \
          ORDER BY total_dispensed DESC LIMIT 500",
@@ -2891,6 +3364,7 @@ pub async fn check_drug_interactions(
          di.severity, di.description \
          FROM pharmacy_orders o \
          JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
+          AND oi.removed_at IS NULL \
          LEFT JOIN pharmacy_catalog nc ON nc.id = $3 AND nc.tenant_id = $2 \
          LEFT JOIN drug_interactions di ON di.tenant_id = o.tenant_id AND di.is_active = true AND \
            ((lower(di.drug_a_name) = lower(oi.drug_name) AND lower(di.drug_b_name) = lower(nc.name)) OR \
@@ -3097,18 +3571,72 @@ pub async fn get_rx_detail(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Fetch prescription items
-    let items = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT COALESCE(json_agg(r), '[]'::json) FROM (
-         SELECT pi.id::text, pi.drug_name, pi.dosage, pi.frequency, pi.duration,
-                pi.route, pi.instructions
-         FROM prescription_items pi WHERE pi.prescription_id = $1
-         ORDER BY pi.created_at
-         ) r",
+    // Fetch prescription items with a pharmacist-facing quantity + price
+    // estimate. Final quantity remains editable before approval, but defaulting
+    // to the inferred course quantity prevents accidental one-tablet billing.
+    let item_rows = sqlx::query_as::<_, RxDetailItemPriceRow>(
+        "SELECT pi.id, pi.drug_name, pi.dosage, pi.frequency, pi.duration,
+                pi.route, pi.instructions,
+                pc.id AS catalog_item_id,
+                COALESCE(pc.base_price, 0) AS unit_price,
+                COALESCE(pc.tax_percent, 0) AS tax_percent,
+                CASE WHEN pc.id IS NULL THEN 'unmatched' ELSE 'catalog' END AS price_source
+         FROM prescription_items pi
+         LEFT JOIN LATERAL (
+             SELECT c.id, c.base_price, c.tax_percent
+             FROM pharmacy_catalog c
+             WHERE c.tenant_id = pi.tenant_id
+               AND c.is_active = true
+               AND (
+                   c.id = pi.catalog_item_id
+                   OR lower(c.name) = lower(pi.drug_name)
+                   OR (c.generic_name IS NOT NULL AND lower(c.generic_name) = lower(pi.drug_name))
+               )
+             ORDER BY
+               CASE
+                 WHEN c.id = pi.catalog_item_id THEN 0
+                 WHEN lower(c.name) = lower(pi.drug_name) THEN 1
+                 ELSE 2
+               END,
+               c.name
+             LIMIT 1
+         ) pc ON true
+         WHERE pi.prescription_id = $1 AND pi.tenant_id = $2
+         ORDER BY pi.created_at",
     )
     .bind(rx.prescription_id)
-    .fetch_one(&mut *tx)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
     .await?;
+
+    let items = item_rows
+        .into_iter()
+        .map(|item| {
+            let quantity =
+                estimate_rx_dispense_quantity(&item.dosage, &item.frequency, &item.duration);
+            let taxable_amount = item.unit_price * Decimal::from(quantity);
+            let tax_amount = taxable_amount * item.tax_percent / Decimal::from(100);
+            let line_total = taxable_amount + tax_amount;
+
+            json!({
+                "id": item.id,
+                "drug_name": item.drug_name,
+                "dosage": item.dosage,
+                "frequency": item.frequency,
+                "duration": item.duration,
+                "route": item.route,
+                "instructions": item.instructions,
+                "quantity": quantity,
+                "catalog_item_id": item.catalog_item_id,
+                "unit_price": decimal_as_f64(item.unit_price),
+                "tax_percent": decimal_as_f64(item.tax_percent),
+                "taxable_amount": decimal_as_f64(taxable_amount),
+                "tax_amount": decimal_as_f64(tax_amount),
+                "line_total": decimal_as_f64(line_total),
+                "price_source": item.price_source,
+            })
+        })
+        .collect::<Vec<_>>();
 
     // Fetch patient allergies
     let allergies = sqlx::query_scalar::<_, serde_json::Value>(
@@ -3178,7 +3706,7 @@ pub async fn review_prescription(
     if new_status == "approved" {
         // Get prescription items
         let items = sqlx::query_as::<_, PrescriptionItemRow>(
-            "SELECT drug_name, dosage, frequency, duration, route \
+            "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
              FROM prescription_items WHERE prescription_id = $1 AND tenant_id = $2",
         )
         .bind(rx.prescription_id)
@@ -3186,13 +3714,15 @@ pub async fn review_prescription(
         .fetch_all(&mut *tx)
         .await?;
 
+        let reviewed_items = body.items.as_deref().unwrap_or_default();
+
         // Create pharmacy order and billing indent; dispense remains a
         // separate stock-control step after billing is visible.
         let order = sqlx::query_as::<_, PharmacyOrder>(
             "INSERT INTO pharmacy_orders \
              (tenant_id, patient_id, prescription_id, encounter_id, ordered_by, status, \
-              dispensing_type, rx_queue_id, pharmacist_reviewed_by, reviewed_at) \
-             VALUES ($1, $2, $3, $4, $5, 'ordered', 'prescription'::pharmacy_dispensing_type, $6, $5, now()) \
+              dispensing_type, rx_queue_id, pharmacist_reviewed_by, reviewed_at, notes) \
+             VALUES ($1, $2, $3, $4, $5, 'ordered', 'prescription'::pharmacy_dispensing_type, $6, $5, now(), $7) \
              RETURNING *",
         )
         .bind(claims.tenant_id)
@@ -3201,49 +3731,96 @@ pub async fn review_prescription(
         .bind(rx.encounter_id)
         .bind(claims.sub)
         .bind(rx.id)
+        .bind(&body.notes)
         .fetch_one(&mut *tx)
         .await?;
 
         // Create order items from prescription items
         let mut order_items = Vec::with_capacity(items.len());
         for item in &items {
+            let reviewed = reviewed_items
+                .iter()
+                .find(|review_item| review_item.prescription_item_id == item.id);
+            let quantity = reviewed.map_or_else(
+                || estimate_rx_dispense_quantity(&item.dosage, &item.frequency, &item.duration),
+                |review_item| review_item.quantity,
+            );
+            if quantity <= 0 {
+                return Err(AppError::BadRequest(
+                    "Reviewed pharmacy quantity must be greater than zero".to_owned(),
+                ));
+            }
+            let reviewed_catalog_id = reviewed
+                .and_then(|review_item| review_item.catalog_item_id)
+                .or(item.catalog_item_id);
+
             // Try to resolve catalog item by drug name
-            let catalog = sqlx::query_scalar::<_, Option<Uuid>>(
-                "SELECT id FROM pharmacy_catalog \
-                 WHERE tenant_id = $1 AND (name ILIKE $2 OR generic_name ILIKE $2) AND is_active = true \
+            let catalog = sqlx::query_as::<_, CatalogPriceRow>(
+                "SELECT id, base_price \
+                 FROM pharmacy_catalog \
+                 WHERE tenant_id = $1 \
+                   AND is_active = true \
+                   AND ( \
+                     id = $2 \
+                     OR lower(name) = lower($3) \
+                     OR (generic_name IS NOT NULL AND lower(generic_name) = lower($3)) \
+                   ) \
+                 ORDER BY \
+                   CASE \
+                     WHEN id = $2 THEN 0 \
+                     WHEN lower(name) = lower($3) THEN 1 \
+                     ELSE 2 \
+                   END, \
+                   name \
                  LIMIT 1",
             )
             .bind(claims.tenant_id)
+            .bind(reviewed_catalog_id)
             .bind(&item.drug_name)
             .fetch_optional(&mut *tx)
-            .await?
-            .flatten();
+            .await?;
 
-            let price = if let Some(cid) = catalog {
-                sqlx::query_scalar::<_, Option<Decimal>>(
-                    "SELECT base_price FROM pharmacy_catalog WHERE id = $1",
-                )
-                .bind(cid)
-                .fetch_optional(&mut *tx)
-                .await?
-                .flatten()
-                .unwrap_or_default()
-            } else {
-                Decimal::ZERO
+            let Some(catalog) = catalog else {
+                return Err(AppError::Conflict(format!(
+                    "Map \"{}\" to the pharmacy formulary before approving billing",
+                    item.drug_name
+                )));
             };
+            let price = reviewed
+                .map(|review_item| review_item.unit_price)
+                .unwrap_or(catalog.base_price);
+            if price < Decimal::ZERO {
+                return Err(AppError::BadRequest(
+                    "Reviewed pharmacy price cannot be negative".to_owned(),
+                ));
+            }
+            if price != catalog.base_price
+                && body
+                    .notes
+                    .as_deref()
+                    .map(str::trim)
+                    .is_none_or(str::is_empty)
+            {
+                return Err(AppError::BadRequest(
+                    "Price override reason is required in review notes".to_owned(),
+                ));
+            }
+            let total = price * Decimal::from(quantity);
 
             let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
                 "INSERT INTO pharmacy_order_items \
                  (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
                   total_price, quantity_prescribed) \
-                 VALUES ($1, $2, $3, $4, 1, $5, $5, 1) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $5) \
                  RETURNING *",
             )
             .bind(claims.tenant_id)
             .bind(order.id)
-            .bind(catalog)
+            .bind(catalog.id)
             .bind(&item.drug_name)
+            .bind(quantity)
             .bind(price)
+            .bind(total)
             .fetch_one(&mut *tx)
             .await?;
             order_items.push(order_item);
@@ -3283,11 +3860,13 @@ pub async fn review_prescription(
 #[derive(Debug, sqlx::FromRow)]
 #[allow(dead_code)]
 struct PrescriptionItemRow {
+    id: Uuid,
     drug_name: String,
     dosage: String,
     frequency: String,
     duration: String,
     route: Option<String>,
+    catalog_item_id: Option<Uuid>,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4195,6 +4774,15 @@ pub struct ReviewPrescriptionRequest {
     pub action: String,
     pub notes: Option<String>,
     pub rejection_reason: Option<String>,
+    pub items: Option<Vec<ReviewPrescriptionItemInput>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewPrescriptionItemInput {
+    pub prescription_item_id: Uuid,
+    pub catalog_item_id: Option<Uuid>,
+    pub quantity: i32,
+    pub unit_price: Decimal,
 }
 
 #[derive(Debug, Deserialize)]

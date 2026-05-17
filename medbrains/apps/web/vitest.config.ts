@@ -4,9 +4,8 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts", "allure-vitest/setup"],
+    setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
-    reporters: ["default", ["allure-vitest/reporter", { resultsDir: "../../qa/allure-results" }]],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],

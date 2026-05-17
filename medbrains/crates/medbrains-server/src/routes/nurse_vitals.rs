@@ -7,7 +7,9 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::{DateTime, Duration, Utc};
+use medbrains_core::consultation::Vital;
 use medbrains_core::permissions;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,6 +17,78 @@ use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+
+// ── vitals readings ─────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct CreateVitalsReadingRequest {
+    pub encounter_id: Uuid,
+    pub temperature: Option<Decimal>,
+    pub pulse: Option<i32>,
+    pub systolic_bp: Option<i32>,
+    pub diastolic_bp: Option<i32>,
+    pub respiratory_rate: Option<i32>,
+    pub spo2: Option<i32>,
+    pub weight_kg: Option<Decimal>,
+    pub height_cm: Option<Decimal>,
+    pub notes: Option<String>,
+}
+
+pub async fn create_vitals_reading(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateVitalsReadingRequest>,
+) -> Result<Json<Vital>, AppError> {
+    require_permission(&claims, permissions::nurse::vitals::RECORD)?;
+
+    let bmi = match (body.weight_kg, body.height_cm) {
+        (Some(weight), Some(height)) if height > Decimal::ZERO => {
+            let height_m = height / Decimal::from(100);
+            Some(weight / (height_m * height_m))
+        }
+        _ => None,
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, Vital>(
+        "INSERT INTO vitals \
+         (tenant_id, encounter_id, recorded_by, temperature, pulse, \
+          systolic_bp, diastolic_bp, respiratory_rate, spo2, \
+          weight_kg, height_cm, bmi, notes, recorded_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now()) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.encounter_id)
+    .bind(claims.sub)
+    .bind(body.temperature)
+    .bind(body.pulse)
+    .bind(body.systolic_bp)
+    .bind(body.diastolic_bp)
+    .bind(body.respiratory_rate)
+    .bind(body.spo2)
+    .bind(body.weight_kg)
+    .bind(body.height_cm)
+    .bind(bmi)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE vitals_capture_schedules SET last_captured_at = now(), \
+           next_due_at = now() + (frequency_minutes::text || ' minutes')::interval \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND ended_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.encounter_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
 
 // ── vitals_capture_schedules ────────────────────────────────────────
 

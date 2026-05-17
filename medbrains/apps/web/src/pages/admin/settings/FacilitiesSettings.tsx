@@ -138,7 +138,7 @@ function FacilityModal({
 
   useEffect(() => {
     if (parentInline.pendingSelect) {
-      setForm((prev) => ({ ...prev, parent_id: parentInline.pendingSelect?.id }));
+      setForm((prev) => ({ ...prev, parent_id: parentInline.pendingSelect?.id ?? null }));
       parentInline.clearPendingSelect();
     }
   }, [parentInline.pendingSelect, parentInline.clearPendingSelect]);
@@ -184,8 +184,10 @@ function FacilityModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof formStateToPayload>) =>
-      api.updateFacility(editingFacility?.id, data),
+    mutationFn: (data: ReturnType<typeof formStateToPayload>) => {
+      if (!editingFacility) throw new Error("No facility selected");
+      return api.updateFacility(editingFacility.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Facility updated",

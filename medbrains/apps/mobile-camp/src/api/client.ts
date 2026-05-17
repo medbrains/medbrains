@@ -27,6 +27,9 @@ export class ApiError extends Error {
   }
 }
 
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+let csrfToken: string | null = null;
+
 export async function request<T>(
   config: ApiConfig,
   method: string,
@@ -41,6 +44,9 @@ export async function request<T>(
   };
   if (jwt) {
     headers.Authorization = `Bearer ${jwt}`;
+  }
+  if (MUTATION_METHODS.has(method.toUpperCase()) && csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
   }
   const res = await fetch(`${config.baseUrl}${path}`, {
     method,
@@ -61,7 +67,16 @@ export async function request<T>(
       payload,
     );
   }
+  rememberCsrfToken(payload);
   return payload as T;
+}
+
+function rememberCsrfToken(payload: unknown): void {
+  if (!payload || typeof payload !== "object" || !("csrf_token" in payload)) {
+    return;
+  }
+  const value = (payload as { csrf_token?: unknown }).csrf_token;
+  csrfToken = typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function safeParse(text: string): unknown {

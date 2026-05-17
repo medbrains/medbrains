@@ -9,6 +9,7 @@
 //!
 //! Trait `AuthzBackend` keeps the swap path open if scale ever demands it.
 
+pub mod backend_durable_spicedb;
 pub mod backend_pg;
 pub mod backend_spicedb;
 pub mod backend_test;

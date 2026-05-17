@@ -79,15 +79,17 @@ function DoseRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const give = async () => {
+  const update = async (status: MarStatus) => {
     if (!identity) return;
     setBusy(true);
     setError(null);
     try {
       await updateMar(admissionId, dose.id, {
-        status: "given",
-        administered_at: new Date().toISOString(),
-        barcode_verified: false,
+        status,
+        administered_at: status === "given" ? new Date().toISOString() : undefined,
+        barcode_verified: status === "given" ? false : undefined,
+        hold_reason: status === "held" ? "Held by bedside nurse" : undefined,
+        refused_reason: status === "refused" ? "Patient refused" : undefined,
       });
       onChange();
     } catch (err) {
@@ -143,9 +145,22 @@ function DoseRow({
         </View>
       </View>
       {dose.status === "scheduled" && (
-        <View style={{ marginTop: SPACING.sm, flexDirection: "row", gap: SPACING.sm }}>
-          <Button mode="contained" onPress={give} loading={busy} disabled={busy}>
+        <View
+          style={{
+            marginTop: SPACING.sm,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: SPACING.sm,
+          }}
+        >
+          <Button mode="contained" onPress={() => update("given")} loading={busy} disabled={busy}>
             Give now
+          </Button>
+          <Button mode="outlined" onPress={() => update("held")} disabled={busy}>
+            Hold
+          </Button>
+          <Button mode="outlined" onPress={() => update("refused")} disabled={busy}>
+            Refuse
           </Button>
         </View>
       )}

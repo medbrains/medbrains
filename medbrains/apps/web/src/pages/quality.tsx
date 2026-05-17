@@ -2966,13 +2966,15 @@ function AuditsTab() {
 
   const { data: findings = [], isLoading: findingsLoading } = useQuery({
     queryKey: ["quality-audit-findings", selectedAudit?.id],
-    queryFn: () => api.listAuditFindings(selectedAudit?.id),
+    queryFn: () => api.listAuditFindings(selectedAudit?.id ?? ""),
     enabled: !!selectedAudit,
   });
 
   const createFindingMut = useMutation({
-    mutationFn: (data: CreateAuditFindingRequest) =>
-      api.createAuditFinding(selectedAudit?.id, data),
+    mutationFn: (data: CreateAuditFindingRequest) => {
+      if (!selectedAudit) throw new Error("No audit selected");
+      return api.createAuditFinding(selectedAudit.id, data);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });

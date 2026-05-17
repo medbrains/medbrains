@@ -97,7 +97,7 @@ mod tests {
     use axum::http::HeaderValue;
     use axum::http::Request as HttpRequest;
     use axum::middleware::from_fn;
-    use axum::routing::{get, post};
+    use axum::routing::post;
     use tower::ServiceExt;
 
     fn app() -> Router {

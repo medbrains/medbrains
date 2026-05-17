@@ -19,27 +19,27 @@ import { api, setApiBase } from "./index.js";
 // ---------- Helpers ----------
 
 function mockOk(body: unknown = {}) {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(body),
-  });
+  mockFetch.mockResolvedValueOnce(jsonResponse(200, body));
 }
 
 function mockError(status: number, body: unknown = {}) {
-  mockFetch.mockResolvedValueOnce({
-    ok: false,
-    status,
-    json: () => Promise.resolve(body),
-  });
+  mockFetch.mockResolvedValueOnce(jsonResponse(status, body));
 }
 
 const UUID = "00000000-0000-0000-0000-000000000001";
+
+function jsonResponse(status: number, body: unknown = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 // ---------- Setup ----------
 
 beforeEach(() => {
   mockFetch.mockReset();
+  mockFetch.mockResolvedValue(jsonResponse(200));
   setApiBase("/api");
 });
 
@@ -91,586 +91,6 @@ describe("request() error handling", () => {
   });
 });
 
-describe("/admin endpoints", () => {
-  it("adminListForms → GET /admin/forms", async () => {
-    mockOk({});
-    await api.adminListForms();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/admin/forms");
-  });
-
-  it("adminGetFormDetail → GET /admin/forms/{param_1}", async () => {
-    mockOk({});
-    await api.adminGetFormDetail(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-  });
-
-  it("adminCreateForm → POST /admin/forms", async () => {
-    mockOk({});
-    await api.adminCreateForm({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateForm → PUT /admin/forms/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateForm(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminListFields → GET /admin/fields", async () => {
-    mockOk({});
-    await api.adminListFields("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/fields");
-  });
-
-  it("adminGetFieldDetail → GET /admin/fields/{param_1}", async () => {
-    mockOk({});
-    await api.adminGetFieldDetail(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/fields");
-  });
-
-  it("adminCreateField → POST /admin/fields", async () => {
-    mockOk({});
-    await api.adminCreateField({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/fields");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateField → PUT /admin/fields/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateField(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/fields");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminCreateSection → POST /admin/forms/{param_1}/sections", async () => {
-    mockOk({});
-    await api.adminCreateSection(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateSection → PUT /admin/forms/{param_1}/sections/{param_2}", async () => {
-    mockOk({});
-    await api.adminUpdateSection(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteSection → DELETE /admin/forms/{param_1}/sections/{param_2}", async () => {
-    mockOk({});
-    await api.adminDeleteSection(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminReorderSections → PUT /admin/forms/{param_1}/sections/reorder", async () => {
-    mockOk({});
-    await api.adminReorderSections(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminAddFieldToForm → POST /admin/forms/{param_1}/fields", async () => {
-    mockOk({});
-    await api.adminAddFieldToForm(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateFormField → PUT /admin/forms/{param_1}/fields/{param_2}", async () => {
-    mockOk({});
-    await api.adminUpdateFormField(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminRemoveFieldFromForm → DELETE /admin/forms/{param_1}/fields/{param_2}", async () => {
-    mockOk({});
-    await api.adminRemoveFieldFromForm(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminReorderFields → PUT /admin/forms/{param_1}/fields/reorder", async () => {
-    mockOk({});
-    await api.adminReorderFields(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminListRegulatoryClauses → GET /admin/regulatory-clauses", async () => {
-    mockOk({});
-    await api.adminListRegulatoryClauses();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/regulatory-clauses");
-  });
-
-  it("adminListRegulatoryBodies → GET /admin/regulatory-bodies", async () => {
-    mockOk({});
-    await api.adminListRegulatoryBodies();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/admin/regulatory-bodies");
-  });
-
-  it("adminCreateRegulatoryBody → POST /admin/regulatory-bodies", async () => {
-    mockOk({});
-    await api.adminCreateRegulatoryBody({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/regulatory-bodies");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateRegulatoryBody → PUT /admin/regulatory-bodies/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateRegulatoryBody(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/regulatory-bodies");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminCreateRegulatoryLink → POST /admin/regulatory-links", async () => {
-    mockOk({});
-    await api.adminCreateRegulatoryLink({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/regulatory-links");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateRegulatoryLink → PUT /admin/regulatory-links/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateRegulatoryLink(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/regulatory-links");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteRegulatoryLink → DELETE /admin/regulatory-links/{param_1}", async () => {
-    mockOk({});
-    await api.adminDeleteRegulatoryLink(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/regulatory-links");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminListModuleLinks → GET /admin/module-links", async () => {
-    mockOk({});
-    await api.adminListModuleLinks();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/admin/module-links");
-  });
-
-  it("adminCreateModuleLink → POST /admin/module-links", async () => {
-    mockOk({});
-    await api.adminCreateModuleLink({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/module-links");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteModuleLink → DELETE /admin/module-links/{param_1}/{param_2}/{param_3}", async () => {
-    mockOk({});
-    await api.adminDeleteModuleLink("test", UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/module-links");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminPublishForm → POST /admin/forms/{param_1}/publish", async () => {
-    mockOk({});
-    await api.adminPublishForm(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminCreateNewVersion → POST /admin/forms/{param_1}/new-version", async () => {
-    mockOk({});
-    await api.adminCreateNewVersion(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-  });
-
-  it("adminListFormVersions → GET /admin/forms/{param_1}/versions", async () => {
-    mockOk({});
-    await api.adminListFormVersions(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-  });
-
-  it("adminGetFormVersion → GET /admin/forms/{param_1}/versions/{param_2}", async () => {
-    mockOk({});
-    await api.adminGetFormVersion(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-  });
-
-  it("adminRestoreFormVersion → POST /admin/forms/{param_1}/restore/{param_2}", async () => {
-    mockOk({});
-    await api.adminRestoreFormVersion(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-    expect(opts.method).toBe("POST");
-  });
-
-  it("adminDiffFormVersions → GET /admin/forms/{param_1}/diff", async () => {
-    mockOk({});
-    await api.adminDiffFormVersions(UUID, UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/forms");
-  });
-
-  it("adminGetFieldAuditLog → GET /admin/fields/{param_1}/audit", async () => {
-    mockOk({});
-    await api.adminGetFieldAuditLog(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/fields");
-  });
-
-  it("adminCreateDashboard → POST /admin/dashboards", async () => {
-    mockOk({});
-    await api.adminCreateDashboard({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/dashboards");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateDashboard → PUT /admin/dashboards/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateDashboard(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteDashboard → DELETE /admin/dashboards/{param_1}", async () => {
-    mockOk({});
-    await api.adminDeleteDashboard(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminDuplicateDashboard → POST /admin/dashboards/{param_1}/duplicate", async () => {
-    mockOk({});
-    await api.adminDuplicateDashboard(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("POST");
-  });
-
-  it("adminAddWidget → POST /admin/dashboards/{param_1}/widgets", async () => {
-    mockOk({});
-    await api.adminAddWidget(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateWidget → PUT /admin/dashboards/{param_1}/widgets/{param_2}", async () => {
-    mockOk({});
-    await api.adminUpdateWidget(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteWidget → DELETE /admin/dashboards/{param_1}/widgets/{param_2}", async () => {
-    mockOk({});
-    await api.adminDeleteWidget(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminUpdateLayout → PUT /admin/dashboards/{param_1}/layout", async () => {
-    mockOk({});
-    await api.adminUpdateLayout(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/dashboards");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminListWidgetTemplates → GET /admin/widget-templates", async () => {
-    mockOk({});
-    await api.adminListWidgetTemplates();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/admin/widget-templates");
-  });
-
-  it("adminCreateWidgetTemplate → POST /admin/widget-templates", async () => {
-    mockOk({});
-    await api.adminCreateWidgetTemplate({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/widget-templates");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminListScreens → GET /admin/screens", async () => {
-    mockOk({});
-    await api.adminListScreens();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/screens");
-  });
-
-  it("adminCreateScreen → POST /admin/screens", async () => {
-    mockOk({});
-    await api.adminCreateScreen({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/admin/screens");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminGetScreen → GET /admin/screens/{param_1}", async () => {
-    mockOk({});
-    await api.adminGetScreen(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-  });
-
-  it("adminUpdateScreen → PUT /admin/screens/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpdateScreen(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteScreen → DELETE /admin/screens/{param_1}", async () => {
-    mockOk({});
-    await api.adminDeleteScreen(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminPublishScreen → POST /admin/screens/{param_1}/publish", async () => {
-    mockOk({});
-    await api.adminPublishScreen(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminNewScreenVersion → POST /admin/screens/{param_1}/new-version", async () => {
-    mockOk({});
-    await api.adminNewScreenVersion(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("POST");
-  });
-
-  it("adminListScreenVersions → GET /admin/screens/{param_1}/versions", async () => {
-    mockOk({});
-    await api.adminListScreenVersions(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-  });
-
-  it("adminGetScreenVersion → GET /admin/screens/{param_1}/versions/{param_2}", async () => {
-    mockOk({});
-    await api.adminGetScreenVersion(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-  });
-
-  it("adminRestoreScreenVersion → POST /admin/screens/{param_1}/restore/{param_2}", async () => {
-    mockOk({});
-    await api.adminRestoreScreenVersion(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("POST");
-  });
-
-  it("adminListScreenSidecars → GET /admin/screens/{param_1}/sidecars", async () => {
-    mockOk({});
-    await api.adminListScreenSidecars(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-  });
-
-  it("adminCreateScreenSidecar → POST /admin/screens/{param_1}/sidecars", async () => {
-    mockOk({});
-    await api.adminCreateScreenSidecar(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminUpdateScreenSidecar → PUT /admin/screens/{param_1}/sidecars/{param_2}", async () => {
-    mockOk({});
-    await api.adminUpdateScreenSidecar(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteScreenSidecar → DELETE /admin/screens/{param_1}/sidecars/{param_2}", async () => {
-    mockOk({});
-    await api.adminDeleteScreenSidecar(UUID, UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screens");
-    expect(opts.method).toBe("DELETE");
-  });
-
-  it("adminListScreenOverrides → GET /admin/screen-overrides", async () => {
-    mockOk({});
-    await api.adminListScreenOverrides();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/admin/screen-overrides");
-  });
-
-  it("adminUpsertScreenOverride → PUT /admin/screen-overrides/{param_1}", async () => {
-    mockOk({});
-    await api.adminUpsertScreenOverride(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screen-overrides");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("adminDeleteScreenOverride → DELETE /admin/screen-overrides/{param_1}", async () => {
-    mockOk({});
-    await api.adminDeleteScreenOverride(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/admin/screen-overrides");
-    expect(opts.method).toBe("DELETE");
-  });
-
-});
 
 describe("/analytics endpoints", () => {
   it("getDeptRevenue → GET /analytics/revenue/department", async () => {
@@ -4363,24 +3783,6 @@ describe("/facilities endpoints", () => {
 
 });
 
-describe("/forms endpoints", () => {
-  it("listForms → GET /forms", async () => {
-    mockOk({});
-    await api.listForms();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/forms");
-  });
-
-  it("getFormDefinition → GET /forms/{param_1}/definition", async () => {
-    mockOk({});
-    await api.getFormDefinition("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/forms");
-  });
-
-});
 
 describe("/front-office endpoints", () => {
   it("listVisitingHours → GET /front-office/visiting-hours", async () => {
@@ -6677,13 +6079,13 @@ describe("/ipd endpoints", () => {
     expect(opts.method).toBe("POST");
   });
 
-  it("bedTransfer → POST /ipd/admissions/{param_1}/transfer", async () => {
+  it("bedTransfer → PUT /ipd/admissions/{param_1}/transfer", async () => {
     mockOk({});
     await api.bedTransfer(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("POST");
+    expect(opts.method).toBe("PUT");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
@@ -7517,27 +6919,6 @@ describe("/masters endpoints", () => {
 
 });
 
-describe("/module-forms endpoints", () => {
-  it("getModuleForms → GET /module-forms/{param_1}", async () => {
-    mockOk({});
-    await api.getModuleForms("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/module-forms");
-  });
-
-});
-
-describe("/modules endpoints", () => {
-  it("listModuleSidecars → GET /modules/{param_1}/sidecars", async () => {
-    mockOk({});
-    await api.listModuleSidecars("test", UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/modules");
-  });
-
-});
 
 describe("/mrd endpoints", () => {
   it("listMrdRecords → GET /mrd/records", async () => {
@@ -7929,13 +7310,13 @@ describe("/onboarding endpoints", () => {
     expect(url).toBe("/api/onboarding/progress");
   });
 
-  it("updateOnboardingProgress → POST /onboarding/progress", async () => {
+  it("updateOnboardingProgress → PUT /onboarding/progress", async () => {
     mockOk({});
     await api.updateOnboardingProgress({ test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/onboarding/progress");
-    expect(opts.method).toBe("POST");
+    expect(opts.method).toBe("PUT");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
@@ -10946,24 +10327,6 @@ describe("/schema endpoints", () => {
 
 });
 
-describe("/screens endpoints", () => {
-  it("resolveScreen → GET /screens/{param_1}", async () => {
-    mockOk({});
-    await api.resolveScreen("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/screens");
-  });
-
-  it("listModuleScreens → GET /screens/module/{param_1}", async () => {
-    mockOk({});
-    await api.listModuleScreens("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/screens/module");
-  });
-
-});
 
 describe("/security endpoints", () => {
   it("listSecurityZones → GET /security/zones", async () => {
@@ -11299,20 +10662,20 @@ describe("/it-security endpoints", () => {
     expect(url).toBe("/api/backups");
   });
 
-  it("getOnboardingProgress → GET /onboarding/progress", async () => {
+  it("getOnboardingProgress → GET /it-onboarding/progress", async () => {
     mockOk({});
     await api.getOnboardingProgress();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/onboarding/progress");
+    expect(url).toBe("/api/it-onboarding/progress");
   });
 
-  it("completeOnboardingStep → POST /onboarding/complete-step", async () => {
+  it("completeOnboardingStep → POST /it-onboarding/complete-step", async () => {
     mockOk({});
     await api.completeOnboardingStep({ test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/onboarding/complete-step");
+    expect(url).toBe("/api/it-onboarding/complete-step");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
@@ -12186,36 +11549,6 @@ describe("/setup endpoints", () => {
 
 });
 
-describe("/tenant endpoints", () => {
-  it("listFieldOverrides → GET /tenant/field-overrides", async () => {
-    mockOk({});
-    await api.listFieldOverrides();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/tenant/field-overrides");
-  });
-
-  it("upsertFieldOverride → PUT /tenant/field-overrides/{param_1}", async () => {
-    mockOk({});
-    await api.upsertFieldOverride("test", { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/tenant/field-overrides");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("deleteFieldOverride → DELETE /tenant/field-overrides/{param_1}", async () => {
-    mockOk({});
-    await api.deleteFieldOverride("test");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/tenant/field-overrides");
-    expect(opts.method).toBe("DELETE");
-  });
-
-});
 
 describe("/utilization-review endpoints", () => {
   it("listUrReviews → GET /utilization-review/reviews", async () => {

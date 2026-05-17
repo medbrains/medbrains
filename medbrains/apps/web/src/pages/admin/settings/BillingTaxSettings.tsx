@@ -157,8 +157,10 @@ function TaxCategoryModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof taxFormToPayload>) =>
-      api.updateTaxCategory(editingRow?.id, data),
+    mutationFn: (data: ReturnType<typeof taxFormToPayload>) => {
+      if (!editingRow) throw new Error("No tax category selected");
+      return api.updateTaxCategory(editingRow.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Tax category updated",
@@ -324,8 +326,10 @@ function PaymentMethodModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) =>
-      api.updatePaymentMethod(editingRow?.id, data),
+    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) => {
+      if (!editingRow) throw new Error("No payment method selected");
+      return api.updatePaymentMethod(editingRow.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Payment method updated",

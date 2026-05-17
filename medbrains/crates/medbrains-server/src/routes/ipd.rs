@@ -1090,7 +1090,7 @@ pub async fn discharge_patient(
                 &claims.tenant_id,
                 super::billing::AutoChargeInput {
                     patient_id: admission.patient_id,
-                    encounter_id: admission.encounter_id,
+                    encounter_id: Some(admission.encounter_id),
                     charge_code,
                     source: "ipd".to_owned(),
                     source_id: admission.id,

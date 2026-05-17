@@ -21,6 +21,18 @@ export interface QueueEntry {
   uhid: string;
 }
 
+export interface QueueTransitionResponse {
+  id: string;
+  encounter_id: string;
+  department_id: string;
+  doctor_id: string | null;
+  token_number: number;
+  status: string;
+  queue_date: string;
+  called_at: string | null;
+  completed_at: string | null;
+}
+
 export interface ListQueueParams {
   date?: string;
   department_id?: string;
@@ -38,14 +50,14 @@ export async function listOpdQueue(params?: ListQueueParams): Promise<QueueEntry
   return request<QueueEntry[]>(apiConfig, "GET", `/api/opd/queue${suffix}`);
 }
 
-export async function callQueue(id: string): Promise<QueueEntry> {
-  return request<QueueEntry>(apiConfig, "POST", `/api/opd/queue/${id}/call`);
+export async function callQueue(id: string): Promise<QueueTransitionResponse> {
+  return request<QueueTransitionResponse>(apiConfig, "PUT", `/api/opd/queue/${id}/call`);
 }
 
-export async function startConsultation(id: string): Promise<QueueEntry> {
-  return request<QueueEntry>(apiConfig, "POST", `/api/opd/queue/${id}/start`);
+export async function startConsultation(id: string): Promise<QueueTransitionResponse> {
+  return request<QueueTransitionResponse>(apiConfig, "PUT", `/api/opd/queue/${id}/start`);
 }
 
-export async function completeQueueEntry(id: string): Promise<QueueEntry> {
-  return request<QueueEntry>(apiConfig, "POST", `/api/opd/queue/${id}/complete`);
+export async function completeQueueEntry(id: string): Promise<QueueTransitionResponse> {
+  return request<QueueTransitionResponse>(apiConfig, "PUT", `/api/opd/queue/${id}/complete`);
 }

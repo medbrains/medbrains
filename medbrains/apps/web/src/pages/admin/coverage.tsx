@@ -190,8 +190,8 @@ function CreateCoverageModal({
       api.adminCreateCoverage({
         absent_doctor_id: absent!,
         covering_doctor_id: covering!,
-        start_at: start?.toISOString(),
-        end_at: end?.toISOString(),
+        start_at: start ? start.toISOString() : "",
+        end_at: end ? end.toISOString() : "",
         reason: reason || null,
       }),
     onSuccess: () => {

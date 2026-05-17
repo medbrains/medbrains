@@ -43,8 +43,9 @@ export const patientRegisterSchema: FormSchema = {
     // Optional fields covered in submit-success path:
     {
       label: "Prefix",
-      type: "text",
-      validValue: "Mr",
+      type: "select",
+      validValue: "Mr.",
+      optionText: "Mr.",
     },
     {
       label: "Middle name",

@@ -6,7 +6,7 @@
 import type { IntentTone } from "@medbrains/ui-mobile";
 import { Badge, Card, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
 import { useHasPermission } from "../lib/permissions.js";
 
@@ -30,6 +30,7 @@ export interface ModuleHomeProps {
   eyebrow: string;
   title: string;
   description?: string;
+  trailing?: ReactNode;
   loading?: boolean;
   summaries?: ReadonlyArray<ModuleSummaryTile>;
   actions: ReadonlyArray<ModuleAction>;
@@ -41,6 +42,7 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
     eyebrow,
     title,
     description,
+    trailing,
     loading = false,
     summaries = [],
     actions,
@@ -53,25 +55,30 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
       contentContainerStyle={{ padding: SPACING.md }}
     >
       <View style={{ marginBottom: SPACING.md }}>
-        <Text
-          variant="labelSmall"
-          style={{
-            color: COLORS.brandDeep,
-            letterSpacing: 1.5,
-            textTransform: "uppercase",
-            fontFamily: "JetBrainsMono-Regular",
-          }}
-        >
-          {eyebrow}
-        </Text>
-        <Text variant="headlineMedium" style={{ color: COLORS.brand, marginTop: 4 }}>
-          {title}
-        </Text>
-        {description && (
-          <Text variant="bodyMedium" style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}>
-            {description}
-          </Text>
-        )}
+        <View style={{ flexDirection: "row", gap: SPACING.sm, alignItems: "flex-start" }}>
+          <View style={{ flex: 1 }}>
+            <Text
+              variant="labelSmall"
+              style={{
+                color: COLORS.brandDeep,
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+                fontFamily: "JetBrainsMono-Regular",
+              }}
+            >
+              {eyebrow}
+            </Text>
+            <Text variant="headlineMedium" style={{ color: COLORS.brand, marginTop: 4 }}>
+              {title}
+            </Text>
+            {description && (
+              <Text variant="bodyMedium" style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}>
+                {description}
+              </Text>
+            )}
+          </View>
+          {trailing}
+        </View>
       </View>
       {loading && (
         <View style={{ alignItems: "center", paddingVertical: SPACING.lg }}>
@@ -125,16 +132,24 @@ function ActionRow({ action }: { action: ModuleAction }) {
     return null;
   }
   return (
-    <View
-      style={{
-        borderTopWidth: 1,
-        borderTopColor: COLORS.rule,
-        paddingVertical: SPACING.md,
+    <Pressable
+      accessibilityLabel={action.label}
+      accessibilityRole="button"
+      disabled={!action.onPress}
+      onPress={action.onPress}
+      style={({ pressed }) => ({
+        borderWidth: 1,
+        borderColor: pressed ? COLORS.brand : COLORS.rule,
+        borderRadius: 8,
+        backgroundColor: pressed ? COLORS.panel : COLORS.canvas,
+        padding: SPACING.md,
+        marginBottom: SPACING.sm,
+        minHeight: 84,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-      }}
-      onTouchEnd={action.onPress}
+        opacity: action.onPress ? 1 : 0.55,
+      })}
     >
       <View style={{ flex: 1, paddingRight: SPACING.md }}>
         <Text variant="titleSmall" style={{ color: COLORS.ink, fontWeight: "600" }}>
@@ -147,6 +162,6 @@ function ActionRow({ action }: { action: ModuleAction }) {
         )}
       </View>
       {action.badge && <Badge label={action.badge.label} tone={action.badge.tone} />}
-    </View>
+    </Pressable>
   );
 }

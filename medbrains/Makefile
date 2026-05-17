@@ -50,18 +50,21 @@ help: ## Show this help
 # ── Development ──────────────────────────────────────────────
 
 dev: local-https-cert ## Start everything with local HTTPS proxy
-	@echo "Starting PostgreSQL..."
-	@docker compose up -d postgres
+	@echo "Starting PostgreSQL and local SpiceDB..."
+	@docker compose up -d postgres spicedb
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	@DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-fast: local-https-cert ## Start everything with HTTPS proxy, skip compile check
-	@docker compose up -d postgres 2>/dev/null
+	@docker compose up -d postgres spicedb 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	@SKIP_BACKEND_BUILD=true DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-backend: db ## Start database + backend only
+	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	cargo run
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
@@ -157,8 +160,8 @@ mobile-staff-typecheck: ## Typecheck staff mobile app
 
 # ── Database ─────────────────────────────────────────────────
 
-db: ## Start PostgreSQL
-	docker compose up -d postgres
+db: ## Start PostgreSQL + local SpiceDB
+	docker compose up -d postgres spicedb
 
 db-stop: ## Stop all containers
 	docker compose down

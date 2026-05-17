@@ -55,6 +55,7 @@ import {
   IconUserSearch,
   IconUserShield,
   IconUsers,
+  IconUsersGroup,
   IconWash,
 } from "@tabler/icons-react";
 import type { TFunction } from "i18next";
@@ -122,6 +123,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconUserCog,
   IconUserShield,
   IconUsers,
+  IconUsersGroup,
   IconHeartbeat,
   IconMicroscope,
   IconBrain,
@@ -180,6 +182,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/opd/appointments",
         icon: "IconCalendar",
         requiredPermission: "opd.appointment.list",
+      },
+      {
+        i18nKey: "doctorSignoffs",
+        path: "/doctor/signoffs",
+        icon: "IconSignature",
+        requiredPermission: "doctor.signoffs.view_own",
       },
       {
         i18nKey: "emergency",
@@ -498,6 +506,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.users.list",
           },
           {
+            i18nKey: "doctors",
+            path: "/admin/doctors",
+            icon: "IconStethoscope",
+            requiredPermission: "admin.doctors.list",
+          },
+          {
             i18nKey: "roles",
             path: "/admin/roles",
             icon: "IconUserShield",
@@ -508,6 +522,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/groups",
             icon: "IconUsersGroup",
             requiredPermission: "admin.users.list",
+          },
+          {
+            i18nKey: "accessRequests",
+            path: "/admin/access-requests",
+            icon: "IconShieldLock",
+            requiredPermission: "security.access.list",
           },
           {
             i18nKey: "nabhIndicators",

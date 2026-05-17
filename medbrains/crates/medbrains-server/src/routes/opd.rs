@@ -842,7 +842,7 @@ pub async fn complete_queue_entry(
                 &claims.tenant_id,
                 super::billing::AutoChargeInput {
                     patient_id,
-                    encounter_id: q.encounter_id,
+                    encounter_id: Some(q.encounter_id),
                     charge_code,
                     source: "opd".to_owned(),
                     source_id: q.id,

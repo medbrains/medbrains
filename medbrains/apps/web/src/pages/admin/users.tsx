@@ -256,7 +256,7 @@ function UserModal({
 
   useEffect(() => {
     if (deptInline.pendingSelect) {
-      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id]);
+      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id ?? ""]);
       deptInline.clearPendingSelect();
     }
   }, [deptInline.pendingSelect, deptInline.clearPendingSelect]);
@@ -337,7 +337,10 @@ function UserModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.updateSetupUser(editingUser?.id, data),
+    mutationFn: (data: Record<string, unknown>) => {
+      if (!editingUser) throw new Error("No user selected");
+      return api.updateSetupUser(editingUser.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "User updated",
@@ -561,7 +564,10 @@ function DeleteUserModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteSetupUser(user?.id),
+    mutationFn: () => {
+      if (!user) throw new Error("No user selected");
+      return api.deleteSetupUser(user.id);
+    },
     onSuccess: () => {
       notifications.show({
         title: "User deleted",

@@ -7,9 +7,11 @@
 import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
+import type { AdmissionRow } from "../api/ipd.js";
 import type { QueueEntry } from "../api/opd.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { DoctorIpdRoundDetailScreen, DoctorIpdRoundsScreen } from "./doctor/ipd-rounds.js";
 import { QueueDetailScreen } from "./doctor/queue-detail.js";
 import { QueueListScreen } from "./doctor/queue-list.js";
 
@@ -37,18 +39,28 @@ function DoctorHome(): ReactNode {
           label: "Start consultation",
           description: "Capture chief complaint, vitals, diagnosis.",
           permission: P.OPD.VISIT_CREATE,
+          onPress: () => router.push("queue"),
         },
         {
           id: "rx",
           label: "Prescription",
           description: "Write a prescription with INN, dose, frequency.",
           permission: P.OPD.VISIT_UPDATE,
+          onPress: () => router.push("queue"),
         },
         {
           id: "labs",
           label: "Lab orders",
           description: "Order panels or individual tests.",
           permission: P.LAB.ORDERS_CREATE,
+          onPress: () => router.push("queue"),
+        },
+        {
+          id: "ipd-rounds",
+          label: "IPD rounds",
+          description: "Ward patients with mini EMR review context.",
+          permission: P.IPD.ADMISSIONS_LIST,
+          onPress: () => router.push("ipd-rounds"),
         },
         {
           id: "appointments",
@@ -69,6 +81,10 @@ function DoctorScreen(): ReactNode {
         home: <DoctorHome />,
         queue: <QueueListScreen />,
         "queue-detail": (payload) => <QueueDetailScreen entry={payload as QueueEntry} />,
+        "ipd-rounds": <DoctorIpdRoundsScreen />,
+        "ipd-round-detail": (payload) => (
+          <DoctorIpdRoundDetailScreen admission={payload as AdmissionRow} />
+        ),
       }}
     />
   );

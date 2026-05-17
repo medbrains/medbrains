@@ -19,6 +19,7 @@ use medbrains_core::patient::{
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -106,6 +107,24 @@ pub struct CreatePatientRequest {
     pub registration_type: Option<RegistrationType>,
     pub registration_source: Option<RegistrationSource>,
     pub financial_class: Option<FinancialClass>,
+
+    // ── Digital identity / clinical intake context ──
+    pub abha_number: Option<String>,
+    pub abha_address: Option<String>,
+    pub aadhaar_number: Option<String>,
+    pub referred_by_name: Option<String>,
+    pub referred_by_phone: Option<String>,
+    pub referred_by_facility: Option<String>,
+    pub department_id: Option<Uuid>,
+    pub department_name: Option<String>,
+    pub consultant_id: Option<Uuid>,
+    pub consultant_name: Option<String>,
+    pub clinical_unit: Option<String>,
+    pub camp_id: Option<Uuid>,
+    pub camp_name: Option<String>,
+    pub initial_diagnosis_text: Option<String>,
+    pub icd10_code: Option<String>,
+    pub icd11_code: Option<String>,
 
     // ── MLC ──
     pub is_medico_legal: Option<bool>,
@@ -444,6 +463,277 @@ fn enum_to_str<T: Serialize>(val: &T) -> String {
         .unwrap_or_default()
 }
 
+fn normalize_aadhaar_number(value: &str) -> Option<String> {
+    let digits: String = value.chars().filter(char::is_ascii_digit).collect();
+    (digits.len() == 12).then_some(digits)
+}
+
+fn normalize_abha_number(value: &str) -> Option<String> {
+    let digits: String = value.chars().filter(char::is_ascii_digit).collect();
+    (digits.len() == 14).then_some(digits)
+}
+
+fn masked_aadhaar(digits: &str) -> String {
+    let last4 = digits.get(digits.len().saturating_sub(4)..).unwrap_or("");
+    format!("XXXX-XXXX-{last4}")
+}
+
+fn sha256_hex(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn add_trimmed_attr(map: &mut serde_json::Map<String, serde_json::Value>, key: &str, value: &str) {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() {
+        map.insert(
+            key.to_owned(),
+            serde_json::Value::String(trimmed.to_owned()),
+        );
+    }
+}
+
+fn build_patient_registration_attributes(
+    attributes: Option<serde_json::Value>,
+    body: &CreatePatientRequest,
+    aadhaar_digits: Option<&str>,
+    abha_number: Option<&str>,
+) -> serde_json::Value {
+    let mut base = attributes
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+
+    let mut identity = serde_json::Map::new();
+    if let Some(number) = abha_number {
+        identity.insert(
+            "abha_number".to_owned(),
+            serde_json::Value::String(number.to_owned()),
+        );
+    }
+    if let Some(address) = body.abha_address.as_deref() {
+        add_trimmed_attr(&mut identity, "abha_address", address);
+    }
+    if let Some(digits) = aadhaar_digits {
+        identity.insert(
+            "aadhaar_masked".to_owned(),
+            serde_json::Value::String(masked_aadhaar(digits)),
+        );
+        if let Some(last4) = digits.get(digits.len().saturating_sub(4)..) {
+            identity.insert(
+                "aadhaar_last4".to_owned(),
+                serde_json::Value::String(last4.to_owned()),
+            );
+        }
+    }
+    if !identity.is_empty() {
+        base.insert("identity".to_owned(), serde_json::Value::Object(identity));
+    }
+
+    let mut intake = serde_json::Map::new();
+    if let Some(value) = body.referred_by_name.as_deref() {
+        add_trimmed_attr(&mut intake, "referred_by_name", value);
+    }
+    if let Some(value) = body.referred_by_phone.as_deref() {
+        add_trimmed_attr(&mut intake, "referred_by_phone", value);
+    }
+    if let Some(value) = body.referred_by_facility.as_deref() {
+        add_trimmed_attr(&mut intake, "referred_by_facility", value);
+    }
+    if let Some(id) = body.department_id {
+        intake.insert(
+            "department_id".to_owned(),
+            serde_json::Value::String(id.to_string()),
+        );
+    }
+    if let Some(value) = body.department_name.as_deref() {
+        add_trimmed_attr(&mut intake, "department_name", value);
+    }
+    if let Some(id) = body.consultant_id {
+        intake.insert(
+            "consultant_id".to_owned(),
+            serde_json::Value::String(id.to_string()),
+        );
+    }
+    if let Some(value) = body.consultant_name.as_deref() {
+        add_trimmed_attr(&mut intake, "consultant_name", value);
+    }
+    if let Some(value) = body.clinical_unit.as_deref() {
+        add_trimmed_attr(&mut intake, "clinical_unit", value);
+    }
+    if let Some(id) = body.camp_id {
+        intake.insert(
+            "camp_id".to_owned(),
+            serde_json::Value::String(id.to_string()),
+        );
+    }
+    if let Some(value) = body.camp_name.as_deref() {
+        add_trimmed_attr(&mut intake, "camp_name", value);
+    }
+    if !intake.is_empty() {
+        base.insert(
+            "registration_context".to_owned(),
+            serde_json::Value::Object(intake),
+        );
+    }
+
+    let mut diagnosis = serde_json::Map::new();
+    if let Some(value) = body.initial_diagnosis_text.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "description", value);
+    }
+    if let Some(value) = body.icd10_code.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd10_code", value);
+    }
+    if let Some(value) = body.icd11_code.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd11_code", value);
+    }
+    if !diagnosis.is_empty() {
+        base.insert(
+            "initial_diagnosis".to_owned(),
+            serde_json::Value::Object(diagnosis),
+        );
+    }
+
+    serde_json::Value::Object(base)
+}
+
+async fn validate_patient_registration_links(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    body: &CreatePatientRequest,
+) -> Result<(), AppError> {
+    if let Some(consultant_id) = body.consultant_id {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM users
+                WHERE tenant_id = $1 AND id = $2 AND is_active = true
+            )",
+        )
+        .bind(tenant_id)
+        .bind(consultant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !exists {
+            return Err(AppError::BadRequest(
+                "Concerned consultant is not active for this tenant".to_owned(),
+            ));
+        }
+    }
+
+    if let Some(department_id) = body.department_id {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM departments
+                WHERE tenant_id = $1 AND id = $2 AND is_active = true
+            )",
+        )
+        .bind(tenant_id)
+        .bind(department_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !exists {
+            return Err(AppError::BadRequest(
+                "Department is not active for this tenant".to_owned(),
+            ));
+        }
+    }
+
+    if let Some(camp_id) = body.camp_id {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM camps
+                WHERE tenant_id = $1 AND id = $2
+            )",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !exists {
+            return Err(AppError::BadRequest(
+                "Camp does not exist for this tenant".to_owned(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn persist_registration_identifiers(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    abha_number: Option<&str>,
+    abha_address: Option<&str>,
+    aadhaar_digits: Option<&str>,
+) -> Result<(), AppError> {
+    if let Some(number) = abha_number {
+        sqlx::query(
+            "INSERT INTO patient_abha_links \
+             (tenant_id, patient_id, abha_number, abha_address, kyc_verified, status) \
+             VALUES ($1, $2, $3, $4, false, 'linked') \
+             ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+                abha_number = EXCLUDED.abha_number, \
+                abha_address = EXCLUDED.abha_address, \
+                updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(number)
+        .bind(abha_address.and_then(trimmed_non_empty))
+        .execute(&mut **tx)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO patient_identifiers \
+             (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, is_verified, is_primary) \
+             VALUES ($1, $2, 'abha'::identifier_type, $3, $4, 'ABDM', false, true)",
+        )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(number)
+        .bind(sha256_hex(&format!("{tenant_id}:abha:{number}")))
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    if let Some(address) = abha_address.and_then(trimmed_non_empty) {
+        sqlx::query(
+            "INSERT INTO patient_identifiers \
+             (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, is_verified, is_primary) \
+             VALUES ($1, $2, 'abha_address'::identifier_type, $3, $4, 'ABDM', false, false)",
+        )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(address)
+        .bind(sha256_hex(&format!("{tenant_id}:abha_address:{address}")))
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    if let Some(digits) = aadhaar_digits {
+        let masked = masked_aadhaar(digits);
+        let hash = sha256_hex(&format!("{tenant_id}:aadhaar:{digits}"));
+        sqlx::query(
+            "INSERT INTO patient_identifiers \
+             (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, is_verified, is_primary) \
+             VALUES ($1, $2, 'aadhaar'::identifier_type, $3, $4, 'UIDAI', false, false)",
+        )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(masked)
+        .bind(hash)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
+}
+
+fn trimmed_non_empty(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
 // ══════════════════════════════════════════════════════════
 //  GET /api/patients
 // ══════════════════════════════════════════════════════════
@@ -729,6 +1019,23 @@ pub async fn create_patient(
     if let Some(ref phone2) = body.phone_secondary {
         validation::validate_optional_phone(&mut errors, "phone_secondary", phone2);
     }
+    if let Some(ref phone) = body.referred_by_phone {
+        validation::validate_optional_phone(&mut errors, "referred_by_phone", phone);
+    }
+    let aadhaar_digits = body
+        .aadhaar_number
+        .as_deref()
+        .and_then(normalize_aadhaar_number);
+    if body.aadhaar_number.is_some() && aadhaar_digits.is_none() {
+        errors.add(
+            "aadhaar_number",
+            "Aadhaar must be a 12 digit number; only masked/hash storage is retained",
+        );
+    }
+    let abha_number = body.abha_number.as_deref().and_then(normalize_abha_number);
+    if body.abha_number.is_some() && abha_number.is_none() {
+        errors.add("abha_number", "ABHA number must be 14 digits");
+    }
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -740,10 +1047,12 @@ pub async fn create_patient(
     let is_medico_legal = body.is_medico_legal.unwrap_or(false);
     let is_vip = body.is_vip.unwrap_or(false);
     let is_unknown_patient = body.is_unknown_patient.unwrap_or(false);
-    let attributes = body
-        .attributes
-        .clone()
-        .unwrap_or_else(|| serde_json::json!({}));
+    let attributes = build_patient_registration_attributes(
+        body.attributes.clone(),
+        &body,
+        aadhaar_digits.as_deref(),
+        abha_number.as_deref(),
+    );
     let address = body.address.clone();
 
     // Cast enums to strings for SQL binding
@@ -759,12 +1068,15 @@ pub async fn create_patient(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    validate_patient_registration_links(&mut tx, &claims.tenant_id, &body).await?;
+
     let uhid = generate_uhid(&mut tx, &claims.tenant_id).await?;
 
     let patient = sqlx::query_as_unchecked!(
         Patient,
         r#"INSERT INTO patients
-           (tenant_id, uhid, prefix, first_name, middle_name, last_name, suffix,
+           (tenant_id, uhid, abha_id, abha_number,
+            prefix, first_name, middle_name, last_name, suffix,
             father_name, guardian_name, guardian_relation,
             date_of_birth, is_dob_estimated, gender, marital_status,
             religion, nationality_id, preferred_language,
@@ -773,16 +1085,17 @@ pub async fn create_patient(
             category, registration_type, registration_source, financial_class,
             is_medico_legal, mlc_number, is_vip, is_unknown_patient,
             attributes, created_by, registered_by, registered_at_facility)
-           VALUES ($1, $2, $3, $4, $5, $6, $7,
-                   $8, $9, $10,
-                   $11, $12, $13::gender, $14::marital_status,
-                   $15, $16, $17,
-                   $18::blood_group, $19,
-                   $20, $21, $22, $23,
-                   $24::patient_category, $25::registration_type,
-                   $26::registration_source, $27::financial_class,
-                   $28, $29, $30, $31,
-                   $32, $33, $33, NULL)
+           VALUES ($1, $2, $3, $3,
+                   $4, $5, $6, $7, $8,
+                   $9, $10, $11,
+                   $12, $13, $14::gender, $15::marital_status,
+                   $16, $17, $18,
+                   $19::blood_group, $20,
+                   $21, $22, $23, $24,
+                   $25::patient_category, $26::registration_type,
+                   $27::registration_source, $28::financial_class,
+                   $29, $30, $31, $32,
+                   $33, $34, $34, NULL)
            RETURNING id, tenant_id, uhid, abha_id, prefix, first_name, middle_name, last_name, suffix,
                      full_name_local, father_name, mother_name, spouse_name, guardian_name,
                      guardian_relation, date_of_birth, is_dob_estimated, gender, gender_identity,
@@ -797,6 +1110,7 @@ pub async fn create_patient(
                      is_active, created_by, created_at, updated_at"#,
         claims.tenant_id,
         &uhid,
+        &abha_number,
         &body.prefix,
         &body.first_name,
         &body.middle_name,
@@ -832,6 +1146,16 @@ pub async fn create_patient(
     .fetch_one(&mut *tx)
     .await?;
 
+    persist_registration_identifiers(
+        &mut tx,
+        claims.tenant_id,
+        patient.id,
+        abha_number.as_deref(),
+        body.abha_address.as_deref(),
+        aadhaar_digits.as_deref(),
+    )
+    .await?;
+
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::PatientCreated,
@@ -863,6 +1187,22 @@ pub async fn create_patient(
         )
         .await
         .map_err(|e| AppError::Internal(format!("patient authz grant failed: {e}")))?;
+
+    if let Some(consultant_id) = body.consultant_id {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "patient",
+                patient.id,
+                medbrains_authz::Relation::AttendingPhysician,
+                medbrains_authz::Subject::User(consultant_id),
+                None,
+                Some("patient_concerned_consultant".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("consultant authz grant failed: {e}")))?;
+    }
 
     // Emit orchestration event — patients.patient.registered
     let _ = crate::orchestration::lifecycle::emit_after_event(

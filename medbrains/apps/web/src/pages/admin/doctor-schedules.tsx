@@ -129,14 +129,16 @@ function ScheduleFormModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.updateSchedule(editSchedule?.id, {
+    mutationFn: () => {
+      if (!editSchedule) throw new Error("No schedule selected");
+      return api.updateSchedule(editSchedule.id, {
         start_time: startTime ?? undefined,
         end_time: endTime ?? undefined,
         slot_duration_mins: slotDuration,
         max_patients: maxPatients,
         is_active: isActive,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({
         title: "Schedule updated",
@@ -508,14 +510,14 @@ export function DoctorSchedulesPage() {
   // Load schedules for selected doctor
   const { data: schedules, isLoading: schedulesLoading } = useQuery({
     queryKey: ["doctor-schedules", selectedDoctor?.id],
-    queryFn: () => api.listSchedules({ doctor_id: selectedDoctor?.id }),
+    queryFn: () => api.listSchedules({ doctor_id: selectedDoctor?.id ?? "" }),
     enabled: !!selectedDoctor,
   });
 
   // Load exceptions for selected doctor
   const { data: exceptions } = useQuery({
     queryKey: ["doctor-exceptions", selectedDoctor?.id],
-    queryFn: () => api.listScheduleExceptions({ doctor_id: selectedDoctor?.id }),
+    queryFn: () => api.listScheduleExceptions({ doctor_id: selectedDoctor?.id ?? "" }),
     enabled: !!selectedDoctor,
   });
 

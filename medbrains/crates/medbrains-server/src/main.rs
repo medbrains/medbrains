@@ -118,6 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // SpiceDB connect outcome — used to decide whether the Watch consumer
     // should also be spawned (a Postgres fallback has nothing to watch).
     let mut spicedb_live: Option<(String, String)> = None;
+    let mut spicedb_outbox_client = None;
     let authz: Arc<dyn medbrains_authz::AuthzBackend> = if let Ok(endpoint) =
         std::env::var("SPICEDB_ENDPOINT")
     {
@@ -126,7 +127,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(client) => {
                 tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
                 spicedb_live = Some((endpoint, token));
-                Arc::new(client)
+                spicedb_outbox_client = Some(client.clone());
+                Arc::new(
+                    medbrains_authz::backend_durable_spicedb::DurableSpiceDbBackend::new(
+                        db_pool.clone(),
+                        client,
+                    ),
+                )
             }
             Err(e) => {
                 tracing::warn!(error = %e, endpoint = %endpoint,
@@ -184,6 +191,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("watch consumer spawned");
     } else {
         tracing::info!("watch consumer not spawned because authz is using Postgres fallback");
+    }
+
+    if let Some(spicedb) = spicedb_outbox_client {
+        let outbox_db = db_pool.clone();
+        tokio::spawn(async move {
+            medbrains_authz::backend_durable_spicedb::run_spicedb_outbox_worker(outbox_db, spicedb)
+                .await;
+        });
+        tracing::info!("rebac: SpiceDB outbox worker spawned");
     }
 
     // Build shared state

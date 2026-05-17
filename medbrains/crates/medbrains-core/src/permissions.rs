@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 660;
+pub const PERMISSION_COUNT: usize = 661;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -1384,6 +1384,10 @@ pub mod admin {
         pub const CREATE: &str = "admin.roles.create";
         pub const UPDATE: &str = "admin.roles.update";
         pub const DELETE: &str = "admin.roles.delete";
+    }
+
+    pub mod sharing {
+        pub const MANAGE: &str = "admin.sharing.manage";
     }
 
     pub mod settings {

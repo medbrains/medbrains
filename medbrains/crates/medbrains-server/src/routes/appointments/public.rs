@@ -2,11 +2,11 @@ use axum::{
     Json,
     extract::{Query, State},
 };
-use chrono::{Datelike, Duration, Utc};
+use chrono::{Datelike, Duration, NaiveTime, Utc};
 use medbrains_core::appointment::{Appointment, AppointmentStatus, AvailableSlot, DoctorSchedule};
 use uuid::Uuid;
 
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, event_tokens, state::AppState};
 
 use super::{
     KioskCheckinRequest, KioskCheckinResponse, PublicBookingRequest, PublicBookingResponse,
@@ -59,7 +59,18 @@ pub async fn public_book_appointment(
         .fetch_optional(&mut *tx)
         .await?
         .unwrap_or_else(|| "Dept".to_owned());
-    let qr_code_data = format!("MEDBRAINS:APT:{}", appointment.id);
+    let end_of_day = NaiveTime::from_hms_opt(23, 59, 59)
+        .ok_or_else(|| AppError::Internal("invalid appointment QR expiry".to_owned()))?;
+    let qr_expires_at = appointment.appointment_date.and_time(end_of_day).and_utc();
+    let qr_code_data = event_tokens::issue_event_token(
+        &state,
+        tenant_id,
+        "appointment.checkin",
+        "appointment",
+        appointment.id,
+        qr_expires_at,
+    )
+    .await?;
 
     tx.commit().await?;
 
@@ -137,22 +148,26 @@ pub async fn public_available_slots(
     Ok(Json(slots))
 }
 
-/// POST /api/public/kiosk/checkin — QR scan → check in → generate token → broadcast to TV
+/// POST /api/public/kiosk/checkin — opaque QR scan → check in → generate token → broadcast to TV
 pub async fn kiosk_checkin(
     State(state): State<AppState>,
     Json(body): Json<KioskCheckinRequest>,
 ) -> Result<Json<KioskCheckinResponse>, AppError> {
-    let appointment_id = body
-        .qr_data
-        .strip_prefix("MEDBRAINS:APT:")
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .ok_or_else(|| AppError::BadRequest("Invalid QR code".into()))?;
+    let qr_token =
+        event_tokens::open_event_token(&state, &body.qr_data, "appointment.checkin").await?;
+    if qr_token.subject_type != "appointment" {
+        return Err(AppError::BadRequest("Invalid QR code".to_owned()));
+    }
+    let appointment_id = qr_token.subject_id;
 
     let appointment = sqlx::query_as::<_, Appointment>("SELECT * FROM appointments WHERE id = $1")
         .bind(appointment_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
+    if appointment.tenant_id != qr_token.tenant_id {
+        return Err(AppError::BadRequest("Invalid QR code".to_owned()));
+    }
 
     let today = Utc::now().date_naive();
     if appointment.appointment_date != today {

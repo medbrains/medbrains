@@ -30,7 +30,7 @@ use crate::{
 
 pub(crate) struct AutoChargeInput {
     pub patient_id: Uuid,
-    pub encounter_id: Uuid,
+    pub encounter_id: Option<Uuid>,
     pub charge_code: String,
     pub source: String,
     pub source_id: Uuid,
@@ -181,7 +181,8 @@ struct RatePlanOverride {
     override_tax_percent: Option<Decimal>,
 }
 
-/// Auto-charge: find or create a draft invoice for the encounter, then add item.
+/// Auto-charge: find or create a draft invoice for the encounter, or a
+/// patient-only draft invoice when the source workflow is not encounter-linked.
 /// Fails gracefully (returns Ok) — caller should not let billing errors block module operations.
 /// Standard auto_charge — no batch traceability (lab, radiology,
 /// room rent, etc.). Pharmacy uses `auto_charge_with_batch` instead.
@@ -232,11 +233,17 @@ pub(crate) async fn auto_charge_with_batch(
     // 2. Find or create draft invoice for this encounter
     let draft_invoice = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM invoices \
-         WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'draft'::invoice_status \
+         WHERE tenant_id = $1 \
+           AND status = 'draft'::invoice_status \
+           AND ( \
+             ($2::uuid IS NOT NULL AND encounter_id = $2) \
+             OR ($2::uuid IS NULL AND encounter_id IS NULL AND patient_id = $3) \
+           ) \
          LIMIT 1",
     )
     .bind(tenant_id)
     .bind(input.encounter_id)
+    .bind(input.patient_id)
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -446,7 +453,7 @@ async fn generate_invoice_number(
 //  Recalculate invoice totals
 // ══════════════════════════════════════════════════════════
 
-async fn recalculate_invoice_totals(
+pub(crate) async fn recalculate_invoice_totals(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     invoice_id: Uuid,
     tenant_id: Uuid,
@@ -2584,7 +2591,7 @@ pub async fn trigger_auto_charge(
                             &claims.tenant_id,
                             AutoChargeInput {
                                 patient_id: o.patient_id,
-                                encounter_id: body.encounter_id,
+                                encounter_id: Some(body.encounter_id),
                                 charge_code: t.code,
                                 source: "lab".to_owned(),
                                 source_id: o.id,
@@ -2622,7 +2629,8 @@ pub async fn trigger_auto_charge(
                 for o in &orders {
                     let items = sqlx::query_as::<_, PharmItemInfo>(
                         "SELECT id, catalog_item_id, drug_name, quantity, unit_price \
-                         FROM pharmacy_order_items WHERE order_id = $1 AND tenant_id = $2",
+                         FROM pharmacy_order_items \
+                         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
                     )
                     .bind(o.id)
                     .bind(claims.tenant_id)
@@ -2639,7 +2647,7 @@ pub async fn trigger_auto_charge(
                             &claims.tenant_id,
                             AutoChargeInput {
                                 patient_id: o.patient_id,
-                                encounter_id: body.encounter_id,
+                                encounter_id: Some(body.encounter_id),
                                 charge_code: code,
                                 source: "pharmacy".to_owned(),
                                 source_id: item.id,
@@ -2693,7 +2701,7 @@ pub async fn trigger_auto_charge(
                         &claims.tenant_id,
                         AutoChargeInput {
                             patient_id: o.patient_id,
-                            encounter_id: body.encounter_id,
+                            encounter_id: Some(body.encounter_id),
                             charge_code,
                             source: "radiology".to_owned(),
                             source_id: o.id,
@@ -2738,7 +2746,7 @@ pub async fn trigger_auto_charge(
                         &claims.tenant_id,
                         AutoChargeInput {
                             patient_id: b.patient_id,
-                            encounter_id: body.encounter_id,
+                            encounter_id: Some(body.encounter_id),
                             charge_code: proc_code,
                             source: "ot".to_owned(),
                             source_id: b.id,
@@ -2773,7 +2781,7 @@ pub async fn trigger_auto_charge(
                             &claims.tenant_id,
                             AutoChargeInput {
                                 patient_id: b.patient_id,
-                                encounter_id: body.encounter_id,
+                                encounter_id: Some(body.encounter_id),
                                 charge_code: room_code,
                                 source: "ot".to_owned(),
                                 source_id: room_id,
@@ -6934,7 +6942,7 @@ pub(crate) async fn create_service_charge(
 ) -> Result<AutoChargeResult, AppError> {
     let charge_input = AutoChargeInput {
         patient_id: inp.patient_id,
-        encounter_id: inp.encounter_id,
+        encounter_id: Some(inp.encounter_id),
         charge_code: inp.charge_code.to_owned(),
         source: inp.source_module.to_owned(),
         source_id: inp.source_entity_id,

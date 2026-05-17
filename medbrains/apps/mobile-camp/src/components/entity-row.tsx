@@ -6,7 +6,7 @@
 import type { IntentTone } from "@medbrains/ui-mobile";
 import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "react-native-paper";
 
 export interface EntityRowProps {
@@ -25,18 +25,26 @@ export function EntityRow({
   onPress,
 }: EntityRowProps): ReactNode {
   return (
-    <View
-      onTouchEnd={onPress}
-      style={{
-        backgroundColor: COLORS.canvas,
+    <Pressable
+      accessibilityLabel={title}
+      accessibilityRole={onPress ? "button" : "text"}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? COLORS.panel : COLORS.canvas,
         borderWidth: 1,
-        borderColor: accent ? COLORS.copper : COLORS.rule,
+        borderColor: accent ? COLORS.copper : pressed ? COLORS.brand : COLORS.rule,
         padding: SPACING.md,
         borderRadius: 8,
+        minHeight: 76,
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-      }}
+        shadowColor: COLORS.brandDeep,
+        shadowOpacity: pressed ? 0.05 : 0.025,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      })}
     >
       <View style={{ flex: 1, paddingRight: SPACING.sm }}>
         <Text variant="titleMedium" style={{ color: COLORS.ink, fontWeight: "600" }}>
@@ -57,6 +65,6 @@ export function EntityRow({
         )}
       </View>
       {badge && <Badge label={badge.label} tone={badge.tone} />}
-    </View>
+    </Pressable>
   );
 }

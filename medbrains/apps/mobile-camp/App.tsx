@@ -25,7 +25,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <AuthProvider secretStore={apiConfig.store}>
           <Shell
             variant="camp"

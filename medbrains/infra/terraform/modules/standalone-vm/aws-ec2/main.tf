@@ -179,7 +179,9 @@ resource "aws_eip" "this" {
 
 resource "null_resource" "wait_for_ssh" {
   triggers = {
-    eip_id = aws_eip.this.id
+    eip_id      = aws_eip.this.id
+    instance_id = aws_instance.this.id
+    public_ip   = aws_eip.this.public_ip
   }
 
   provisioner "local-exec" {

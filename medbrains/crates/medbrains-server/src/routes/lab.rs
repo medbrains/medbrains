@@ -639,7 +639,7 @@ pub async fn complete_order(
                     &claims.tenant_id,
                     super::billing::AutoChargeInput {
                         patient_id: o.patient_id,
-                        encounter_id: o.encounter_id,
+                        encounter_id: Some(o.encounter_id),
                         charge_code: test.code,
                         source: "lab".to_owned(),
                         source_id: o.id,

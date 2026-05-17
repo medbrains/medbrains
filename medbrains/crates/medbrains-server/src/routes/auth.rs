@@ -7,7 +7,7 @@ use argon2::{
 use axum::http::HeaderMap;
 use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum_extra::extract::CookieJar;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
@@ -779,8 +779,9 @@ pub async fn change_password(
 
 /// Resolve effective permissions for a user:
 /// 1. Start with the role's `permissions` JSONB array
-/// 2. Apply user `access_matrix` overrides: `{ extra: [...], denied: [...] }`
-/// 3. effective = (`role_perms` ∪ extra) - denied
+/// 2. Apply user `access_matrix` overrides:
+///    `{ extra: [...], temporary_grants: [...], denied: [...] }`
+/// 3. effective = (`role_perms` union extra union active temporary grants) - denied
 ///
 /// `super_admin` and `hospital_admin` get an empty list (they bypass checks).
 pub async fn resolve_permissions(
@@ -832,6 +833,24 @@ pub async fn resolve_permissions(
                 }
             }
         }
+        // Add active IAM temporary grants. These are created by
+        // /api/iam/access-requests/{id}/approve and are ignored once
+        // revoked or past expires_at.
+        if let Some(serde_json::Value::Array(grants)) = matrix.get("temporary_grants") {
+            for grant in grants {
+                if !temporary_grant_is_active(grant) {
+                    continue;
+                }
+                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions")
+                {
+                    for val in permission_values {
+                        if let serde_json::Value::String(s) = val {
+                            perms.insert(s.clone());
+                        }
+                    }
+                }
+            }
+        }
         // Remove denied permissions
         if let Some(serde_json::Value::Array(denied)) = matrix.get("denied") {
             for val in denied {
@@ -845,6 +864,25 @@ pub async fn resolve_permissions(
     let mut result: Vec<String> = perms.into_iter().collect();
     result.sort();
     Ok(result)
+}
+
+fn temporary_grant_is_active(grant: &serde_json::Value) -> bool {
+    if grant
+        .get("revoked_at")
+        .and_then(serde_json::Value::as_str)
+        .is_some()
+    {
+        return false;
+    }
+
+    if let Some(expires_at) = grant.get("expires_at").and_then(serde_json::Value::as_str) {
+        match DateTime::parse_from_rfc3339(expires_at) {
+            Ok(parsed) => parsed.with_timezone(&Utc) > Utc::now(),
+            Err(_) => false,
+        }
+    } else {
+        true
+    }
 }
 
 /// Compute a device fingerprint from request headers (SHA-256 of User-Agent + Accept-Language).
@@ -929,7 +967,7 @@ async fn resolve_department_ids(
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RevocationRow {
     pub user_id: Uuid,
-    pub deactivated_at: chrono::DateTime<Utc>,
+    pub deactivated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]
@@ -938,7 +976,7 @@ pub struct RevocationsResponse {
     /// Echo back the cursor the caller should use next time. Equal
     /// to the max `deactivated_at` in the result set, or the input
     /// `since` if nothing changed.
-    pub next_since: chrono::DateTime<Utc>,
+    pub next_since: DateTime<Utc>,
     /// True if more rows exist past the cap; caller should pull
     /// again immediately.
     pub has_more: bool,
@@ -948,7 +986,7 @@ pub struct RevocationsResponse {
 pub struct RevocationsQuery {
     /// RFC3339 timestamp. Server returns rows with
     /// `deactivated_at > since`. Default = epoch (full backfill).
-    pub since: Option<chrono::DateTime<Utc>>,
+    pub since: Option<DateTime<Utc>>,
 }
 
 const REVOCATIONS_PAGE_SIZE: i64 = 500;
@@ -960,7 +998,7 @@ pub async fn list_revocations(
 ) -> Result<Json<RevocationsResponse>, AppError> {
     let since = q
         .since
-        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_default());
+        .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_default());
 
     let rows: Vec<RevocationRow> = sqlx::query_as(
         "SELECT id AS user_id, deactivated_at \

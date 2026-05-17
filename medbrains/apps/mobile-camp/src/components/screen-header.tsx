@@ -3,7 +3,7 @@
  * screens within a module to return to the module home.
  */
 
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
+import { COLORS, EcgLoader, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Text } from "react-native-paper";
@@ -14,6 +14,7 @@ export interface ScreenHeaderProps {
   title: string;
   description?: string;
   trailing?: ReactNode;
+  loadingLabel?: string;
 }
 
 export function ScreenHeader({
@@ -21,6 +22,7 @@ export function ScreenHeader({
   title,
   description,
   trailing,
+  loadingLabel,
 }: ScreenHeaderProps): ReactNode {
   const router = useModuleRouter();
   return (
@@ -61,6 +63,26 @@ export function ScreenHeader({
         </View>
         {trailing}
       </View>
+      {loadingLabel && (
+        <View
+          style={{
+            marginTop: SPACING.sm,
+            borderWidth: 1,
+            borderColor: COLORS.rule,
+            borderRadius: 8,
+            backgroundColor: COLORS.navActiveBg,
+            paddingHorizontal: SPACING.sm,
+            paddingVertical: SPACING.xs,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: SPACING.sm }}>
+            <EcgLoader width={130} />
+            <Text variant="labelMedium" style={{ color: COLORS.brandDeep }}>
+              {loadingLabel}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

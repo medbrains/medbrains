@@ -18,7 +18,6 @@
     "react-hook-form": "^7.71.2"
   },
   "devDependencies": {
-    "allure-vitest": "^3.7.1",
     "vitest": "^4.1.5"
   }
 }

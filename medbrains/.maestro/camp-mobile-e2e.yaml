@@ -1,0 +1,174 @@
+appId: com.medbrains.camp
+name: Camp Mobile End-to-End
+---
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Camp"
+    timeout: 30000
+
+# Auth
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Camp Mode"
+    timeout: 30000
+
+# Select one camp workspace and download its patient packet.
+- assertVisible: "Select camp workspace"
+- tapOn: "Select camp workspace"
+- extendedWaitUntil:
+    visible: "Select Camp"
+    timeout: 30000
+- assertVisible: "Search by camp code, name, village, district or pincode"
+- tapOn: "Kallal Block Multi-Specialty Rural Camp"
+- extendedWaitUntil:
+    visible: "Download Local Camp Packet"
+    timeout: 30000
+- tapOn: "Download Local Camp Packet"
+- extendedWaitUntil:
+    visible: "Open Existing Patients"
+    timeout: 60000
+- assertVisible: "Patient Search / OPD Mini-EMR"
+- assertVisible: "Camp Patient Registration"
+- assertVisible: "Field Readiness"
+- assertVisible: "Sync Center"
+
+# Existing downloaded patient: packet search + mini EMR + OPD actions.
+- tapOn: "Open Existing Patients"
+- extendedWaitUntil:
+    visible: "Patient Search / EMR"
+    timeout: 15000
+- tapOn: "Search name, UHID, phone, village or complaint"
+- inputText: "Selvi"
+- extendedWaitUntil:
+    visible: "Selvi Nair"
+    timeout: 10000
+- tapOn: "Selvi Nair"
+- extendedWaitUntil:
+    visible: "Summary"
+    timeout: 10000
+- assertVisible: "Identifiers"
+- assertVisible: "Latest vitals"
+- tapOn: "OPD"
+- assertVisible: "Vitals and assessment"
+- assertVisible: "Queue Vitals"
+- tapOn: "Back to packet search"
+- extendedWaitUntil:
+    visible: "Patient Search / EMR"
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible: "Open Existing Patients"
+    timeout: 10000
+
+# New walk-in: registration, vitals, sample, referral queued locally.
+- tapOn: "Register New Patient"
+- extendedWaitUntil:
+    visible: "Camp registration"
+    timeout: 10000
+- tapOn: "Name"
+- inputText: "Maestro E2E Patient"
+- tapOn: "Age"
+- inputText: "41"
+- tapOn: "Gender"
+- inputText: "Female"
+- tapOn: "Phone"
+- inputText: "9876543210"
+- tapOn: "Chief complaint"
+- inputText: "Fever and body pain"
+- hideKeyboard
+- tapOn: "Register Patient"
+- extendedWaitUntil:
+    visible: "Registration queued locally"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "Submit Vitals"
+    direction: DOWN
+- tapOn: "BP systolic"
+- inputText: "122"
+- tapOn: "BP diastolic"
+- inputText: "78"
+- tapOn: "Pulse"
+- inputText: "84"
+- tapOn: "SpO2"
+- inputText: "98"
+- tapOn: "Temperature"
+- inputText: "99.1"
+- hideKeyboard
+- tapOn: "Submit Vitals"
+- extendedWaitUntil:
+    visible: "Screening/vitals queued locally"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "Submit Sample"
+    direction: DOWN
+- tapOn: "Sample type"
+- inputText: "Blood"
+- tapOn: "Test requested"
+- inputText: "CBC"
+- tapOn: "Barcode"
+- inputText: "MB-CAMP-E2E-001"
+- hideKeyboard
+- tapOn: "Submit Sample"
+- extendedWaitUntil:
+    visible: "Lab sample queued locally"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "Queue Referral"
+    direction: DOWN
+- tapOn: "Referral facility"
+- inputText: "Base Hospital"
+- tapOn: "Department"
+- inputText: "General Medicine"
+- tapOn: "Reason"
+- inputText: "Needs review if fever persists"
+- hideKeyboard
+- tapOn: "Queue Referral"
+- extendedWaitUntil:
+    visible: "Referral queued locally"
+    timeout: 10000
+
+# Sync outbox back to server with idempotent batch.
+- back
+- extendedWaitUntil:
+    visible: "Open Existing Patients"
+    timeout: 10000
+- tapOn: "Sync Center"
+- extendedWaitUntil:
+    visible: "Sync Now"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "camp.registration.create"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "camp.screening.create"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "camp.lab_sample.create"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "camp.referral.create"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Sync Now"
+    direction: UP
+- tapOn: "Sync Now"
+- extendedWaitUntil:
+    visible: "Synced 4, duplicate 0, failed 0"
+    timeout: 30000
+- assertVisible: "No pending offline events."

@@ -112,7 +112,7 @@ function UserModal({
 
   useEffect(() => {
     if (deptInline.pendingSelect) {
-      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id]);
+      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id ?? ""]);
       deptInline.clearPendingSelect();
     }
   }, [deptInline.pendingSelect, deptInline.clearPendingSelect]);
@@ -144,7 +144,7 @@ function UserModal({
   // Load existing user facility assignments when editing
   const { data: userFacilities } = useQuery({
     queryKey: ["user-facilities", editingUser?.id],
-    queryFn: () => api.listUserFacilities(editingUser?.id),
+    queryFn: () => api.listUserFacilities(editingUser?.id ?? ""),
     staleTime: 30_000,
     enabled: opened && !!editingUser,
   });
@@ -230,7 +230,10 @@ function UserModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.updateSetupUser(editingUser?.id, data),
+    mutationFn: (data: Record<string, unknown>) => {
+      if (!editingUser) throw new Error("No user selected");
+      return api.updateSetupUser(editingUser.id, data);
+    },
     onSuccess: async () => {
       if (editingUser) {
         try {
@@ -471,7 +474,10 @@ function DeleteUserModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteSetupUser(user?.id),
+    mutationFn: () => {
+      if (!user) throw new Error("No user selected");
+      return api.deleteSetupUser(user.id);
+    },
     onSuccess: () => {
       notifications.show({
         title: "User deleted",
@@ -714,8 +720,10 @@ function RoleModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name?: string; description?: string }) =>
-      api.updateRole(editingRole?.id, data),
+    mutationFn: (data: { name?: string; description?: string }) => {
+      if (!editingRole) throw new Error("No role selected");
+      return api.updateRole(editingRole.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Role updated",
@@ -811,7 +819,10 @@ function DeleteRoleModal({
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.deleteRole(role?.id),
+    mutationFn: () => {
+      if (!role) throw new Error("No role selected");
+      return api.deleteRole(role.id);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Role deleted",

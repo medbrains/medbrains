@@ -16,6 +16,19 @@ type BoundaryProps = {
   pathname: string;
 };
 
+function isIgnoredDevClientError(error: unknown): boolean {
+  if (!import.meta.env.DEV) {
+    return false;
+  }
+
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("WebSocket closed without opened") ||
+    message.includes("[vite] failed to connect to websocket") ||
+    message.includes("@vitejs/plugin-react can't detect preamble")
+  );
+}
+
 class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
   state: BoundaryState = {
     error: null,
@@ -50,31 +63,37 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
   }
 
   handleWindowError = (event: ErrorEvent) => {
+    const error = event.error instanceof Error ? event.error : new Error(event.message);
+    if (isIgnoredDevClientError(error)) {
+      return;
+    }
+
     if (this.state.error) {
       return;
     }
 
     this.setState({
-      error: event.error instanceof Error ? event.error : new Error(event.message),
+      error,
     });
-    this.reportError(event.error instanceof Error ? event.error : new Error(event.message));
+    this.reportError(error);
   };
 
   handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const reason = event.reason;
+    const error =
+      reason instanceof Error ? reason : new Error(String(reason ?? "Unexpected background error"));
+    if (isIgnoredDevClientError(error)) {
+      return;
+    }
+
     if (this.state.error) {
       return;
     }
 
-    const reason = event.reason;
     this.setState({
-      error:
-        reason instanceof Error
-          ? reason
-          : new Error(String(reason ?? "Unexpected background error")),
+      error,
     });
-    this.reportError(
-      reason instanceof Error ? reason : new Error(String(reason ?? "Unexpected background error")),
-    );
+    this.reportError(error);
   };
 
   reportError(error: Error, errorInfo?: ErrorInfo) {

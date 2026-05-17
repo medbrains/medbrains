@@ -76,6 +76,9 @@ pub struct PharmacyOrderItem {
     pub batch_stock_id: Option<Uuid>,
     pub quantity_prescribed: Option<i32>,
     pub quantity_returned: i32,
+    pub removed_at: Option<DateTime<Utc>>,
+    pub removed_by: Option<Uuid>,
+    pub remove_reason: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

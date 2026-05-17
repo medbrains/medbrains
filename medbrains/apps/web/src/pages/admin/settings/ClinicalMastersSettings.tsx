@@ -107,8 +107,10 @@ function MasterItemModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { code?: string; name?: string; sort_order?: number }) =>
-      updateFn(editingItem?.id, data),
+    mutationFn: (data: { code?: string; name?: string; sort_order?: number }) => {
+      if (!editingItem) throw new Error(`No ${masterType} selected`);
+      return updateFn(editingItem.id, data);
+    },
     onSuccess: () => {
       notifications.show({
         title: `${masterType} updated`,
@@ -517,15 +519,17 @@ function InsuranceProviderModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.adminUpdateInsuranceProvider(editingItem?.id, {
+    mutationFn: () => {
+      if (!editingItem) throw new Error("No insurance provider selected");
+      return api.adminUpdateInsuranceProvider(editingItem.id, {
         code: form.code.trim(),
         name: form.name.trim(),
         provider_type: form.provider_type,
         contact_phone: form.contact_phone.trim() || null,
         contact_email: form.contact_email.trim() || null,
         website: form.website.trim() || null,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({
         title: "Provider updated",

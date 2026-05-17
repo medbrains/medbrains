@@ -43,6 +43,7 @@ pub mod geo;
 pub mod health;
 pub mod housekeeping;
 pub mod hr;
+pub mod iam;
 pub mod icu;
 pub mod indent;
 pub mod infection_control;
@@ -237,6 +238,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/fhir/Encounter/{id}", get(fhir::read_encounter))
         .route("/api/debug/authz-probe", get(health::authz_probe))
         // ── Sharing API (manual per-resource grants) ─────────
+        .route("/api/sharing/subjects", get(sharing::list_subjects))
         .route(
             "/api/sharing/grants",
             post(sharing::create_grant)
@@ -244,6 +246,23 @@ pub fn build_router(state: AppState) -> Router {
                 .get(sharing::list_grants),
         )
         .route("/api/sharing/granted-to-me", get(sharing::list_granted_to_me))
+        // IAM-style permission access requests
+        .route(
+            "/api/iam/access-requests",
+            get(iam::list_access_requests).post(iam::create_access_request),
+        )
+        .route(
+            "/api/iam/access-requests/{id}/approve",
+            post(iam::approve_access_request),
+        )
+        .route(
+            "/api/iam/access-requests/{id}/reject",
+            post(iam::reject_access_request),
+        )
+        .route(
+            "/api/iam/access-requests/{id}/revoke",
+            post(iam::revoke_access_request),
+        )
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
@@ -1689,6 +1708,10 @@ pub fn build_router(state: AppState) -> Router {
             get(pharmacy::get_order),
         )
         .route(
+            "/api/pharmacy/orders/{id}/items/{item_id}",
+            put(pharmacy::update_order_item).delete(pharmacy::remove_order_item),
+        )
+        .route(
             "/api/pharmacy/orders/{id}/dispense",
             put(pharmacy::dispense_order),
         )
@@ -1979,6 +2002,10 @@ pub fn build_router(state: AppState) -> Router {
             get(nurse_mar::list_for_patient),
         )
         // ── Nurse Activities: Vitals + I/O + Pain + Fall Risk
+        .route(
+            "/api/nurse/vitals",
+            post(nurse_vitals::create_vitals_reading),
+        )
         .route(
             "/api/nurse/vitals-schedules",
             get(nurse_vitals::list_vitals_schedules)
@@ -4748,6 +4775,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/signature-credentials/{id}/revoke",
             post(signatures::revoke_credential),
+        )
+        .route(
+            "/api/signatures/my-credentials",
+            get(signatures::list_my_credentials),
+        )
+        .route(
+            "/api/signatures/preview",
+            get(signatures::preview_sign_record_get),
         )
         .route(
             "/api/signatures/sign",

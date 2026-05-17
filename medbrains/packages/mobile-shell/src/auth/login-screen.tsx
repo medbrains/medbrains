@@ -9,7 +9,8 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Image, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
-import { Button, HelperText, Surface, Text, TextInput } from "react-native-paper";
+import { MobileTextField } from "@medbrains/ui-mobile";
+import { Button, HelperText, Surface, Text } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import type { TenantIdentity } from "../types.js";
 import { useAuthStore } from "./auth-store.js";
@@ -111,22 +112,20 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
           {subtitle}
         </Text>
       </View>
-      <TextInput
+      <MobileTextField
         label={identifierLabel}
         value={identifier}
         onChangeText={setIdentifier}
         autoCapitalize="none"
         autoCorrect={false}
-        mode="outlined"
-        style={{ marginBottom: 12 }}
+        containerStyle={{ marginBottom: 12 }}
       />
-      <TextInput
+      <MobileTextField
         label={passwordLabel}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        mode="outlined"
-        style={{ marginBottom: 8 }}
+        containerStyle={{ marginBottom: 8 }}
       />
       {error && (
         <HelperText type="error" visible style={{ marginBottom: 8 }}>
