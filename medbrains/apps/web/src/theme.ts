@@ -24,18 +24,85 @@ import { EcgLoader } from "./components/EcgLoader";
 // Fonts: IBM Plex Sans (UI), Noto Sans family (multilingual fallback), JetBrains Mono (code)
 // ═══════════════════════════════════════════════════════════════════
 
-// Brand — Clinical teal-green (professional, brighter, responsive)
-const primary: MantineColorsTuple = [
-  "#ecfdf5", // 0  ghost
-  "#d1fae5", // 1  dimmed / selection / tint
-  "#99f6e4", // 2  subtle / tint-2
-  "#5eead4", // 3  medium
-  "#2dd4bf", // 4  strong
-  "#0F766E", // 5  accent      <- BRAND (clinical teal)
-  "#0d6b63", // 6  hover
-  "#115e59", // 7  pressed / deep
-  "#134e4a", // 8  deep
-  "#042f2e", // 9  abyss
+export type MedBrainsColorSchemeId =
+  | "clinical_teal_copper"
+  | "hospital_navy_mint"
+  | "clean_blue_green"
+  | "surgical_graphite_aqua"
+  | "public_health_green_blue";
+
+export type MedBrainsFontSchemeId =
+  | "manrope_nunito"
+  | "nunito_manrope"
+  | "system_premium"
+  | "previous_ibm_plex";
+
+export const ACTIVE_COLOR_SCHEME: MedBrainsColorSchemeId = "clinical_teal_copper";
+export const ACTIVE_FONT_SCHEME: MedBrainsFontSchemeId = "previous_ibm_plex";
+
+const clinicalTeal: MantineColorsTuple = [
+  "#edf8f8",
+  "#d6eeee",
+  "#acdcdc",
+  "#7ec6c6",
+  "#4daaaa",
+  "#0B5D6B",
+  "#084C5A",
+  "#063e49",
+  "#042f38",
+  "#03252c",
+];
+
+const hospitalNavy: MantineColorsTuple = [
+  "#eef5fb",
+  "#d9e8f4",
+  "#b6d1e7",
+  "#8eb5d6",
+  "#6294bf",
+  "#1F4E79",
+  "#173E61",
+  "#12314d",
+  "#0d253a",
+  "#081a28",
+];
+
+const cleanBlue: MantineColorsTuple = [
+  "#eef4ff",
+  "#dbe7ff",
+  "#b8cffd",
+  "#8fb2f7",
+  "#5f8fed",
+  "#315C9B",
+  "#284b80",
+  "#203d68",
+  "#182f50",
+  "#102139",
+];
+
+const surgicalAqua: MantineColorsTuple = [
+  "#f1f5f8",
+  "#dde7ee",
+  "#bccfdc",
+  "#94b0c1",
+  "#688da3",
+  "#2F4858",
+  "#263a47",
+  "#1e2e38",
+  "#16232b",
+  "#101a20",
+];
+
+const publicHealthGreen: MantineColorsTuple = [
+  "#eef8f2",
+  "#d9efe2",
+  "#b6dfc9",
+  "#8ecbad",
+  "#62b389",
+  "#2E6F54",
+  "#245a43",
+  "#1d4836",
+  "#153628",
+  "#0f291f",
 ];
 
 // Success — Clinical Green (normal vitals, healthy, completed)
@@ -164,6 +231,288 @@ const copper: MantineColorsTuple = [
   "#3d2d0c",
 ];
 
+interface MedBrainsColorScheme {
+  label: string;
+  primary: MantineColorsTuple;
+  accentScale: MantineColorsTuple;
+  secondary: string;
+  accent: string;
+  accentDeep: string;
+  canvas: string;
+  content: string;
+  panel: string;
+  surface: string;
+  sidebarBg: string;
+  headerBg: string;
+  inputBg: string;
+  border: string;
+  borderSubtle: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  textFaint: string;
+  activeBg: string;
+  activeBgStrong: string;
+  activeBorder: string;
+  activeText: string;
+  navHoverBg: string;
+  navHoverText: string;
+  navActiveBg: string;
+  navActiveText: string;
+  navActiveShadow: string;
+  navChildActiveBg: string;
+  navChildActiveText: string;
+  navChildActiveBorder: string;
+  searchBg: string;
+  tableHeaderBg: string;
+  tableHover: string;
+  tableBorder: string;
+  shimmerFrom: string;
+  shimmerMid: string;
+  iconGlow: string;
+  accentGradient: string;
+  accentGradientSoft: string;
+  floatShadow: string;
+  cardHoverShadow: string;
+}
+
+export const COLOR_SCHEMES: Record<MedBrainsColorSchemeId, MedBrainsColorScheme> = {
+  clinical_teal_copper: {
+    label: "Executive Charcoal + Teal",
+    primary: clinicalTeal,
+    accentScale: copper,
+    secondary: "#188A75",
+    accent: "#A6722A",
+    accentDeep: "#6f4a16",
+    canvas: "#ffffff",
+    content: "linear-gradient(135deg, #f8fbfb 0%, #f1f8f7 52%, #fff9ed 100%)",
+    panel: "#f4f7f7",
+    surface: "#ffffff",
+    sidebarBg: "linear-gradient(180deg, #ffffff 0%, #eef8f7 46%, #fff7e8 100%)",
+    headerBg:
+      "linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(246,251,251,0.9) 58%, rgba(255,249,237,0.88) 100%)",
+    inputBg: "#ffffff",
+    border: "#d7e3e2",
+    borderSubtle: "#e8f0ef",
+    textPrimary: "#111A1C",
+    textSecondary: "#34474A",
+    textMuted: "#66777A",
+    textFaint: "#bfcbcd",
+    activeBg: "#d6eeee",
+    activeBgStrong: "#acdcdc",
+    activeBorder: "#0B5D6B",
+    activeText: "#084C5A",
+    navHoverBg: "rgba(11, 93, 107, 0.08)",
+    navHoverText: "#084C5A",
+    navActiveBg: "linear-gradient(135deg, rgba(214,238,238,0.95) 0%, rgba(255,250,240,0.9) 100%)",
+    navActiveText: "#084C5A",
+    navActiveShadow: "0 10px 24px rgba(11, 93, 107, 0.16)",
+    navChildActiveBg: "#edf8f8",
+    navChildActiveText: "#063e49",
+    navChildActiveBorder: "#0B5D6B",
+    searchBg: "rgba(249, 251, 251, 0.94)",
+    tableHeaderBg: "#f0f7f7",
+    tableHover: "#f7fbfb",
+    tableBorder: "#d7e3e2",
+    shimmerFrom: "#f6f9f9",
+    shimmerMid: "#e4eeee",
+    iconGlow: "rgba(11, 93, 107, 0.22)",
+    accentGradient: "linear-gradient(135deg, #0B5D6B 0%, #188A75 58%, #A6722A 100%)",
+    accentGradientSoft:
+      "linear-gradient(135deg, rgba(11,93,107,0.12) 0%, rgba(24,138,117,0.1) 58%, rgba(166,114,42,0.13) 100%)",
+    floatShadow: "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(11,93,107,0.07)",
+    cardHoverShadow: "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(11,93,107,0.08)",
+  },
+  hospital_navy_mint: {
+    label: "Navy Steel + Brass",
+    primary: hospitalNavy,
+    accentScale: orange,
+    secondary: "#2F7A6D",
+    accent: "#B7791F",
+    accentDeep: "#74470f",
+    canvas: "#ffffff",
+    content: "linear-gradient(135deg, #f8fbfd 0%, #eef5fb 54%, #fff8eb 100%)",
+    panel: "#f3f7f9",
+    surface: "#ffffff",
+    sidebarBg: "linear-gradient(180deg, #ffffff 0%, #e8f1f8 48%, #fff7e6 100%)",
+    headerBg:
+      "linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(242,247,251,0.9) 58%, rgba(255,248,234,0.88) 100%)",
+    inputBg: "#ffffff",
+    border: "#d8e3ea",
+    borderSubtle: "#e8eff4",
+    textPrimary: "#101820",
+    textSecondary: "#334455",
+    textMuted: "#647484",
+    textFaint: "#c4ced8",
+    activeBg: "#d9e8f4",
+    activeBgStrong: "#b6d1e7",
+    activeBorder: "#1F4E79",
+    activeText: "#173E61",
+    navHoverBg: "rgba(31, 78, 121, 0.08)",
+    navHoverText: "#173E61",
+    navActiveBg: "linear-gradient(135deg, rgba(217,232,244,0.96) 0%, rgba(255,248,235,0.9) 100%)",
+    navActiveText: "#173E61",
+    navActiveShadow: "0 10px 24px rgba(31, 78, 121, 0.16)",
+    navChildActiveBg: "#eef5fb",
+    navChildActiveText: "#12314d",
+    navChildActiveBorder: "#1F4E79",
+    searchBg: "rgba(248, 251, 253, 0.94)",
+    tableHeaderBg: "#eef5fb",
+    tableHover: "#f7fbfd",
+    tableBorder: "#d8e3ea",
+    shimmerFrom: "#f6f9fb",
+    shimmerMid: "#e1eaf1",
+    iconGlow: "rgba(31, 78, 121, 0.22)",
+    accentGradient: "linear-gradient(135deg, #1F4E79 0%, #2F7A6D 58%, #B7791F 100%)",
+    accentGradientSoft:
+      "linear-gradient(135deg, rgba(31,78,121,0.12) 0%, rgba(47,122,109,0.1) 58%, rgba(183,121,31,0.13) 100%)",
+    floatShadow: "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(31,78,121,0.07)",
+    cardHoverShadow: "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(31,78,121,0.08)",
+  },
+  clean_blue_green: {
+    label: "Boardroom Blue + Emerald",
+    primary: cleanBlue,
+    accentScale: teal,
+    secondary: "#2F855A",
+    accent: "#8A6F2A",
+    accentDeep: "#5f4a16",
+    canvas: "#ffffff",
+    content: "linear-gradient(135deg, #f9fbff 0%, #edf4ff 54%, #f0fbf5 100%)",
+    panel: "#f5f8fb",
+    surface: "#ffffff",
+    sidebarBg: "linear-gradient(180deg, #ffffff 0%, #e9f1ff 48%, #edf9f2 100%)",
+    headerBg:
+      "linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(241,246,255,0.9) 58%, rgba(240,251,245,0.88) 100%)",
+    inputBg: "#ffffff",
+    border: "#d9e2ee",
+    borderSubtle: "#e9eef6",
+    textPrimary: "#0F172A",
+    textSecondary: "#334155",
+    textMuted: "#64748B",
+    textFaint: "#cbd5e1",
+    activeBg: "#dbe7ff",
+    activeBgStrong: "#b8cffd",
+    activeBorder: "#315C9B",
+    activeText: "#284b80",
+    navHoverBg: "rgba(49, 92, 155, 0.08)",
+    navHoverText: "#284b80",
+    navActiveBg: "linear-gradient(135deg, rgba(219,231,255,0.96) 0%, rgba(237,248,241,0.9) 100%)",
+    navActiveText: "#284b80",
+    navActiveShadow: "0 10px 24px rgba(49, 92, 155, 0.16)",
+    navChildActiveBg: "#eef4ff",
+    navChildActiveText: "#203d68",
+    navChildActiveBorder: "#315C9B",
+    searchBg: "rgba(247, 249, 252, 0.96)",
+    tableHeaderBg: "#eef4ff",
+    tableHover: "#f7f9fc",
+    tableBorder: "#d9e2ee",
+    shimmerFrom: "#f7f9fc",
+    shimmerMid: "#e5edf7",
+    iconGlow: "rgba(49, 92, 155, 0.22)",
+    accentGradient: "linear-gradient(135deg, #315C9B 0%, #2F855A 58%, #8A6F2A 100%)",
+    accentGradientSoft:
+      "linear-gradient(135deg, rgba(49,92,155,0.12) 0%, rgba(47,133,90,0.1) 58%, rgba(138,111,42,0.12) 100%)",
+    floatShadow: "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(49,92,155,0.07)",
+    cardHoverShadow: "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(49,92,155,0.08)",
+  },
+  surgical_graphite_aqua: {
+    label: "Graphite + Indigo",
+    primary: surgicalAqua,
+    accentScale: violet,
+    secondary: "#3A7D7E",
+    accent: "#5B5F97",
+    accentDeep: "#3e416c",
+    canvas: "#ffffff",
+    content: "linear-gradient(135deg, #f8fafb 0%, #edf3f6 52%, #f6f3ff 100%)",
+    panel: "#f3f5f7",
+    surface: "#ffffff",
+    sidebarBg: "linear-gradient(180deg, #ffffff 0%, #e8f0f4 48%, #f3f0ff 100%)",
+    headerBg:
+      "linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(241,245,248,0.9) 58%, rgba(246,243,255,0.88) 100%)",
+    inputBg: "#ffffff",
+    border: "#dbe2e7",
+    borderSubtle: "#e8edf1",
+    textPrimary: "#12171B",
+    textSecondary: "#36434A",
+    textMuted: "#6B7280",
+    textFaint: "#cbd5e1",
+    activeBg: "#dde7ee",
+    activeBgStrong: "#bccfdc",
+    activeBorder: "#2F4858",
+    activeText: "#263a47",
+    navHoverBg: "rgba(47, 72, 88, 0.08)",
+    navHoverText: "#263a47",
+    navActiveBg: "linear-gradient(135deg, rgba(221,231,238,0.96) 0%, rgba(245,243,255,0.9) 100%)",
+    navActiveText: "#263a47",
+    navActiveShadow: "0 10px 24px rgba(47, 72, 88, 0.16)",
+    navChildActiveBg: "#f1f5f8",
+    navChildActiveText: "#1e2e38",
+    navChildActiveBorder: "#2F4858",
+    searchBg: "rgba(246, 247, 249, 0.96)",
+    tableHeaderBg: "#f1f5f8",
+    tableHover: "#f8fafc",
+    tableBorder: "#dbe2e7",
+    shimmerFrom: "#f6f7f9",
+    shimmerMid: "#e6ecef",
+    iconGlow: "rgba(47, 72, 88, 0.22)",
+    accentGradient: "linear-gradient(135deg, #2F4858 0%, #3A7D7E 56%, #5B5F97 100%)",
+    accentGradientSoft:
+      "linear-gradient(135deg, rgba(47,72,88,0.12) 0%, rgba(58,125,126,0.1) 56%, rgba(91,95,151,0.12) 100%)",
+    floatShadow: "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(47,72,88,0.07)",
+    cardHoverShadow: "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(47,72,88,0.08)",
+  },
+  public_health_green_blue: {
+    label: "Public Health Deep Green",
+    primary: publicHealthGreen,
+    accentScale: warning,
+    secondary: "#2C6E7F",
+    accent: "#9A7A25",
+    accentDeep: "#604914",
+    canvas: "#ffffff",
+    content: "linear-gradient(135deg, #f9fcfa 0%, #edf8f1 52%, #eef8fb 100%)",
+    panel: "#f4f8f5",
+    surface: "#ffffff",
+    sidebarBg: "linear-gradient(180deg, #ffffff 0%, #e8f5ed 48%, #eaf6fa 100%)",
+    headerBg:
+      "linear-gradient(90deg, rgba(255,255,255,0.94) 0%, rgba(240,249,243,0.9) 58%, rgba(238,248,251,0.88) 100%)",
+    inputBg: "#ffffff",
+    border: "#d9e7dd",
+    borderSubtle: "#e8f1eb",
+    textPrimary: "#10201A",
+    textSecondary: "#33443d",
+    textMuted: "#66756F",
+    textFaint: "#c8d2cd",
+    activeBg: "#d9efe2",
+    activeBgStrong: "#b6dfc9",
+    activeBorder: "#2E6F54",
+    activeText: "#245a43",
+    navHoverBg: "rgba(46, 111, 84, 0.08)",
+    navHoverText: "#245a43",
+    navActiveBg: "linear-gradient(135deg, rgba(217,239,226,0.96) 0%, rgba(239,246,250,0.9) 100%)",
+    navActiveText: "#245a43",
+    navActiveShadow: "0 10px 24px rgba(46, 111, 84, 0.16)",
+    navChildActiveBg: "#eef8f2",
+    navChildActiveText: "#1d4836",
+    navChildActiveBorder: "#2E6F54",
+    searchBg: "rgba(247, 250, 248, 0.96)",
+    tableHeaderBg: "#eef8f2",
+    tableHover: "#f7faf8",
+    tableBorder: "#d9e7dd",
+    shimmerFrom: "#f7faf8",
+    shimmerMid: "#e3eee7",
+    iconGlow: "rgba(46, 111, 84, 0.22)",
+    accentGradient: "linear-gradient(135deg, #2E6F54 0%, #2C6E7F 58%, #9A7A25 100%)",
+    accentGradientSoft:
+      "linear-gradient(135deg, rgba(46,111,84,0.12) 0%, rgba(44,110,127,0.1) 58%, rgba(154,122,37,0.12) 100%)",
+    floatShadow: "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(46,111,84,0.07)",
+    cardHoverShadow: "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(46,111,84,0.08)",
+  },
+};
+
+const activeScheme = COLOR_SCHEMES[ACTIVE_COLOR_SCHEME];
+const primary = activeScheme.primary;
+const selectedAccent = activeScheme.accentScale;
+
 // ── Container Sizes ────────────────────────────────────────────
 
 const CONTAINER_SIZES: Record<string, string> = {
@@ -178,8 +527,18 @@ const CONTAINER_SIZES: Record<string, string> = {
 
 // ── Font stacks ────────────────────────────────────────────────
 
-const FONT_SANS =
-  "'IBM Plex Sans', 'Noto Sans', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+export const FONT_SCHEMES: Record<MedBrainsFontSchemeId, string> = {
+  manrope_nunito:
+    "'Manrope', 'Nunito Sans', 'Noto Sans', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  nunito_manrope:
+    "'Nunito Sans', 'Manrope', 'Noto Sans', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  system_premium:
+    "'Avenir Next', Avenir, 'Manrope', 'Nunito Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  previous_ibm_plex:
+    "'IBM Plex Sans', 'Noto Sans', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+};
+
+const FONT_SANS = FONT_SCHEMES[ACTIVE_FONT_SCHEME];
 
 const FONT_DISPLAY = FONT_SANS;
 
@@ -197,7 +556,7 @@ export const theme = createTheme({
     orange,
     teal,
     slate,
-    copper,
+    copper: selectedAccent,
   },
 
   fontFamily: FONT_SANS,
@@ -471,7 +830,8 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
   const w = t.colors.warning ?? warning;
   const d = t.colors.danger ?? danger;
   const i = t.colors.info ?? info;
-  const cop = t.colors.copper ?? copper;
+  const cop = t.colors.copper ?? selectedAccent;
+  const scheme = activeScheme;
 
   return {
     variables: {
@@ -480,24 +840,23 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--fc-brand": p[5],
       "--fc-brand-hover": p[6],
       "--fc-brand-deep": p[7],
-      "--fc-ink": "#0F1412",
-      "--fc-sub": "#3e4a44",
-      "--fc-muted": "#8a938f",
-      "--fc-faint": "#c7ccc9",
-      "--fc-rule": "#e7ebe8",
-      "--fc-rule-soft": "#eef2f0",
-      "--fc-canvas": "#ffffff",
-      "--fc-panel": "#f7f8f6",
-      "--fc-surface": "#ffffff",
+      "--fc-ink": scheme.textPrimary,
+      "--fc-sub": scheme.textSecondary,
+      "--fc-muted": scheme.textMuted,
+      "--fc-faint": scheme.textFaint,
+      "--fc-rule": scheme.border,
+      "--fc-rule-soft": scheme.borderSubtle,
+      "--fc-canvas": scheme.canvas,
+      "--fc-panel": scheme.panel,
+      "--fc-surface": scheme.surface,
       "--fc-tint": p[1],
       "--fc-tint-2": p[2],
       "--fc-outline": p[2],
-      "--fc-copper": cop[5],
+      "--fc-copper": scheme.accent,
       "--fc-copper-tint": cop[1],
-      "--fc-copper-deep": cop[7],
-      "--mb-accent-gradient": "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 48%, #f59e0b 100%)",
-      "--mb-accent-gradient-soft":
-        "linear-gradient(135deg, rgba(20,184,166,0.14) 0%, rgba(14,165,233,0.12) 50%, rgba(245,158,11,0.16) 100%)",
+      "--fc-copper-deep": scheme.accentDeep,
+      "--mb-accent-gradient": scheme.accentGradient,
+      "--mb-accent-gradient-soft": scheme.accentGradientSoft,
       // ── Emergency code layer (NOT themeable — safety-critical) ──
       "--code-blue": "#1E63B8",
       "--code-red": "#C8102E",
@@ -512,43 +871,42 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
     },
     light: {
       // ── Surfaces (white-first institutional) ──
-      "--mantine-color-body": "#ffffff",
-      "--mb-bg-content": "#f4fbf9",
-      "--mb-sidebar-bg": "linear-gradient(180deg, #ffffff 0%, #f0fdfa 52%, #fff7ed 100%)",
-      "--mb-header-bg": "rgba(255, 255, 255, 0.9)",
-      "--mb-card-bg": "#ffffff",
-      "--mb-input-bg": "#ffffff",
+      "--mantine-color-body": scheme.canvas,
+      "--mb-bg-content": scheme.content,
+      "--mb-sidebar-bg": scheme.sidebarBg,
+      "--mb-header-bg": scheme.headerBg,
+      "--mb-card-bg": scheme.surface,
+      "--mb-input-bg": scheme.inputBg,
 
       // ── Borders (cool hairline) ──
-      "--mb-border": "#dcebe8",
-      "--mb-border-subtle": "#eaf5f2",
+      "--mb-border": scheme.border,
+      "--mb-border-subtle": scheme.borderSubtle,
 
       // ── Text hierarchy (graphite ink, never #000) ──
-      "--mb-text-primary": "#0F1412",
-      "--mb-text-secondary": "#3e4a44",
-      "--mb-text-muted": "#8a938f",
-      "--mb-text-faint": "#c7ccc9",
+      "--mb-text-primary": scheme.textPrimary,
+      "--mb-text-secondary": scheme.textSecondary,
+      "--mb-text-muted": scheme.textMuted,
+      "--mb-text-faint": scheme.textFaint,
 
       // ── Interactive ──
       "--mb-selection-bg": p[1],
       "--mb-focus-ring": p[5],
       "--mb-link": p[5],
       "--mb-link-hover": p[6],
-      "--mb-active-bg": "#ccfbf1",
-      "--mb-active-bg-strong": "#99f6e4",
-      "--mb-active-border": "#14b8a6",
-      "--mb-active-text": "#0f766e",
-      "--mb-icon-glow": "rgba(20, 184, 166, 0.28)",
-      "--mb-nav-hover-bg": "rgba(20, 184, 166, 0.08)",
-      "--mb-nav-hover-text": "#0f766e",
-      "--mb-nav-active-bg":
-        "linear-gradient(135deg, rgba(204,251,241,0.95) 0%, rgba(224,242,254,0.96) 58%, rgba(255,237,213,0.92) 100%)",
-      "--mb-nav-active-text": "#0f766e",
-      "--mb-nav-active-shadow": "0 10px 26px rgba(20, 184, 166, 0.2)",
-      "--mb-nav-child-active-bg": "#e0f2fe",
-      "--mb-nav-child-active-text": "#0369a1",
-      "--mb-nav-child-active-border": "#0ea5e9",
-      "--mb-search-bg": "rgba(240, 253, 250, 0.9)",
+      "--mb-active-bg": scheme.activeBg,
+      "--mb-active-bg-strong": scheme.activeBgStrong,
+      "--mb-active-border": scheme.activeBorder,
+      "--mb-active-text": scheme.activeText,
+      "--mb-icon-glow": scheme.iconGlow,
+      "--mb-nav-hover-bg": scheme.navHoverBg,
+      "--mb-nav-hover-text": scheme.navHoverText,
+      "--mb-nav-active-bg": scheme.navActiveBg,
+      "--mb-nav-active-text": scheme.navActiveText,
+      "--mb-nav-active-shadow": scheme.navActiveShadow,
+      "--mb-nav-child-active-bg": scheme.navChildActiveBg,
+      "--mb-nav-child-active-text": scheme.navChildActiveText,
+      "--mb-nav-child-active-border": scheme.navChildActiveBorder,
+      "--mb-search-bg": scheme.searchBg,
 
       // ── Semantic status colors (bg / text pairs) ──
       "--mb-success-bg": s[0],
@@ -565,17 +923,17 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-info-accent": i[5],
 
       // ── Table ──
-      "--mb-table-header-bg": "#ecfeff",
-      "--mb-table-hover": "#f0fdfa",
-      "--mb-table-border": "#dcebe8",
+      "--mb-table-header-bg": scheme.tableHeaderBg,
+      "--mb-table-hover": scheme.tableHover,
+      "--mb-table-border": scheme.tableBorder,
 
       // ── Shimmer ──
-      "--mb-shimmer-from": "#f7f8f6",
-      "--mb-shimmer-mid": "#e7ebe8",
+      "--mb-shimmer-from": scheme.shimmerFrom,
+      "--mb-shimmer-mid": scheme.shimmerMid,
 
       // ── Shadows ──
-      "--mb-float-shadow": "0 1px 3px rgba(15,23,42,0.05), 0 12px 28px rgba(20,184,166,0.08)",
-      "--mb-card-hover-shadow": "0 8px 22px rgba(15,23,42,0.08), 0 18px 42px rgba(20,184,166,0.08)",
+      "--mb-float-shadow": scheme.floatShadow,
+      "--mb-card-hover-shadow": scheme.cardHoverShadow,
 
       // ── Clinical status (high-visibility for patient safety) ──
       "--mb-critical-bg": "#fff1f2",

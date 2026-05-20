@@ -18,6 +18,8 @@ export const opdService = {
   markNoShow: (...args: Parameters<typeof api.markNoShow>) => api.markNoShow(...args),
   listVitals: (...args: Parameters<typeof api.listVitals>) => api.listVitals(...args),
   createVital: (...args: Parameters<typeof api.createVital>) => api.createVital(...args),
+  createNurseVital: (...args: Parameters<typeof api.createNurseVital>) =>
+    api.createNurseVital(...args),
   getConsultation: (...args: Parameters<typeof api.getConsultation>) =>
     api.getConsultation(...args),
   listDiagnoses: (...args: Parameters<typeof api.listDiagnoses>) => api.listDiagnoses(...args),

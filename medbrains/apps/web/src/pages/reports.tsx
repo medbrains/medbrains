@@ -2579,7 +2579,7 @@ function ReportTile({
               <Button
                 size="xs"
                 variant="gradient"
-                gradient={{ from: "teal", to: "blue", deg: 120 }}
+                gradient={{ from: "primary", to: "copper", deg: 120 }}
                 leftSection={<IconFileAnalytics size={14} />}
                 onClick={() => onDetails(report)}
                 style={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}

@@ -377,12 +377,25 @@ function formatPatientName(patient: Patient): string {
   return `${patient.first_name} ${patient.last_name}`.trim() || patient.uhid;
 }
 
+const CLINICAL_DRAWER_QUEUE_STATUSES = new Set(["called", "in_consultation", "completed"]);
+const VITALS_QUEUE_STATUSES = new Set(["waiting", "called", "in_consultation"]);
+
+function canOpenClinicalDrawer(row: QueueEntry): boolean {
+  return CLINICAL_DRAWER_QUEUE_STATUSES.has(row.status);
+}
+
+function canRecordVitalsFromQueue(row: QueueEntry): boolean {
+  return VITALS_QUEUE_STATUSES.has(row.status);
+}
+
 function OpdPageInner() {
   const { t } = useTranslation("opd");
   const emit = useClinicalEmit();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
+  const canRecordVitals = canRecordNurseVitals || canUpdate;
   const currentUser = useAuthStore((s) => s.user);
 
   const queryClient = useQueryClient();
@@ -395,7 +408,9 @@ function OpdPageInner() {
   const [queueSearch, setQueueSearch] = useState("");
   const [debouncedQueueSearch] = useDebouncedValue(queueSearch.trim(), 250);
   const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
+  const [vitalsEntry, setVitalsEntry] = useState<QueueEntry | null>(null);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const [vitalsOpened, { open: openVitals, close: closeVitals }] = useDisclosure(false);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   // Departments for filter dropdown
@@ -423,6 +438,10 @@ function OpdPageInner() {
   const closeCreateDrawer = () => {
     closeCreate();
     resetCreateVisit(DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES);
+  };
+  const closeVitalsDrawer = () => {
+    closeVitals();
+    setVitalsEntry(null);
   };
   const createVisitType = watchCreateVisit("visit_type");
 
@@ -570,6 +589,38 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
   });
+  const vitalsMutation = useMutation({
+    mutationFn: ({ entry, data }: { entry: QueueEntry; data: CreateVitalRequest }) =>
+      canRecordNurseVitals
+        ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
+        : opdService.createVital(entry.encounter_id, data),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["vitals", variables.entry.encounter_id] });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-vitals-history", variables.entry.patient_id],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-vitals-history", variables.entry.patient_id, "timeline"],
+      });
+      emit("vitals.recorded", {
+        encounter_id: variables.entry.encounter_id,
+        patient_id: variables.entry.patient_id,
+      });
+      notifications.show({
+        title: "Vitals recorded",
+        message: `${variables.entry.patient_name}'s vitals were saved`,
+        color: "success",
+      });
+      closeVitalsDrawer();
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to record vitals",
+        message: "Check vitals permission and try again.",
+        color: "danger",
+      });
+    },
+  });
 
   const columns = [
     {
@@ -623,13 +674,39 @@ function OpdPageInner() {
       label: "Actions",
       render: (row: QueueEntry) => (
         <Group gap="xs">
-          <Tooltip label="View details">
+          {canRecordVitals && canRecordVitalsFromQueue(row) && (
+            <Tooltip label="Record vitals">
+              <ActionIcon
+                variant="subtle"
+                color="primary"
+                onClick={() => {
+                  setVitalsEntry(row);
+                  openVitals();
+                }}
+                aria-label="Record vitals"
+              >
+                <IconHeartbeat size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          <Tooltip
+            label={
+              canOpenClinicalDrawer(row)
+                ? "Open OPD clinical drawer"
+                : "Call patient before opening OPD drawer"
+            }
+          >
             <ActionIcon
               variant="subtle"
+              disabled={!canOpenClinicalDrawer(row)}
               onClick={() => {
+                if (!canOpenClinicalDrawer(row)) {
+                  return;
+                }
                 setSelectedEntry(row);
                 openDetail();
               }}
+              aria-label="Open OPD clinical drawer"
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -714,17 +791,6 @@ function OpdPageInner() {
 
         <Tabs.Panel value="queue">
           <Stack gap="md" mb="md">
-            <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab}>
-              <Tabs.List>
-                <Tabs.Tab value="all">All</Tabs.Tab>
-                <Tabs.Tab value="walk_in">Walk-in</Tabs.Tab>
-                <Tabs.Tab value="booked">Appointments</Tabs.Tab>
-                <Tabs.Tab value="follow_up">Follow-up</Tabs.Tab>
-                <Tabs.Tab value="referral">Referral</Tabs.Tab>
-                <Tabs.Tab value="emergency">Emergency</Tabs.Tab>
-                <Tabs.Tab value="camp">Camp</Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
             <Group align="end">
               <TextInput
                 placeholder="Search token, patient, UHID, phone"
@@ -803,6 +869,17 @@ function OpdPageInner() {
             isCheckingIn={appointmentCheckInMutation.isPending}
             onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
           />
+          <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab} mb="xs">
+            <Tabs.List>
+              <Tabs.Tab value="all">All</Tabs.Tab>
+              <Tabs.Tab value="walk_in">Walk-in</Tabs.Tab>
+              <Tabs.Tab value="booked">Appointments</Tabs.Tab>
+              <Tabs.Tab value="follow_up">Follow-up</Tabs.Tab>
+              <Tabs.Tab value="referral">Referral</Tabs.Tab>
+              <Tabs.Tab value="emergency">Emergency</Tabs.Tab>
+              <Tabs.Tab value="camp">Camp</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
           <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
         </Tabs.Panel>
 
@@ -912,6 +989,38 @@ function OpdPageInner() {
             Create Visit
           </Button>
         </Stack>
+      </Drawer>
+
+      {/* Queue vitals drawer — available before the doctor opens the OPD drawer */}
+      <Drawer
+        opened={vitalsOpened}
+        onClose={closeVitalsDrawer}
+        title="Record Vitals"
+        position="right"
+        size="lg"
+      >
+        {vitalsEntry && (
+          <Stack>
+            <Card withBorder p="sm">
+              <Group justify="space-between" align="flex-start">
+                <Stack gap={2}>
+                  <Text fw={700}>{vitalsEntry.patient_name}</Text>
+                  <Text size="xs" c="dimmed">
+                    {vitalsEntry.uhid} · Token T{String(vitalsEntry.token_number).padStart(3, "0")}
+                  </Text>
+                </Stack>
+                <Badge variant="light" color={statusColors[vitalsEntry.status] ?? "slate"}>
+                  {vitalsEntry.status.replace(/_/g, " ")}
+                </Badge>
+              </Group>
+            </Card>
+            <VitalsRecorder
+              onSubmit={(data) => vitalsMutation.mutate({ entry: vitalsEntry, data })}
+              isSubmitting={vitalsMutation.isPending}
+              onCancel={closeVitalsDrawer}
+            />
+          </Stack>
+        )}
       </Drawer>
 
       {/* Detail — full-width overlay */}

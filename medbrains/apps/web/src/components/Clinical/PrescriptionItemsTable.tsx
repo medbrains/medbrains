@@ -1,5 +1,5 @@
 import { ActionIcon, Badge, Button, Group, Table, Text, Tooltip } from "@mantine/core";
-import type { PrescriptionItemInput } from "@medbrains/types";
+import type { PharmacyCatalog, PrescriptionItemInput } from "@medbrains/types";
 import { IconDeviceFloppy, IconPill, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { instructionsDisplayText } from "../../lib/medication-timing-utils";
@@ -11,6 +11,7 @@ interface PrescriptionItemsTableProps {
   onSave: () => void;
   onOpenSaveTemplate: () => void;
   isSaving?: boolean;
+  drugCatalog?: PharmacyCatalog[];
 }
 
 export function PrescriptionItemsTable({
@@ -19,6 +20,7 @@ export function PrescriptionItemsTable({
   onSave,
   onOpenSaveTemplate,
   isSaving,
+  drugCatalog = [],
 }: PrescriptionItemsTableProps) {
   const { t } = useTranslation("clinical");
 
@@ -41,12 +43,23 @@ export function PrescriptionItemsTable({
         <Table.Tbody>
           {items.map((item, idx) => {
             const timing = instructionsDisplayText(item.instructions ?? null);
+            const catalogItem = item.catalog_item_id
+              ? drugCatalog.find((drug) => drug.id === item.catalog_item_id)
+              : undefined;
+            const stockWarning = prescriptionStockWarning(catalogItem);
             return (
               <Table.Tr key={idx}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
                     {item.drug_name}
                   </Text>
+                  {stockWarning && (
+                    <Tooltip label={stockWarning.message} multiline maw={320}>
+                      <Badge size="xs" color={stockWarning.color} variant="light">
+                        {stockWarning.label}
+                      </Badge>
+                    </Tooltip>
+                  )}
                 </Table.Td>
                 <Table.Td>{item.dosage}</Table.Td>
                 <Table.Td>
@@ -100,4 +113,29 @@ export function PrescriptionItemsTable({
       </Group>
     </>
   );
+}
+
+function prescriptionStockWarning(drug: PharmacyCatalog | undefined) {
+  if (!drug) {
+    return null;
+  }
+
+  if (drug.current_stock <= 0) {
+    return {
+      color: "danger",
+      label: "Out of stock warning",
+      message:
+        "Out of stock now. The prescription can still be saved; pharmacy will arrange stock, substitute, or partial-fill.",
+    };
+  }
+
+  if (drug.reorder_level > 0 && drug.current_stock <= drug.reorder_level) {
+    return {
+      color: "warning",
+      label: "Low stock warning",
+      message: `Low stock. ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy.`,
+    };
+  }
+
+  return null;
 }

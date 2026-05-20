@@ -412,6 +412,7 @@ export function PrescriptionWriter({
             {/* Pending items table */}
             <PrescriptionItemsTable
               items={pendingItems}
+              drugCatalog={drugCatalog}
               onRemoveItem={handleRemoveItem}
               onSave={handleSave}
               onOpenSaveTemplate={openSaveTemplate}

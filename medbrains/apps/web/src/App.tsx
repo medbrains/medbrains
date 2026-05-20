@@ -97,9 +97,7 @@ const CommunicationsPage = lazy(() =>
   import("./pages/communications").then((m) => ({ default: m.CommunicationsPage })),
 );
 const CampPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampPage })));
-const CampWorkPage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampWorkPage })),
-);
+const CampWorkPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampWorkPage })));
 const BedsidePortalPage = lazy(() =>
   import("./pages/bedside-portal").then((m) => ({ default: m.BedsidePortalPage })),
 );

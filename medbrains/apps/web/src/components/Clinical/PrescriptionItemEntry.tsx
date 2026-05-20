@@ -107,6 +107,15 @@ export function PrescriptionItemEntry({
       if (drug.formulary_status === "non_formulary" && compliance.enforce_formulary)
         warnings.push("Non-formulary drug \u2014 DTC approval may be required");
       if (drug.black_box_warning) warnings.push(drug.black_box_warning);
+      if (drug.current_stock <= 0) {
+        warnings.push(
+          "Out of stock now \u2014 prescription is allowed; pharmacy will arrange, substitute, or partial-fill",
+        );
+      } else if (drug.reorder_level > 0 && drug.current_stock <= drug.reorder_level) {
+        warnings.push(
+          `Low stock \u2014 ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy`,
+        );
+      }
       setDrugWarning(warnings.length > 0 ? warnings.join(" \u2022 ") : null);
     }
     combobox.closeDropdown();
@@ -299,8 +308,32 @@ function DrugOption({
                 : ""}
             </Text>
           )}
+          <Text
+            size="10px"
+            c={
+              drug.current_stock <= 0
+                ? "danger"
+                : drug.reorder_level > 0 && drug.current_stock <= drug.reorder_level
+                  ? "warning"
+                  : "dimmed"
+            }
+          >
+            Stock {drug.current_stock} {drug.unit ?? "units"}
+          </Text>
         </div>
         <Group gap={2}>
+          {drug.current_stock <= 0 && (
+            <Badge size="xs" variant="light" color="danger">
+              Out
+            </Badge>
+          )}
+          {drug.current_stock > 0 &&
+            drug.reorder_level > 0 &&
+            drug.current_stock <= drug.reorder_level && (
+              <Badge size="xs" variant="light" color="warning">
+                Low
+              </Badge>
+            )}
           {compliance.show_schedule_badges && drug.drug_schedule && (
             <Badge
               size="xs"
