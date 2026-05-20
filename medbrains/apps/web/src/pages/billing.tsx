@@ -1187,11 +1187,7 @@ function InvoiceDetail({
       {canRecordPayment && (
         <>
           <Group gap="xs">
-            <Button
-              size="xs"
-              leftSection={<IconCash size={14} />}
-              onClick={openPaymentForm}
-            >
+            <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
               Record Payment
             </Button>
             <Button

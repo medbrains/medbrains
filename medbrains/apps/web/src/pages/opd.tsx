@@ -155,8 +155,8 @@ import {
 import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import {
-  OrderBasketWorkspace,
   type OrderBasketTab,
+  OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import {

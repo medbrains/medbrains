@@ -84,8 +84,8 @@ import { NotesPanel } from "../components/crdt/NotesPanel";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import {
-  OrderBasketWorkspace,
   type OrderBasketTab,
+  OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "../components/PageHeader";
 import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";

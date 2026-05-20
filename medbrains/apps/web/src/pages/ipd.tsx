@@ -144,8 +144,8 @@ import { TransferOutModal } from "../components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import {
-  OrderBasketWorkspace,
   type OrderBasketTab,
+  OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";

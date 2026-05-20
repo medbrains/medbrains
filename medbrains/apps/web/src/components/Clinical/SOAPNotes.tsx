@@ -25,7 +25,6 @@ import type {
   PatientConsultationHistoryRow,
   UpdateConsultationRequest,
 } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
 import {
   IconBrain,
   IconCalendarStats,
@@ -36,23 +35,24 @@ import {
   IconPlus,
   IconStethoscope,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
-  DEFAULT_SOAP_NOTE_FORM_VALUES,
+  type SoapKeywordSuggestion,
+  type SoapSectionKey,
+  searchSoapKeywordSuggestions,
+} from "../../domain/clinical/soap-corpus";
+import {
   buildCombinedSoapNote,
+  DEFAULT_SOAP_NOTE_FORM_VALUES,
   soapNoteDefaultsFromConsultation,
   toSoapNoteRequest,
 } from "../../forms/soap-note.form";
 import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { clinicalSupportService } from "../../services/clinicalSupport.service";
-import {
-  searchSoapKeywordSuggestions,
-  type SoapKeywordSuggestion,
-  type SoapSectionKey,
-} from "../../domain/clinical/soap-corpus";
 import styles from "./soap-notes.module.scss";
 
 interface SoapSection {

@@ -3903,7 +3903,9 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                     color="primary"
                     loading={createMutation.isPending}
                     type="submit"
-                    disabled={cart.length === 0 || formNumberOrFallback(amountReceived, 0) < totalAmount}
+                    disabled={
+                      cart.length === 0 || formNumberOrFallback(amountReceived, 0) < totalAmount
+                    }
                     leftSection={<IconShoppingCart size={14} />}
                   >
                     Complete Sale
