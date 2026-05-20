@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -25,11 +26,15 @@ import { notifications } from "@mantine/notifications";
 import type {
   PharmacyCatalogFormInput,
   PharmacyNdpsEntryFormInput,
+  PharmacyPosSaleFormInput,
+  PharmacyRxReviewFormInput,
   PharmacyStockTransactionFormInput,
 } from "@medbrains/schemas";
 import {
   pharmacyCatalogFormSchema,
   pharmacyNdpsEntryFormSchema,
+  pharmacyPosSaleFormSchema,
+  pharmacyRxReviewFormSchema,
   pharmacyStockTransactionFormSchema,
 } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
@@ -54,7 +59,6 @@ import type {
   PharmacyOrder,
   PharmacyOrderDetailResponse,
   PharmacyOrderItemInput,
-  PharmacyPaymentMode,
   PharmacyPosSale,
   PharmacyRxDetailItem,
   PharmacyRxDetailResponse,
@@ -89,7 +93,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
@@ -115,6 +119,7 @@ import {
   formularyStatusOptions,
   ndpsActionOptions,
   optionalFormText,
+  pharmacyPosPaymentModeOptions,
   stockTransactionTypeOptions,
 } from "../forms/pharmacy.form";
 import { usePatientName } from "../hooks/usePatientName";
@@ -143,8 +148,23 @@ type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
   tax_percent?: number;
 };
 
+type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
+
 function formatInr(value: number) {
   return `₹${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
+}
+
+function posSaleLineQuantity(item: PharmacyPosSaleLine) {
+  return formIntegerOrFallback(item.quantity, 1);
+}
+
+function posSaleLinePrice(item: PharmacyPosSaleLine) {
+  return formNumberOrFallback(item.unit_price, 0);
+}
+
+function posSalePayloadPatientId(payload: Record<string, unknown>) {
+  const patientId = payload.patient_id;
+  return typeof patientId === "string" ? patientId : "";
 }
 
 function draftItemTaxAmount(item: DraftPharmacyOrderItem) {
@@ -172,6 +192,29 @@ function rxReviewInputFromItem(item: PharmacyRxDetailItem): PharmacyRxReviewItem
     quantity: item.quantity,
     unit_price: item.unit_price,
   };
+}
+
+type PharmacyRxReviewAction = PharmacyRxReviewFormInput["action"];
+type PharmacyRxReviewFormItem = PharmacyRxReviewFormInput["items"][number];
+
+const DEFAULT_RX_REVIEW_FORM_VALUES: PharmacyRxReviewFormInput = {
+  action: "approved",
+  notes: "",
+  rejection_reason: "",
+  items: [],
+};
+
+function rxReviewInputFromForm(item: PharmacyRxReviewFormItem): PharmacyRxReviewItemInput {
+  return {
+    prescription_item_id: item.prescription_item_id,
+    catalog_item_id: item.catalog_item_id,
+    quantity: formIntegerOrFallback(item.quantity, 1),
+    unit_price: formNumberOrFallback(item.unit_price, 0),
+  };
+}
+
+function rxReviewInputsFromForm(items: PharmacyRxReviewFormInput["items"]) {
+  return items.map(rxReviewInputFromForm);
 }
 
 function applyRxReviewItems(
@@ -2730,10 +2773,27 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reviewOpened, { open: openReview, close: closeReview }] = useDisclosure(false);
-  const [reviewAction, setReviewAction] = useState<string>("approved");
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [reviewItems, setReviewItems] = useState<PharmacyRxReviewItemInput[]>([]);
+  const {
+    control: reviewControl,
+    reset: resetReviewForm,
+    handleSubmit: handleSubmitReviewForm,
+    setValue: setReviewFormValue,
+    watch: watchReviewForm,
+    formState: { errors: reviewErrors },
+  } = useForm<PharmacyRxReviewFormInput>({
+    resolver: zodResolver(pharmacyRxReviewFormSchema),
+    defaultValues: DEFAULT_RX_REVIEW_FORM_VALUES,
+  });
+  const reviewAction = watchReviewForm("action");
+  const reviewNotes = watchReviewForm("notes");
+  const reviewItems = rxReviewInputsFromForm(watchReviewForm("items"));
+
+  function setReviewItems(items: PharmacyRxReviewItemInput[]) {
+    setReviewFormValue("items", items, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
 
   const params = filterStatus ? { status: filterStatus } : undefined;
   const { data: queue = [], isLoading } = useQuery({
@@ -2763,9 +2823,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
       closeReview();
       setSelectedId(null);
-      setReviewNotes("");
-      setRejectionReason("");
-      setReviewItems([]);
+      resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
       notifications.show({
         title: "Prescription reviewed",
         message:
@@ -2789,34 +2847,38 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   function closeReviewModal() {
     closeReview();
     setSelectedId(null);
-    setReviewNotes("");
-    setRejectionReason("");
-    setReviewItems([]);
+    resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
   }
 
-  function handleOpenReview(id: string, action: string) {
+  function handleOpenReview(id: string, action: PharmacyRxReviewAction) {
     if (selectedId !== id) {
-      setReviewItems([]);
+      resetReviewForm({
+        ...DEFAULT_RX_REVIEW_FORM_VALUES,
+        action,
+      });
+    } else {
+      setReviewFormValue("action", action, { shouldDirty: true });
     }
     setSelectedId(id);
-    setReviewAction(action);
     openReview();
   }
 
-  function handleSubmitReview() {
+  function handleSubmitReview(values: PharmacyRxReviewFormInput) {
     if (!selectedId) return;
     const baseItems = reviewDetail?.items ?? [];
+    const reviewedItems = rxReviewInputsFromForm(values.items);
     const itemsForApproval =
-      reviewAction === "approved"
-        ? reviewItems.length > 0
-          ? reviewItems
+      values.action === "approved"
+        ? reviewedItems.length > 0
+          ? reviewedItems
           : baseItems.map(rxReviewInputFromItem)
         : undefined;
     reviewMutation.mutate({
       id: selectedId,
-      action: reviewAction,
-      notes: reviewNotes || undefined,
-      rejection_reason: reviewAction === "rejected" ? rejectionReason || undefined : undefined,
+      action: values.action,
+      notes: optionalFormText(values.notes),
+      rejection_reason:
+        values.action === "rejected" ? optionalFormText(values.rejection_reason) : undefined,
       items: itemsForApproval,
     });
   }
@@ -3000,18 +3062,34 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
         title={`${reviewAction === "approved" ? "Approve and bill" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`}
         size="min(100%, 980px)"
       >
-        <Stack>
-          <Textarea
-            label={reviewAction === "approved" ? "Review notes / price override reason" : "Notes"}
-            value={reviewNotes}
-            onChange={(e) => setReviewNotes(e.currentTarget.value)}
+        <Stack component="form" onSubmit={handleSubmitReviewForm(handleSubmitReview)}>
+          <Controller
+            control={reviewControl}
+            name="notes"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label={
+                  reviewAction === "approved" ? "Review notes / price override reason" : "Notes"
+                }
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           {reviewAction === "rejected" && (
-            <Textarea
-              label="Rejection Reason"
-              required
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.currentTarget.value)}
+            <Controller
+              control={reviewControl}
+              name="rejection_reason"
+              render={({ field, fieldState }) => (
+                <Textarea
+                  label="Rejection Reason"
+                  required
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
           )}
           {reviewAction === "approved" && (
@@ -3038,6 +3116,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
               Cancel
             </Button>
             <Button
+              type="submit"
               color={
                 reviewAction === "rejected"
                   ? "danger"
@@ -3046,8 +3125,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
                     : "success"
               }
               loading={reviewMutation.isPending}
-              disabled={needsPriceOverrideReason}
-              onClick={handleSubmitReview}
+              disabled={needsPriceOverrideReason || Boolean(reviewErrors.items?.message)}
             >
               {reviewAction === "approved"
                 ? "Approve & Create Billing Indent"
@@ -3074,7 +3152,7 @@ function RxDetailView({
   canReview: boolean;
   reviewItems: PharmacyRxReviewItemInput[];
   onReviewItemsChange: (items: PharmacyRxReviewItemInput[]) => void;
-  onReview: (action: string) => void;
+  onReview: (action: PharmacyRxReviewAction) => void;
 }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["pharmacy-rx-detail", rxQueueId],
@@ -3418,22 +3496,38 @@ function RxBillingEstimate({
 //  POS Counter Tab (Phase 3)
 // ══════════════════════════════════════════════════════════
 
-interface CartItem {
-  catalog_item_id: string;
-  drug_name: string;
-  quantity: number;
-  unit_price: number;
-}
-
 function PosCounterTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMode, setPaymentMode] = useState<PharmacyPaymentMode>("cash");
-  const [amountReceived, setAmountReceived] = useState<number | string>(0);
-  const [patientName, setPatientName] = useState("");
-  const [patientPhone, setPatientPhone] = useState("");
-  const [discountPercent, setDiscountPercent] = useState<number | string>(0);
   const [drugSelectValue, setDrugSelectValue] = useState("");
+  const posSaleDefaults: PharmacyPosSaleFormInput = {
+    patient_id: "",
+    patient_name: "",
+    patient_phone: "",
+    payment_mode: "cash",
+    amount_received: 0,
+    discount_percent: 0,
+    items: [],
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<PharmacyPosSaleFormInput>({
+    resolver: zodResolver(pharmacyPosSaleFormSchema),
+    defaultValues: posSaleDefaults,
+  });
+  const { append, remove, update } = useFieldArray({
+    control,
+    name: "items",
+  });
+
+  const cart = watch("items");
+  const amountReceived = watch("amount_received");
+  const discountPercent = watch("discount_percent");
+  const registeredPatientId = watch("patient_id");
 
   const { data: daySummary } = useQuery({
     queryKey: ["pharmacy-pos-day-summary"],
@@ -3448,71 +3542,90 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => pharmacyService.createPosSale(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
-      setCart([]);
-      setAmountReceived(0);
-      setPatientName("");
-      setPatientPhone("");
-      setDiscountPercent(0);
-      notifications.show({ title: "Sale Complete", message: "POS sale recorded", color: "green" });
+    onSuccess: (_sale, variables) => {
+      const patientId = posSalePayloadPatientId(variables);
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+      if (patientId) {
+        void queryClient.invalidateQueries({ queryKey: ["patient-context", patientId] });
+        void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patientId] });
+      }
+      reset(posSaleDefaults);
+      setDrugSelectValue("");
+      notifications.show({
+        title: "Sale Complete",
+        message: patientId
+          ? "Pharmacy sale recorded and mirrored to Billing"
+          : "Walk-in sale recorded in Pharmacy POS",
+        color: "green",
+      });
     },
   });
 
-  const subtotal = cart.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const discount = subtotal * (Number(discountPercent) / 100);
+  const subtotal = cart.reduce(
+    (sum, item) => sum + posSaleLineQuantity(item) * posSaleLinePrice(item),
+    0,
+  );
+  const discount = subtotal * (formNumberOrFallback(discountPercent, 0) / 100);
   const gstAmount = (subtotal - discount) * 0.05;
   const totalAmount = subtotal - discount + gstAmount;
-  const changeDue = Number(amountReceived) - totalAmount;
+  const changeDue = formNumberOrFallback(amountReceived, 0) - totalAmount;
 
-  function addToCart(itemId: string, drugName: string) {
-    setCart((prev) => {
-      const existing = prev.find((c) => c.catalog_item_id === itemId);
+  function addToCart(itemId: string, drugName: string, unitPrice: number) {
+    const existingIndex = cart.findIndex((c) => c.catalog_item_id === itemId);
+    if (existingIndex >= 0) {
+      const existing = cart[existingIndex];
       if (existing) {
-        return prev.map((c) =>
-          c.catalog_item_id === itemId ? { ...c, quantity: c.quantity + 1 } : c,
-        );
+        update(existingIndex, { ...existing, quantity: posSaleLineQuantity(existing) + 1 });
       }
-      return [
-        ...prev,
-        { catalog_item_id: itemId, drug_name: drugName, quantity: 1, unit_price: 0 },
-      ];
+      return;
+    }
+    append({
+      catalog_item_id: itemId,
+      drug_name: drugName,
+      quantity: 1,
+      unit_price: unitPrice,
     });
   }
 
-  function removeFromCart(itemId: string) {
-    setCart((prev) => prev.filter((c) => c.catalog_item_id !== itemId));
+  function updateQuantity(index: number, quantity: number | string) {
+    const item = cart[index];
+    if (!item) return;
+    update(index, { ...item, quantity: formIntegerOrFallback(quantity, 0) });
   }
 
-  function updateQuantity(itemId: string, quantity: number) {
-    setCart((prev) => prev.map((c) => (c.catalog_item_id === itemId ? { ...c, quantity } : c)));
+  function updatePrice(index: number, price: number | string) {
+    const item = cart[index];
+    if (!item) return;
+    update(index, { ...item, unit_price: formNumberOrFallback(price, 0) });
   }
 
-  function updatePrice(itemId: string, price: number) {
-    setCart((prev) =>
-      prev.map((c) => (c.catalog_item_id === itemId ? { ...c, unit_price: price } : c)),
+  function handleSubmitSale(values: PharmacyPosSaleFormInput) {
+    const subtotalValue = values.items.reduce(
+      (sum, item) => sum + posSaleLineQuantity(item) * posSaleLinePrice(item),
+      0,
     );
-  }
-
-  function handleSubmitSale() {
-    if (cart.length === 0) return;
+    const discountPercentValue = formNumberOrFallback(values.discount_percent, 0);
+    const discountValue = subtotalValue * (discountPercentValue / 100);
     createMutation.mutate({
-      items: cart.map((c) => ({
+      patient_id: optionalFormText(values.patient_id),
+      items: values.items.map((c) => ({
         catalog_item_id: c.catalog_item_id,
         drug_name: c.drug_name,
-        quantity: c.quantity,
-        mrp: c.unit_price,
-        selling_price: c.unit_price,
+        quantity: posSaleLineQuantity(c),
+        mrp: posSaleLinePrice(c),
+        selling_price: posSaleLinePrice(c),
         gst_rate: 5,
       })),
-      payment_mode: paymentMode,
-      amount_received: Number(amountReceived),
-      patient_name: patientName || undefined,
-      patient_phone: patientPhone || undefined,
-      discount_percent: Number(discountPercent) || undefined,
-      discount_amount: discount > 0 ? discount : undefined,
+      payment_mode: values.payment_mode,
+      amount_received: formNumberOrFallback(values.amount_received, 0),
+      patient_name: optionalFormText(values.patient_name),
+      patient_phone: optionalFormText(values.patient_phone),
+      discount_percent: discountPercentValue || undefined,
+      discount_amount: discountValue > 0 ? discountValue : undefined,
     });
   }
 
@@ -3549,6 +3662,20 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
           {row.payment_mode}
         </Badge>
       ),
+    },
+    {
+      key: "billing_invoice_id",
+      label: "Billing",
+      render: (row: PharmacyPosSale) =>
+        row.billing_invoice_id ? (
+          <Badge size="xs" color="success" variant="light">
+            Posted
+          </Badge>
+        ) : (
+          <Badge size="xs" color="gray" variant="light">
+            POS only
+          </Badge>
+        ),
     },
     {
       key: "created_at",
@@ -3603,158 +3730,188 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
 
       {canCreate && (
         <Card withBorder p="md">
-          <Text fw={600} mb="sm">
-            New Sale
-          </Text>
-          <Group mb="sm" align="flex-end">
-            <DrugSearchSelect
-              label="Add Drug"
-              value={drugSelectValue}
-              onChange={(id: string, drug) => {
-                setDrugSelectValue(id);
-                addToCart(id, drug?.name ?? id);
-              }}
-            />
-            <TextInput
-              size="xs"
-              label="Customer"
-              value={patientName}
-              onChange={(e) => setPatientName(e.currentTarget.value)}
-              w={160}
-            />
-            <TextInput
-              size="xs"
-              label="Phone"
-              value={patientPhone}
-              onChange={(e) => setPatientPhone(e.currentTarget.value)}
-              w={130}
-            />
-          </Group>
+          <Stack component="form" onSubmit={handleSubmit(handleSubmitSale)}>
+            <Text fw={600}>New Sale</Text>
+            <Alert color={registeredPatientId ? "primary" : "gray"} variant="light">
+              {registeredPatientId
+                ? "Registered patient sale will post a paid invoice into Billing and keep Pharmacy POS as the stock and cash-drawer source."
+                : "Walk-in sale stays in Pharmacy POS until a registered patient is selected."}
+            </Alert>
+            <Group mb="sm" align="flex-end">
+              <DrugSearchSelect
+                label="Add Drug"
+                value={drugSelectValue}
+                onChange={(id: string, drug) => {
+                  setDrugSelectValue("");
+                  addToCart(id, drug?.name ?? id, Number(drug?.base_price ?? 0));
+                }}
+              />
+              <Controller
+                control={control}
+                name="patient_id"
+                render={({ field, fieldState }) => (
+                  <PatientSearchSelect
+                    size="xs"
+                    label="Registered patient"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={fieldState.error?.message}
+                  />
+                )}
+              />
+              <TextInput size="xs" label="Customer" w={160} {...register("patient_name")} />
+              <TextInput size="xs" label="Phone" w={130} {...register("patient_phone")} />
+            </Group>
 
-          {cart.length > 0 && (
-            <Table striped highlightOnHover mb="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Drug</Table.Th>
-                  <Table.Th>Qty</Table.Th>
-                  <Table.Th>Price</Table.Th>
-                  <Table.Th>Line Total</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {cart.map((item) => (
-                  <Table.Tr key={item.catalog_item_id}>
-                    <Table.Td>
-                      <Text size="sm">{item.drug_name}</Text>
-                    </Table.Td>
-                    <Table.Td>
+            {cart.length > 0 && (
+              <Table striped highlightOnHover mb="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Drug</Table.Th>
+                    <Table.Th>Qty</Table.Th>
+                    <Table.Th>Price</Table.Th>
+                    <Table.Th>Line Total</Table.Th>
+                    <Table.Th />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {cart.map((item, index) => (
+                    <Table.Tr key={`${item.catalog_item_id}-${index}`}>
+                      <Table.Td>
+                        <Text size="sm">{item.drug_name}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          size="xs"
+                          w={70}
+                          min={1}
+                          value={posSaleLineQuantity(item)}
+                          onChange={(val) => updateQuantity(index, val)}
+                          error={errors.items?.[index]?.quantity?.message}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          size="xs"
+                          w={90}
+                          min={0}
+                          decimalScale={2}
+                          prefix={"\u20B9"}
+                          value={posSaleLinePrice(item)}
+                          onChange={(val) => updatePrice(index, val)}
+                          error={errors.items?.[index]?.unit_price?.message}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {"\u20B9"}
+                          {(posSaleLineQuantity(item) * posSaleLinePrice(item)).toFixed(2)}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <ActionIcon
+                          size="sm"
+                          color="red"
+                          variant="light"
+                          onClick={() => remove(index)}
+                          aria-label="Remove sale line"
+                        >
+                          <IconX size={14} />
+                        </ActionIcon>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
+            {errors.items?.message && (
+              <Text size="xs" c="danger">
+                {errors.items.message}
+              </Text>
+            )}
+
+            {cart.length > 0 && (
+              <Group justify="space-between" align="flex-end">
+                <Group gap="sm">
+                  <Controller
+                    control={control}
+                    name="discount_percent"
+                    render={({ field, fieldState }) => (
                       <NumberInput
                         size="xs"
-                        w={70}
-                        min={1}
-                        value={item.quantity}
-                        onChange={(val) => updateQuantity(item.catalog_item_id, Number(val))}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <NumberInput
-                        size="xs"
+                        label="Discount %"
                         w={90}
+                        min={0}
+                        max={100}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="payment_mode"
+                    render={({ field, fieldState }) => (
+                      <Select
+                        size="xs"
+                        label="Payment"
+                        w={130}
+                        data={pharmacyPosPaymentModeOptions}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? "cash")}
+                        error={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="amount_received"
+                    render={({ field, fieldState }) => (
+                      <NumberInput
+                        size="xs"
+                        label="Received"
+                        w={120}
                         min={0}
                         decimalScale={2}
                         prefix={"\u20B9"}
-                        value={item.unit_price}
-                        onChange={(val) => updatePrice(item.catalog_item_id, Number(val))}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={fieldState.error?.message}
                       />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" fw={600}>
-                        {"\u20B9"}
-                        {(item.quantity * item.unit_price).toFixed(2)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <ActionIcon
-                        size="sm"
-                        color="red"
-                        variant="light"
-                        onClick={() => removeFromCart(item.catalog_item_id)}
-                      >
-                        <IconX size={14} />
-                      </ActionIcon>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-
-          {cart.length > 0 && (
-            <Group justify="space-between" align="flex-end">
-              <Group gap="sm">
-                <NumberInput
-                  size="xs"
-                  label="Discount %"
-                  w={80}
-                  min={0}
-                  max={100}
-                  value={discountPercent}
-                  onChange={setDiscountPercent}
-                />
-                <Select
-                  size="xs"
-                  label="Payment"
-                  w={120}
-                  data={[
-                    { value: "cash", label: "Cash" },
-                    { value: "card", label: "Card" },
-                    { value: "upi", label: "UPI" },
-                    { value: "mixed", label: "Mixed" },
-                  ]}
-                  value={paymentMode}
-                  onChange={(v) => setPaymentMode((v ?? "cash") as PharmacyPaymentMode)}
-                />
-                <NumberInput
-                  size="xs"
-                  label="Received"
-                  w={100}
-                  min={0}
-                  decimalScale={2}
-                  prefix={"\u20B9"}
-                  value={amountReceived}
-                  onChange={setAmountReceived}
-                />
-              </Group>
-              <Stack gap={2} align="flex-end">
-                <Text size="sm">
-                  Subtotal: {"\u20B9"}
-                  {subtotal.toFixed(2)} | GST: {"\u20B9"}
-                  {gstAmount.toFixed(2)} | Total:{" "}
-                  <b>
-                    {"\u20B9"}
-                    {totalAmount.toFixed(2)}
-                  </b>
-                </Text>
-                {changeDue > 0 && (
-                  <Text size="xs" c="green">
-                    Change: {"\u20B9"}
-                    {changeDue.toFixed(2)}
+                    )}
+                  />
+                </Group>
+                <Stack gap={2} align="flex-end">
+                  <Text size="sm">
+                    Subtotal: {"\u20B9"}
+                    {subtotal.toFixed(2)} | GST: {"\u20B9"}
+                    {gstAmount.toFixed(2)} | Total:{" "}
+                    <b>
+                      {"\u20B9"}
+                      {totalAmount.toFixed(2)}
+                    </b>
                   </Text>
-                )}
-                <Button
-                  size="xs"
-                  color="primary"
-                  loading={createMutation.isPending}
-                  onClick={handleSubmitSale}
-                  disabled={cart.length === 0 || Number(amountReceived) < totalAmount}
-                  leftSection={<IconShoppingCart size={14} />}
-                >
-                  Complete Sale
-                </Button>
-              </Stack>
-            </Group>
-          )}
+                  {changeDue > 0 && (
+                    <Text size="xs" c="green">
+                      Change: {"\u20B9"}
+                      {changeDue.toFixed(2)}
+                    </Text>
+                  )}
+                  <Button
+                    size="xs"
+                    color="primary"
+                    loading={createMutation.isPending}
+                    type="submit"
+                    disabled={cart.length === 0 || formNumberOrFallback(amountReceived, 0) < totalAmount}
+                    leftSection={<IconShoppingCart size={14} />}
+                  >
+                    Complete Sale
+                  </Button>
+                </Stack>
+              </Group>
+            )}
+          </Stack>
         </Card>
       )}
 
@@ -3770,5 +3927,3 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
     </Stack>
   );
 }
-
-import { zodResolver } from "@hookform/resolvers/zod";

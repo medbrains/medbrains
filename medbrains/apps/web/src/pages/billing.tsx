@@ -843,6 +843,9 @@ function InvoiceDetail({
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-context", inv.patient_id] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", inv.patient_id] });
       emit("payment.recorded", {
         invoice_id: invoiceId,
         amount: variables.amount,
@@ -891,6 +894,18 @@ function InvoiceDetail({
 
   const detail = data as InvoiceDetailResponse;
   const inv = detail.invoice;
+  const displayStatus = invoiceDisplayStatus(inv);
+  const balance = invoiceBalance(inv);
+  const canRecordPayment =
+    canPay && (displayStatus === "issued" || displayStatus === "partially_paid") && balance > 0;
+  const openPaymentForm = () => {
+    if (showPayment) {
+      setShowPayment(false);
+      return;
+    }
+    resetPayment({ ...paymentDefaults, amount: balance });
+    setShowPayment(true);
+  };
   const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
     addItemMutation.mutate({
       charge_code: values.charge_code.trim(),
@@ -935,15 +950,15 @@ function InvoiceDetail({
         <Text fw={700} size="lg">
           {inv.invoice_number}
         </Text>
-        <Badge color={statusColors[inv.status] ?? "slate"} variant="light" size="lg">
-          {inv.status.replace(/_/g, " ")}
+        <Badge color={statusColors[displayStatus] ?? "slate"} variant="light" size="lg">
+          {displayStatus.replace(/_/g, " ")}
         </Badge>
       </Group>
       <Group>
         <Text size="sm">Total: ₹{money(inv.total_amount)}</Text>
         <Text size="sm">Paid: ₹{money(inv.paid_amount)}</Text>
-        <Text size="sm" c="danger">
-          Balance: ₹{money(invoiceBalance(inv))}
+        <Text size="sm" c={balance > 0 ? "danger" : "success"}>
+          Balance: ₹{money(balance)}
         </Text>
       </Group>
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
@@ -1169,13 +1184,13 @@ function InvoiceDetail({
         </Table.Tbody>
       </Table>
 
-      {canPay && (inv.status === "issued" || inv.status === "partially_paid") && (
+      {canRecordPayment && (
         <>
           <Group gap="xs">
             <Button
               size="xs"
               leftSection={<IconCash size={14} />}
-              onClick={() => setShowPayment(!showPayment)}
+              onClick={openPaymentForm}
             >
               Record Payment
             </Button>
@@ -1197,7 +1212,8 @@ function InvoiceDetail({
                   <NumberInput
                     label="Amount"
                     required
-                    min={0}
+                    min={0.01}
+                    max={balance}
                     decimalScale={2}
                     value={field.value}
                     onChange={field.onChange}
@@ -1223,6 +1239,18 @@ function InvoiceDetail({
                 error={paymentErrors.reference_number?.message}
                 {...registerPayment("reference_number")}
               />
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">
+                  Outstanding: ₹{money(balance)}
+                </Text>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => resetPayment({ ...paymentDefaults, amount: balance })}
+                >
+                  Use balance
+                </Button>
+              </Group>
               <Button size="xs" type="submit" loading={payMutation.isPending}>
                 Save Payment
               </Button>
@@ -1231,7 +1259,7 @@ function InvoiceDetail({
           <PaymentModal
             opened={showGateway}
             onClose={() => setShowGateway(false)}
-            amount={invoiceBalance(inv)}
+            amount={balance}
             invoiceId={invoiceId}
             onSuccess={handleGatewayPaymentSuccess}
           />

@@ -429,7 +429,7 @@ struct SeqResult {
     pad_width: i32,
 }
 
-async fn generate_invoice_number(
+pub(crate) async fn generate_invoice_number(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<String, AppError> {

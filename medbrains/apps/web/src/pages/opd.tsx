@@ -154,7 +154,10 @@ import {
 } from "../components";
 import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
-import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
+import {
+  OrderBasketWorkspace,
+  type OrderBasketTab,
+} from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
@@ -733,6 +736,12 @@ function EncounterDetail({
   const queryClient = useQueryClient();
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
+  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+
+  function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setBasketTab(tab);
+    openBasket();
+  }
 
   // Fetch all data for visit summary print
   const { data: vitals = [] } = useQuery({
@@ -915,7 +924,27 @@ function EncounterDetail({
             >
               Print Summary
             </Button>
-            {canOrder && <OrderBasketChip onClick={openBasket} />}
+            {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
+            {canOrder && (
+              <Group gap={4} grow>
+                <Button
+                  variant="subtle"
+                  size="compact-xs"
+                  leftSection={<IconFlask size={12} />}
+                  onClick={() => openOrderBasket("lab")}
+                >
+                  Lab
+                </Button>
+                <Button
+                  variant="subtle"
+                  size="compact-xs"
+                  leftSection={<IconEye size={12} />}
+                  onClick={() => openOrderBasket("radiology")}
+                >
+                  Imaging
+                </Button>
+              </Group>
+            )}
             <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
             <GroupAppointmentModal patientId={patientId} />
           </Stack>
@@ -1166,6 +1195,8 @@ function EncounterDetail({
         onClose={closeBasket}
         encounterId={encounterId}
         patientId={patientId}
+        activeTab={basketTab}
+        onActiveTabChange={setBasketTab}
         onSigned={() => {
           void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
           void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });

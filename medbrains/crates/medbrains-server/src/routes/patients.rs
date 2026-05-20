@@ -1035,9 +1035,7 @@ pub async fn list_patients(
                 outstanding_balance: billing
                     .map(|row| row.outstanding_balance)
                     .unwrap_or(Decimal::ZERO),
-                pending_invoice_count: billing
-                    .map(|row| row.pending_invoice_count)
-                    .unwrap_or(0),
+                pending_invoice_count: billing.map(|row| row.pending_invoice_count).unwrap_or(0),
                 perms,
             }
         })

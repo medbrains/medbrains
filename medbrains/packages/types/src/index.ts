@@ -28001,6 +28001,8 @@ export interface PharmacyPosSale {
   pricing_tier: string;
   sold_by: string;
   store_location_id?: string;
+  billing_invoice_id?: string;
+  billing_posted_at?: string;
   created_at: string;
   updated_at: string;
 }

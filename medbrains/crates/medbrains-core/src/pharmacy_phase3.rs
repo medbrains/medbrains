@@ -84,6 +84,8 @@ pub struct PharmacyPosSale {
     pub pricing_tier: String,
     pub sold_by: Uuid,
     pub store_location_id: Option<Uuid>,
+    pub billing_invoice_id: Option<Uuid>,
+    pub billing_posted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -3,12 +3,14 @@ import type {
   DrugScheduleFormValue,
   FormularyStatusFormValue,
   PharmacyNdpsActionFormValue,
+  PharmacyPosPaymentModeFormValue,
   PharmacyStockTransactionTypeFormValue,
 } from "@medbrains/schemas";
 import {
   awareCategoryValues,
   drugScheduleValues,
   pharmacyNdpsActionValues,
+  pharmacyPosPaymentModeValues,
   pharmacyStockTransactionTypeValues,
 } from "@medbrains/schemas";
 
@@ -50,6 +52,19 @@ export const stockTransactionTypeOptions = pharmacyStockTransactionTypeValues.ma
 export const ndpsActionOptions = pharmacyNdpsActionValues.map((value) => ({
   value,
   label: ndpsActionLabels[value],
+}));
+
+const pharmacyPosPaymentModeLabels: Record<PharmacyPosPaymentModeFormValue, string> = {
+  cash: "Cash",
+  card: "Card",
+  upi: "UPI",
+  insurance: "Insurance",
+  credit: "Credit",
+};
+
+export const pharmacyPosPaymentModeOptions = pharmacyPosPaymentModeValues.map((value) => ({
+  value,
+  label: pharmacyPosPaymentModeLabels[value],
 }));
 
 export function formIntegerOrFallback(value: number | string, fallback: number): number {

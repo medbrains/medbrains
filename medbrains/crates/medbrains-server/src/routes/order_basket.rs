@@ -221,8 +221,13 @@ pub async fn check_basket(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    ensure_encounter_patient_in_tx(&mut tx, &claims.tenant_id, &body.encounter_id, &body.patient_id)
-        .await?;
+    ensure_encounter_patient_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        &body.encounter_id,
+        &body.patient_id,
+    )
+    .await?;
     let warnings =
         run_basket_checks(&mut tx, &claims.tenant_id, &body.patient_id, &body.items).await?;
     tx.commit().await?;
@@ -252,8 +257,13 @@ pub async fn sign_basket(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    ensure_encounter_patient_in_tx(&mut tx, &claims.tenant_id, &body.encounter_id, &body.patient_id)
-        .await?;
+    ensure_encounter_patient_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        &body.encounter_id,
+        &body.patient_id,
+    )
+    .await?;
 
     // Defense-in-depth: re-run CDS inside the sign tx. If a BLOCK warning
     // has appeared since the client's last check and is not in

@@ -83,7 +83,10 @@ import { PrescriptionViews } from "../components/Clinical";
 import { NotesPanel } from "../components/crdt/NotesPanel";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
-import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
+import {
+  OrderBasketWorkspace,
+  type OrderBasketTab,
+} from "../components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "../components/PageHeader";
 import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
@@ -2529,8 +2532,14 @@ export function PatientDetailPage() {
   const canAdmit = useHasPermission(P.IPD.ADMISSIONS_CREATE);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const [basketOpen, setBasketOpen] = useState(false);
+  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
   const [opdVisitOpen, { open: openOpdVisit, close: closeOpdVisit }] = useDisclosure(false);
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
+
+  function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setBasketTab(tab);
+    setBasketOpen(true);
+  }
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", patientId],
@@ -2584,7 +2593,27 @@ export function PatientDetailPage() {
                 New OPD Visit
               </Button>
             )}
-            {canOrder && activeEncounter && <OrderBasketChip onClick={() => setBasketOpen(true)} />}
+            {canOrder && activeEncounter && (
+              <>
+                <OrderBasketChip onClick={() => openOrderBasket("drug")} />
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  leftSection={<IconFlask size={14} />}
+                  onClick={() => openOrderBasket("lab")}
+                >
+                  Lab
+                </Button>
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  leftSection={<IconEye size={14} />}
+                  onClick={() => openOrderBasket("radiology")}
+                >
+                  Imaging
+                </Button>
+              </>
+            )}
             {canOrder && !activeEncounter && (
               <Tooltip label="No active visit — start an OPD visit or admission first">
                 <Button
@@ -2760,6 +2789,8 @@ export function PatientDetailPage() {
           onClose={() => setBasketOpen(false)}
           encounterId={activeEncounter.id}
           patientId={patient.id}
+          activeTab={basketTab}
+          onActiveTabChange={setBasketTab}
         />
       )}
       <StartOpdVisitModal

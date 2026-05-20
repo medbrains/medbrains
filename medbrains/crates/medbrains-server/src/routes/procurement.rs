@@ -1093,7 +1093,10 @@ pub async fn create_grn(
         };
 
         if pharmacy_catalog_id.is_some() {
-            let has_batch = item.batch_number.as_deref().is_some_and(|b| !b.trim().is_empty());
+            let has_batch = item
+                .batch_number
+                .as_deref()
+                .is_some_and(|b| !b.trim().is_empty());
             if !has_batch {
                 return Err(AppError::BadRequest(format!(
                     "Batch number is required for pharmacy GRN item {}",

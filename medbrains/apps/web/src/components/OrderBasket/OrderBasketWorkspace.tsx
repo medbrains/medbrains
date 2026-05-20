@@ -36,11 +36,15 @@ import { LabPickerForm } from "./pickers/LabPickerForm";
 import { RadiologyPickerForm } from "./pickers/RadiologyPickerForm";
 import { WarningsPanel } from "./WarningsPanel";
 
+export type OrderBasketTab = "drug" | "lab" | "radiology";
+
 interface OrderBasketWorkspaceProps {
   opened: boolean;
   onClose: () => void;
   encounterId: string;
   patientId: string;
+  activeTab?: OrderBasketTab;
+  onActiveTabChange?: (tab: OrderBasketTab) => void;
   onSigned?: () => void;
 }
 
@@ -49,6 +53,8 @@ export function OrderBasketWorkspace({
   onClose,
   encounterId,
   patientId,
+  activeTab = "drug",
+  onActiveTabChange,
   onSigned,
 }: OrderBasketWorkspaceProps) {
   const basket = useOrderBasketStore();
@@ -198,7 +204,11 @@ export function OrderBasketWorkspace({
     [basket.warnings],
   );
 
-  const [activeTab, setActiveTab] = useState<string | null>("drug");
+  const handleTabChange = (value: string | null) => {
+    if (isOrderBasketTab(value)) {
+      onActiveTabChange?.(value);
+    }
+  };
 
   return (
     <>
@@ -243,7 +253,7 @@ export function OrderBasketWorkspace({
             </Button>
           </Group>
 
-          <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs value={activeTab} onChange={handleTabChange}>
             <Tabs.List>
               <Tabs.Tab value="drug">Drug</Tabs.Tab>
               <Tabs.Tab value="lab">Lab</Tabs.Tab>
@@ -603,4 +613,8 @@ function CarryForwardModal({
 
 function basketItemKey(item: BasketItem): string {
   return `${item.kind}:${JSON.stringify(item)}`;
+}
+
+function isOrderBasketTab(value: string | null): value is OrderBasketTab {
+  return value === "drug" || value === "lab" || value === "radiology";
 }

@@ -1094,6 +1094,14 @@ export const orderBasketLabPriorityFormSchema = z.enum(orderBasketLabPriorityVal
 export const orderBasketRadiologyPriorityFormSchema = z.enum(orderBasketRadiologyPriorityValues);
 export const pharmacyStockTransactionTypeFormSchema = z.enum(pharmacyStockTransactionTypeValues);
 export const pharmacyNdpsActionFormSchema = z.enum(pharmacyNdpsActionValues);
+export const pharmacyPosPaymentModeFormSchema = z.enum([
+  "cash",
+  "card",
+  "upi",
+  "insurance",
+  "credit",
+]);
+export const pharmacyPosPaymentModeValues = pharmacyPosPaymentModeFormSchema.options;
 
 export function toGenderFormValue(value: string | null): GenderFormValue {
   return genderFormSchema.catch("unknown").parse(value ?? "unknown");
@@ -1587,6 +1595,53 @@ export const pharmacyNdpsEntryFormSchema = z.object({
   notes: z.string(),
   witnessed_by: z.string(),
 });
+
+export const pharmacyPosSaleItemFormSchema = z.object({
+  catalog_item_id: requiredTrimmed("Select a drug"),
+  drug_name: requiredTrimmed("Drug name is required"),
+  quantity: positiveFormInteger,
+  unit_price: positiveNumber("Selling price must be greater than zero"),
+});
+
+export const pharmacyPosSaleFormSchema = z.object({
+  patient_id: z.string(),
+  patient_name: z.string(),
+  patient_phone: z.string(),
+  payment_mode: pharmacyPosPaymentModeFormSchema,
+  amount_received: nonNegativeNumber("Amount received cannot be negative"),
+  discount_percent: nonNegativeNumber("Discount cannot be negative").refine((value) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) && parsed <= 100;
+  }, "Discount cannot exceed 100%"),
+  items: z.array(pharmacyPosSaleItemFormSchema).min(1, "Add at least one medicine"),
+});
+
+export const pharmacyRxReviewActionFormSchema = z.enum(["approved", "rejected", "on_hold"]);
+export const pharmacyRxReviewActionValues = pharmacyRxReviewActionFormSchema.options;
+
+export const pharmacyRxReviewItemFormSchema = z.object({
+  prescription_item_id: requiredTrimmed("Prescription item is required"),
+  catalog_item_id: z.string().nullable().optional(),
+  quantity: positiveFormInteger,
+  unit_price: nonNegativeNumber("Unit price cannot be negative"),
+});
+
+export const pharmacyRxReviewFormSchema = z
+  .object({
+    action: pharmacyRxReviewActionFormSchema,
+    notes: z.string(),
+    rejection_reason: z.string(),
+    items: z.array(pharmacyRxReviewItemFormSchema),
+  })
+  .superRefine((value, ctx) => {
+    if (value.action === "rejected" && value.rejection_reason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rejection_reason"],
+        message: "Rejection reason is required",
+      });
+    }
+  });
 
 export const miniAddVendorFormSchema = z
   .object({
@@ -4018,6 +4073,10 @@ export type OrderBasketLabFormInput = z.infer<typeof orderBasketLabFormSchema>;
 export type OrderBasketRadiologyFormInput = z.infer<typeof orderBasketRadiologyFormSchema>;
 export type PharmacyStockTransactionFormInput = z.infer<typeof pharmacyStockTransactionFormSchema>;
 export type PharmacyNdpsEntryFormInput = z.infer<typeof pharmacyNdpsEntryFormSchema>;
+export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentModeFormSchema>;
+export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
+export type PharmacyRxReviewFormInput = z.infer<typeof pharmacyRxReviewFormSchema>;
+export type PharmacyRxReviewItemFormInput = z.infer<typeof pharmacyRxReviewItemFormSchema>;
 export type MiniAddVendorFormInput = z.infer<typeof miniAddVendorFormSchema>;
 export type SubscribePackageFormInput = z.infer<typeof subscribePackageFormSchema>;
 export type PaymentFormInput = z.infer<typeof paymentFormSchema>;

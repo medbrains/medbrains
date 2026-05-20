@@ -352,7 +352,12 @@ async fn auto_bill_radiology_order_in_tx(
 
     let (charge_code, description) = modality.map_or_else(
         || ("RAD-EXAM".to_owned(), None),
-        |m| (format!("RAD-{}", m.code), Some(format!("Radiology - {}", m.name))),
+        |m| {
+            (
+                format!("RAD-{}", m.code),
+                Some(format!("Radiology - {}", m.name)),
+            )
+        },
     );
 
     super::billing::auto_charge(

@@ -18,8 +18,9 @@ use medbrains_core::pharmacy_phase2::{
     PharmacyTransferRequest,
 };
 use medbrains_core::pharmacy_phase3::{
-    PharmacyAllergyCheckLog, PharmacyPosSale, PharmacyPosSaleItem, PharmacyPrescriptionRx,
-    PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary, RxQueueRow,
+    PharmacyAllergyCheckLog, PharmacyPaymentMode, PharmacyPosSale, PharmacyPosSaleItem,
+    PharmacyPrescriptionRx, PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary,
+    RxQueueRow,
 };
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use serde::{Deserialize, Serialize};
@@ -1835,15 +1836,17 @@ pub async fn dispense_order(
                 .or(item.batch_stock_id);
 
             let batch_trace = if let Some(batch_stock_id) = selected_batch_id {
-                Some(decrement_batch_stock_for_dispense_in_tx(
-                    &mut tx,
-                    &claims.tenant_id,
-                    catalog_id,
-                    batch_stock_id,
-                    item.quantity,
-                    &item.drug_name,
+                Some(
+                    decrement_batch_stock_for_dispense_in_tx(
+                        &mut tx,
+                        &claims.tenant_id,
+                        catalog_id,
+                        batch_stock_id,
+                        item.quantity,
+                        &item.drug_name,
+                    )
+                    .await?,
                 )
-                .await?)
             } else {
                 let trace = try_decrement_fefo_batch_stock_for_dispense_in_tx(
                     &mut tx,
@@ -4215,6 +4218,18 @@ pub async fn create_pos_sale(
     }
     let discount = body.discount_amount.unwrap_or(Decimal::ZERO);
     let total = subtotal - discount + gst_total;
+    if body.amount_received.unwrap_or(total) < total {
+        return Err(AppError::BadRequest(
+            "Amount received cannot be less than pharmacy sale total".to_owned(),
+        ));
+    }
+    let payment_mode = body.payment_mode.as_deref().unwrap_or("cash");
+    if payment_mode == "mixed" {
+        return Err(AppError::BadRequest(
+            "Mixed pharmacy tender requires split payment lines before posting to common billing"
+                .to_owned(),
+        ));
+    }
 
     // Create pharmacy order for stock tracking
     let order = sqlx::query_as::<_, PharmacyOrder>(
@@ -4254,7 +4269,7 @@ pub async fn create_pos_sale(
     .bind(body.discount_percent)
     .bind(gst_total)
     .bind(total)
-    .bind(body.payment_mode.as_deref().unwrap_or("cash"))
+    .bind(payment_mode)
     .bind(&body.payment_reference)
     .bind(body.amount_received.unwrap_or(total))
     .bind(body.amount_received.map_or(Decimal::ZERO, |r| r - total))
@@ -4266,6 +4281,7 @@ pub async fn create_pos_sale(
     .await?;
 
     // Create sale items + order items + deduct stock
+    let mut billing_lines = Vec::with_capacity(body.items.len());
     for item in &body.items {
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
@@ -4279,9 +4295,13 @@ pub async fn create_pos_sale(
         let line_total = Decimal::from(item.quantity) * item.selling_price + line_gst;
 
         let batch_trace = if let Some(catalog_id) = item.catalog_item_id {
-            let stock =
-                fetch_pharmacy_stock_gate_in_tx(&mut tx, &claims.tenant_id, catalog_id, &item.drug_name)
-                    .await?;
+            let stock = fetch_pharmacy_stock_gate_in_tx(
+                &mut tx,
+                &claims.tenant_id,
+                catalog_id,
+                &item.drug_name,
+            )
+            .await?;
             if stock.current_stock < item.quantity {
                 return Err(AppError::Conflict(format!(
                     "Insufficient stock for {}: requested {}, available {}. POS sale was not posted.",
@@ -4374,12 +4394,13 @@ pub async fn create_pos_sale(
         .await?;
 
         // POS sale item with GST split
-        sqlx::query(
+        let pos_sale_item_id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO pharmacy_pos_sale_items
              (tenant_id, pos_sale_id, catalog_item_id, drug_name, batch_id, batch_number,
               hsn_code, quantity, mrp, selling_price, gst_rate, cgst_amount, sgst_amount,
               igst_amount, line_total)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14)
+             RETURNING id",
         )
         .bind(claims.tenant_id)
         .bind(sale.id)
@@ -4395,9 +4416,44 @@ pub async fn create_pos_sale(
         .bind(half_gst)
         .bind(half_gst)
         .bind(line_total)
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await?;
+
+        billing_lines.push(PosSaleBillingLine {
+            source_id: pos_sale_item_id,
+            catalog_item_id: item.catalog_item_id,
+            drug_name: item.drug_name.clone(),
+            batch_id,
+            batch_number,
+            expiry_date: batch_trace.as_ref().map(|trace| trace.expiry_date),
+            hsn_code: item.hsn_code.clone(),
+            quantity: item.quantity,
+            selling_price: item.selling_price,
+            gst_rate: item.gst_rate,
+        });
     }
+
+    let billing_invoice_id = mirror_patient_pos_sale_to_billing_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        claims.sub,
+        &sale,
+        &order,
+        &billing_lines,
+    )
+    .await?;
+
+    let sale = if billing_invoice_id.is_some() {
+        sqlx::query_as::<_, PharmacyPosSale>(
+            "SELECT * FROM pharmacy_pos_sales WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(sale.id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?
+    } else {
+        sale
+    };
 
     tx.commit().await?;
     Ok(Json(sale))
@@ -5107,10 +5163,148 @@ pub struct PosSaleItemInput {
     pub gst_rate: Decimal,
 }
 
+struct PosSaleBillingLine {
+    source_id: Uuid,
+    catalog_item_id: Option<Uuid>,
+    drug_name: String,
+    batch_id: Option<Uuid>,
+    batch_number: Option<String>,
+    expiry_date: Option<NaiveDate>,
+    hsn_code: Option<String>,
+    quantity: i32,
+    selling_price: Decimal,
+    gst_rate: Decimal,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct PosSalesQuery {
     pub payment_mode: Option<String>,
     pub date: Option<NaiveDate>,
+}
+
+fn billing_payment_mode_for_pharmacy(
+    payment_mode: &PharmacyPaymentMode,
+) -> Result<&'static str, AppError> {
+    match payment_mode {
+        PharmacyPaymentMode::Cash => Ok("cash"),
+        PharmacyPaymentMode::Card => Ok("card"),
+        PharmacyPaymentMode::Upi => Ok("upi"),
+        PharmacyPaymentMode::Insurance => Ok("insurance"),
+        PharmacyPaymentMode::Credit => Ok("credit"),
+        PharmacyPaymentMode::Mixed => Err(AppError::BadRequest(
+            "Mixed pharmacy tender requires split payment lines before posting to common billing"
+                .to_owned(),
+        )),
+    }
+}
+
+async fn mirror_patient_pos_sale_to_billing_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    sold_by: Uuid,
+    sale: &PharmacyPosSale,
+    order: &PharmacyOrder,
+    items: &[PosSaleBillingLine],
+) -> Result<Option<Uuid>, AppError> {
+    let Some(patient_id) = sale.patient_id else {
+        return Ok(None);
+    };
+
+    #[derive(sqlx::FromRow)]
+    struct InvoiceId {
+        id: Uuid,
+    }
+
+    let payment_mode = billing_payment_mode_for_pharmacy(&sale.payment_mode)?;
+    let invoice_number = super::billing::generate_invoice_number(tx, &tenant_id).await?;
+    let invoice = sqlx::query_as::<_, InvoiceId>(
+        "INSERT INTO invoices \
+         (tenant_id, invoice_number, patient_id, encounter_id, status, subtotal, tax_amount, \
+          discount_amount, total_amount, paid_amount, notes, issued_at, created_by) \
+         VALUES ($1, $2, $3, $4, 'paid'::invoice_status, $5, $6, $7, $8, $8, $9, now(), $10) \
+         RETURNING *",
+    )
+    .bind(tenant_id)
+    .bind(invoice_number)
+    .bind(patient_id)
+    .bind(order.encounter_id)
+    .bind(sale.subtotal)
+    .bind(sale.gst_amount)
+    .bind(sale.discount_amount)
+    .bind(sale.total_amount)
+    .bind(format!("Pharmacy POS sale {}", sale.sale_number))
+    .bind(sold_by)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    for line in items {
+        let line_gst =
+            Decimal::from(line.quantity) * line.selling_price * line.gst_rate / Decimal::from(100);
+        let half_gst = line_gst / Decimal::from(2);
+        let line_total = Decimal::from(line.quantity) * line.selling_price + line_gst;
+
+        sqlx::query(
+            "INSERT INTO invoice_items \
+             (tenant_id, invoice_id, charge_code, description, source, source_id, quantity, \
+              unit_price, tax_percent, total_price, gst_rate, gst_type, cgst_amount, \
+              sgst_amount, igst_amount, hsn_sac_code, pharmacy_order_id, source_module, \
+              pharmacy_batch_id, batch_number, expiry_date) \
+             VALUES ($1, $2, $3, $4, 'pharmacy'::charge_source, $5, $6, $7, $8, $9, $8, \
+              CASE WHEN $8 > 0 THEN 'cgst_sgst'::gst_type ELSE 'exempt'::gst_type END, \
+              $10, $10, 0, $11, $12, 'pharmacy_pos', $13, $14, $15)",
+        )
+        .bind(tenant_id)
+        .bind(invoice.id)
+        .bind(
+            line.catalog_item_id
+                .map_or_else(|| "PH-POS".to_owned(), |id| format!("PH-{id}")),
+        )
+        .bind(&line.drug_name)
+        .bind(line.source_id)
+        .bind(line.quantity)
+        .bind(line.selling_price)
+        .bind(line.gst_rate)
+        .bind(line_total)
+        .bind(half_gst)
+        .bind(&line.hsn_code)
+        .bind(order.id)
+        .bind(line.batch_id)
+        .bind(&line.batch_number)
+        .bind(line.expiry_date)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    sqlx::query(
+        "INSERT INTO payments \
+         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
+         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now())",
+    )
+    .bind(tenant_id)
+    .bind(invoice.id)
+    .bind(sale.total_amount)
+    .bind(payment_mode)
+    .bind(&sale.payment_reference)
+    .bind(sold_by)
+    .bind(format!(
+        "Posted from pharmacy POS sale {}; pharmacy cash drawer remains the operational source",
+        sale.sale_number
+    ))
+    .execute(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE pharmacy_pos_sales \
+         SET billing_invoice_id = $1, billing_posted_at = now(), updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(invoice.id)
+    .bind(sale.id)
+    .bind(tenant_id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(Some(invoice.id))
 }
 
 #[derive(Debug, Deserialize)]

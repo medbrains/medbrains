@@ -111,10 +111,12 @@ import {
   IconDots,
   IconEye,
   IconFileDescription,
+  IconFlask,
   IconHeartRateMonitor,
   IconLayoutGrid,
   IconLink,
   IconPencil,
+  IconPill,
   IconPlus,
   IconPrinter,
   IconTrash,
@@ -141,7 +143,10 @@ import { MarkDeathModal } from "../components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "../components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
 import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
-import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
+import {
+  OrderBasketWorkspace,
+  type OrderBasketTab,
+} from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { WardSelect } from "../components/WardSelect";
@@ -604,6 +609,12 @@ function AdmissionDetail({
   const [transferOutOpened, { open: openTransferOut, close: closeTransferOut }] =
     useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
+  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+
+  function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setBasketTab(tab);
+    openBasket();
+  }
 
   const { data } = useQuery({
     queryKey: ["admission-detail", admissionId],
@@ -636,7 +647,9 @@ function AdmissionDetail({
           <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
             {adm.status}
           </Badge>
-          {canOrder && adm.status === "admitted" && <OrderBasketChip onClick={openBasket} />}
+          {canOrder && adm.status === "admitted" && (
+            <OrderBasketChip onClick={() => openOrderBasket("drug")} />
+          )}
           {canOrder && adm.status !== "admitted" && (
             <Tooltip label="Orders are available only for active admissions">
               <Button
@@ -706,11 +719,25 @@ function AdmissionDetail({
               <Menu.Divider />
               <Menu.Label>Orders</Menu.Label>
               <Menu.Item
-                leftSection={<IconHeartRateMonitor size={14} />}
+                leftSection={<IconPill size={14} />}
                 disabled={adm.status !== "admitted"}
-                onClick={openBasket}
+                onClick={() => openOrderBasket("drug")}
               >
-                Quick Rx / Lab / Imaging
+                Order medicines
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconFlask size={14} />}
+                disabled={adm.status !== "admitted"}
+                onClick={() => openOrderBasket("lab")}
+              >
+                Order lab tests
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconEye size={14} />}
+                disabled={adm.status !== "admitted"}
+                onClick={() => openOrderBasket("radiology")}
+              >
+                Order imaging
               </Menu.Item>
               <Menu.Divider />
               <Menu.Label>Documents</Menu.Label>
@@ -756,6 +783,8 @@ function AdmissionDetail({
         onClose={closeBasket}
         encounterId={adm.encounter_id}
         patientId={adm.patient_id}
+        activeTab={basketTab}
+        onActiveTabChange={setBasketTab}
         onSigned={() => {
           void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
           void queryClient.invalidateQueries({ queryKey: ["ipd-estimated-cost", admissionId] });
@@ -831,7 +860,12 @@ function AdmissionDetail({
           <TransferLogTab admissionId={admissionId} />
         </Tabs.Panel>
         <Tabs.Panel value="investigations" pt="md">
-          <InvestigationsTab admissionId={admissionId} />
+          <InvestigationsTab
+            admissionId={admissionId}
+            canOrder={canOrder && adm.status === "admitted"}
+            onOrderLab={() => openOrderBasket("lab")}
+            onOrderRadiology={() => openOrderBasket("radiology")}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="billing-tab" pt="md">
           <BillingTab admissionId={admissionId} />
@@ -4258,7 +4292,17 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
 //  Phase 3a — New Sub-Tabs
 // ══════════════════════════════════════════════════════════
 
-function InvestigationsTab({ admissionId }: { admissionId: string }) {
+function InvestigationsTab({
+  admissionId,
+  canOrder,
+  onOrderLab,
+  onOrderRadiology,
+}: {
+  admissionId: string;
+  canOrder: boolean;
+  onOrderLab: () => void;
+  onOrderRadiology: () => void;
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-investigations", admissionId],
     queryFn: () => ipdService.getAdmissionInvestigations(admissionId),
@@ -4271,7 +4315,29 @@ function InvestigationsTab({ admissionId }: { admissionId: string }) {
 
   return (
     <Stack>
-      <Text fw={600}>Lab Orders ({inv.lab_orders.length})</Text>
+      <Group justify="space-between" align="center">
+        <Text fw={600}>Lab Orders ({inv.lab_orders.length})</Text>
+        {canOrder && (
+          <Group gap="xs">
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconFlask size={14} />}
+              onClick={onOrderLab}
+            >
+              Order lab
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconEye size={14} />}
+              onClick={onOrderRadiology}
+            >
+              Order imaging
+            </Button>
+          </Group>
+        )}
+      </Group>
       {inv.lab_orders.length > 0 ? (
         <Table striped>
           <Table.Thead>
