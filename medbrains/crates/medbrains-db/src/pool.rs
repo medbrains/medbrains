@@ -86,6 +86,10 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), DbError> {
 
 /// Set the tenant context for Row-Level Security within a transaction.
 /// This ensures RLS applies to the correct connection, not a random pool connection.
+///
+/// Also sets the transaction-local `PostgreSQL` `TimeZone` from the tenant so
+/// `CURRENT_DATE`, `now()::date`, and `timestamptz::date` follow the hospital
+/// business day instead of the database server's timezone.
 pub async fn set_tenant_context(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: &uuid::Uuid,
@@ -120,8 +124,8 @@ pub async fn set_full_context(
 /// Sprint A.5: full per-request context including bypass-role flag.
 ///
 /// Adds `app.bypass_dept_rls` to the standard context bundle so dept-RLS
-/// policies can short-circuit for super_admin / hospital_admin without
-/// requiring department_ids to be populated.
+/// policies can short-circuit for `super_admin` / `hospital_admin` without
+/// requiring `department_ids` to be populated.
 ///
 /// Caller responsibility: pass `bypass_dept_rls=true` when the user's
 /// role is in `middleware::authorization::BYPASS_ROLES`.
@@ -262,6 +266,36 @@ async fn apply_context(
     .bind(user_agent)
     .bind(session_id)
     .bind(bypass_dept_rls)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(id) = tenant_id {
+        apply_tenant_timezone(tx, id).await?;
+    }
+
+    Ok(())
+}
+
+async fn apply_tenant_timezone(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+) -> Result<(), DbError> {
+    let _ = sqlx::query(
+        "WITH raw_timezone AS ( \
+             SELECT COALESCE(NULLIF((SELECT timezone FROM tenants WHERE id = $1), ''), 'Asia/Kolkata') AS value \
+         ), safe_timezone AS ( \
+             SELECT CASE \
+                 WHEN EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = raw_timezone.value) \
+                 THEN raw_timezone.value \
+                 ELSE 'Asia/Kolkata' \
+             END AS value \
+             FROM raw_timezone \
+         ) \
+         SELECT set_config('app.tenant_timezone', value, true), \
+                set_config('TimeZone', value, true) \
+         FROM safe_timezone",
+    )
+    .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
 

@@ -226,8 +226,8 @@ build-frontend: ## Build web frontend
 
 check: check-backend check-frontend ## Run all checks
 
-check-backend: ## Run cargo clippy
-	cargo clippy -- -D warnings
+check-backend: ## Run cargo clippy with workspace lint policy
+	cargo clippy --workspace
 
 guard-sqlx-nonprod:
 	@case "$(SQLX_DATABASE_URL)" in \

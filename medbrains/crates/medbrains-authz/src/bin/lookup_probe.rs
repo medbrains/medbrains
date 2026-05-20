@@ -1,6 +1,6 @@
-//! Diagnostic probe — call list_accessible directly against SpiceDB.
+//! Diagnostic probe — call `list_accessible` directly against `SpiceDB`.
 //!
-//! Usage: cargo run -p medbrains-authz --bin lookup-probe -- <user_uuid>
+//! Usage: cargo run -p medbrains-authz --bin lookup-probe -- <`user_uuid`>
 
 // CLI binary — println is the user-facing UI.
 #![allow(clippy::print_stdout)]

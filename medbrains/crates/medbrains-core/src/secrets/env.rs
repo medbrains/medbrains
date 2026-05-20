@@ -12,7 +12,7 @@ use std::env;
 pub struct EnvSecretResolver;
 
 impl EnvSecretResolver {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

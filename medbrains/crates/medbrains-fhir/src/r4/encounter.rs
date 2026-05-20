@@ -12,7 +12,7 @@ pub struct Encounter {
     /// `finished` | `cancelled` | `entered-in-error` | `unknown`.
     pub status: String,
 
-    /// EncounterClass — `IMP` (inpatient), `AMB` (ambulatory/OPD),
+    /// `EncounterClass` — `IMP` (inpatient), `AMB` (ambulatory/OPD),
     /// `EMER` (emergency), `HH` (home health), etc. From
     /// `http://terminology.hl7.org/CodeSystem/v3-ActCode`.
     pub class: Coding,

@@ -775,6 +775,7 @@ pub struct DispenseOrderRequest {
 pub struct DispenseItemInput {
     pub order_item_id: Uuid,
     pub batch_number: Option<String>,
+    // Historical API field name; stores the selected pharmacy_batches.id.
     pub batch_stock_id: Option<Uuid>,
 }
 
@@ -3366,6 +3367,21 @@ pub async fn process_return(
                 .execute(&mut *tx)
                 .await?;
 
+                if let Some(batch_id) = oi.batch_stock_id {
+                    sqlx::query(
+                        "UPDATE pharmacy_batches SET \
+                         quantity_on_hand = quantity_on_hand + $1, \
+                         quantity_dispensed = GREATEST(quantity_dispensed - $1, 0), \
+                         updated_at = now() \
+                         WHERE id = $2 AND tenant_id = $3",
+                    )
+                    .bind(row.quantity_returned)
+                    .bind(batch_id)
+                    .bind(claims.tenant_id)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+
                 // Update quantity_returned on order item
                 sqlx::query(
                     "UPDATE pharmacy_order_items SET quantity_returned = quantity_returned + $1 \
@@ -4165,6 +4181,7 @@ pub async fn select_fefo_batch(
          FROM pharmacy_batches
          WHERE catalog_item_id = $1 AND tenant_id = $2
            AND quantity_on_hand > 0 AND expiry_date > CURRENT_DATE
+           AND quarantine_status = 'cleared'
            AND ($3::uuid IS NULL OR store_location_id = $3)
          ORDER BY expiry_date ASC
          ) r",

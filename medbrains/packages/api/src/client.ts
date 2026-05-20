@@ -174,6 +174,8 @@ import type {
   CampFollowup,
   CampIncident,
   CampLabSample,
+  CampOpenEncounterResponse,
+  OpenCampRegistrationEncounterRequest,
   CampPacketResponse,
   CampReferral,
   CampRegistration,
@@ -5914,6 +5916,11 @@ export const api = {
     request<CampRegistration>(`/camp/registrations/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    }),
+  openCampRegistrationEncounter: (id: string, data?: OpenCampRegistrationEncounterRequest) =>
+    request<CampOpenEncounterResponse>(`/camp/registrations/${id}/open-encounter`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
     }),
   listCampScreenings: (params?: { camp_id?: string; registration_id?: string }) => {
     const sp = new URLSearchParams();

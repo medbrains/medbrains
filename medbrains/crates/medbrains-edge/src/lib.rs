@@ -1,6 +1,6 @@
 //! # medbrains-edge
 //!
-//! Offline-first edge sync for MedBrains hospital deployments.
+//! Offline-first edge sync for `MedBrains` hospital deployments.
 //!
 //! Runs on a small box inside the hospital DC (a NUC, a Raspberry Pi 5,
 //! a hypervisor VM — anything with 2 GB RAM). When the WAN goes down
@@ -52,7 +52,7 @@
 //! ## Open source
 //!
 //! Apache-2.0. Hospitals can run this on their own hardware without
-//! contacting MedBrains — the protocol is documented, the binary is
+//! contacting `MedBrains` — the protocol is documented, the binary is
 //! reproducible, the CRDT format is upstream Loro.
 
 pub mod doc_store;

@@ -34,6 +34,7 @@ import {
   terminologySystemLabel,
 } from "../../domain/clinical/terminology-policy";
 import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
+import { todayDateString } from "../../lib/date-utils";
 import { clinicalSupportService } from "../../services/clinicalSupport.service";
 import styles from "./diagnosis-panel.module.scss";
 import { Icd11CodeSelect } from "./Icd11CodeSelect";
@@ -91,7 +92,7 @@ function isDiagnosisCertainty(value: string | null): value is DiagnosisCertainty
 }
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateString();
 }
 
 function displayDate(value: string | null | undefined): string {

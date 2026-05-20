@@ -11,6 +11,7 @@ import {
   Table,
   Text,
   Textarea,
+  Tooltip,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -52,6 +53,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "../components/PageHeader";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { parseDate, toDateString, todayDateString } from "../lib/date-utils";
 import { appointmentsService } from "../services/appointments.service";
 
 // ── Helpers ────────────────────────────────────────────────
@@ -97,8 +99,15 @@ function formatTime(time: string): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split("T")[0] ?? "";
+  return todayDateString();
 }
+
+function toFormDate(value: Date | string | null): string | null {
+  if (!value) return null;
+  return typeof value === "string" ? value : toDateString(value);
+}
+
+const OPD_CHECK_IN_STATUSES = new Set(["scheduled", "confirmed", "checked_in"]);
 
 const DEFAULT_BOOK_APPOINTMENT_VALUES: BookAppointmentFormInput = {
   patient_id: null,
@@ -297,9 +306,9 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
               <DatePickerInput
                 label="Date"
                 placeholder="Pick date"
-                value={field.value}
-                onChange={(value: string | null) => {
-                  field.onChange(value);
+                value={parseDate(field.value)}
+                onChange={(value) => {
+                  field.onChange(toFormDate(value));
                   setSelectedSlot(null);
                 }}
                 error={errors.appointment_date?.message}
@@ -434,6 +443,7 @@ export function AppointmentsPage() {
   const canBook = useHasPermission(P.OPD.APPOINTMENT.CREATE);
   const canUpdate = useHasPermission(P.OPD.APPOINTMENT.UPDATE);
   const canCancel = useHasPermission(P.OPD.APPOINTMENT.CANCEL);
+  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
 
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
@@ -461,15 +471,24 @@ export function AppointmentsPage() {
   });
 
   const checkInMutation = useMutation({
-    mutationFn: (id: string) => appointmentsService.checkInAppointment(id),
-    onSuccess: () => {
+    mutationFn: (appointment: AppointmentWithPatient) =>
+      appointmentsService.createEncounter({
+        patient_id: appointment.patient_id,
+        department_id: appointment.department_id,
+        doctor_id: appointment.doctor_id,
+        appointment_id: appointment.id,
+        notes: appointment.reason ?? undefined,
+      }),
+    onSuccess: (result) => {
       notifications.show({
-        title: "Checked in",
-        message: "Patient has been checked in.",
+        title: "Checked in to OPD",
+        message: `OPD token T${String(result.queue.token_number).padStart(3, "0")} created.`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -597,6 +616,7 @@ export function AppointmentsPage() {
       slot_end: rescheduleSlot.end_time,
     });
   });
+  const currentDate = todayStr();
 
   return (
     <div>
@@ -615,12 +635,18 @@ export function AppointmentsPage() {
       <Group mb="md">
         <DatePickerInput
           label="Date"
-          value={dateFilter}
-          onChange={setDateFilter}
+          value={parseDate(dateFilter)}
+          onChange={(value) => setDateFilter(toFormDate(value))}
           clearable
           leftSection={<IconCalendar size={16} />}
           w={200}
         />
+        <Button variant="light" mt={24} onClick={() => setDateFilter(null)}>
+          All appointments
+        </Button>
+        <Button variant="subtle" mt={24} onClick={() => setDateFilter(todayStr())}>
+          Today
+        </Button>
       </Group>
 
       {isLoading ? (
@@ -644,117 +670,150 @@ export function AppointmentsPage() {
           </Table.Thead>
           <Table.Tbody>
             {appointments && appointments.length > 0 ? (
-              appointments.map((appt) => (
-                <Table.Tr key={appt.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={600} ff="monospace">
-                      {appt.token_number ?? "-"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      <IconClock size={14} />
-                      <Text size="sm">
-                        {formatTime(appt.slot_start)} - {formatTime(appt.slot_end)}
-                      </Text>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{appt.patient_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{appt.doctor_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="light" size="sm">
-                      {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge color={STATUS_COLORS[appt.status] ?? "slate"} variant="light" size="sm">
-                      {appt.status.replace(/_/g, " ")}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c={appt.reason ? undefined : "dimmed"} lineClamp={1}>
-                      {appt.reason ?? "-"}
-                    </Text>
-                  </Table.Td>
-                  {(canUpdate || canCancel) && (
+              appointments.map((appt) => {
+                const canMoveToOpd =
+                  canUpdate &&
+                  canCreateOpdVisit &&
+                  !appt.encounter_id &&
+                  OPD_CHECK_IN_STATUSES.has(appt.status);
+                const isFutureAppointment = appt.appointment_date > currentDate;
+                const canCheckInToOpd = canMoveToOpd && !isFutureAppointment;
+                const canManageOpenAppointment =
+                  canUpdate && (appt.status === "scheduled" || appt.status === "confirmed");
+                const canCompleteAppointment =
+                  canUpdate &&
+                  !!appt.encounter_id &&
+                  (appt.status === "checked_in" || appt.status === "in_consultation");
+                const checkInTooltip = canCheckInToOpd
+                  ? "Create OPD encounter and queue token"
+                  : "Available on the appointment date";
+
+                return (
+                  <Table.Tr key={appt.id}>
                     <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        {canUpdate &&
-                          (appt.status === "scheduled" || appt.status === "confirmed") && (
-                            <>
-                              <ActionIcon
-                                variant="subtle"
-                                color="success"
-                                title="Check In"
-                                onClick={() => checkInMutation.mutate(appt.id)}
-                                aria-label="Login"
-                              >
-                                <IconLogin size={16} />
-                              </ActionIcon>
+                      <Text size="sm" fw={600} ff="monospace">
+                        {appt.token_number ?? "-"}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        <IconClock size={14} />
+                        <Text size="sm">
+                          {formatTime(appt.slot_start)} - {formatTime(appt.slot_end)}
+                        </Text>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{appt.patient_name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{appt.doctor_name}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge variant="light" size="sm">
+                        {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={STATUS_COLORS[appt.status] ?? "slate"}
+                        variant="light"
+                        size="sm"
+                      >
+                        {appt.status.replace(/_/g, " ")}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c={appt.reason ? undefined : "dimmed"} lineClamp={1}>
+                        {appt.reason ?? "-"}
+                      </Text>
+                    </Table.Td>
+                    {(canUpdate || canCancel) && (
+                      <Table.Td>
+                        <Group gap="xs" wrap="nowrap">
+                          {canMoveToOpd && (
+                            <Tooltip label={checkInTooltip}>
+                              <span>
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  color="success"
+                                  leftSection={<IconLogin size={14} />}
+                                  disabled={!canCheckInToOpd}
+                                  loading={
+                                    checkInMutation.isPending &&
+                                    checkInMutation.variables?.id === appt.id
+                                  }
+                                  onClick={() => checkInMutation.mutate(appt)}
+                                >
+                                  Check in to OPD
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          )}
+                          {canManageOpenAppointment && (
+                            <Tooltip label="Mark appointment as no-show">
                               <ActionIcon
                                 variant="subtle"
                                 color="slate"
-                                title="No Show"
                                 onClick={() => noShowMutation.mutate(appt.id)}
-                                aria-label="Call"
+                                aria-label="Mark appointment as no-show"
                               >
                                 <IconPhone size={16} />
                               </ActionIcon>
-                            </>
+                            </Tooltip>
                           )}
-                        {canUpdate &&
-                          (appt.status === "scheduled" || appt.status === "confirmed") && (
-                            <ActionIcon
-                              variant="subtle"
-                              color="primary"
-                              title="Reschedule"
-                              onClick={() => {
-                                setRescheduleTarget(appt);
-                                rescheduleForm.reset({ appointment_date: null });
-                                setRescheduleSlot(null);
-                              }}
-                              aria-label="Calendar Event"
-                            >
-                              <IconCalendarEvent size={16} />
-                            </ActionIcon>
+                          {canManageOpenAppointment && (
+                            <Tooltip label="Reschedule appointment">
+                              <ActionIcon
+                                variant="subtle"
+                                color="primary"
+                                onClick={() => {
+                                  setRescheduleTarget(appt);
+                                  rescheduleForm.reset({ appointment_date: null });
+                                  setRescheduleSlot(null);
+                                }}
+                                aria-label="Reschedule appointment"
+                              >
+                                <IconCalendarEvent size={16} />
+                              </ActionIcon>
+                            </Tooltip>
                           )}
-                        {canUpdate &&
-                          (appt.status === "checked_in" || appt.status === "in_consultation") && (
-                            <ActionIcon
-                              variant="subtle"
-                              color="success"
-                              title="Complete"
-                              onClick={() => completeMutation.mutate(appt.id)}
-                              aria-label="Confirm"
-                            >
-                              <IconCheck size={16} />
-                            </ActionIcon>
+                          {canCompleteAppointment && (
+                            <Tooltip label="Mark appointment complete">
+                              <ActionIcon
+                                variant="subtle"
+                                color="success"
+                                onClick={() => completeMutation.mutate(appt.id)}
+                                aria-label="Mark appointment complete"
+                              >
+                                <IconCheck size={16} />
+                              </ActionIcon>
+                            </Tooltip>
                           )}
-                        {canCancel &&
-                          appt.status !== "completed" &&
-                          appt.status !== "cancelled" && (
-                            <ActionIcon
-                              variant="subtle"
-                              color="danger"
-                              title="Cancel"
-                              onClick={() => {
-                                setCancelTarget(appt);
-                                cancelForm.reset({ cancel_reason: "" });
-                              }}
-                              aria-label="Close"
-                            >
-                              <IconX size={16} />
-                            </ActionIcon>
-                          )}
-                      </Group>
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              ))
+                          {canCancel &&
+                            appt.status !== "completed" &&
+                            appt.status !== "cancelled" && (
+                              <Tooltip label="Cancel appointment">
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="danger"
+                                  onClick={() => {
+                                    setCancelTarget(appt);
+                                    cancelForm.reset({ cancel_reason: "" });
+                                  }}
+                                  aria-label="Cancel appointment"
+                                >
+                                  <IconX size={16} />
+                                </ActionIcon>
+                              </Tooltip>
+                            )}
+                        </Group>
+                      </Table.Td>
+                    )}
+                  </Table.Tr>
+                );
+              })
             ) : (
               <Table.Tr>
                 <Table.Td colSpan={8}>
@@ -854,9 +913,9 @@ export function AppointmentsPage() {
               <DatePickerInput
                 label="New Date"
                 placeholder="Pick new date"
-                value={field.value}
-                onChange={(value: string | null) => {
-                  field.onChange(value);
+                value={parseDate(field.value)}
+                onChange={(value) => {
+                  field.onChange(toFormDate(value));
                   setRescheduleSlot(null);
                 }}
                 error={fieldState.error?.message}

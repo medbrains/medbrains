@@ -21,7 +21,7 @@ use rand::Rng;
 /// Returns the next-retry timestamp for a given attempt count.
 ///
 /// `attempts` is the count AFTER this latest failure (i.e. 1 for first
-/// failure, 2 for second, ...). For attempts >= MAX_ATTEMPTS the worker
+/// failure, 2 for second, ...). For attempts >= `MAX_ATTEMPTS` the worker
 /// should DLQ instead of calling this.
 pub fn next_retry_at(attempts: i32) -> DateTime<Utc> {
     let base_secs = base_delay_secs(attempts);

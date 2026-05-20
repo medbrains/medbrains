@@ -6,13 +6,35 @@
 /** Format a Date to YYYY-MM-DD string (for API requests) */
 export function toDateString(date: Date | null | undefined): string {
   if (!date) return "";
-  return date.toISOString().split("T")[0] ?? "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function todayDateString(): string {
+  return toDateString(new Date());
+}
+
+function parseDateOnly(dateStr: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!parts) return null;
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseDateValue(date: string | Date): Date {
+  if (date instanceof Date) return date;
+  return parseDateOnly(date) ?? new Date(date);
 }
 
 /** Format a Date or ISO string to locale display (e.g., "25 Apr 2026") */
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseDateValue(date);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -20,7 +42,7 @@ export function formatDate(date: string | Date | null | undefined): string {
 /** Format a Date or ISO string to locale display with time (e.g., "25 Apr 2026, 14:30") */
 export function formatDateTime(date: string | Date | null | undefined): string {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseDateValue(date);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, {
     day: "2-digit",
@@ -42,7 +64,7 @@ export function formatTime(date: string | Date | null | undefined): string {
 /** Calculate age from DOB string */
 export function calculateAge(dob: string | null | undefined): string {
   if (!dob) return "—";
-  const birth = new Date(dob);
+  const birth = parseDateOnly(dob) ?? new Date(dob);
   if (Number.isNaN(birth.getTime())) return "—";
   const now = new Date();
   const years = now.getFullYear() - birth.getFullYear();
@@ -61,7 +83,7 @@ export function calculateAge(dob: string | null | undefined): string {
 
 /** Check if a date is today */
 export function isToday(date: string | Date): boolean {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseDateValue(date);
   const today = new Date();
   return (
     d.getDate() === today.getDate() &&
@@ -72,13 +94,13 @@ export function isToday(date: string | Date): boolean {
 
 /** Check if a date is in the past */
 export function isPast(date: string | Date): boolean {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseDateValue(date);
   return d < new Date();
 }
 
 /** Get relative time string (e.g., "2 hours ago", "in 3 days") */
 export function relativeTime(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseDateValue(date);
   const diff = Date.now() - d.getTime();
   const absDiff = Math.abs(diff);
   const past = diff > 0;
@@ -99,7 +121,7 @@ export function relativeTime(date: string | Date): string {
 /** Parse YYYY-MM-DD string to Date */
 export function parseDate(dateStr: string | null | undefined): Date | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
+  const d = parseDateOnly(dateStr) ?? new Date(dateStr);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

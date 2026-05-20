@@ -31,11 +31,11 @@ impl SecretResolver for StaticSecrets {
         if self.not_found {
             return Err(SecretError::NotFound(key.to_owned()));
         }
-        if key.ends_with("twilio-account-sid") {
+        if key == "TWILIO_ACCOUNT_SID" || key.ends_with("twilio-account-sid") {
             Ok(self.account_sid.clone())
-        } else if key.ends_with("twilio-auth-token") {
+        } else if key == "TWILIO_AUTH_TOKEN" || key.ends_with("twilio-auth-token") {
             Ok(self.auth_token.clone())
-        } else if key.ends_with("twilio-from-number") {
+        } else if key == "TWILIO_FROM_NUMBER" || key.ends_with("twilio-from-number") {
             Ok(self.from_number.clone())
         } else {
             Err(SecretError::NotFound(key.to_owned()))
@@ -248,14 +248,10 @@ async fn sms_missing_secret_retries() {
     let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
-    let err = handler
-        .handle(&ctx, &payload)
-        .await
-        .expect_err("expected Transient");
-    match err {
-        HandlerError::Transient(msg) => assert!(msg.contains("twilio-account-sid")),
-        other => panic!("expected Transient for missing secret, got {other:?}"),
-    }
+    let result = handler.handle(&ctx, &payload).await.expect("expected stub");
+    assert_eq!(result["provider"], "twilio");
+    assert_eq!(result["stub"], true);
+    assert_eq!(result["reason"], "creds_unset");
 }
 
 #[tokio::test]

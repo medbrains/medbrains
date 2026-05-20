@@ -1,11 +1,3 @@
--- ====================================================================
--- Migration: 0124_clinical_corpus_entries.sql
--- RLS-Posture: tenant-scoped
--- Tenant-Column: tenant_id
--- New-Tables: clinical_corpus_entries
--- Drops: none
--- ====================================================================
-
 -- Clinical terminology and note-completion corpus.
 -- Stores tenant-editable completion entries plus global MedBrains starter phrases.
 -- External dictionaries/terminologies must be imported with source and license metadata.
@@ -61,11 +53,6 @@ CREATE TRIGGER trg_clinical_corpus_entries_updated_at
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 ALTER TABLE public.clinical_corpus_entries ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS clinical_corpus_entries_read_tenant_or_global
-    ON public.clinical_corpus_entries;
-DROP POLICY IF EXISTS clinical_corpus_entries_write_tenant
-    ON public.clinical_corpus_entries;
 
 DO $$
 BEGIN

@@ -1,6 +1,6 @@
 //! Read-only authz cache.
 //!
-//! The cloud is the authority for permission grants — SpiceDB ReBAC
+//! The cloud is the authority for permission grants — `SpiceDB` `ReBAC`
 //! lives there and only there. Devices (edge servers, mobile, TV)
 //! are **strictly read-only**: they serve cached permission decisions
 //! during WAN outages so clinical pages keep functioning, and they
@@ -18,7 +18,7 @@
 //!   blood crossmatch, invoice finalization — bypasses the cache
 //!   entirely. These actions deny when offline regardless of policy.
 //! - JWT fallback is opt-in via [`OfflinePolicy::CacheThenJwt`] and
-//!   only consults the user's flat permission list, never SpiceDB
+//!   only consults the user's flat permission list, never `SpiceDB`
 //!   relations. This is intentional: if you're offline and the cache
 //!   missed, the strongest claim we have is the JWT the user logged
 //!   in with.
@@ -41,7 +41,7 @@ use std::time::{Duration, SystemTime};
 use thiserror::Error;
 use uuid::Uuid;
 
-/// Actions that MUST go to cloud SpiceDB for evaluation. Even if a
+/// Actions that MUST go to cloud `SpiceDB` for evaluation. Even if a
 /// cached `allow` exists, we deny offline. Each entry is
 /// `(object_type, action)`.
 ///
@@ -66,7 +66,7 @@ pub const ONLINE_REQUIRED_ACTIONS: &[(&str, &str)] = &[
     ("billing_invoice", "void"),
 ];
 
-/// A cache entry's identity. Mirrors the SpiceDB tuple shape:
+/// A cache entry's identity. Mirrors the `SpiceDB` tuple shape:
 /// `(object_type:object_id) action subject:user_id` scoped by tenant.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CacheKey {
@@ -403,7 +403,7 @@ fn is_online_required(object_type: &str, action: &str) -> bool {
 /// permission code (`module.resource.action`) and test membership in
 /// the JWT's claim list. We accept either a 2-segment match
 /// (`object_type.action`) or a 3-segment match where the action itself
-/// is dotted (e.g. `vitals.create` against object_type `opd`). This
+/// is dotted (e.g. `vitals.create` against `object_type` `opd`). This
 /// matches the existing `P.MODULE.RESOURCE.ACTION` shape used app-wide.
 fn fallback_to_jwt(jwt_permissions: &[String], key: &CacheKey) -> bool {
     let two_seg = format!("{}.{}", key.object_type, key.action);

@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Identifier {
     /// Identifier system URI. Examples:
-    ///   - "https://healthid.ndhm.gov.in" for ABHA
-    ///   - "https://medbrains.health/uhid" for our internal UHID
+    ///   - "<https://healthid.ndhm.gov.in>" for ABHA
+    ///   - "<https://medbrains.health/uhid>" for our internal UHID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
 

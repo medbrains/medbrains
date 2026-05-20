@@ -2,7 +2,7 @@
 //!
 //! Same Rust runs on:
 //! - the edge server (`medbrains-edge`, native compile)
-//! - mobile + TV apps (via `medbrains-edge-rn`'s UniFFI bridge,
+//! - mobile + TV apps (via `medbrains-edge-rn`'s `UniFFI` bridge,
 //!   compiled to `staticlib` for iOS and `cdylib` for Android)
 //! - any future device class (kiosks, ambulance tablets, vendor apps)
 //!
@@ -12,7 +12,7 @@
 //!
 //! # What lives here
 //!
-//! - [`AuthzCache`] — two-tier ReBAC decision cache (LRU + sled).
+//! - [`AuthzCache`] — two-tier `ReBAC` decision cache (LRU + sled).
 //!   Originally in `medbrains-edge::authz_cache` (PR #9).
 //! - [`ONLINE_REQUIRED_ACTIONS`] — fixed list of high-risk actions
 //!   that always deny offline regardless of cached state.
@@ -23,8 +23,8 @@
 //! # What does NOT live here
 //!
 //! - JWT issuance — that's a server-side concern (`medbrains-server`)
-//! - SpiceDB connection — `medbrains-authz` owns the gRPC client
-//! - Transport — every consumer brings its own (HTTP, WSS, UniFFI)
+//! - `SpiceDB` connection — `medbrains-authz` owns the gRPC client
+//! - Transport — every consumer brings its own (HTTP, WSS, `UniFFI`)
 
 pub mod authz_cache;
 pub mod jwt_verify;

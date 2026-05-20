@@ -42,7 +42,7 @@ pub enum CaveatVerdict {
 
 impl Caveat {
     /// Evaluate against a request context. Some variants (e.g.
-    /// UntilEncounterDischarge) require a DB lookup; those return
+    /// `UntilEncounterDischarge`) require a DB lookup; those return
     /// `Allow` here and are also gated at the SQL layer in `check()`.
     pub fn evaluate(&self, ctx: &AuthzContext) -> CaveatVerdict {
         match self {

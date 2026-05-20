@@ -151,19 +151,19 @@ async fn handle_conn(
                 },
                 _,
             ) => {
-                if protocol != medbrains_edge::PROTOCOL_VERSION {
+                if protocol == medbrains_edge::PROTOCOL_VERSION {
+                    session_tenant = Some(tenant_id);
+                    Frame::Ack {
+                        doc_id: String::new(),
+                        chain_tip: String::new(),
+                    }
+                } else {
                     Frame::Error {
                         message: format!(
                             "protocol mismatch: server={}, client={}",
                             medbrains_edge::PROTOCOL_VERSION,
                             protocol
                         ),
-                    }
-                } else {
-                    session_tenant = Some(tenant_id);
-                    Frame::Ack {
-                        doc_id: String::new(),
-                        chain_tip: String::new(),
                     }
                 }
             }
@@ -201,6 +201,6 @@ where
     S: SinkExt<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     let s = serde_json::to_string(frame)?;
-    tx.send(Message::Text(s.into())).await.context("ws write")?;
+    tx.send(Message::Text(s)).await.context("ws write")?;
     Ok(())
 }

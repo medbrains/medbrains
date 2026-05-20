@@ -5,19 +5,19 @@
 //! - `payment.refund`        → POST /v1/payments/{id}/refund
 //!
 //! Idempotency: Razorpay deduplicates orders by `receipt`. We pass our
-//! internal_payment_id as the receipt so a worker retry after a network
+//! `internal_payment_id` as the receipt so a worker retry after a network
 //! blip never creates a second order.
 //!
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §6.
-//! Phase 1.1: real HTTPS calls + per-tenant SecretResolver + status-code
+//! Phase 1.1: real HTTPS calls + per-tenant `SecretResolver` + status-code
 //! mapping → Transient/Permanent.
 //!
 //! Status-code map:
-//!   2xx                          → Ok + UPDATE payment_gateway_transactions
+//!   2xx                          → Ok + UPDATE `payment_gateway_transactions`
 //!   400 / 401 / 403 / 404        → Permanent (DLQ — operator action needed)
 //!   429 / 5xx / network / timeout → Transient (retry per Worker backoff)
 //!
-//! Razorpay's order.create returns the same order_id when called with
+//! Razorpay's order.create returns the same `order_id` when called with
 //! a duplicate `receipt`, so a Transient-then-retry cycle that already
 //! created the order on the first attempt converges naturally.
 

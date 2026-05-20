@@ -1,6 +1,6 @@
 //! `AuditSink` — substrate-agnostic archive of audit-chain segments.
 //!
-//! `medbrains-db::audit::archive_segment` rotates the in-DB audit_log
+//! `medbrains-db::audit::archive_segment` rotates the in-DB `audit_log`
 //! into immutable archive files; this trait is where those files land.
 //!
 //! - `saas` / cloud nodes → S3 with Object Lock (impl in
@@ -34,7 +34,7 @@ impl std::error::Error for AuditSinkError {}
 #[async_trait]
 pub trait AuditSink: Send + Sync + fmt::Debug {
     /// Archive a closed segment. Implementations MUST be append-only
-    /// and idempotent (same segment_id should produce the same path).
+    /// and idempotent (same `segment_id` should produce the same path).
     async fn archive_segment(
         &self,
         tenant_id: Uuid,

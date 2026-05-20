@@ -1,6 +1,6 @@
 //! Persistent Loro document store.
 //!
-//! One Loro document per (tenant_id, doc_id). The doc_id is typically
+//! One Loro document per (`tenant_id`, `doc_id`). The `doc_id` is typically
 //! a row UUID for T2/T3 tables — e.g. `patient_notes/<patient_id>` or
 //! `vitals/<encounter_id>`. The store persists each doc as a single
 //! file under `<base>/<tenant_id>/<sanitized_doc_id>.loro`.

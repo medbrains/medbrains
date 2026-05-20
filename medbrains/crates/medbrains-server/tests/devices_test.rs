@@ -5,7 +5,7 @@ use reqwest::StatusCode;
 #[tokio::test]
 async fn test_list_catalog() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    app.login_admin().await;
 
     let resp = app.get(&app.client, "/api/devices/catalog").await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -27,7 +27,7 @@ async fn test_list_catalog() {
 #[tokio::test]
 async fn test_search_catalog() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    app.login_admin().await;
 
     let resp = app.get(&app.client, "/api/devices/catalog?q=sysmex").await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -49,7 +49,7 @@ async fn test_search_catalog() {
 #[tokio::test]
 async fn test_preview_config() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
+    app.login_admin().await;
 
     let resp = app
         .get(

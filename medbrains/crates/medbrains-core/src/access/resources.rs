@@ -1,4 +1,4 @@
-//! Rebac resource definitions — single source for the SpiceDB schema.
+//! Rebac resource definitions — single source for the `SpiceDB` schema.
 //!
 //! Each entry corresponds to one `definition X { … }` block in
 //! `infra/spicedb/schema.zed`. The codegen script reads this table
@@ -7,7 +7,7 @@
 
 #[derive(Debug, Clone)]
 pub struct ResourceDef {
-    /// Object type as written in SpiceDB (`patient`, `lab_order`, etc.)
+    /// Object type as written in `SpiceDB` (`patient`, `lab_order`, etc.)
     /// and emitted as `definition X { ... }`.
     pub object_type: &'static str,
     /// Human-readable label for the manifest API.

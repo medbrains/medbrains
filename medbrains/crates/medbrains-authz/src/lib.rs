@@ -1,11 +1,11 @@
 //! `medbrains-authz` — unified Zanzibar-style sharing engine.
 //!
-//! Layer 6 of the access stack (below JWT → typed perms → roles+access_matrix
+//! Layer 6 of the access stack (below JWT → typed perms → `roles+access_matrix`
 //! → resolve formula → 7 helpers + dept scoping). Per-record fine-grained
 //! grants over ~95 entity types via a single `relation_tuples` Postgres
 //! table (see migration 129).
 //!
-//! Design choice: Postgres-native, NOT SpiceDB or OpenFGA. See RFC-INFRA-2026-002 §A.
+//! Design choice: Postgres-native, NOT `SpiceDB` or `OpenFGA`. See RFC-INFRA-2026-002 §A.
 //!
 //! Trait `AuthzBackend` keeps the swap path open if scale ever demands it.
 
@@ -54,7 +54,7 @@ pub enum Subject {
     Department(Uuid),
     Group(Uuid),
     /// Zanzibar userset rewrite — `<object_type>:<object_id>#<relation>`.
-    /// Resolves to "any user that holds <relation> on <object_type>:<object_id>".
+    /// Resolves to "any user that holds <relation> on <`object_type>`:<`object_id`>".
     TupleSet(String),
 }
 
@@ -97,7 +97,7 @@ pub trait AuthzBackend: Send + Sync {
     }
 
     /// "Does subject hold relation on object?" — the hot path.
-    /// Caller passes the AuthzContext from JWT + the target object.
+    /// Caller passes the `AuthzContext` from JWT + the target object.
     async fn check(
         &self,
         ctx: &AuthzContext,
@@ -122,13 +122,13 @@ pub trait AuthzBackend: Send + Sync {
         relation: Relation,
     ) -> Result<Vec<Uuid>, AuthzError>;
 
-    /// Bulk-check N (relation, object_id) pairs in one round trip.
+    /// Bulk-check N (relation, `object_id`) pairs in one round trip.
     /// Used by list handlers to compute `_perms` for every row in a
-    /// single backend call. Returns a HashMap keyed on (relation, id).
+    /// single backend call. Returns a `HashMap` keyed on (relation, id).
     ///
     /// Default impl falls back to N individual `check()` calls — slow
     /// but correct. Backends should override for true bulk semantics
-    /// (e.g. SpiceDB `BulkCheckPermission` gRPC, or single-SQL
+    /// (e.g. `SpiceDB` `BulkCheckPermission` gRPC, or single-SQL
     /// LEFT-JOIN-with-`BOOL_OR` for the Postgres fallback).
     async fn bulk_check(
         &self,
@@ -145,7 +145,7 @@ pub trait AuthzBackend: Send + Sync {
     }
 
     /// Write a new explicit tuple. Source = `explicit`.
-    /// Mirrors the SpiceDB / Postgres tuple shape; bundling into a struct
+    /// Mirrors the `SpiceDB` / Postgres tuple shape; bundling into a struct
     /// would split the call site of every backend impl with no readability win.
     #[allow(clippy::too_many_arguments)]
     async fn write_tuple(
@@ -163,8 +163,8 @@ pub trait AuthzBackend: Send + Sync {
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError>;
 
     /// Revoke a tuple by its (object, relation, subject) coordinates —
-    /// SpiceDB doesn't expose tuple IDs over the wire so this is the
-    /// only working revoke path for the SpiceDB backend. The Postgres
+    /// `SpiceDB` doesn't expose tuple IDs over the wire so this is the
+    /// only working revoke path for the `SpiceDB` backend. The Postgres
     /// backend's default impl falls through to the tuple-id-based
     /// `revoke_tuple` after looking up the matching row by coordinates
     /// (see `backend_pg.rs::revoke_specific`).

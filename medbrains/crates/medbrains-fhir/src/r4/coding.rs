@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Coding {
     /// Terminology system URI.
-    /// LOINC: "http://loinc.org"
-    /// SNOMED CT: "http://snomed.info/sct"
-    /// ICD-10: "http://hl7.org/fhir/sid/icd-10"
-    /// RxNorm: "http://www.nlm.nih.gov/research/umls/rxnorm"
-    /// ATC: "http://www.whocc.no/atc"
+    /// LOINC: "<http://loinc.org>"
+    /// SNOMED CT: "<http://snomed.info/sct>"
+    /// ICD-10: "<http://hl7.org/fhir/sid/icd-10>"
+    /// `RxNorm`: "<http://www.nlm.nih.gov/research/umls/rxnorm>"
+    /// ATC: "<http://www.whocc.no/atc>"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
 

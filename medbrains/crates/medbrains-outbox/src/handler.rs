@@ -49,14 +49,14 @@ pub enum HandlerError {
     Transient(String),
 
     /// Validation error / 4xx / forbidden — straight to DLQ. No retry.
-    /// Razorpay 400 amount_too_small, Twilio account suspended, etc.
+    /// Razorpay 400 `amount_too_small`, Twilio account suspended, etc.
     #[error("permanent: {0}")]
     Permanent(String),
 }
 
 #[async_trait]
 pub trait Handler: Send + Sync + std::fmt::Debug {
-    /// Stable event_type code matching `outbox_events.event_type`.
+    /// Stable `event_type` code matching `outbox_events.event_type`.
     fn event_type(&self) -> &'static str;
 
     /// Execute the side-effect. `payload` is the JSONB column value.
@@ -65,7 +65,7 @@ pub trait Handler: Send + Sync + std::fmt::Debug {
     async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError>;
 }
 
-/// Registry of typed handlers + a fallback for unregistered event_types
+/// Registry of typed handlers + a fallback for unregistered `event_types`
 /// (which delegates to the existing pipeline framework via
 /// `pipeline_fallback.rs`). Lookup is O(1).
 #[derive(Debug, Default)]
@@ -79,7 +79,7 @@ impl Registry {
         Self::default()
     }
 
-    /// Register a typed handler. Panics if the same event_type is
+    /// Register a typed handler. Panics if the same `event_type` is
     /// registered twice — matches "compile-time exhaustiveness" intent.
     /// Boot-time programmer-error guard, never reached at runtime.
     #[allow(clippy::panic)]
@@ -92,7 +92,7 @@ impl Registry {
         self.handlers.insert(key, Arc::new(handler));
     }
 
-    /// Register the fallback handler that catches unregistered event_types.
+    /// Register the fallback handler that catches unregistered `event_types`.
     /// Typically the `pipeline_fallback::PipelineFallbackHandler` which
     /// delegates to the existing `events::dispatch_to_pipelines`.
     pub fn set_fallback<H: Handler + 'static>(&mut self, handler: H) {

@@ -42,7 +42,7 @@ impl DeployMode {
         })
     }
 
-    pub fn as_code(self) -> &'static str {
+    pub const fn as_code(self) -> &'static str {
         match self {
             Self::Saas => "saas",
             Self::Hybrid => "hybrid",
@@ -52,13 +52,13 @@ impl DeployMode {
 
     /// Whether this mode allows reaching cloud-only resources
     /// (Secrets Manager, S3, KMS).
-    pub fn cloud_reachable(self) -> bool {
+    pub const fn cloud_reachable(self) -> bool {
         matches!(self, Self::Saas | Self::Hybrid)
     }
 
     /// Whether this mode requires the boundary-filter middleware on
     /// the egress path of the outbox worker.
-    pub fn requires_boundary_filter(self) -> bool {
+    pub const fn requires_boundary_filter(self) -> bool {
         matches!(self, Self::Hybrid)
     }
 }

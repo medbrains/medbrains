@@ -33,7 +33,7 @@ impl PermsBlock {
     /// of the five canonical relations against `(object_type, id)`.
     /// Missing entries default to `false`.
     #[must_use]
-    pub fn from_lookups(
+    pub const fn from_lookups(
         object_type: &str,
         id: uuid::Uuid,
         view: bool,

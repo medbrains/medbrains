@@ -1,5 +1,6 @@
 import type {
   OpdFeedbackFormInput,
+  OpdFollowUpAppointmentFormInput,
   OpdLabOrderFormInput,
   OpdLabOrderPriorityFormValue,
   OpdProcedureConsentFormInput,
@@ -16,6 +17,7 @@ import type {
 } from "@medbrains/schemas";
 import { optionalTextFromFormValue } from "@medbrains/schemas";
 import type {
+  BookAppointmentRequest,
   CreateConsentRequest,
   CreateEncounterRequest,
   CreateFeedbackRequest,
@@ -82,6 +84,7 @@ export const OPD_VISIT_TYPE_OPTIONS: Array<SelectOption<OpdVisitTypeFormValue>> 
   { value: "follow_up", label: "Follow-up" },
   { value: "referral", label: "Referral" },
   { value: "emergency", label: "Emergency walk-in" },
+  { value: "camp", label: "Camp / outreach" },
 ];
 
 export const DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES: OpdQueueVisitFormInput = {
@@ -89,13 +92,21 @@ export const DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES: OpdQueueVisitFormInput = {
   department_id: null,
   doctor_id: null,
   visit_type: "walk_in",
+  camp_id: null,
   notes: "",
+};
+
+export const DEFAULT_OPD_FOLLOW_UP_FORM_VALUES: OpdFollowUpAppointmentFormInput = {
+  appointment_date: "",
+  slot: null,
+  reason: "",
 };
 
 export const DEFAULT_START_OPD_VISIT_FORM_VALUES: StartOpdVisitFormInput = {
   department_id: null,
   doctor_id: null,
   visit_type: "walk_in",
+  camp_id: null,
   notes: "",
 };
 
@@ -153,7 +164,27 @@ export function toCreateEncounterRequest(values: OpdQueueVisitFormInput): Create
     department_id: selectedValue(values.department_id),
     doctor_id: optionalTextFromFormValue(values.doctor_id ?? ""),
     visit_type: values.visit_type,
+    camp_id: optionalTextFromFormValue(values.camp_id ?? ""),
     notes: optionalTextFromFormValue(values.notes),
+  };
+}
+
+export function toBookFollowUpAppointmentRequest(
+  values: OpdFollowUpAppointmentFormInput,
+  patientId: string,
+  doctorId: string,
+  departmentId: string,
+): BookAppointmentRequest {
+  const [slotStart = "", slotEnd = ""] = selectedValue(values.slot).split("|");
+  return {
+    patient_id: patientId,
+    doctor_id: doctorId,
+    department_id: departmentId,
+    appointment_date: selectedValue(values.appointment_date),
+    slot_start: slotStart,
+    slot_end: slotEnd,
+    appointment_type: "follow_up",
+    reason: optionalTextFromFormValue(values.reason),
   };
 }
 
@@ -166,6 +197,7 @@ export function toCreateEncounterRequestForPatient(
     department_id: values.department_id,
     doctor_id: values.doctor_id,
     visit_type: values.visit_type,
+    camp_id: values.camp_id,
     notes: values.notes,
   });
 }

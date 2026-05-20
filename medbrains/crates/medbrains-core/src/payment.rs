@@ -39,7 +39,7 @@ pub struct PaymentGatewayTransaction {
 /// Sprint A change: `status` carries the queued state. New flow returns
 /// `{ status: "pending_gateway", order_id: "" }` immediately and the
 /// frontend polls `GET /api/payments/{transaction_id}/status` to learn
-/// the gateway-issued order_id + key_id once the outbox worker has
+/// the gateway-issued `order_id` + `key_id` once the outbox worker has
 /// successfully posted to Razorpay.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateOrderResponse {
@@ -48,7 +48,7 @@ pub struct CreateOrderResponse {
     pub amount: rust_decimal::Decimal,
     pub currency: String,
     pub key_id: String,
-    /// "pending_gateway" | "created" | "captured" | "failed"
+    /// "`pending_gateway`" | "created" | "captured" | "failed"
     #[serde(default)]
     pub status: String,
 }

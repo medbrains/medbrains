@@ -676,29 +676,25 @@ pub(crate) async fn resolve_path(user: &mut GooseUser, template: &str) -> String
             }
 
             // 2. Generic {id}/{_}: discover via parent collection.
-            if matches!(name.as_str(), "id" | "_") {
-                if let Some(parent) = parent_url_for_id(template) {
+            if matches!(name.as_str(), "id" | "_")
+                && let Some(parent) = parent_url_for_id(template) {
                     let already = {
                         let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
                         let s = session.lock().await;
                         s.discovered.get(&parent).cloned()
                     };
-                    let discovered = match already {
-                        Some(prior) => prior,
-                        None => {
-                            let result = lookup_first_id(user, &parent).await;
-                            let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
-                            let mut s = session.lock().await;
-                            s.discovered.insert(parent, result.clone());
-                            result
-                        }
+                    let discovered = if let Some(prior) = already { prior } else {
+                        let result = lookup_first_id(user, &parent).await;
+                        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+                        let mut s = session.lock().await;
+                        s.discovered.insert(parent, result.clone());
+                        result
                     };
                     if let Some(id) = discovered {
                         resolved_values.push(id);
                         continue;
                     }
                 }
-            }
 
             // 3. Date / period defaults.
             if let Some(default) = static_default(name) {

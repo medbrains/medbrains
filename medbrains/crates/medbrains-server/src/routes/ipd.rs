@@ -635,7 +635,7 @@ pub async fn create_admission(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let today = Utc::now().date_naive();
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
 
     let encounter = sqlx::query_as::<_, Encounter>(
@@ -683,7 +683,7 @@ pub async fn create_admission(
     if let Some(bid) = body.bed_id {
         sqlx::query(
             "UPDATE bed_states SET ward_id = $3, admission_id = $4 \
-             WHERE bed_id = $1 AND tenant_id = $2",
+             WHERE location_id = $1 AND tenant_id = $2",
         )
         .bind(bid)
         .bind(claims.tenant_id)
@@ -2643,7 +2643,7 @@ pub async fn update_bed_status(
 
     let updated = sqlx::query_scalar::<_, bool>(
         "UPDATE bed_states SET status = $3::bed_status \
-         WHERE bed_id = $1 AND tenant_id = $2 RETURNING true",
+         WHERE location_id = $1 AND tenant_id = $2 RETURNING true",
     )
     .bind(bed_id)
     .bind(claims.tenant_id)
@@ -5254,23 +5254,25 @@ pub async fn expected_discharges(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ExpectedDischargeRow>(
         "SELECT a.id AS admission_id, a.patient_id, \
          (p.first_name || ' ' || p.last_name) AS patient_name, p.uhid, \
          a.bed_id, e.department_id, a.admitting_doctor AS attending_doctor_id, \
          a.admitted_at, a.expected_discharge_date, \
-         (a.expected_discharge_date - CURRENT_DATE)::int AS days_until_discharge \
+         (a.expected_discharge_date - $2::date)::int AS days_until_discharge \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
          LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
          WHERE a.tenant_id = $1 \
            AND a.status = 'admitted'::admission_status \
            AND a.expected_discharge_date IS NOT NULL \
-           AND a.expected_discharge_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTEGER '2' \
+           AND a.expected_discharge_date BETWEEN $2 AND $2 + INTEGER '2' \
          ORDER BY a.expected_discharge_date ASC",
     )
     .bind(claims.tenant_id)
+    .bind(today)
     .fetch_all(&mut *tx)
     .await?;
 

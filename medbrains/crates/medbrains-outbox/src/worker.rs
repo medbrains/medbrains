@@ -3,7 +3,7 @@
 //!
 //! Mirrors the existing `orchestration::jobs::start_job_worker` pattern
 //! (`crates/medbrains-server/src/orchestration/jobs.rs:73-102`) which already
-//! does FOR UPDATE SKIP LOCKED + worker_id locking + exponential backoff.
+//! does FOR UPDATE SKIP LOCKED + `worker_id` locking + exponential backoff.
 
 use chrono::{DateTime, Duration, Utc};
 use serde_json::Value;
@@ -31,7 +31,7 @@ pub struct WorkerConfig {
     /// Threshold beyond which a `claimed_at` is considered stale and
     /// the row reset to `pending`. Default 10min.
     pub stale_claim_threshold: StdDuration,
-    /// Per-tenant credential resolver passed into every HandlerCtx.
+    /// Per-tenant credential resolver passed into every `HandlerCtx`.
     /// Phase 1.1+ handlers (Razorpay, Twilio, ABDM, …) use this to
     /// fetch keys at dispatch time rather than at startup so rotation
     /// propagates without a worker restart.
@@ -83,7 +83,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(pool: PgPool, registry: Arc<Registry>, config: WorkerConfig) -> Self {
+    pub const fn new(pool: PgPool, registry: Arc<Registry>, config: WorkerConfig) -> Self {
         Self {
             pool,
             registry,
@@ -159,7 +159,7 @@ async fn drain_loop(
 }
 
 /// Row shape returned by the `claimed` CTE in [`drain_once`]:
-/// (event_id, tenant_id, event_type, payload, attempts, aggregate_id, actor_user_id).
+/// (`event_id`, `tenant_id`, `event_type`, payload, attempts, `aggregate_id`, `actor_user_id`).
 type ClaimedRow = (Uuid, Uuid, String, Value, i32, Option<Uuid>, Option<Uuid>);
 
 async fn drain_once(
@@ -265,13 +265,10 @@ async fn dispatch_one(
         http_client,
     };
 
-    let handler = match handler.as_ref() {
-        Some(h) => Arc::clone(h),
-        None => {
-            // No registered handler + no fallback → permanent failure
-            mark_dlq(&pool, event_id, attempts, "no handler registered").await;
-            return;
-        }
+    let handler = if let Some(h) = handler.as_ref() { Arc::clone(h) } else {
+        // No registered handler + no fallback → permanent failure
+        mark_dlq(&pool, event_id, attempts, "no handler registered").await;
+        return;
     };
 
     match handler.handle(&ctx, &payload).await {

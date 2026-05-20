@@ -41,7 +41,7 @@ pub async fn outbox_stats(pool: &PgPool) -> Result<OutboxStats, sqlx::Error> {
     })
 }
 
-/// Per-tenant stats. Caller must have set app.tenant_id before invoking.
+/// Per-tenant stats. Caller must have set `app.tenant_id` before invoking.
 pub async fn tenant_outbox_stats(
     pool: &PgPool,
     tenant_id: Uuid,

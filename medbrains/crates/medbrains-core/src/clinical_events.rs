@@ -114,7 +114,7 @@ impl ClinicalEventName {
     }
 
     #[must_use]
-    pub fn required_payload_keys(self) -> &'static [&'static str] {
+    pub const fn required_payload_keys(self) -> &'static [&'static str] {
         match self {
             Self::PatientCreated => &["patient_id"],
             Self::PatientMerged => &["surviving_patient_id", "merged_patient_id"],

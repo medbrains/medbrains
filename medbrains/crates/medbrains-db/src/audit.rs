@@ -15,7 +15,7 @@ pub struct AuditEntry<'a> {
     pub ip_address: Option<&'a str>,
 }
 
-/// HTTP-level audit entry produced by the AuditLayer Tower middleware.
+/// HTTP-level audit entry produced by the `AuditLayer` Tower middleware.
 /// Carries everything the middleware can capture cheaply at request scope.
 #[derive(Debug, Clone)]
 pub struct HttpAuditEntry {
@@ -112,7 +112,7 @@ impl AuditLogger {
     /// Pool-based emit of an HTTP-level audit row.
     /// Opens its own transaction so it never blocks the handler's main tx.
     /// Sets `app.tenant_id` GUC so RLS on `audit_log` allows the insert.
-    /// Used by the AuditLayer Tower middleware in medbrains-server.
+    /// Used by the `AuditLayer` Tower middleware in medbrains-server.
     pub async fn log_http(pool: &PgPool, entry: &HttpAuditEntry) -> Result<(), sqlx::Error> {
         let mut tx = pool.begin().await?;
         // allow-raw-sql: audit-context bootstrap (set_config GUC, no tenant data)
@@ -178,7 +178,7 @@ impl AuditLogger {
     }
 
     /// Verify the SHA-256 hash chain for a single tenant.
-    /// Walks the audit_log rows for the tenant in `created_at` order and
+    /// Walks the `audit_log` rows for the tenant in `created_at` order and
     /// recomputes each hash from `prev_hash` + payload. Returns the row
     /// id at which the chain first breaks, if any.
     pub async fn verify_chain_for_tenant(
@@ -242,7 +242,7 @@ impl AuditLogger {
         })
     }
 
-    /// List all tenants that have audit_log rows. Used by the verify-chain cron.
+    /// List all tenants that have `audit_log` rows. Used by the verify-chain cron.
     pub async fn tenants_with_audit_log(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {
         // allow-raw-sql: cross-tenant admin query, runs from cron job container only
         let rows: Vec<(Uuid,)> =

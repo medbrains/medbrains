@@ -1,8 +1,8 @@
-//! Durable SpiceDB backend.
+//! Durable `SpiceDB` backend.
 //!
-//! `relation_tuples` is the write-ahead/outbox store. SpiceDB is the
+//! `relation_tuples` is the write-ahead/outbox store. `SpiceDB` is the
 //! graph index used for fast relationship checks. Writes first land in
-//! Postgres, then are pushed to SpiceDB immediately and retried by the
+//! Postgres, then are pushed to `SpiceDB` immediately and retried by the
 //! worker if the sidecar is temporarily unavailable.
 
 use std::{collections::HashSet, time::Duration};
@@ -32,6 +32,18 @@ struct StoredTuple {
     expires_at: Option<chrono::DateTime<chrono::Utc>>,
     status: String,
 }
+
+type StoredTupleRow = (
+    Uuid,
+    Uuid,
+    String,
+    Uuid,
+    String,
+    String,
+    String,
+    Option<chrono::DateTime<chrono::Utc>>,
+    String,
+);
 
 #[derive(Debug)]
 pub struct DurableSpiceDbBackend {
@@ -285,7 +297,7 @@ impl AuthzBackend for DurableSpiceDbBackend {
     }
 }
 
-/// Retry worker for pending relation_tuples rows.
+/// Retry worker for pending `relation_tuples` rows.
 pub async fn run_spicedb_outbox_worker(pool: PgPool, spicedb: SpiceDbBackend) {
     loop {
         match drain_spicedb_outbox_once(&pool, &spicedb, OUTBOX_BATCH_PER_TENANT).await {
@@ -330,17 +342,7 @@ async fn load_pending_rows(
 ) -> Result<Vec<StoredTuple>, AuthzError> {
     let mut tx = pool.begin().await?;
     set_tenant_ctx(&mut tx, tenant_id).await?;
-    let rows: Vec<(
-        Uuid,
-        Uuid,
-        String,
-        Uuid,
-        String,
-        String,
-        String,
-        Option<chrono::DateTime<chrono::Utc>>,
-        String,
-    )> = sqlx::query_as(
+    let rows: Vec<StoredTupleRow> = sqlx::query_as(
         "SELECT tuple_id, tenant_id, object_type, object_id, relation,
                 subject_type, subject_id, expires_at, status
          FROM relation_tuples
@@ -478,17 +480,7 @@ async fn load_tuple_by_id(
 ) -> Result<Option<StoredTuple>, AuthzError> {
     let mut tx = pool.begin().await?;
     set_tenant_ctx(&mut tx, tenant_id).await?;
-    let row: Option<(
-        Uuid,
-        Uuid,
-        String,
-        Uuid,
-        String,
-        String,
-        String,
-        Option<chrono::DateTime<chrono::Utc>>,
-        String,
-    )> = sqlx::query_as(
+    let row: Option<StoredTupleRow> = sqlx::query_as(
         "SELECT tuple_id, tenant_id, object_type, object_id, relation,
                 subject_type, subject_id, expires_at, status
          FROM relation_tuples

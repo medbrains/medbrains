@@ -43,8 +43,7 @@ pub fn decrypt_from_payer(
         jwt::decode_with_decrypter(token, &decrypter).map_err(|_| CryptoError::Decrypt)?;
     let aud_ok = payload
         .audience()
-        .map(|aud| aud.iter().any(|a| a == &expected_audience))
-        .unwrap_or(false);
+        .is_some_and(|aud| aud.iter().any(|a| a == &expected_audience));
     if !aud_ok {
         return Err(CryptoError::Decrypt);
     }

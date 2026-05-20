@@ -72,7 +72,7 @@ impl Relation {
     /// Implication: holding `Owner` implies `Editor` and `Viewer`. Holding
     /// `Editor` implies `Viewer`. Used by `check()` so callers don't need to
     /// chain explicit grants.
-    pub fn implies(self) -> &'static [Self] {
+    pub const fn implies(self) -> &'static [Self] {
         match self {
             Self::Owner => &[Self::Owner, Self::Editor, Self::Viewer],
             Self::Editor => &[Self::Editor, Self::Viewer],
@@ -92,7 +92,7 @@ impl Relation {
     }
 
     /// Inverse of `implies()`: relations whose holders also satisfy `self`.
-    /// E.g. `Viewer.implied_by()` = [Owner, Editor, Viewer, AttendingPhysician,
+    /// E.g. `Viewer.implied_by()` = [Owner, Editor, Viewer, `AttendingPhysician`,
     /// Consultant]. Used by `check()` to find tuples that satisfy the asked
     /// relation via stronger grants.
     pub fn implied_by(self) -> Vec<Self> {

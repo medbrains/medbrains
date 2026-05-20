@@ -4,7 +4,7 @@
 //!
 //! Future move: this stays a thin in-crate registry pointing at
 //! `medbrains-core::sharing::registry::ENTITIES` once that module lands
-//! (so all 95 EntityShareSpec entries are in one place with the rest of
+//! (so all 95 `EntityShareSpec` entries are in one place with the rest of
 //! the domain types).
 
 use crate::Relation;
@@ -14,7 +14,7 @@ use crate::Relation;
 pub struct EntityShareSpec {
     pub object_type: &'static str,
     pub allowed_relations: &'static [Relation],
-    /// Parent object_type — sharing this object cascades viewer-tier
+    /// Parent `object_type` — sharing this object cascades viewer-tier
     /// access down to children. None = leaf object.
     pub inherits_from: Option<&'static str>,
     /// Catalog tables read by all bypass roles only — engine refuses
@@ -22,14 +22,14 @@ pub struct EntityShareSpec {
     pub bypass_only: bool,
 }
 
-/// Lookup an entity by object_type code. Returns None if not registered.
+/// Lookup an entity by `object_type` code. Returns None if not registered.
 pub fn lookup(object_type: &str) -> Option<&'static EntityShareSpec> {
     ENTITIES.iter().find(|e| e.object_type == object_type)
 }
 
 /// Phase 3 starter set. Six high-value entities the plan explicitly
 /// targets for `apply_shared_visibility` rollout:
-///   dashboards, forms, screens, lab_orders, encounters, surgery_bookings
+///   dashboards, forms, screens, `lab_orders`, encounters, `surgery_bookings`
 /// Phase 3.2 expands to the full ~95.
 pub static ENTITIES: &[EntityShareSpec] = &[
     EntityShareSpec {

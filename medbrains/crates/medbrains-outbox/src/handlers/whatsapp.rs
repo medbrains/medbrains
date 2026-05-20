@@ -1,4 +1,4 @@
-//! WhatsApp Business — Meta Cloud API.
+//! `WhatsApp` Business — Meta Cloud API.
 //!
 //! Credentials resolved per-tenant:
 //!   - `WHATSAPP_PHONE_NUMBER_ID`  (the sender phone number id from Meta Business)
@@ -7,7 +7,7 @@
 //! Payload shape (template message — required for most outbound):
 //!   {
 //!     "to": "+91XXXXXXXXXX",
-//!     "template_name": "appointment_reminder",
+//!     "`template_name"`: "`appointment_reminder`",
 //!     "language": "en",
 //!     "components": [{ "type": "body", "parameters": [{ "type": "text", "text": "..." }] }]
 //!   }

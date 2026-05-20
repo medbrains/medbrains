@@ -131,10 +131,10 @@ pub struct PrintSignatureData {
     /// Pre-rendered text block printed below image:
     /// "Digitally signed by Dr. X on YYYY-MM-DD HH:MM • Verify: …"
     pub display_block: Option<String>,
-    /// signed_records.id as hex — used by verifier endpoint.
+    /// `signed_records.id` as hex — used by verifier endpoint.
     pub verify_ref: String,
     /// Drives watermark style: "administrative" | "clinical" |
-    /// "medico_legal" | "statutory_export"
+    /// "`medico_legal`" | "`statutory_export`"
     pub legal_class: String,
 }
 
@@ -2319,7 +2319,7 @@ pub struct OpdPrescriptionPrintData {
     pub hospital_address: Option<String>,
     pub hospital_phone: Option<String>,
     /// Digital signatures stamped onto the PDF. Populated from
-    /// signed_records via signed_documents::fetch_signature_for_print.
+    /// `signed_records` via `signed_documents::fetch_signature_for_print`.
     /// Empty = unsigned, template renders "DRAFT — UNSIGNED" watermark.
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
@@ -2538,7 +2538,7 @@ pub struct DeathCertificatePrintData {
     pub hospital_address: Option<String>,
     pub hospital_logo_url: Option<String>,
     /// Certifying doctor's digital signature stamped onto the certificate.
-    /// Death certificates are statutory_export legal class.
+    /// Death certificates are `statutory_export` legal class.
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
 }

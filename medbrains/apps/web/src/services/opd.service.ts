@@ -6,6 +6,8 @@ export const opdService = {
   listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
     api.listDepartments(...args),
   listQueue: (...args: Parameters<typeof api.listQueue>) => api.listQueue(...args),
+  listAppointments: (...args: Parameters<typeof api.listAppointments>) =>
+    api.listAppointments(...args),
   createEncounter: (...args: Parameters<typeof api.createEncounter>) =>
     api.createEncounter(...args),
   callQueueEntry: (...args: Parameters<typeof api.callQueueEntry>) => api.callQueueEntry(...args),

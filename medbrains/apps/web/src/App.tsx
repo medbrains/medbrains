@@ -97,6 +97,9 @@ const CommunicationsPage = lazy(() =>
   import("./pages/communications").then((m) => ({ default: m.CommunicationsPage })),
 );
 const CampPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampPage })));
+const CampWorkPage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampWorkPage })),
+);
 const BedsidePortalPage = lazy(() =>
   import("./pages/bedside-portal").then((m) => ({ default: m.BedsidePortalPage })),
 );
@@ -257,6 +260,7 @@ export function App() {
               <Route path="ambulance" element={<AmbulancePage />} />
               <Route path="communications" element={<CommunicationsPage />} />
               <Route path="camp" element={<CampPage />} />
+              <Route path="camp/:campId/work" element={<CampWorkPage />} />
               <Route path="command-center" element={<CommandCenterPage />} />
               <Route path="facilities" element={<FacilitiesPage />} />
               <Route path="consent" element={<ConsentPage />} />

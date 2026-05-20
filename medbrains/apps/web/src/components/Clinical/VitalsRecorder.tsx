@@ -62,6 +62,26 @@ function getRangeLabel(config: VitalConfig): string {
   return `${normal[0]}–${normal[1]}`;
 }
 
+function getRangeStatus(
+  config: VitalConfig,
+  value: number | undefined,
+): { label: string; color: string } | null {
+  if (value === undefined) return null;
+  const [normalLow, normalHigh] = config.ranges.normal;
+  const [borderlineLow, borderlineHigh] = config.ranges.borderline;
+  if (value >= normalLow && value <= normalHigh) return { label: "Normal", color: "success" };
+  if (value < normalLow) {
+    return {
+      label: value >= borderlineLow ? "Low" : "Critical low",
+      color: value >= borderlineLow ? "warning" : "danger",
+    };
+  }
+  return {
+    label: value <= borderlineHigh ? "High" : "Critical high",
+    color: value <= borderlineHigh ? "warning" : "danger",
+  };
+}
+
 function computeBmi(weightKg: number | undefined, heightCm: number | undefined): number | null {
   if (!weightKg || !heightCm || heightCm <= 0) return null;
   const heightM = heightCm / 100;
@@ -81,14 +101,24 @@ function computeMap(systolic: number | undefined, diastolic: number | undefined)
 }
 
 interface VitalsRecorderProps {
-  onSubmit: (data: CreateVitalRequest) => void;
+  onSubmit?: (data: CreateVitalRequest) => void;
+  onChange?: (data: CreateVitalRequest) => void;
   isSubmitting?: boolean;
   onCancel?: () => void;
+  showActions?: boolean;
+  showNotes?: boolean;
 }
 
 type VitalValues = Record<string, number | undefined>;
 
-export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecorderProps) {
+export function VitalsRecorder({
+  onSubmit,
+  onChange,
+  isSubmitting,
+  onCancel,
+  showActions = true,
+  showNotes = true,
+}: VitalsRecorderProps) {
   const { t } = useTranslation("clinical");
   const localeConfig = useLocaleConfig();
   const [values, setValues] = useState<VitalValues>({});
@@ -242,29 +272,43 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
     [values.systolic_bp, values.diastolic_bp],
   );
 
+  const toRequest = (nextValues: VitalValues, nextNotes: string): CreateVitalRequest => {
+    const req: CreateVitalRequest = {};
+    // Temperature is stored as-entered (unit tracked separately)
+    if (nextValues.temperature !== undefined) req.temperature = nextValues.temperature;
+    if (nextValues.pulse !== undefined) req.pulse = nextValues.pulse;
+    if (nextValues.systolic_bp !== undefined) req.systolic_bp = nextValues.systolic_bp;
+    if (nextValues.diastolic_bp !== undefined) req.diastolic_bp = nextValues.diastolic_bp;
+    if (nextValues.respiratory_rate !== undefined)
+      req.respiratory_rate = nextValues.respiratory_rate;
+    if (nextValues.spo2 !== undefined) req.spo2 = nextValues.spo2;
+    // Convert weight/height to metric for storage
+    if (nextValues.weight !== undefined) {
+      req.weight_kg = Math.round(weightToKg(nextValues.weight, localeConfig.weight_unit) * 10) / 10;
+    }
+    if (nextValues.height !== undefined) {
+      req.height_cm = Math.round(heightToCm(nextValues.height, localeConfig.height_unit) * 10) / 10;
+    }
+    if (nextNotes.trim()) req.notes = nextNotes.trim();
+    return req;
+  };
+
   const handleChange = (key: string, val: string | number) => {
     const num = typeof val === "string" ? (val === "" ? undefined : Number(val)) : val;
-    setValues((prev) => ({ ...prev, [key]: num }));
+    setValues((prev) => {
+      const next = { ...prev, [key]: num };
+      onChange?.(toRequest(next, notes));
+      return next;
+    });
+  };
+
+  const handleNotesChange = (value: string) => {
+    setNotes(value);
+    onChange?.(toRequest(values, value));
   };
 
   const handleSubmit = () => {
-    const req: CreateVitalRequest = {};
-    // Temperature is stored as-entered (unit tracked separately)
-    if (values.temperature !== undefined) req.temperature = values.temperature;
-    if (values.pulse !== undefined) req.pulse = values.pulse;
-    if (values.systolic_bp !== undefined) req.systolic_bp = values.systolic_bp;
-    if (values.diastolic_bp !== undefined) req.diastolic_bp = values.diastolic_bp;
-    if (values.respiratory_rate !== undefined) req.respiratory_rate = values.respiratory_rate;
-    if (values.spo2 !== undefined) req.spo2 = values.spo2;
-    // Convert weight/height to metric for storage
-    if (values.weight !== undefined) {
-      req.weight_kg = Math.round(weightToKg(values.weight, localeConfig.weight_unit) * 10) / 10;
-    }
-    if (values.height !== undefined) {
-      req.height_cm = Math.round(heightToCm(values.height, localeConfig.height_unit) * 10) / 10;
-    }
-    if (notes.trim()) req.notes = notes.trim();
-    onSubmit(req);
+    onSubmit?.(toRequest(values, notes));
   };
 
   return (
@@ -274,6 +318,7 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
           const val = values[config.key];
           const level = getRangeLevel(config, val);
           const rangeLabel = getRangeLabel(config);
+          const status = getRangeStatus(config, val);
 
           return (
             <div key={config.key} className={styles.vitalCard} data-level={level}>
@@ -309,11 +354,18 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
                 placeholder="—"
                 classNames={{ input: styles.vitalInput }}
               />
-              {rangeLabel && (
-                <Text size="xs" c="dimmed" mt={2} ta="center">
-                  {rangeLabel} {config.unit}
-                </Text>
-              )}
+              <Group gap={4} mt={4} justify="center">
+                {rangeLabel && (
+                  <Text size="xs" c="dimmed" ta="center">
+                    {rangeLabel} {config.unit}
+                  </Text>
+                )}
+                {status && (
+                  <Badge size="xs" color={status.color} variant="light">
+                    {status.label}
+                  </Badge>
+                )}
+              </Group>
             </div>
           );
         })}
@@ -350,26 +402,30 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
         </Group>
       )}
 
-      <Textarea
-        label={t("vitals.notes")}
-        placeholder={t("vitals.additionalObservations")}
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-        autosize
-        minRows={2}
-        maxRows={4}
-      />
+      {showNotes && (
+        <Textarea
+          label={t("vitals.notes")}
+          placeholder={t("vitals.additionalObservations")}
+          value={notes}
+          onChange={(e) => handleNotesChange(e.currentTarget.value)}
+          autosize
+          minRows={2}
+          maxRows={4}
+        />
+      )}
 
-      <Group justify="flex-end">
-        {onCancel && (
-          <Button variant="default" size="sm" onClick={onCancel}>
-            {t("common:cancel")}
+      {showActions && (
+        <Group justify="flex-end">
+          {onCancel && (
+            <Button variant="default" size="sm" onClick={onCancel}>
+              {t("common:cancel")}
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSubmit} loading={isSubmitting}>
+            {t("vitals.recordVitals")}
           </Button>
-        )}
-        <Button size="sm" onClick={handleSubmit} loading={isSubmitting}>
-          {t("vitals.recordVitals")}
-        </Button>
-      </Group>
+        </Group>
+      )}
     </Stack>
   );
 }

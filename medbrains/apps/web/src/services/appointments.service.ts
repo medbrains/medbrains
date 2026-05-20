@@ -10,6 +10,8 @@ export const appointmentsService = {
   listPatients: (params: Parameters<typeof api.listPatients>[0]) => api.listPatients(params),
   getAvailableSlots: (doctorId: string, date: string) => api.getAvailableSlots(doctorId, date),
   bookAppointment: (data: BookAppointmentInput) => api.bookAppointment(data),
+  createEncounter: (...args: Parameters<typeof api.createEncounter>) =>
+    api.createEncounter(...args),
   listAppointments: (params?: Parameters<typeof api.listAppointments>[0]) =>
     api.listAppointments(params),
   checkInAppointment: (id: string) => api.checkInAppointment(id),

@@ -1,4 +1,4 @@
-//! Small authenticated-encryption helpers for local MedBrains secrets.
+//! Small authenticated-encryption helpers for local `MedBrains` secrets.
 //!
 //! This is intentionally not a public interoperability format. It is for
 //! tenant-local secrets and opaque QR/barcode event tokens where the scanner

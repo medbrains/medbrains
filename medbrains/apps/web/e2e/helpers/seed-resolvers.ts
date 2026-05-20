@@ -24,12 +24,25 @@ interface CatalogRow {
   formulary_status?: string | null;
   is_lasa?: boolean | null;
   black_box_warning?: string | null;
+  batch_tracking_required?: boolean | null;
 }
 
 interface BedRow {
   id: string;
   bed_number: string;
   status?: string;
+}
+
+interface FefoBatchOption {
+  batch_id: string;
+  batch_number: string;
+  expiry_date: string;
+  quantity_on_hand: number;
+}
+
+interface FefoSelectResponse {
+  batches: FefoBatchOption[];
+  quantity_needed: number;
 }
 
 const cache = new WeakMap<AuthContext, Partial<SeedRefs>>();
@@ -75,7 +88,18 @@ export async function getFirstDrug(ctx: AuthContext): Promise<CatalogRow> {
   const c = getCache(ctx);
   if (c.drug) return c.drug;
   const list = await api<CatalogRow[]>(ctx, "GET", "/api/pharmacy/catalog");
-  c.drug = list.find(isSafeE2eDrug) ?? (await createSafeE2eDrug(ctx));
+  const candidates = list
+    .filter(isSafeE2eDrug)
+    .sort((left, right) => Number(isE2eFefoDrug(right)) - Number(isE2eFefoDrug(left)));
+
+  for (const drug of candidates) {
+    if (await hasUsableFefoStock(ctx, drug, 20)) {
+      c.drug = drug;
+      return drug;
+    }
+  }
+
+  c.drug = await createSafeE2eDrug(ctx);
   return c.drug;
 }
 
@@ -92,18 +116,34 @@ function isSafeE2eDrug(drug: CatalogRow): boolean {
   );
 }
 
+function isE2eFefoDrug(drug: CatalogRow): boolean {
+  return drug.code.startsWith("E2E-FEFO-");
+}
+
+async function hasUsableFefoStock(
+  ctx: AuthContext,
+  drug: CatalogRow,
+  quantityNeeded: number,
+): Promise<boolean> {
+  const result = await api<FefoSelectResponse>(ctx, "POST", "/api/pharmacy/batches/fefo-select", {
+    catalog_item_id: drug.id,
+    quantity_needed: quantityNeeded,
+  });
+  return result.batches.some((batch) => batch.quantity_on_hand >= quantityNeeded);
+}
+
 async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
   const stamp = Date.now().toString(36);
-  return api<CatalogRow>(ctx, "POST", "/api/pharmacy/catalog", {
-    code: `E2E-SAFE-${stamp}`,
-    name: `E2E Safe Paracetamol ${stamp}`,
+  const drug = await api<CatalogRow>(ctx, "POST", "/api/pharmacy/catalog", {
+    code: `E2E-FEFO-${stamp}`,
+    name: `E2E FEFO Paracetamol ${stamp}`,
     generic_name: "Paracetamol",
     category: "analgesic",
     manufacturer: "E2E Fixtures",
     unit: "tablet",
     base_price: 5,
     tax_percent: 0,
-    current_stock: 500,
+    current_stock: 0,
     reorder_level: 25,
     drug_schedule: "OTC",
     is_controlled: false,
@@ -111,8 +151,33 @@ async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
     atc_code: "N02BE01",
     formulary_status: "approved",
     is_lasa: false,
-    batch_tracking_required: false,
+    batch_tracking_required: true,
   });
+
+  await createUsableE2eBatch(ctx, drug.id, `${stamp}-A`, 180, 400);
+  await createUsableE2eBatch(ctx, drug.id, `${stamp}-B`, 540, 400);
+  return { ...drug, current_stock: 800, batch_tracking_required: true };
+}
+
+async function createUsableE2eBatch(
+  ctx: AuthContext,
+  catalogItemId: string,
+  suffix: string,
+  expiryDaysFromNow: number,
+  quantity: number,
+): Promise<void> {
+  await api(ctx, "POST", "/api/pharmacy/batches", {
+    catalog_item_id: catalogItemId,
+    batch_number: `E2E-FEFO-${suffix}`,
+    expiry_date: dateDaysFromNow(expiryDaysFromNow),
+    manufacture_date: dateDaysFromNow(-30),
+    quantity_received: quantity,
+    supplier_info: "E2E FEFO fixture",
+  });
+}
+
+function dateDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 export async function getFirstLabTest(ctx: AuthContext): Promise<CatalogRow> {

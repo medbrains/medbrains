@@ -10,7 +10,7 @@
 //! `Resource`. References use the FHIR `{type}/{id}` literal form.
 //!
 //! Bundle batch/transaction support is in `bundle.rs`; mappers from
-//! internal MedBrains domain types live in `mapper.rs`.
+//! internal `MedBrains` domain types live in `mapper.rs`.
 
 pub mod mapper;
 pub mod r4;

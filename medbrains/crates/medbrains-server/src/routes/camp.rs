@@ -341,6 +341,9 @@ pub struct CreateRegistrationRequest {
     pub id_proof_type: Option<String>,
     pub id_proof_number: Option<String>,
     pub patient_id: Option<Uuid>,
+    pub clinical_department_id: Option<Uuid>,
+    pub attending_doctor_id: Option<Uuid>,
+    pub service_line: Option<String>,
     pub chief_complaint: Option<String>,
     pub is_walk_in: Option<bool>,
 }
@@ -349,7 +352,27 @@ pub struct CreateRegistrationRequest {
 pub struct UpdateRegistrationRequest {
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    pub clinical_department_id: Option<Uuid>,
+    pub attending_doctor_id: Option<Uuid>,
+    pub service_line: Option<String>,
     pub chief_complaint: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenCampRegistrationEncounterResponse {
+    pub encounter_id: Uuid,
+    pub queue_id: Option<Uuid>,
+    pub patient_id: Uuid,
+    pub patient_name: String,
+    pub uhid: String,
+    pub department_id: Uuid,
+    pub doctor_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OpenCampRegistrationEncounterRequest {
+    pub department_id: Option<Uuid>,
+    pub doctor_id: Option<Uuid>,
 }
 
 // ── Screenings ───────────────────────────────────────────
@@ -380,6 +403,34 @@ pub struct CreateScreeningRequest {
     pub referred_to_hospital: Option<bool>,
     pub referral_department: Option<String>,
     pub referral_urgency: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ScreeningRegistrationContext {
+    camp_id: Uuid,
+    patient_id: Option<Uuid>,
+    organizing_department_id: Option<Uuid>,
+}
+
+#[derive(sqlx::FromRow)]
+struct OpenEncounterRegistrationContext {
+    camp_id: Uuid,
+    camp_code: String,
+    camp_name: String,
+    organizing_department_id: Option<Uuid>,
+    person_name: String,
+    age: Option<i32>,
+    gender: Option<String>,
+    phone: Option<String>,
+    address: Option<String>,
+    id_proof_type: Option<String>,
+    id_proof_number: Option<String>,
+    patient_id: Option<Uuid>,
+    clinical_department_id: Option<Uuid>,
+    attending_doctor_id: Option<Uuid>,
+    service_line: Option<String>,
+    chief_complaint: Option<String>,
+    is_walk_in: bool,
 }
 
 // ── Lab Samples ──────────────────────────────────────────
@@ -1319,9 +1370,36 @@ async fn find_or_create_camp_encounter(
     .fetch_optional(&mut **tx)
     .await?
     {
+        sqlx::query(
+            "UPDATE encounters \
+             SET department_id = COALESCE($3, department_id), \
+                 doctor_id = COALESCE($4, doctor_id), \
+                 updated_at = now() \
+             WHERE tenant_id = $1 AND id = $2",
+        )
+        .bind(claims.tenant_id)
+        .bind(existing_id)
+        .bind(department_id)
+        .bind(doctor_id)
+        .execute(&mut **tx)
+        .await?;
+        let queue_id = sqlx::query_scalar::<_, Uuid>(
+            "UPDATE opd_queues \
+             SET department_id = COALESCE($3, department_id), \
+                 doctor_id = COALESCE($4, doctor_id), \
+                 updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+             RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(existing_id)
+        .bind(department_id)
+        .bind(doctor_id)
+        .fetch_optional(&mut **tx)
+        .await?;
         return Ok(CampEncounterLink {
             encounter_id: existing_id,
-            queue_id: None,
+            queue_id,
         });
     }
 
@@ -1334,7 +1412,7 @@ async fn find_or_create_camp_encounter(
     let encounter_id = Uuid::new_v4();
     let attributes = serde_json::json!({
         "camp_id": camp_id,
-        "source": "mobile_camp_sync",
+        "source": "camp",
     });
 
     sqlx::query(
@@ -1342,7 +1420,7 @@ async fn find_or_create_camp_encounter(
          (id, tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
           encounter_date, notes, attributes, visit_type, created_by) \
          VALUES ($1, $2, $3, 'opd'::encounter_type, 'open'::encounter_status, \
-                 $4, $5, $6, $7, $8, 'walk_in', $9)",
+                 $4, $5, $6, $7, $8, 'camp', $9)",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -3876,11 +3954,13 @@ pub async fn create_registration(
     let row = sqlx::query_as::<_, CampRegistration>(
         "INSERT INTO camp_registrations \
          (tenant_id, camp_id, registration_number, person_name, age, gender, phone, \
-          address, id_proof_type, id_proof_number, patient_id, chief_complaint, \
+          address, id_proof_type, id_proof_number, patient_id, clinical_department_id, \
+          attending_doctor_id, service_line, chief_complaint, \
           is_walk_in, registered_by) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, \
                  $8, $9, $10, $11, $12, \
-                 COALESCE($13, true), $14) \
+                 $13, $14, $15, \
+                 COALESCE($16, true), $17) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -3894,6 +3974,9 @@ pub async fn create_registration(
     .bind(&body.id_proof_type)
     .bind(&body.id_proof_number)
     .bind(body.patient_id)
+    .bind(body.clinical_department_id)
+    .bind(body.attending_doctor_id)
+    .bind(&body.service_line)
     .bind(&body.chief_complaint)
     .bind(body.is_walk_in)
     .bind(claims.sub)
@@ -3919,18 +4002,162 @@ pub async fn update_registration(
         "UPDATE camp_registrations SET \
          status = COALESCE($2::camp_registration_status, status), \
          patient_id = COALESCE($3, patient_id), \
-         chief_complaint = COALESCE($4, chief_complaint) \
+         clinical_department_id = COALESCE($4, clinical_department_id), \
+         attending_doctor_id = COALESCE($5, attending_doctor_id), \
+         service_line = COALESCE($6, service_line), \
+         chief_complaint = COALESCE($7, chief_complaint), \
+         updated_at = now() \
          WHERE id = $1 RETURNING *",
     )
     .bind(id)
     .bind(&body.status)
     .bind(body.patient_id)
+    .bind(body.clinical_department_id)
+    .bind(body.attending_doctor_id)
+    .bind(&body.service_line)
     .bind(&body.chief_complaint)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+pub async fn open_registration_encounter(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    body: Option<Json<OpenCampRegistrationEncounterRequest>>,
+) -> Result<Json<OpenCampRegistrationEncounterResponse>, AppError> {
+    require_permission(&claims, permissions::camp::registrations::CREATE)?;
+    require_permission(&claims, permissions::opd::visit::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let context = sqlx::query_as::<_, OpenEncounterRegistrationContext>(
+        "SELECT r.camp_id, c.camp_code, c.name AS camp_name, \
+                c.organizing_department_id, \
+                r.person_name, r.age, r.gender, r.phone, r.address, \
+                r.id_proof_type, r.id_proof_number, r.patient_id, \
+                r.clinical_department_id, r.attending_doctor_id, r.service_line, \
+                r.chief_complaint, r.is_walk_in \
+         FROM camp_registrations r \
+         JOIN camps c ON c.id = r.camp_id AND c.tenant_id = r.tenant_id \
+         WHERE r.tenant_id = $1 AND r.id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let body = body.map_or(
+        OpenCampRegistrationEncounterRequest {
+            department_id: None,
+            doctor_id: None,
+        },
+        |Json(body)| body,
+    );
+    let department_id = body
+        .department_id
+        .or(context.clinical_department_id)
+        .or(context.organizing_department_id)
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "camp OPD encounter requires a department for this clinical visit".to_owned(),
+            )
+        })?;
+    let camp_context = CampSyncCampContext {
+        camp_code: context.camp_code.clone(),
+        name: context.camp_name.clone(),
+        organizing_department_id: context.organizing_department_id,
+    };
+    let registration_payload = CreateRegistrationRequest {
+        camp_id: context.camp_id,
+        person_name: context.person_name.clone(),
+        age: context.age,
+        gender: context.gender.clone(),
+        phone: context.phone.clone(),
+        address: context.address.clone(),
+        id_proof_type: context.id_proof_type.clone(),
+        id_proof_number: context.id_proof_number.clone(),
+        patient_id: context.patient_id,
+        clinical_department_id: context.clinical_department_id,
+        attending_doctor_id: context.attending_doctor_id,
+        service_line: context.service_line.clone(),
+        chief_complaint: context.chief_complaint.clone(),
+        is_walk_in: Some(context.is_walk_in),
+    };
+    let patient_id = if let Some(patient_id) = context.patient_id {
+        patient_id
+    } else {
+        let patient_id = create_or_link_patient_for_camp_registration(
+            &mut tx,
+            &claims,
+            context.camp_id,
+            &camp_context,
+            &registration_payload,
+        )
+        .await?;
+        sqlx::query(
+            "UPDATE camp_registrations \
+             SET patient_id = $3, updated_at = now() \
+             WHERE tenant_id = $1 AND id = $2",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await?;
+        patient_id
+    };
+    let doctor_id = body.doctor_id.or(context.attending_doctor_id);
+    sqlx::query(
+        "UPDATE camp_registrations \
+         SET clinical_department_id = COALESCE($3, clinical_department_id), \
+             attending_doctor_id = COALESCE($4, attending_doctor_id), \
+             updated_at = now() \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(Some(department_id))
+    .bind(doctor_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let link = find_or_create_camp_encounter(
+        &mut tx,
+        &claims,
+        context.camp_id,
+        patient_id,
+        Some(department_id),
+        doctor_id,
+        context.chief_complaint.as_deref(),
+    )
+    .await?;
+
+    let (uhid, patient_name): (String, String) = sqlx::query_as(
+        "SELECT uhid, trim(concat_ws(' ', first_name, last_name)) AS patient_name \
+         FROM patients \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(OpenCampRegistrationEncounterResponse {
+        encounter_id: link.encounter_id,
+        queue_id: link.queue_id,
+        patient_id,
+        patient_name,
+        uhid,
+        department_id,
+        doctor_id,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3973,6 +4200,18 @@ pub async fn create_screening(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let registration_context = sqlx::query_as::<_, ScreeningRegistrationContext>(
+        "SELECT r.camp_id, r.patient_id, c.organizing_department_id \
+         FROM camp_registrations r \
+         JOIN camps c ON c.id = r.camp_id AND c.tenant_id = r.tenant_id \
+         WHERE r.tenant_id = $1 AND r.id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.registration_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Camp registration not found".to_owned()))?;
+
     let row = sqlx::query_as::<_, CampScreening>(
         "INSERT INTO camp_screenings \
          (tenant_id, registration_id, bp_systolic, bp_diastolic, pulse_rate, spo2, \
@@ -4012,12 +4251,83 @@ pub async fn create_screening(
 
     // Auto-update registration status to screened
     sqlx::query(
-        "UPDATE camp_registrations SET status = 'screened' \
-         WHERE id = $1 AND status = 'registered'",
+        "UPDATE camp_registrations SET status = \
+         CASE WHEN COALESCE($3, false) THEN 'referred'::camp_registration_status \
+              ELSE 'screened'::camp_registration_status END \
+         WHERE tenant_id = $1 AND id = $2 AND status IN ('registered', 'screened', 'referred')",
     )
+    .bind(claims.tenant_id)
     .bind(body.registration_id)
+    .bind(body.referred_to_hospital)
     .execute(&mut *tx)
     .await?;
+
+    if let (Some(patient_id), Some(department_id)) = (
+        registration_context.patient_id,
+        registration_context.organizing_department_id,
+    ) {
+        let mut note_parts: Vec<String> = Vec::new();
+        if let Some(value) = body
+            .findings
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            note_parts.push(format!("Camp findings: {value}"));
+        }
+        if let Some(value) = body
+            .diagnosis
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            note_parts.push(format!("Camp diagnosis: {value}"));
+        }
+        if let Some(value) = body
+            .advice
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            note_parts.push(format!("Camp advice: {value}"));
+        }
+        let notes = if note_parts.is_empty() {
+            None
+        } else {
+            Some(note_parts.join("\n"))
+        };
+        let link = find_or_create_camp_encounter(
+            &mut tx,
+            &claims,
+            registration_context.camp_id,
+            patient_id,
+            Some(department_id),
+            None,
+            notes.as_deref(),
+        )
+        .await?;
+        let bmi = calculate_bmi(body.weight_kg, body.height_cm).or(body.bmi);
+        sqlx::query(
+            "INSERT INTO vitals \
+             (tenant_id, encounter_id, recorded_by, temperature, pulse, \
+              systolic_bp, diastolic_bp, spo2, weight_kg, height_cm, bmi, notes, recorded_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())",
+        )
+        .bind(claims.tenant_id)
+        .bind(link.encounter_id)
+        .bind(claims.sub)
+        .bind(body.temperature)
+        .bind(body.pulse_rate)
+        .bind(body.bp_systolic)
+        .bind(body.bp_diastolic)
+        .bind(body.spo2)
+        .bind(body.weight_kg)
+        .bind(body.height_cm)
+        .bind(bmi)
+        .bind(notes)
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(row))

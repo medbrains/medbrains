@@ -851,6 +851,15 @@ pub struct VerifyResponse {
     pub credential_revoked: bool,
 }
 
+type SignatureVerificationRow = (
+    Vec<u8>,
+    Vec<u8>,
+    Option<Value>,
+    Option<Uuid>,
+    Uuid,
+    DateTime<Utc>,
+);
+
 pub async fn verify_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -862,14 +871,7 @@ pub async fn verify_signature(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row: (
-        Vec<u8>,
-        Vec<u8>,
-        Option<Value>,
-        Option<Uuid>,
-        Uuid,
-        DateTime<Utc>,
-    ) = sqlx::query_as(
+    let row: SignatureVerificationRow = sqlx::query_as(
         "SELECT payload_hash, signature_bytes, payload_snapshot, signer_credential_id, \
                 signer_user_id, signed_at \
          FROM signed_records WHERE id = $1 AND tenant_id = $2",
@@ -982,7 +984,7 @@ fn to_hex(bytes: &[u8]) -> String {
 
 async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
     match state.secret_resolver.get(SIGNATURE_KEY_SECRET).await {
-        Ok(value) if value.as_bytes().len() >= 32 => Ok(value.into_bytes()),
+        Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
         Ok(_) => Err(AppError::Internal(format!(
             "{SIGNATURE_KEY_SECRET} must be at least 32 bytes"
         ))),

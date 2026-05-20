@@ -1,4 +1,4 @@
-//! SpiceDB Watch consumer — streams relationship updates and invokes
+//! `SpiceDB` Watch consumer — streams relationship updates and invokes
 //! a caller-supplied async callback for each batch of affected users.
 //!
 //! Used by `medbrains-server::main` to bump `users.perm_version` when
@@ -16,7 +16,7 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 /// Spawn a long-running watcher. The future never returns — designed
 /// to be `tokio::spawn`'d at server boot.
 ///
-/// `on_users_changed` is called every time the SpiceDB stream yields a
+/// `on_users_changed` is called every time the `SpiceDB` stream yields a
 /// batch with at least one tuple whose subject is `user:{uuid}`. The
 /// caller decides what to do with the affected user IDs (typically:
 /// `UPDATE users SET perm_version = perm_version + 1 WHERE id = ANY($1)`).

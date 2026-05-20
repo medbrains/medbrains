@@ -11,7 +11,7 @@
 //! dev environments quiet without burying the error in DLQ.
 //!
 //! Payload shape (any of these fields can be present):
-//!   { "to": "+91...", "body": "...", "template_id": "...", "dlt_template_id": "..." }
+//!   { "to": "+91...", "body": "...", "`template_id"`: "...", "`dlt_template_id"`: "..." }
 //!
 //! Returns `{provider: "twilio", sid: "SM...", status: "queued"}` on success.
 
@@ -80,7 +80,7 @@ async fn render_with_dlt_template(
     // Substitute {#var#} placeholders with values from
     // payload.variables (object) — telcos accept the rendered text and
     // verify it against the registered pattern at the gateway.
-    let mut rendered = pattern.clone();
+    let mut rendered = pattern;
     if let Some(vars) = payload.get("variables").and_then(Value::as_object) {
         for (k, v) in vars {
             let placeholder = format!("{{#{k}#}}");
@@ -101,6 +101,13 @@ async fn render_with_dlt_template(
 }
 
 const TWILIO_API_BASE: &str = "https://api.twilio.com/2010-04-01/Accounts";
+
+fn is_e164_phone(value: &str) -> bool {
+    let Some(digits) = value.strip_prefix('+') else {
+        return false;
+    };
+    (8..=15).contains(&digits.len()) && digits.chars().all(|ch| ch.is_ascii_digit())
+}
 
 #[derive(Debug)]
 pub struct SmsSendHandler {
@@ -123,9 +130,15 @@ impl SmsSendHandler {
     /// Tests pass a `wiremock::MockServer::uri()` here; production code
     /// should use `new()`.
     pub fn with_api_base(event_type: &'static str, api_base: impl Into<String>) -> Self {
+        let base = api_base.into().trim_end_matches('/').to_owned();
+        let base = if base.ends_with("/Accounts") {
+            base
+        } else {
+            format!("{base}/Accounts")
+        };
         Self {
             event_type,
-            api_base: Some(api_base.into()),
+            api_base: Some(base),
         }
     }
 }
@@ -143,6 +156,11 @@ impl Handler for SmsSendHandler {
             .get("to")
             .and_then(Value::as_str)
             .ok_or_else(|| HandlerError::Permanent("payload.to missing".to_owned()))?;
+        if !is_e164_phone(to) {
+            return Err(HandlerError::Permanent(
+                "payload.to must be E.164 formatted, for example +919876543210".to_owned(),
+            ));
+        }
 
         // DLT template gate (India). If the payload carries a
         // `template_scope`, look up the registered template and render

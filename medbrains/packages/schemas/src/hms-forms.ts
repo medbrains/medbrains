@@ -795,6 +795,7 @@ export const opdVisitTypeValues = [
   "follow_up",
   "referral",
   "emergency",
+  "camp",
 ] as const;
 export const damaRecordTypeValues = ["dama", "lama"] as const;
 export const chronicProgramTypeValues = [
@@ -2471,6 +2472,8 @@ export const campCreateFormSchema = z
   .object({
     name: requiredTrimmed("Camp name is required", 255),
     camp_type: campTypeFormSchema,
+    organizing_department_id: z.string().nullable(),
+    coordinator_id: z.string().nullable(),
     scheduled_date: optionalIsoDateString.refine(
       (value) => value.trim().length > 0,
       "Scheduled date is required",
@@ -2513,8 +2516,66 @@ export const campRegistrationFormSchema = z.object({
   address: z.string(),
   id_proof_type: z.union([campIdProofTypeFormSchema, z.literal("")]),
   id_proof_number: z.string(),
+  clinical_department_id: z.string().nullable(),
+  attending_doctor_id: z.string().nullable(),
+  service_line: z.string(),
   chief_complaint: z.string(),
   is_walk_in: z.boolean(),
+});
+
+export const campClinicalVisitFormSchema = z.object({
+  department_id: requiredNullableString("Select the department for this clinical visit"),
+  doctor_id: z.string().nullable(),
+});
+
+export const campScreeningFormSchema = z.object({
+  registration_id: requiredTrimmed("Select a camp registration"),
+  bp_systolic: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number").refine(
+    (value) => {
+      if (typeof value === "string" && value.trim().length === 0) return true;
+      const parsed = typeof value === "number" ? value : Number(value);
+      return parsed <= 300;
+    },
+    "Systolic BP cannot exceed 300",
+  ),
+  bp_diastolic: optionalNonNegativeIntegerNumber("Diastolic BP must be a whole number").refine(
+    (value) => {
+      if (typeof value === "string" && value.trim().length === 0) return true;
+      const parsed = typeof value === "number" ? value : Number(value);
+      return parsed <= 220;
+    },
+    "Diastolic BP cannot exceed 220",
+  ),
+  pulse_rate: optionalNonNegativeIntegerNumber("Pulse must be a whole number").refine((value) => {
+    if (typeof value === "string" && value.trim().length === 0) return true;
+    const parsed = typeof value === "number" ? value : Number(value);
+    return parsed <= 300;
+  }, "Pulse cannot exceed 300"),
+  spo2: optionalNonNegativeIntegerNumber("SpO2 must be a whole number").refine((value) => {
+    if (typeof value === "string" && value.trim().length === 0) return true;
+    const parsed = typeof value === "number" ? value : Number(value);
+    return parsed <= 100;
+  }, "SpO2 cannot exceed 100"),
+  temperature: optionalNumericFormValue("Temperature must be between 25 and 45 C", 25, 45),
+  blood_sugar_random: optionalNumericFormValue("Random blood sugar cannot be negative", 0),
+  height_cm: optionalNumericFormValue("Height must be between 30 and 250 cm", 30, 250),
+  weight_kg: optionalNumericFormValue("Weight must be between 0.5 and 350 kg", 0.5, 350),
+  bmi: optionalNumericFormValue("BMI cannot be negative", 0),
+  visual_acuity_left: z.string(),
+  visual_acuity_right: z.string(),
+  findings: z.string(),
+  diagnosis: z.string(),
+  advice: z.string(),
+  referred_to_hospital: z.boolean(),
+  referral_department: z.string(),
+  referral_urgency: z.string(),
+});
+
+export const campLabSampleFormSchema = z.object({
+  registration_id: requiredTrimmed("Select a camp registration"),
+  sample_type: requiredTrimmed("Sample type is required", 80),
+  test_requested: z.string(),
+  barcode: z.string(),
 });
 
 export const campFollowupFormSchema = z.object({
@@ -3105,15 +3166,42 @@ export const otUtilizationFilterFormSchema = z
     }
   });
 
-export const startOpdVisitFormSchema = z.object({
+const startOpdVisitFormShape = {
   department_id: requiredNullableString("Pick the OPD department before starting the visit"),
   doctor_id: z.string().nullable(),
   visit_type: opdVisitTypeFormSchema,
+  camp_id: z.string().nullable(),
   notes: z.string(),
-});
+};
 
-export const opdQueueVisitFormSchema = startOpdVisitFormSchema.extend({
-  patient_id: requiredTrimmed("Patient is required"),
+function requireCampForCampVisit(
+  values: { visit_type: OpdVisitTypeFormValue; camp_id: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (values.visit_type === "camp" && !values.camp_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["camp_id"],
+      message: "Select the camp for camp OPD visits",
+    });
+  }
+}
+
+export const startOpdVisitFormSchema = z
+  .object(startOpdVisitFormShape)
+  .superRefine(requireCampForCampVisit);
+
+export const opdQueueVisitFormSchema = z
+  .object({
+    ...startOpdVisitFormShape,
+    patient_id: requiredTrimmed("Patient is required"),
+  })
+  .superRefine(requireCampForCampVisit);
+
+export const opdFollowUpAppointmentFormSchema = z.object({
+  appointment_date: requiredNullableIsoDate("Follow-up date is required"),
+  slot: requiredNullableString("Select an available slot"),
+  reason: z.string(),
 });
 
 export const ipdDamaFormSchema = z
@@ -4143,6 +4231,9 @@ export type LabB2bClientFormInput = z.infer<typeof labB2bClientFormSchema>;
 export type LabB2bRateFormInput = z.infer<typeof labB2bRateFormSchema>;
 export type CampCreateFormInput = z.infer<typeof campCreateFormSchema>;
 export type CampRegistrationFormInput = z.infer<typeof campRegistrationFormSchema>;
+export type CampClinicalVisitFormInput = z.infer<typeof campClinicalVisitFormSchema>;
+export type CampScreeningFormInput = z.infer<typeof campScreeningFormSchema>;
+export type CampLabSampleFormInput = z.infer<typeof campLabSampleFormSchema>;
 export type CampFollowupFormInput = z.infer<typeof campFollowupFormSchema>;
 export type DietOrderFormInput = z.infer<typeof dietOrderFormSchema>;
 export type DietTemplateFormInput = z.infer<typeof dietTemplateFormSchema>;
@@ -4203,6 +4294,7 @@ export type OtRoomFormInput = z.infer<typeof otRoomFormSchema>;
 export type OtUtilizationFilterFormInput = z.infer<typeof otUtilizationFilterFormSchema>;
 export type StartOpdVisitFormInput = z.infer<typeof startOpdVisitFormSchema>;
 export type OpdQueueVisitFormInput = z.infer<typeof opdQueueVisitFormSchema>;
+export type OpdFollowUpAppointmentFormInput = z.infer<typeof opdFollowUpAppointmentFormSchema>;
 export type IpdDamaFormInput = z.infer<typeof ipdDamaFormSchema>;
 export type IpdTransferOutFormInput = z.infer<typeof ipdTransferOutFormSchema>;
 export type IpdMarkDeathFormInput = z.infer<typeof ipdMarkDeathFormSchema>;

@@ -1,4 +1,4 @@
-//! Per-tenant pool cache. Uses moka::future::Cache with a 5-min TTL
+//! Per-tenant pool cache. Uses `moka::future::Cache` with a 5-min TTL
 //! so admin topology flips propagate within 5 min in the worst case
 //! (or instantly via explicit `invalidate`).
 
@@ -168,25 +168,6 @@ impl TopologyDispatcher for TopologyRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    #[derive(Debug)]
-    struct StubResolver {
-        rows: Mutex<std::collections::HashMap<Uuid, Option<DbTopologyRow>>>,
-    }
-
-    #[async_trait]
-    impl TopologyResolver for StubResolver {
-        async fn resolve(&self, tenant_id: Uuid) -> Result<Option<DbTopologyRow>, TopologyError> {
-            Ok(self
-                .rows
-                .lock()
-                .expect("stub-resolver lock")
-                .get(&tenant_id)
-                .cloned()
-                .flatten())
-        }
-    }
 
     #[test]
     fn topology_codes_round_trip() {

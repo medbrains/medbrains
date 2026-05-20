@@ -1,4 +1,4 @@
-//! Mappers from MedBrains internal types to FHIR R4 resources.
+//! Mappers from `MedBrains` internal types to FHIR R4 resources.
 //!
 //! Kept in this crate (not in `medbrains-core`) so the core domain
 //! types stay free of FHIR vocabulary. Each mapper is a pure function

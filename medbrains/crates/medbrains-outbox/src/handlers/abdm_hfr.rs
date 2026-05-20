@@ -4,7 +4,7 @@
 //! Phase 11.2. Pairs with `routes::abdm::hfr::register` which queues
 //! an event of type `abdm.hfr.register` after persisting the row at
 //! status=queued. This handler does the actual gateway POST, then
-//! updates the abdm_hfr_registrations row with the NHA-issued
+//! updates the `abdm_hfr_registrations` row with the NHA-issued
 //! facility id (or an error message).
 //!
 //! Status mapping mirrors the NHCX handler:
@@ -19,7 +19,7 @@
 //! NHA HFR endpoint shape is documented at
 //! <https://hfr.abdm.gov.in/api/v1/swagger>. The exact path for
 //! facility registration is `/v1/facility/registration` against the
-//! base URL the env supplies via SecretResolver.
+//! base URL the env supplies via `SecretResolver`.
 
 use async_trait::async_trait;
 use serde_json::Value;

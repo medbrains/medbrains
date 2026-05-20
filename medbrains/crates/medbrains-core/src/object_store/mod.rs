@@ -2,7 +2,7 @@
 //!
 //! Used by media uploads (DICOM, lab attachments, prescription PDFs).
 //! Cloud impl = S3 in `medbrains-server`. On-prem impl = `LocalFs`
-//! here (no MinIO daemon — Rust binary handles it directly).
+//! here (no `MinIO` daemon — Rust binary handles it directly).
 
 pub mod cold_local;
 pub mod local;

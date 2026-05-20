@@ -2924,6 +2924,16 @@ export interface QueueEntry {
   patient_id: string;
   patient_name: string;
   uhid: string;
+  visit_type: string | null;
+  camp_id: string | null;
+  camp_name: string | null;
+  appointment_id: string | null;
+  appointment_type: AppointmentType | null;
+  appointment_status: AppointmentStatus | null;
+  appointment_date: string | null;
+  appointment_slot_start: string | null;
+  appointment_slot_end: string | null;
+  appointment_reason: string | null;
 }
 
 export interface EncounterListResponse {
@@ -2937,8 +2947,10 @@ export interface CreateEncounterRequest {
   patient_id: string;
   department_id: string;
   doctor_id?: string;
+  appointment_id?: string | null;
   notes?: string;
   visit_type?: string;
+  camp_id?: string;
 }
 
 export interface CreateEncounterResponse {
@@ -8419,12 +8431,30 @@ export interface CampRegistration {
   id_proof_type: string | null;
   id_proof_number: string | null;
   patient_id: string | null;
+  clinical_department_id: string | null;
+  attending_doctor_id: string | null;
+  service_line: string | null;
   status: CampRegistrationStatus;
   chief_complaint: string | null;
   is_walk_in: boolean;
   registered_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CampOpenEncounterResponse {
+  encounter_id: string;
+  queue_id?: string | null;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  department_id: string;
+  doctor_id?: string | null;
+}
+
+export interface OpenCampRegistrationEncounterRequest {
+  department_id?: string | null;
+  doctor_id?: string | null;
 }
 
 export interface CampScreening {
@@ -8654,19 +8684,33 @@ export interface CampRemoteChecklistItem {
   updated_at: string;
 }
 
+export type CampSupplyCategory =
+  | "equipment"
+  | "consumable"
+  | "medicine"
+  | "ppe"
+  | "biomedical_waste"
+  | "document"
+  | "it"
+  | "other";
+
+export type CampIncidentType =
+  | "patient_safety"
+  | "infection_control"
+  | "biomedical_waste"
+  | "facility_safety"
+  | "staff_safety"
+  | "data_privacy"
+  | "equipment"
+  | "network"
+  | "crowd_control"
+  | "other";
+
 export interface CampSupplyItem {
   id: string;
   tenant_id: string;
   camp_id: string;
-  category:
-    | "equipment"
-    | "consumable"
-    | "medicine"
-    | "ppe"
-    | "biomedical_waste"
-    | "document"
-    | "it"
-    | "other";
+  category: CampSupplyCategory;
   item_name: string;
   unit: string | null;
   planned_qty: number;
@@ -8705,17 +8749,7 @@ export interface CampIncident {
   tenant_id: string;
   camp_id: string;
   registration_id: string | null;
-  incident_type:
-    | "patient_safety"
-    | "infection_control"
-    | "biomedical_waste"
-    | "facility_safety"
-    | "staff_safety"
-    | "data_privacy"
-    | "equipment"
-    | "network"
-    | "crowd_control"
-    | "other";
+  incident_type: CampIncidentType;
   severity: "low" | "moderate" | "high" | "critical";
   description: string;
   immediate_action: string | null;
@@ -9021,6 +9055,9 @@ export interface CreateCampRegistrationRequest {
   id_proof_type?: string;
   id_proof_number?: string;
   patient_id?: string;
+  clinical_department_id?: string;
+  attending_doctor_id?: string;
+  service_line?: string;
   chief_complaint?: string;
   is_walk_in?: boolean;
 }

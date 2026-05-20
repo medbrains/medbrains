@@ -10,6 +10,7 @@ import {
   schedulingPriorityValues,
   schedulingResourceTypeValues,
 } from "@medbrains/schemas";
+import { parseDate, toDateString } from "../lib/date-utils";
 
 const priorityLabels: Record<SchedulingPriorityFormValue, string> = {
   low: "Low",
@@ -47,9 +48,11 @@ export function schedulingNumber(value: FormNumberValue, fallback: number): numb
 }
 
 export function toDateInputValue(value: string): Date | null {
-  return value ? new Date(value) : null;
+  return parseDate(value);
 }
 
 export function toIsoDateInputValue(date: Date | string | null): string {
-  return date ? new Date(date).toISOString().slice(0, 10) : "";
+  if (!date) return "";
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  return toDateString(date instanceof Date ? date : new Date(date));
 }

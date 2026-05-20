@@ -29,7 +29,7 @@ pub trait PipelineDispatcher: Send + Sync + std::fmt::Debug {
 }
 
 /// Fallback handler — registered in the Registry as the catch-all for
-/// any event_type not bound to a typed handler.
+/// any `event_type` not bound to a typed handler.
 pub struct PipelineFallbackHandler {
     dispatcher: Arc<dyn PipelineDispatcher>,
 }
@@ -49,8 +49,8 @@ impl PipelineFallbackHandler {
 
 #[async_trait]
 impl Handler for PipelineFallbackHandler {
-    /// The fallback's event_type is unused — the Registry routes any
-    /// unknown event_type here regardless. Returning a sentinel string
+    /// The fallback's `event_type` is unused — the Registry routes any
+    /// unknown `event_type` here regardless. Returning a sentinel string
     /// preserves the trait shape.
     fn event_type(&self) -> &'static str {
         "_pipeline_fallback"

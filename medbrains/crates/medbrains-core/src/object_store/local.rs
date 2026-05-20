@@ -1,4 +1,4 @@
-//! Local-FS `ObjectStore`. Replaces MinIO for on-prem deploys.
+//! Local-FS `ObjectStore`. Replaces `MinIO` for on-prem deploys.
 
 use super::{ObjectStore, ObjectStoreError};
 use async_trait::async_trait;

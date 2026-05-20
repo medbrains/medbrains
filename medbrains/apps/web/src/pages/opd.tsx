@@ -24,11 +24,12 @@ import {
   Timeline,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
+import type { OpdFollowUpAppointmentFormInput, OpdQueueVisitFormInput } from "@medbrains/schemas";
 import {
   opdFeedbackFormSchema,
+  opdFollowUpAppointmentFormSchema,
   opdLabOrderFormSchema,
   opdProcedureConsentFormSchema,
   opdProcedureOrderFormSchema,
@@ -38,10 +39,12 @@ import {
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromOpdRequest,
+  AppointmentWithPatient,
   AvailableBed,
   AvailableSlot,
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
+  Camp,
   CertificateType,
   Consultation,
   ConsultationTemplate,
@@ -117,6 +120,7 @@ import {
   IconPlayerPlay,
   IconPlus,
   IconPrinter,
+  IconSearch,
   IconShieldCheck,
   IconStar,
   IconStethoscope,
@@ -162,6 +166,7 @@ import { PatientContextBanner } from "../components/Patient/PatientContextBanner
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
+  DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
   DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
   DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
@@ -173,6 +178,7 @@ import {
   OPD_REMINDER_PRIORITY_OPTIONS,
   OPD_REMINDER_TYPE_OPTIONS,
   OPD_VISIT_TYPE_OPTIONS,
+  toBookFollowUpAppointmentRequest,
   toCreateConsentRequest,
   toCreateEncounterRequest,
   toCreateFeedbackRequest,
@@ -182,6 +188,8 @@ import {
 } from "../forms/opd.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useVitalsSource } from "../hooks/useVitalsSource";
+import { toDateString, todayDateString } from "../lib/date-utils";
+import { campService } from "../services/camp.service";
 import { opdService } from "../services/opd.service";
 
 const statusColors: Record<string, string> = {
@@ -191,6 +199,72 @@ const statusColors: Record<string, string> = {
   completed: "success",
   no_show: "danger",
 };
+
+const appointmentStatusColors: Record<string, string> = {
+  scheduled: "gray",
+  confirmed: "primary",
+  checked_in: "warning",
+  in_consultation: "orange",
+  completed: "success",
+  cancelled: "danger",
+  no_show: "danger",
+};
+
+const appointmentStatusLabels: Record<string, string> = {
+  scheduled: "Scheduled",
+  confirmed: "Confirmed",
+  checked_in: "In OPD",
+  in_consultation: "Consulting",
+  completed: "Carried out",
+  cancelled: "Cancelled",
+  no_show: "No show",
+};
+
+const appointmentTypeLabels: Record<string, string> = {
+  new_visit: "Booked",
+  follow_up: "Follow-up",
+  consultation: "Consultation",
+  procedure: "Procedure",
+  walk_in: "Walk-in",
+};
+
+const queueVisitTypeLabels: Record<string, string> = {
+  walk_in: "Walk-in",
+  booked: "Booked",
+  follow_up: "Follow-up",
+  referral: "Referral",
+  emergency: "Emergency",
+  camp: "Camp",
+};
+
+const queueVisitTypeColors: Record<string, string> = {
+  walk_in: "gray",
+  booked: "primary",
+  follow_up: "teal",
+  referral: "orange",
+  emergency: "danger",
+  camp: "success",
+};
+
+function todayIsoDate(): string {
+  return todayDateString();
+}
+
+function appointmentVisitType(appointmentType: AppointmentWithPatient["appointment_type"]): string {
+  return appointmentType === "follow_up" ? "follow_up" : "booked";
+}
+
+function appointmentSlotLabel(appointment: {
+  appointment_date?: string | null;
+  slot_start?: string | null;
+  slot_end?: string | null;
+  appointment_slot_start?: string | null;
+  appointment_slot_end?: string | null;
+}): string {
+  const start = appointment.slot_start ?? appointment.appointment_slot_start;
+  const end = appointment.slot_end ?? appointment.appointment_slot_end;
+  return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? "No slot");
+}
 
 const referralUrgencyValues = [
   "routine",
@@ -315,7 +389,11 @@ function OpdPageInner() {
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterDeptId, setFilterDeptId] = useState<string | null>(null);
+  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null);
+  const [queueVisitTypeTab, setQueueVisitTypeTab] = useState<string | null>("all");
   const [myPatientsOnly, setMyPatientsOnly] = useState(false);
+  const [queueSearch, setQueueSearch] = useState("");
+  const [debouncedQueueSearch] = useDebouncedValue(queueSearch.trim(), 250);
   const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
@@ -334,6 +412,8 @@ function OpdPageInner() {
     control: createControl,
     handleSubmit: handleCreateSubmit,
     reset: resetCreateVisit,
+    setValue: setCreateVisitValue,
+    watch: watchCreateVisit,
     formState: { errors: createErrors },
   } = useForm<OpdQueueVisitFormInput>({
     resolver: zodResolver(opdQueueVisitFormSchema),
@@ -344,6 +424,22 @@ function OpdPageInner() {
     closeCreate();
     resetCreateVisit(DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES);
   };
+  const createVisitType = watchCreateVisit("visit_type");
+
+  const { data: campOptionsSource = [] } = useQuery<Camp[]>({
+    queryKey: ["camps", "active-for-opd"],
+    queryFn: () => campService.listCamps({ status: "active" }),
+    enabled: canCreate,
+    staleTime: 300_000,
+  });
+  const activeCampOptions = useMemo(
+    () =>
+      campOptionsSource.map((camp) => ({
+        value: camp.id,
+        label: `${camp.camp_code} - ${camp.name}`,
+      })),
+    [campOptionsSource],
+  );
 
   const queueParams: Record<string, string> = {};
   if (filterDate) {
@@ -352,11 +448,19 @@ function OpdPageInner() {
   if (filterStatus) {
     queueParams.status = filterStatus;
   }
+  if (debouncedQueueSearch) {
+    queueParams.search = debouncedQueueSearch;
+  }
   if (filterDeptId) {
     queueParams.department_id = filterDeptId;
   }
-  if (myPatientsOnly && currentUser) {
+  if (filterDoctorId) {
+    queueParams.doctor_id = filterDoctorId;
+  } else if (myPatientsOnly && currentUser) {
     queueParams.doctor_id = currentUser.id;
+  }
+  if (queueVisitTypeTab && queueVisitTypeTab !== "all") {
+    queueParams.visit_type = queueVisitTypeTab;
   }
 
   const { data: queue = [], isLoading } = useQuery({
@@ -364,11 +468,28 @@ function OpdPageInner() {
     queryFn: () => opdService.listQueue(queueParams),
   });
 
+  const appointmentDate = filterDate || todayIsoDate();
+  const appointmentParams: Record<string, string> = { date: appointmentDate };
+  if (filterDeptId) {
+    appointmentParams.department_id = filterDeptId;
+  }
+  if (filterDoctorId) {
+    appointmentParams.doctor_id = filterDoctorId;
+  } else if (myPatientsOnly && currentUser) {
+    appointmentParams.doctor_id = currentUser.id;
+  }
+  const { data: todayAppointments = [], isLoading: loadingAppointments } = useQuery({
+    queryKey: ["opd-appointments", appointmentParams],
+    queryFn: () => opdService.listAppointments(appointmentParams),
+    enabled: canCreate || canManageToken,
+  });
+
   const createMutation = useMutation({
     mutationFn: (values: OpdQueueVisitFormInput) =>
       opdService.createEncounter(toCreateEncounterRequest(values)),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       notifications.show({
         title: "Visit created",
         message: "Patient added to queue",
@@ -385,10 +506,44 @@ function OpdPageInner() {
     },
   });
 
+  const appointmentCheckInMutation = useMutation({
+    mutationFn: (appointment: AppointmentWithPatient) =>
+      opdService.createEncounter({
+        patient_id: appointment.patient_id,
+        department_id: appointment.department_id,
+        doctor_id: appointment.doctor_id,
+        appointment_id: appointment.id,
+        visit_type: appointmentVisitType(appointment.appointment_type),
+        notes: appointment.reason ?? undefined,
+      }),
+    onSuccess: (_result, appointment) => {
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      notifications.show({
+        title: "Appointment moved to OPD",
+        message: `${appointment.patient_name} added to the OPD queue`,
+        color: "success",
+      });
+      emit("appointment.checked_in_to_opd", {
+        appointment_id: appointment.id,
+        patient_id: appointment.patient_id,
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to move appointment",
+        message: "Check whether this appointment is already closed or linked to OPD",
+        color: "danger",
+      });
+    },
+  });
+
   const callMutation = useMutation({
     mutationFn: (id: string) => opdService.callQueueEntry(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("patient.called", { queue_entry_id: id });
     },
   });
@@ -396,6 +551,7 @@ function OpdPageInner() {
     mutationFn: (id: string) => opdService.startConsultation(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("consultation.started", { queue_entry_id: id });
     },
   });
@@ -403,12 +559,16 @@ function OpdPageInner() {
     mutationFn: (id: string) => opdService.completeQueueEntry(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("encounter.completed", { queue_entry_id: id });
     },
   });
   const noShowMutation = useMutation({
     mutationFn: (id: string) => opdService.markNoShow(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["opd-queue"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
+    },
   });
 
   const columns = [
@@ -434,6 +594,11 @@ function OpdPageInner() {
       ),
     },
     {
+      key: "visit_type",
+      label: "Visit",
+      render: (row: QueueEntry) => <QueueVisitTypeBadge row={row} />,
+    },
+    {
       key: "status",
       label: "Status",
       render: (row: QueueEntry) => (
@@ -442,6 +607,11 @@ function OpdPageInner() {
           label={row.status.replace(/_/g, " ")}
         />
       ),
+    },
+    {
+      key: "appointment",
+      label: "Appointment",
+      render: (row: QueueEntry) => <QueueAppointmentMarker row={row} />,
     },
     {
       key: "queue_date",
@@ -543,47 +713,96 @@ function OpdPageInner() {
         </Tabs.List>
 
         <Tabs.Panel value="queue">
-          <Group mb="md">
-            <TextInput
-              placeholder="Date"
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.currentTarget.value)}
-              w={170}
-            />
-            <Select
-              placeholder="Status"
-              data={[
-                { value: "waiting", label: "Waiting" },
-                { value: "called", label: "Called" },
-                { value: "in_consultation", label: "In Consultation" },
-                { value: "completed", label: "Completed" },
-                { value: "no_show", label: "No Show" },
-              ]}
-              value={filterStatus}
-              onChange={setFilterStatus}
-              clearable
-              w={170}
-            />
-            <Select
-              placeholder="Department"
-              data={deptOptions}
-              value={filterDeptId}
-              onChange={setFilterDeptId}
-              clearable
-              searchable
-              w={200}
-            />
-            <Switch
-              label="My Patients"
-              checked={myPatientsOnly}
-              onChange={(e) => setMyPatientsOnly(e.currentTarget.checked)}
-            />
-            <WaitTimeBadge
-              departmentId={filterDeptId ?? undefined}
-              doctorId={myPatientsOnly && currentUser ? currentUser.id : undefined}
-            />
-          </Group>
+          <Stack gap="md" mb="md">
+            <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab}>
+              <Tabs.List>
+                <Tabs.Tab value="all">All</Tabs.Tab>
+                <Tabs.Tab value="walk_in">Walk-in</Tabs.Tab>
+                <Tabs.Tab value="booked">Appointments</Tabs.Tab>
+                <Tabs.Tab value="follow_up">Follow-up</Tabs.Tab>
+                <Tabs.Tab value="referral">Referral</Tabs.Tab>
+                <Tabs.Tab value="emergency">Emergency</Tabs.Tab>
+                <Tabs.Tab value="camp">Camp</Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+            <Group align="end">
+              <TextInput
+                placeholder="Search token, patient, UHID, phone"
+                leftSection={<IconSearch size={16} />}
+                value={queueSearch}
+                onChange={(e) => setQueueSearch(e.currentTarget.value)}
+                w={280}
+              />
+              <TextInput
+                placeholder="Date"
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.currentTarget.value)}
+                w={170}
+              />
+              <Select
+                placeholder="Status"
+                data={[
+                  { value: "waiting", label: "Waiting" },
+                  { value: "called", label: "Called" },
+                  { value: "in_consultation", label: "In Consultation" },
+                  { value: "completed", label: "Completed" },
+                  { value: "no_show", label: "No Show" },
+                ]}
+                value={filterStatus}
+                onChange={setFilterStatus}
+                clearable
+                w={170}
+              />
+              <Select
+                placeholder="Department"
+                data={deptOptions}
+                value={filterDeptId}
+                onChange={setFilterDeptId}
+                clearable
+                searchable
+                w={200}
+              />
+              <div style={{ width: 240 }}>
+                <DoctorSearchSelect
+                  label="Doctor"
+                  placeholder="Filter doctor"
+                  value={filterDoctorId ?? ""}
+                  onChange={(value) => {
+                    setFilterDoctorId(value || null);
+                    if (value) {
+                      setMyPatientsOnly(false);
+                    }
+                  }}
+                />
+              </div>
+              <Switch
+                label="My Patients"
+                checked={myPatientsOnly}
+                onChange={(e) => {
+                  setMyPatientsOnly(e.currentTarget.checked);
+                  if (e.currentTarget.checked) {
+                    setFilterDoctorId(null);
+                  }
+                }}
+              />
+              <WaitTimeBadge
+                departmentId={filterDeptId ?? undefined}
+                doctorId={
+                  filterDoctorId ?? (myPatientsOnly && currentUser ? currentUser.id : undefined)
+                }
+              />
+            </Group>
+          </Stack>
+          <TodayAppointmentsPanel
+            appointments={todayAppointments}
+            appointmentDate={appointmentDate}
+            loading={loadingAppointments}
+            canCheckIn={canCreate}
+            checkingInId={appointmentCheckInMutation.variables?.id}
+            isCheckingIn={appointmentCheckInMutation.isPending}
+            onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
+          />
           <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
         </Tabs.Panel>
 
@@ -616,12 +835,36 @@ function OpdPageInner() {
                 label="Visit Type"
                 data={OPD_VISIT_TYPE_OPTIONS}
                 value={field.value}
-                onChange={(value) => field.onChange(value ?? "walk_in")}
+                onChange={(value) => {
+                  const nextValue = value ?? "walk_in";
+                  field.onChange(nextValue);
+                  if (nextValue !== "camp") {
+                    setCreateVisitValue("camp_id", null, { shouldValidate: true });
+                  }
+                }}
                 error={createErrors.visit_type?.message}
                 required
               />
             )}
           />
+          {createVisitType === "camp" && (
+            <Controller
+              control={createControl}
+              name="camp_id"
+              render={({ field }) => (
+                <Select
+                  label="Camp"
+                  placeholder="Select active camp"
+                  data={activeCampOptions}
+                  value={field.value ?? null}
+                  onChange={(value) => field.onChange(value ?? null)}
+                  error={createErrors.camp_id?.message}
+                  searchable
+                  required
+                />
+              )}
+            />
+          )}
           <Controller
             control={createControl}
             name="patient_id"
@@ -713,9 +956,193 @@ function OpdPageInner() {
   );
 }
 
+function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
+  if (!row.appointment_id) {
+    return (
+      <Badge size="sm" variant="light" color="gray">
+        Walk-in
+      </Badge>
+    );
+  }
+
+  const typeLabel = appointmentTypeLabels[row.appointment_type ?? "new_visit"] ?? "Appointment";
+  const status = row.appointment_status ?? row.status;
+  const statusLabel = appointmentStatusLabels[status] ?? status.replace(/_/g, " ");
+
+  return (
+    <Stack gap={2}>
+      <Group gap={4}>
+        <Badge size="sm" variant="light" color="primary">
+          {typeLabel}
+        </Badge>
+        <Badge size="sm" color={appointmentStatusColors[status] ?? "gray"}>
+          {statusLabel}
+        </Badge>
+      </Group>
+      <Text size="xs" c="dimmed">
+        {appointmentSlotLabel(row)}
+      </Text>
+      {row.appointment_reason && (
+        <Text size="xs" c="dimmed" lineClamp={1}>
+          {row.appointment_reason}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
+  const visitType = row.visit_type ?? (row.appointment_id ? "booked" : "walk_in");
+  return (
+    <Stack gap={2}>
+      <Badge size="sm" variant="light" color={queueVisitTypeColors[visitType] ?? "gray"}>
+        {queueVisitTypeLabels[visitType] ?? visitType.replace(/_/g, " ")}
+      </Badge>
+      {visitType === "camp" && row.camp_name && (
+        <Text size="xs" c="dimmed" lineClamp={1}>
+          {row.camp_name}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+function TodayAppointmentsPanel({
+  appointments,
+  appointmentDate,
+  loading,
+  canCheckIn,
+  checkingInId,
+  isCheckingIn,
+  onCheckIn,
+}: {
+  appointments: AppointmentWithPatient[];
+  appointmentDate: string;
+  loading: boolean;
+  canCheckIn: boolean;
+  checkingInId?: string;
+  isCheckingIn: boolean;
+  onCheckIn: (appointment: AppointmentWithPatient) => void;
+}) {
+  const today = todayIsoDate();
+
+  return (
+    <Card withBorder mb="md" p="sm">
+      <Group justify="space-between" mb="xs">
+        <div>
+          <Text fw={600} size="sm">
+            Booked and follow-up appointments
+          </Text>
+          <Text size="xs" c="dimmed">
+            {appointmentDate} - move time-based appointments into OPD from here
+          </Text>
+        </div>
+        <Badge variant="light" color="primary">
+          {appointments.length}
+        </Badge>
+      </Group>
+
+      {loading ? (
+        <Group py="md" justify="center">
+          <Loader size="sm" />
+          <Text size="sm" c="dimmed">
+            Loading appointments
+          </Text>
+        </Group>
+      ) : appointments.length === 0 ? (
+        <Text size="sm" c="dimmed" py="xs">
+          No booked or follow-up appointments for this date.
+        </Text>
+      ) : (
+        <Table verticalSpacing="xs" withRowBorders={false}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Time</Table.Th>
+              <Table.Th>Patient</Table.Th>
+              <Table.Th>Doctor</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {appointments.map((appointment) => {
+              const isFutureAppointment = appointment.appointment_date > today;
+              const canMoveToOpd =
+                !appointment.encounter_id &&
+                !isFutureAppointment &&
+                ["scheduled", "confirmed", "checked_in"].includes(appointment.status);
+              const statusLabel =
+                appointmentStatusLabels[appointment.status] ??
+                appointment.status.replace(/_/g, " ");
+              return (
+                <Table.Tr key={appointment.id}>
+                  <Table.Td>
+                    <Text size="sm">{appointmentSlotLabel(appointment)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {appointment.patient_name}
+                    </Text>
+                    {appointment.reason && (
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {appointment.reason}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{appointment.doctor_name}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="sm" variant="light" color="primary">
+                      {appointmentTypeLabels[appointment.appointment_type] ??
+                        appointment.appointment_type}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="sm" color={appointmentStatusColors[appointment.status] ?? "gray"}>
+                      {statusLabel}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {appointment.status === "completed" ? (
+                      <Badge size="sm" color="success">
+                        Carried out
+                      </Badge>
+                    ) : appointment.encounter_id ? (
+                      <Badge size="sm" variant="light" color="warning">
+                        In OPD
+                      </Badge>
+                    ) : isFutureAppointment ? (
+                      <Badge size="sm" variant="light" color="gray">
+                        Future slot
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconPlayerPlay size={14} />}
+                        disabled={!canCheckIn || !canMoveToOpd}
+                        loading={isCheckingIn && checkingInId === appointment.id}
+                        onClick={() => onCheckIn(appointment)}
+                      >
+                        Send to OPD
+                      </Button>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Card>
+  );
+}
+
 // ── Encounter detail tabs ────────────────────────────────
 
-function EncounterDetail({
+export function EncounterDetail({
   encounterId,
   patientId,
   patientName,
@@ -1097,7 +1524,7 @@ function EncounterDetail({
         {/* ── Right: Content panels ── */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
           <Tabs.Panel value="vitals">
-            <VitalsTab encounterId={encounterId} canUpdate={canUpdate} />
+            <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="consultation">
             <ConsultationTab
@@ -1277,7 +1704,15 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
 
 // ── Vitals ───────────────────────────────────────────────
 
-function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
+function VitalsTab({
+  encounterId,
+  patientId,
+  canUpdate,
+}: {
+  encounterId: string;
+  patientId: string;
+  canUpdate: boolean;
+}) {
   const emit = useClinicalEmit();
   const [formOpened, formHandlers] = useDisclosure(false);
 
@@ -1285,6 +1720,15 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
   // automatically when a tenant turns on tenant_settings.clinical.
   // offline_mode + provides an edge_url. No code change here.
   const { records: vitals, append, unsyncedOps } = useVitalsSource({ encounterId });
+  const { data: patientVitals = [] } = useQuery({
+    queryKey: ["patient-vitals-history", patientId, "timeline"],
+    queryFn: () => opdService.listPatientVitalsHistory(patientId),
+  });
+  const patientVitalsTimeline = useMemo(
+    () =>
+      [...patientVitals].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at)).slice(0, 12),
+    [patientVitals],
+  );
 
   const handleSubmit = (data: CreateVitalRequest) => {
     append(data);
@@ -1420,6 +1864,64 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
             );
           })}
         </Timeline>
+      )}
+      {patientVitalsTimeline.length > 0 && (
+        <Stack gap="xs">
+          <Text fw={600} size="sm">
+            Patient vitals timeline
+          </Text>
+          <Timeline active={0} bulletSize={28} lineWidth={2} color="teal">
+            {patientVitalsTimeline.map((v: VitalHistoryPoint) => (
+              <Timeline.Item
+                key={v.id}
+                bullet={<IconHeartbeat size={14} />}
+                title={
+                  <Group gap="xs">
+                    <Text size="sm" fw={600}>
+                      {new Date(v.recorded_at).toLocaleString()}
+                    </Text>
+                    {v.encounter_id === encounterId && (
+                      <Badge size="xs" color="primary" variant="light">
+                        Current encounter
+                      </Badge>
+                    )}
+                  </Group>
+                }
+              >
+                <Group gap="xs" mt={4} wrap="wrap">
+                  {v.temperature != null && (
+                    <Badge
+                      variant="light"
+                      color={Number(v.temperature) > 37.5 ? "danger" : "primary"}
+                    >
+                      Temp {v.temperature}°C
+                    </Badge>
+                  )}
+                  {v.pulse != null && (
+                    <Badge
+                      variant="light"
+                      color={v.pulse > 100 ? "danger" : v.pulse < 60 ? "warning" : "primary"}
+                    >
+                      Pulse {v.pulse}
+                    </Badge>
+                  )}
+                  {v.systolic_bp != null && v.diastolic_bp != null && (
+                    <Badge variant="light">
+                      BP {v.systolic_bp}/{v.diastolic_bp}
+                    </Badge>
+                  )}
+                  {v.spo2 != null && (
+                    <Badge variant="light" color={v.spo2 < 94 ? "danger" : "primary"}>
+                      SpO₂ {v.spo2}%
+                    </Badge>
+                  )}
+                  {v.weight_kg != null && <Badge variant="outline">Weight {v.weight_kg} kg</Badge>}
+                  {v.bmi != null && <Badge variant="outline">BMI {v.bmi}</Badge>}
+                </Group>
+              </Timeline.Item>
+            ))}
+          </Timeline>
+        </Stack>
       )}
     </Stack>
   );
@@ -2318,16 +2820,29 @@ function FollowUpTab({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
   const [booked, setBooked] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<OpdFollowUpAppointmentFormInput>({
+    resolver: zodResolver(opdFollowUpAppointmentFormSchema),
+    defaultValues: DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
+  });
+
+  const selectedDate = watch("appointment_date");
+  const selectedSlot = watch("slot");
+  const selectedDateValue = selectedDate ?? "";
 
   // Get available slots when date is set and doctor is known
   const { data: slots = [], isLoading: loadingSlots } = useQuery({
-    queryKey: ["available-slots", doctorId, selectedDate],
-    queryFn: () => opdService.getAvailableSlots(doctorId as string, selectedDate),
-    enabled: Boolean(doctorId) && Boolean(selectedDate),
+    queryKey: ["available-slots", doctorId, selectedDateValue],
+    queryFn: () =>
+      doctorId ? opdService.getAvailableSlots(doctorId, selectedDateValue) : Promise.resolve([]),
+    enabled: Boolean(doctorId) && Boolean(selectedDateValue),
   });
 
   const availableSlots = slots.filter((s: AvailableSlot) => s.is_available);
@@ -2338,14 +2853,16 @@ function FollowUpTab({
 
   const bookMutation = useMutation({
     mutationFn: (data: BookAppointmentRequest) => opdService.bookAppointment(data),
-    onSuccess: () => {
+    onSuccess: (appointment) => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       notifications.show({
         title: "Follow-up scheduled",
-        message: `Appointment booked for ${selectedDate}`,
+        message: `Appointment booked for ${appointment.appointment_date}`,
         color: "success",
       });
-      emit("followup.scheduled", { patient_id: patientId, date: selectedDate });
+      emit("followup.scheduled", { patient_id: patientId, date: appointment.appointment_date });
+      reset(DEFAULT_OPD_FOLLOW_UP_FORM_VALUES);
       setBooked(true);
     },
     onError: () => {
@@ -2353,25 +2870,17 @@ function FollowUpTab({
     },
   });
 
-  const handleBook = () => {
-    if (!doctorId || !selectedSlot || !selectedDate) return;
-    const parts = selectedSlot.split("|");
-    bookMutation.mutate({
-      patient_id: patientId,
-      doctor_id: doctorId,
-      department_id: departmentId,
-      appointment_date: selectedDate,
-      slot_start: parts[0] ?? "",
-      slot_end: parts[1] ?? "",
-      appointment_type: "follow_up",
-      reason: reason.trim() || undefined,
-    });
+  const handleBook = (values: OpdFollowUpAppointmentFormInput) => {
+    if (!doctorId) return;
+    bookMutation.mutate(
+      toBookFollowUpAppointmentRequest(values, patientId, doctorId, departmentId),
+    );
   };
 
   // Calculate min date (tomorrow)
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split("T")[0];
+  const minDate = toDateString(tomorrow);
 
   if (!doctorId) {
     return (
@@ -2390,9 +2899,16 @@ function FollowUpTab({
             Follow-up Scheduled
           </Text>
           <Text size="sm" c="dimmed">
-            Appointment booked for {selectedDate}
+            Appointment was added to the appointment list and OPD handoff panel.
           </Text>
-          <Button variant="subtle" size="sm" onClick={() => setBooked(false)}>
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => {
+              setBooked(false);
+              reset(DEFAULT_OPD_FOLLOW_UP_FORM_VALUES);
+            }}
+          >
             Schedule Another
           </Button>
         </Stack>
@@ -2403,21 +2919,34 @@ function FollowUpTab({
   return (
     <Stack>
       {canUpdate ? (
-        <Card padding="sm" radius="md" withBorder>
+        <Card
+          component="form"
+          onSubmit={handleSubmit(handleBook)}
+          padding="sm"
+          radius="md"
+          withBorder
+        >
           <Stack gap="sm">
             <Text size="sm" fw={600}>
               Schedule Follow-up Appointment
             </Text>
-            <TextInput
-              label="Follow-up Date"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.currentTarget.value);
-                setSelectedSlot(null);
-              }}
-              min={minDate}
-              required
+            <Controller
+              control={control}
+              name="appointment_date"
+              render={({ field }) => (
+                <TextInput
+                  label="Follow-up Date"
+                  type="date"
+                  value={field.value ?? ""}
+                  onChange={(event) => {
+                    field.onChange(event.currentTarget.value);
+                    setValue("slot", null, { shouldValidate: true });
+                  }}
+                  min={minDate}
+                  error={errors.appointment_date?.message}
+                  required
+                />
+              )}
             />
             {selectedDate &&
               (loadingSlots ? (
@@ -2425,33 +2954,45 @@ function FollowUpTab({
                   Loading available slots...
                 </Text>
               ) : slotOptions.length > 0 ? (
-                <Select
-                  label="Available Slot"
-                  placeholder="Select a time slot"
-                  data={slotOptions}
-                  value={selectedSlot}
-                  onChange={setSelectedSlot}
-                  required
+                <Controller
+                  control={control}
+                  name="slot"
+                  render={({ field }) => (
+                    <Select
+                      label="Available Slot"
+                      placeholder="Select a time slot"
+                      data={slotOptions}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.slot?.message}
+                      required
+                    />
+                  )}
                 />
               ) : (
                 <Text size="sm" c="orange">
                   No available slots on this date. Try a different date.
                 </Text>
               ))}
-            <Textarea
-              label="Reason for Follow-up"
-              placeholder="Post-op review, lab result review, medication adjustment..."
-              value={reason}
-              onChange={(e) => setReason(e.currentTarget.value)}
-              autosize
-              minRows={2}
-              maxRows={3}
+            <Controller
+              control={control}
+              name="reason"
+              render={({ field }) => (
+                <Textarea
+                  label="Reason for Follow-up"
+                  placeholder="Post-op review, lab result review, medication adjustment..."
+                  autosize
+                  minRows={2}
+                  maxRows={3}
+                  {...field}
+                />
+              )}
             />
             <Group justify="flex-end">
               <Button
+                type="submit"
                 size="sm"
                 leftSection={<IconCalendarPlus size={14} />}
-                onClick={handleBook}
                 loading={bookMutation.isPending}
                 disabled={!selectedDate || !selectedSlot}
               >
@@ -2694,7 +3235,7 @@ function CertificatesTab({
   const queryClient = useQueryClient();
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [certType, setCertType] = useState<string | null>(null);
-  const [issuedDate, setIssuedDate] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  const [issuedDate, setIssuedDate] = useState(() => todayDateString());
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -2728,7 +3269,7 @@ function CertificatesTab({
 
   const resetForm = () => {
     setCertType(null);
-    setIssuedDate(new Date().toISOString().split("T")[0] ?? "");
+    setIssuedDate(todayDateString());
     setValidFrom("");
     setValidTo("");
     setDiagnosis("");
@@ -4316,9 +4857,7 @@ function ConsentsTab({
 
 function DocketTab() {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(
-    () => new Date().toISOString().split("T")[0] ?? "",
-  );
+  const [selectedDate, setSelectedDate] = useState(() => todayDateString());
 
   const { data: docket, isLoading } = useQuery({
     queryKey: ["docket", selectedDate],
@@ -5092,7 +5631,7 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split("T")[0];
+  const minDate = toDateString(tomorrow);
 
   return (
     <>

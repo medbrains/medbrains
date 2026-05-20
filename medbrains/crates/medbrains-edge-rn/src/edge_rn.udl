@@ -193,4 +193,6 @@ interface RevocationCacheHandle {
     void forget(string user_id);
 
     u32 len();
+
+    boolean is_empty();
 };

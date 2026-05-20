@@ -1,3 +1,5 @@
+#![allow(dead_code, unreachable_pub)]
+
 //! Integration test harness — spawns Axum server on a random port.
 //!
 //! Requires PostgreSQL running (same as dev: `docker compose up -d postgres`).
@@ -20,7 +22,6 @@ use medbrains_server::{
 pub struct TestApp {
     pub addr: SocketAddr,
     pub client: Client,
-    pub db: sqlx::PgPool,
 }
 
 impl TestApp {
@@ -166,5 +167,5 @@ pub async fn spawn_app() -> TestApp {
         .build()
         .expect("client");
 
-    TestApp { addr, client, db }
+    TestApp { addr, client }
 }

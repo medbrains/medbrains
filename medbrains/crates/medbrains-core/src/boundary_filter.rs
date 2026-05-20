@@ -4,7 +4,7 @@
 //! Used by:
 //! - on-prem outbox worker, before dispatching events to the cloud
 //!   event bus over the bridge tailnet
-//! - on-prem audit forwarder, before shipping access_log entries to a
+//! - on-prem audit forwarder, before shipping `access_log` entries to a
 //!   cloud SIEM
 //! - any handler that builds a payload destined for cloud egress
 //!
@@ -225,7 +225,7 @@ impl BoundaryFilter {
                             map.insert(key, Value::Null);
                             redacted.push(dotted);
                         }
-                        Some(Classification::Metadata) | Some(Classification::None) => {
+                        Some(Classification::Metadata | Classification::None) => {
                             // Safe; recurse for nested objects
                             if let Some(child) = map.get_mut(&key) {
                                 Self::walk(

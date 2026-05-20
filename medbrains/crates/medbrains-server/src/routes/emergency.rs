@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use chrono::Utc;
 use medbrains_core::emergency::{
     ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase,
     MlcDocument, MlcPoliceIntimation,
@@ -211,7 +212,7 @@ async fn auto_create_mlc_case_for_visit(
     history_of_incident: Option<&str>,
 ) -> Result<(), AppError> {
     let suffix = er_visit_id.to_string().chars().take(8).collect::<String>();
-    let mlc_number = format!("MLC-{}-{suffix}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let mlc_number = format!("MLC-{}-{suffix}", Utc::now().format("%Y%m%d%H%M%S"));
 
     sqlx::query!(
         "INSERT INTO mlc_cases
@@ -283,7 +284,7 @@ pub async fn create_visit(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let visit_number = format!("ER-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let visit_number = format!("ER-{}", Utc::now().format("%Y%m%d%H%M%S"));
     let inferred_mlc_case_type = infer_mlc_case_type(&[
         body.chief_complaint.as_deref(),
         body.notes.as_deref(),
@@ -613,7 +614,7 @@ pub async fn create_code_activation(
     // expires automatically; the SpiceDB Watch consumer (M5) bumps
     // perm_version when expiry fires so the JWT is re-issued without
     // the elevated grant.
-    let break_glass_expiry = chrono::Utc::now() + chrono::Duration::hours(4);
+    let break_glass_expiry = Utc::now() + chrono::Duration::hours(4);
     let group_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM access_groups \
          WHERE tenant_id = $1 AND code = 'code_blue_team' AND is_active = true",
@@ -725,7 +726,7 @@ pub async fn create_mlc_case(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mlc_number = format!("MLC-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let mlc_number = format!("MLC-{}", Utc::now().format("%Y%m%d%H%M%S"));
 
     let row = sqlx::query_as::<_, MlcCase>(
         "INSERT INTO mlc_cases (tenant_id, er_visit_id, patient_id, mlc_number, case_type, fir_number, police_station,
@@ -876,7 +877,7 @@ pub async fn create_police_intimation(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let intimation_number = format!("PI-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let intimation_number = format!("PI-{}", Utc::now().format("%Y%m%d%H%M%S"));
 
     let row = sqlx::query_as::<_, MlcPoliceIntimation>(
         "INSERT INTO mlc_police_intimations (tenant_id, mlc_case_id, intimation_number, police_station,
@@ -1021,15 +1022,32 @@ pub async fn admit_from_er(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Verify the ER visit exists
-    let visit_patient_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT patient_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
+    #[derive(sqlx::FromRow)]
+    struct ErAdmissionSource {
+        patient_id: Uuid,
+        attending_doctor_id: Option<Uuid>,
+        chief_complaint: Option<String>,
+        admission_id: Option<Uuid>,
+        status: String,
+    }
+
+    let visit = sqlx::query_as::<_, ErAdmissionSource>(
+        "SELECT patient_id, attending_doctor_id, chief_complaint, admission_id, \
+                status::text AS status \
+         FROM er_visits \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    if visit.admission_id.is_some() || visit.status == "admitted" {
+        return Err(AppError::Conflict(
+            "ER visit is already linked to an IPD admission".to_owned(),
+        ));
+    }
 
     let ward_id = body
         .get("ward_id")
@@ -1044,39 +1062,105 @@ pub async fn admit_from_er(
     let admitting_doctor_id = body
         .get("admitting_doctor_id")
         .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<Uuid>().ok());
+        .and_then(|s| s.parse::<Uuid>().ok())
+        .or(visit.attending_doctor_id)
+        .unwrap_or(claims.sub);
 
-    let reason = body
-        .get("reason")
+    let admission_notes = body
+        .get("admission_notes")
         .and_then(|v| v.as_str())
-        .unwrap_or("ER admission");
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned);
+    let reason = admission_notes
+        .clone()
+        .or_else(|| visit.chief_complaint.clone())
+        .unwrap_or_else(|| "ER admission".to_owned());
+
+    let bed_ward_id = if let Some(selected_bed_id) = bed_id {
+        sqlx::query_scalar::<_, Option<Uuid>>(
+            "SELECT ward_id FROM bed_states WHERE location_id = $1 AND tenant_id = $2",
+        )
+        .bind(selected_bed_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten()
+    } else {
+        None
+    };
+    let admission_ward_id = ward_id.or(bed_ward_id);
+
+    let encounter_date =
+        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let encounter_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO encounters \
+         (tenant_id, patient_id, encounter_type, status, doctor_id, encounter_date, notes, attributes) \
+         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(visit.patient_id)
+    .bind(admitting_doctor_id)
+    .bind(encounter_date)
+    .bind(&reason)
+    .bind(serde_json::json!({
+        "source": "er",
+        "er_visit_id": id,
+    }))
+    .fetch_one(&mut *tx)
+    .await?;
 
     // Create the IPD admission
     let admission_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO admissions \
-         (tenant_id, patient_id, ward_id, bed_id, admitting_doctor_id, \
-          admission_type, reason, status, admitted_by, er_visit_id) \
-         VALUES ($1, $2, $3, $4, $5, 'emergency', $6, 'admitted', $7, $8) \
+         (tenant_id, encounter_id, patient_id, bed_id, admitting_doctor, status, admitted_at, \
+          admission_source, referral_notes, ward_id, er_visit_id, created_by) \
+         VALUES ($1, $2, $3, $4, $5, 'admitted'::admission_status, now(), \
+                 'er'::admission_source, $6, $7, $8, $9) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
-    .bind(visit_patient_id)
-    .bind(ward_id)
+    .bind(encounter_id)
+    .bind(visit.patient_id)
     .bind(bed_id)
     .bind(admitting_doctor_id)
-    .bind(reason)
-    .bind(claims.sub)
+    .bind(&reason)
+    .bind(admission_ward_id)
     .bind(id)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
+    if let Some(selected_bed_id) = bed_id {
+        sqlx::query(
+            "UPDATE bed_states \
+             SET ward_id = COALESCE($3, ward_id), admission_id = $4, patient_id = $5, \
+                 status = 'occupied'::bed_status, changed_by = $6, changed_at = now() \
+             WHERE location_id = $1 AND tenant_id = $2",
+        )
+        .bind(selected_bed_id)
+        .bind(claims.tenant_id)
+        .bind(admission_ward_id)
+        .bind(admission_id)
+        .bind(visit.patient_id)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     // Update ER visit disposition
     sqlx::query(
-        "UPDATE er_visits SET disposition = 'admitted', \
-         disposition_time = now() WHERE id = $1 AND tenant_id = $2",
+        "UPDATE er_visits \
+         SET status = 'admitted'::er_visit_status, disposition = 'admitted', \
+             disposition_time = now(), disposition_notes = $3, admission_id = $4, \
+             admitted_to = $5::text, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(&reason)
+    .bind(admission_id)
+    .bind(admission_ward_id.map(|value| value.to_string()))
     .execute(&mut *tx)
     .await?;
 
@@ -1084,7 +1168,7 @@ pub async fn admit_from_er(
     Ok(Json(serde_json::json!({
         "er_visit_id": id,
         "admission_id": admission_id,
-        "patient_id": visit_patient_id,
+        "patient_id": visit.patient_id,
         "status": "admitted"
     })))
 }

@@ -56,7 +56,7 @@ pub enum Topology {
 }
 
 impl Topology {
-    pub fn as_code(self) -> &'static str {
+    pub const fn as_code(self) -> &'static str {
         match self {
             Self::Aurora => "aurora",
             Self::Patroni => "patroni",

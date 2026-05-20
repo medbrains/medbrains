@@ -13,7 +13,7 @@
 //!      a webhook to `/api/integrations/nhcx/callback` (separate handler).
 //!
 //! Credentials per tenant via `secret_resolver`:
-//!   - `NHCX_BASE_URL`              — e.g. https://apisbx.abdm.gov.in/hcx/v1 (sandbox)
+//!   - `NHCX_BASE_URL`              — e.g. <https://apisbx.abdm.gov.in/hcx/v1> (sandbox)
 //!   - `NHCX_PARTICIPANT_CODE`      — issued by NHCX onboarding
 //!   - `NHCX_PRIVATE_KEY_PEM`       — hospital's RS256 signing key
 //!   - `NHCX_RECIPIENT_PUBLIC_KEY`  — payer's RSA pubkey (PEM, fetched from NHCX directory)

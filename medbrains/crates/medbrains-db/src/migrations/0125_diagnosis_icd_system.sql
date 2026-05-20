@@ -1,11 +1,3 @@
--- ====================================================================
--- Migration: 0125_diagnosis_icd_system.sql
--- RLS-Posture: tenant-scoped
--- Tenant-Column: tenant_id
--- New-Tables: none
--- Drops: none
--- ====================================================================
-
 -- Track which ICD revision a diagnosis code belongs to.
 -- Existing rows are preserved as ICD-10; new OPD coding can explicitly use ICD-11.
 

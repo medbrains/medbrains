@@ -21,7 +21,7 @@ pub struct Patient {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub telecom: Vec<ContactPoint>,
 
-    /// `male` | `female` | `other` | `unknown` (FHIR AdministrativeGender).
+    /// `male` | `female` | `other` | `unknown` (FHIR `AdministrativeGender`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gender: Option<String>,
 

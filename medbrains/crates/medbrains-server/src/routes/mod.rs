@@ -3998,6 +3998,10 @@ pub fn build_router(state: AppState) -> Router {
             put(camp::update_registration),
         )
         .route(
+            "/api/camp/registrations/{id}/open-encounter",
+            post(camp::open_registration_encounter),
+        )
+        .route(
             "/api/camp/screenings",
             get(camp::list_screenings).post(camp::create_screening),
         )

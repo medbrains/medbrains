@@ -18,6 +18,7 @@ export const campService = {
   createCampIncident: api.createCampIncident,
   listCampRegistrations: api.listCampRegistrations,
   createCampRegistration: api.createCampRegistration,
+  openCampRegistrationEncounter: api.openCampRegistrationEncounter,
   listCampScreenings: api.listCampScreenings,
   listCampLabSamples: api.listCampLabSamples,
   createCampScreening: api.createCampScreening,

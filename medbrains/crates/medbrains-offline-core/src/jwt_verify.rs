@@ -70,12 +70,12 @@ pub struct JwtClaims {
     #[serde(default)]
     pub department_ids: Vec<Uuid>,
     /// Flat permission strings (e.g. `"opd.visit.create"`). Used
-    /// only as a fallback when the AuthzCache misses for a non-
+    /// only as a fallback when the `AuthzCache` misses for a non-
     /// online-required action.
     #[serde(default)]
     pub permissions: Vec<String>,
     /// Role label for analytics + UI gating. Authoritative
-    /// permission check is `permissions` + AuthzCache.
+    /// permission check is `permissions` + `AuthzCache`.
     #[serde(default)]
     pub role: Option<String>,
 }

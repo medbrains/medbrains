@@ -328,12 +328,25 @@ pub async fn check_in_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let appointment_date = sqlx::query_scalar::<_, NaiveDate>(
+        "SELECT appointment_date FROM appointments \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('scheduled', 'confirmed')",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
     // token_number column is INTEGER (INT4) — cast result so sqlx
-    // can decode into i64 cleanly.
+    // can decode into i64 cleanly. The sequence is scoped to the appointment's
+    // hospital-local date, not the database server's current date.
     let token: i64 = sqlx::query_scalar(
         "SELECT (COALESCE(MAX(token_number), 0) + 1)::BIGINT FROM appointments \
-         WHERE appointment_date = CURRENT_DATE AND token_number IS NOT NULL",
+         WHERE tenant_id = $1 AND appointment_date = $2 AND token_number IS NOT NULL",
     )
+    .bind(claims.tenant_id)
+    .bind(appointment_date)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -341,11 +354,12 @@ pub async fn check_in_appointment(
         "UPDATE appointments SET \
          status = 'checked_in', token_number = $1, \
          checked_in_at = now(), updated_at = now() \
-         WHERE id = $2 AND status IN ('scheduled', 'confirmed') \
+         WHERE id = $2 AND tenant_id = $3 AND status IN ('scheduled', 'confirmed') \
          RETURNING *",
     )
     .bind(token as i32)
     .bind(id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

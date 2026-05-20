@@ -1,3 +1,4 @@
-fn main() {
-    uniffi::generate_scaffolding("./src/edge_rn.udl").expect("uniffi scaffolding");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    uniffi::generate_scaffolding("./src/edge_rn.udl")?;
+    Ok(())
 }

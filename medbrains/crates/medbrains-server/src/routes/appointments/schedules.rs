@@ -19,6 +19,9 @@ use super::{
     ListSlotsQuery, UpdateScheduleRequest,
 };
 
+const DEFAULT_SLOT_DURATION_MINS: i32 = 15;
+const DEFAULT_SLOT_CAPACITY: i32 = 1;
+
 /// GET /`api/opd/schedules?doctor_id=&department_id`=
 pub async fn list_schedules(
     State(state): State<AppState>,
@@ -235,8 +238,9 @@ pub async fn delete_exception(
 /// Computes available slots for a doctor on a given date by:
 /// 1. Checking schedule exceptions (holiday → no slots)
 /// 2. Looking up the weekly schedule for that day of week
-/// 3. Generating time slots from schedule
-/// 4. Counting existing appointments per slot
+/// 3. Falling back to department/default OPD hours when no doctor rota exists
+/// 4. Generating time slots from schedule
+/// 5. Counting existing appointments per slot
 pub async fn get_available_slots(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -274,31 +278,40 @@ pub async fn get_available_slots(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let (start, end, duration, max) = match (&exception, &schedule) {
+    let fallback_periods =
+        fallback_working_periods(&mut tx, &claims.tenant_id, doctor_id, day_of_week).await?;
+
+    let (periods, duration, max) = match (&exception, &schedule) {
         (Some(exc), _) if exc.is_available => {
-            let schedule_start = NaiveTime::from_hms_opt(9, 0, 0).unwrap_or_default();
-            let schedule_end = NaiveTime::from_hms_opt(17, 0, 0).unwrap_or_default();
+            let (fallback_start, fallback_end) = fallback_periods
+                .first()
+                .copied()
+                .unwrap_or_else(default_primary_period);
             let dur = schedule
                 .as_ref()
-                .map_or(15, |entry| entry.slot_duration_mins);
-            let max_patients = schedule.as_ref().map_or(20, |entry| entry.max_patients);
+                .map_or(DEFAULT_SLOT_DURATION_MINS, |entry| entry.slot_duration_mins);
+            let max_patients = schedule
+                .as_ref()
+                .map_or(DEFAULT_SLOT_CAPACITY, |entry| entry.max_patients);
             (
-                exc.start_time.unwrap_or(schedule_start),
-                exc.end_time.unwrap_or(schedule_end),
+                vec![(
+                    exc.start_time.unwrap_or(fallback_start),
+                    exc.end_time.unwrap_or(fallback_end),
+                )],
                 dur,
                 max_patients,
             )
         }
         (None, Some(schedule_entry)) => (
-            schedule_entry.start_time,
-            schedule_entry.end_time,
+            vec![(schedule_entry.start_time, schedule_entry.end_time)],
             schedule_entry.slot_duration_mins,
             schedule_entry.max_patients,
         ),
-        _ => {
-            tx.commit().await?;
-            return Ok(Json(vec![]));
-        }
+        _ => (
+            fallback_periods,
+            DEFAULT_SLOT_DURATION_MINS,
+            DEFAULT_SLOT_CAPACITY,
+        ),
     };
 
     #[derive(sqlx::FromRow)]
@@ -321,35 +334,127 @@ pub async fn get_available_slots(
     tx.commit().await?;
 
     let mut slots = Vec::new();
-    let mut current = start;
     let duration_secs = i64::from(duration) * 60;
     let midnight = NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default();
 
-    while current < end {
-        let slot_end_secs = current.signed_duration_since(midnight).num_seconds() + duration_secs;
-        let slot_end =
-            NaiveTime::from_num_seconds_from_midnight_opt(slot_end_secs.min(86_399) as u32, 0)
-                .unwrap_or(end);
+    for (start, end) in periods {
+        let mut current = start;
+        while current < end {
+            let slot_end_secs =
+                current.signed_duration_since(midnight).num_seconds() + duration_secs;
+            let slot_end =
+                NaiveTime::from_num_seconds_from_midnight_opt(slot_end_secs.min(86_399) as u32, 0)
+                    .unwrap_or(end);
 
-        if slot_end > end {
-            break;
+            if slot_end > end {
+                break;
+            }
+
+            let booked_count = booked
+                .iter()
+                .find(|slot| slot.slot_start == current)
+                .map_or(0, |slot| slot.count);
+
+            slots.push(AvailableSlot {
+                start_time: current,
+                end_time: slot_end,
+                booked_count,
+                max_patients: max,
+                is_available: booked_count < i64::from(max),
+            });
+
+            current = slot_end;
         }
-
-        let booked_count = booked
-            .iter()
-            .find(|slot| slot.slot_start == current)
-            .map_or(0, |slot| slot.count);
-
-        slots.push(AvailableSlot {
-            start_time: current,
-            end_time: slot_end,
-            booked_count,
-            max_patients: max,
-            is_available: booked_count < i64::from(max),
-        });
-
-        current = slot_end;
     }
 
     Ok(Json(slots))
+}
+
+async fn fallback_working_periods(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    doctor_id: Uuid,
+    day_of_week: i32,
+) -> Result<Vec<(NaiveTime, NaiveTime)>, AppError> {
+    let working_hours = sqlx::query_scalar::<_, Option<serde_json::Value>>(
+        "SELECT d.working_hours \
+         FROM users u \
+         LEFT JOIN departments d ON d.id = u.department_id AND d.tenant_id = u.tenant_id \
+         WHERE u.id = $1 AND u.tenant_id = $2",
+    )
+    .bind(doctor_id)
+    .bind(*tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
+
+    let periods = working_hours
+        .as_ref()
+        .and_then(|value| periods_from_working_hours(value, day_of_week));
+
+    Ok(periods.unwrap_or_else(default_working_periods))
+}
+
+fn periods_from_working_hours(
+    working_hours: &serde_json::Value,
+    day_of_week: i32,
+) -> Option<Vec<(NaiveTime, NaiveTime)>> {
+    let day = day_name(day_of_week)?;
+    let day_schedule = working_hours.get(day)?;
+    if day_schedule.is_null() {
+        return None;
+    }
+
+    let mut periods = Vec::new();
+    for key in ["morning", "evening"] {
+        if let Some(slot) = day_schedule.get(key)
+            && let Some(period) = period_from_json(slot)
+        {
+            periods.push(period);
+        }
+    }
+
+    (!periods.is_empty()).then_some(periods)
+}
+
+fn period_from_json(slot: &serde_json::Value) -> Option<(NaiveTime, NaiveTime)> {
+    let start = parse_time(slot.get("start")?.as_str()?)?;
+    let end = parse_time(slot.get("end")?.as_str()?)?;
+    (start < end).then_some((start, end))
+}
+
+fn parse_time(value: &str) -> Option<NaiveTime> {
+    NaiveTime::parse_from_str(value, "%H:%M")
+        .ok()
+        .or_else(|| NaiveTime::parse_from_str(value, "%H:%M:%S").ok())
+}
+
+fn day_name(day_of_week: i32) -> Option<&'static str> {
+    match day_of_week {
+        0 => Some("sunday"),
+        1 => Some("monday"),
+        2 => Some("tuesday"),
+        3 => Some("wednesday"),
+        4 => Some("thursday"),
+        5 => Some("friday"),
+        6 => Some("saturday"),
+        _ => None,
+    }
+}
+
+fn default_primary_period() -> (NaiveTime, NaiveTime) {
+    (
+        NaiveTime::from_hms_opt(9, 0, 0).unwrap_or_default(),
+        NaiveTime::from_hms_opt(13, 0, 0).unwrap_or_default(),
+    )
+}
+
+fn default_working_periods() -> Vec<(NaiveTime, NaiveTime)> {
+    vec![
+        default_primary_period(),
+        (
+            NaiveTime::from_hms_opt(16, 0, 0).unwrap_or_default(),
+            NaiveTime::from_hms_opt(20, 0, 0).unwrap_or_default(),
+        ),
+    ]
 }

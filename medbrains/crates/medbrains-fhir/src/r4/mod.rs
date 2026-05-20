@@ -1,7 +1,7 @@
 //! FHIR R4 resource definitions. Hand-rolled to avoid the 4MB+ generated
-//! crates; we cover only the resources MedBrains needs (Patient,
-//! Encounter, Observation, DiagnosticReport, Composition, Procedure,
-//! MedicationRequest, Coverage, Claim, ClaimResponse, Bundle).
+//! crates; we cover only the resources `MedBrains` needs (Patient,
+//! Encounter, Observation, `DiagnosticReport`, Composition, Procedure,
+//! `MedicationRequest`, Coverage, Claim, `ClaimResponse`, Bundle).
 
 pub mod bundle;
 pub mod coding;

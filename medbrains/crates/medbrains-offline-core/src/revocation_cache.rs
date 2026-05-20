@@ -58,7 +58,7 @@ pub struct RevocationEntry {
 pub struct RevocationCache {
     inner: Arc<RwLock<LruCache<Uuid, i64>>>,
     persist: sled::Db,
-    /// Largest revoked_at_unix we've seen so far. Used as the
+    /// Largest `revoked_at_unix` we've seen so far. Used as the
     /// `since` cursor on the next pull.
     pull_max: Arc<RwLock<i64>>,
 }
@@ -97,7 +97,7 @@ impl RevocationCache {
 
     /// Record that `user_id` is revoked from `revoked_at_unix`
     /// onward. Idempotent — repeated calls with the same inputs are
-    /// a no-op. If a later revoked_at supersedes an earlier one we
+    /// a no-op. If a later `revoked_at` supersedes an earlier one we
     /// keep the later (more recent revocation wins).
     pub fn record_revocation(
         &self,
@@ -134,7 +134,7 @@ impl RevocationCache {
     /// revocation are NOT considered revoked — that handles the
     /// re-activation case (admin disables, then re-enables, then
     /// user logs in fresh; the new JWT's iat is after the old
-    /// revoked_at and should be honored).
+    /// `revoked_at` and should be honored).
     pub fn is_revoked(&self, user_id: Uuid, jwt_iat_unix: i64) -> bool {
         let Ok(mut guard) = self.inner.write() else {
             return false;
@@ -145,7 +145,7 @@ impl RevocationCache {
         }
     }
 
-    /// Highest revoked_at_unix seen so far. Use as the `since`
+    /// Highest `revoked_at_unix` seen so far. Use as the `since`
     /// cursor on the next pull from the cloud.
     pub fn pull_window_max(&self) -> i64 {
         self.pull_max.read().map(|g| *g).unwrap_or(0)

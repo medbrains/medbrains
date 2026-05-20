@@ -42,7 +42,7 @@ pub enum Frame {
     /// device-server-cloud chain).
     Ack { doc_id: String, chain_tip: String },
     /// Cloud → edge: drop these authz cache entries because their
-    /// underlying SpiceDB relations changed. The edge cache is
+    /// underlying `SpiceDB` relations changed. The edge cache is
     /// strictly read-only — it never invents grants — but it does
     /// honor invalidations pushed from the watch stream upstream.
     /// Wiring into [`SyncServer`] is deferred to the integration PR.
@@ -218,7 +218,7 @@ impl SyncServer {
         Ok(())
     }
 
-    /// Apply a PullSince frame. Returns the PullResponse.
+    /// Apply a `PullSince` frame. Returns the `PullResponse`.
     pub async fn handle_pull(
         &self,
         tenant_id: Uuid,

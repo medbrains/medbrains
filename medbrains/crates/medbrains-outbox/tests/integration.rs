@@ -23,7 +23,6 @@ use medbrains_outbox::{
     handler::{Handler, HandlerCtx, HandlerError, Registry},
 };
 use serde_json::Value;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 
 // ── Test handlers ────────────────────────────────────────────────────

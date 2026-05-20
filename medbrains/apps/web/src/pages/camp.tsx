@@ -23,13 +23,19 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
   CampCreateFormInput,
+  CampClinicalVisitFormInput,
   CampFollowupFormInput,
+  CampLabSampleFormInput,
   CampRegistrationFormInput,
+  CampScreeningFormInput,
 } from "@medbrains/schemas";
 import {
   campCreateFormSchema,
+  campClinicalVisitFormSchema,
   campFollowupFormSchema,
+  campLabSampleFormSchema,
   campRegistrationFormSchema,
+  campScreeningFormSchema,
 } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -43,15 +49,19 @@ import type {
   CampScreening,
   CampSupplyItem,
   CampTeamMember,
+  CampOpenEncounterResponse,
   CreateCampFollowupRequest,
   CreateCampLabSampleRequest,
   CreateCampRegistrationRequest,
   CreateCampRequest,
   CreateCampScreeningRequest,
+  CreateVitalRequest,
   UpdateCampFollowupRequest,
+  DepartmentRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconArrowRight,
   IconCalendarCheck,
   IconChartBar,
   IconCheck,
@@ -60,15 +70,19 @@ import {
   IconPencil,
   IconPlayerPlay,
   IconPlus,
+  IconSearch,
   IconStethoscope,
   IconTrash,
+  IconTransferIn,
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
+import { useNavigate, useParams } from "react-router";
+import { DataTable, DoctorSearchSelect, PageHeader } from "../components";
+import { VitalsRecorder } from "../components/Clinical/VitalsRecorder";
 import type { Column } from "../components/DataTable";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import {
@@ -81,6 +95,8 @@ import {
 } from "../forms/camp.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { campService } from "../services/camp.service";
+import { lookupsService } from "../services/lookups.service";
+import { EncounterDetail } from "./opd";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -125,54 +141,194 @@ const SAMPLE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
+const CAMP_SERVICE_LINE_OPTIONS = [
+  { value: "opinion", label: "Opinion / specialist review" },
+  { value: "consultation", label: "Consultation" },
+  { value: "xray", label: "X-ray / imaging" },
+  { value: "lab", label: "Lab test" },
+  { value: "procedure", label: "Procedure" },
+  { value: "pharmacy", label: "Pharmacy / medicines" },
+  { value: "emergency", label: "Emergency" },
+  { value: "follow_up", label: "Follow-up" },
+  { value: "other", label: "Other" },
+];
+
 // ── Main Page ──────────────────────────────────────────
 
 export function CampPage() {
   useRequirePermission(P.CAMP.LIST);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | null>("camps");
+  const openCampWorkspace = (campId: string) => {
+    navigate(`/camp/${campId}/work`);
+  };
 
   return (
     <div>
       <PageHeader
         title="Camp Management"
-        subtitle="Outreach camps — planning, registration, screening, follow-up"
+        subtitle="Plan, approve, activate, and close outreach camps. Open an active camp to work inside it."
       />
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="camps" leftSection={<IconFirstAidKit size={16} />}>
             Camps
           </Tabs.Tab>
-          <Tabs.Tab value="registrations" leftSection={<IconUsers size={16} />}>
-            Registrations
-          </Tabs.Tab>
-          <Tabs.Tab value="screenings" leftSection={<IconStethoscope size={16} />}>
-            Screenings & Lab
-          </Tabs.Tab>
-          <Tabs.Tab value="followups" leftSection={<IconCalendarCheck size={16} />}>
-            Follow-up & Conversion
-          </Tabs.Tab>
           <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
-            Analytics & Reports
+            Analytics
           </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="camps" pt="md">
-          <CampsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="registrations" pt="md">
-          <RegistrationsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="screenings" pt="md">
-          <ScreeningsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="followups" pt="md">
-          <FollowupsTab />
+          <CampsTab onWorkCamp={openCampWorkspace} />
         </Tabs.Panel>
         <Tabs.Panel value="analytics" pt="md">
-          <CampAnalyticsTab />
+          <CampAnalyticsTab campId={null} selectedCamp={null} />
         </Tabs.Panel>
       </Tabs>
     </div>
+  );
+}
+
+export function CampWorkPage() {
+  useRequirePermission(P.CAMP.LIST);
+  const navigate = useNavigate();
+  const { campId } = useParams();
+  const [activeTab, setActiveTab] = useState<string | null>("registrations");
+  const [focusedRegistrationId, setFocusedRegistrationId] = useState<string | null>(null);
+
+  const { data: camps = [] } = useQuery({
+    queryKey: ["camps"],
+    queryFn: () => campService.listCamps(),
+  });
+
+  const activeCamps = useMemo(
+    () =>
+      camps
+        .filter((camp) => camp.status === "active")
+        .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
+    [camps],
+  );
+  const selectedCamp = camps.find((camp) => camp.id === campId) ?? null;
+
+  const openRegistrationClinicalFlow = (registrationId: string) => {
+    setFocusedRegistrationId(registrationId);
+    setActiveTab("screenings");
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title={selectedCamp ? `Work Camp · ${selectedCamp.name}` : "Work Camp"}
+        subtitle={
+          selectedCamp
+            ? `${selectedCamp.camp_code} · ${selectedCamp.scheduled_date} · ${selectedCamp.venue_name ?? "Venue not set"}`
+            : "Choose an active camp to start registration and screening"
+        }
+        actions={
+          <Button variant="light" onClick={() => navigate("/camp")}>
+            Back to Camp Management
+          </Button>
+        }
+      />
+      <CampContextBar
+        activeCamps={activeCamps}
+        selectedCamp={selectedCamp}
+        selectedCampId={campId ?? null}
+        onSelectCamp={(nextCampId) => {
+          setFocusedRegistrationId(null);
+          if (nextCampId) {
+            navigate(`/camp/${nextCampId}/work`);
+          }
+        }}
+      />
+
+      <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tabs.List>
+          <Tabs.Tab value="registrations" leftSection={<IconUsers size={16} />}>
+            Registrations
+          </Tabs.Tab>
+          <Tabs.Tab value="screenings" leftSection={<IconStethoscope size={16} />}>
+            Clinical Screening
+          </Tabs.Tab>
+          <Tabs.Tab value="followups" leftSection={<IconCalendarCheck size={16} />}>
+            Follow-up
+          </Tabs.Tab>
+          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+            Report
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="registrations" pt="md">
+          <RegistrationsTab
+            campId={campId ?? null}
+            selectedCamp={selectedCamp}
+            onScreenRegistration={openRegistrationClinicalFlow}
+          />
+        </Tabs.Panel>
+        <Tabs.Panel value="screenings" pt="md">
+          <ScreeningsTab
+            key={`${campId ?? "none"}-${focusedRegistrationId ?? "none"}`}
+            campId={campId ?? null}
+            selectedCamp={selectedCamp}
+            focusedRegistrationId={focusedRegistrationId}
+            onClearFocusedRegistration={() => setFocusedRegistrationId(null)}
+          />
+        </Tabs.Panel>
+        <Tabs.Panel value="followups" pt="md">
+          <FollowupsTab campId={campId ?? null} selectedCamp={selectedCamp} />
+        </Tabs.Panel>
+        <Tabs.Panel value="analytics" pt="md">
+          <CampAnalyticsTab campId={campId ?? null} selectedCamp={selectedCamp} />
+        </Tabs.Panel>
+      </Tabs>
+    </div>
+  );
+}
+
+function CampContextBar({
+  activeCamps,
+  selectedCamp,
+  selectedCampId,
+  onSelectCamp,
+}: {
+  activeCamps: Camp[];
+  selectedCamp: Camp | null;
+  selectedCampId: string | null;
+  onSelectCamp: (campId: string | null) => void;
+}) {
+  return (
+    <Card withBorder p="sm" mb="md">
+      <Group justify="space-between" align="center">
+        <Stack gap={2}>
+          <Group gap="xs">
+            <Badge color={selectedCamp ? "success" : "slate"} variant="filled">
+              {selectedCamp ? "Active camp context" : "No active camp"}
+            </Badge>
+            {selectedCamp && (
+              <Text size="sm" fw={600}>
+                {selectedCamp.camp_code} · {selectedCamp.name}
+              </Text>
+            )}
+          </Group>
+          <Text size="xs" c="dimmed">
+            Registration, screening, lab, follow-up, and reports use this camp automatically.
+          </Text>
+        </Stack>
+        <Select
+          placeholder="Select active camp"
+          data={activeCamps.map((camp) => ({
+            value: camp.id,
+            label: `${camp.camp_code} - ${camp.name}`,
+          }))}
+          value={selectedCampId}
+          onChange={onSelectCamp}
+          searchable
+          w={360}
+          disabled={activeCamps.length === 0}
+        />
+      </Group>
+    </Card>
   );
 }
 
@@ -180,7 +336,7 @@ export function CampPage() {
 //  Camps Tab
 // ══════════════════════════════════════════════════════════
 
-function CampsTab() {
+function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
   const canCreate = useHasPermission(P.CAMP.CREATE);
   const canUpdate = useHasPermission(P.CAMP.UPDATE);
   const qc = useQueryClient();
@@ -191,6 +347,8 @@ function CampsTab() {
   const campDefaults: CampCreateFormInput = {
     name: "",
     camp_type: "general_health",
+    organizing_department_id: null,
+    coordinator_id: null,
     scheduled_date: "",
     start_time: "",
     end_time: "",
@@ -219,6 +377,20 @@ function CampsTab() {
     queryKey: ["camps", statusFilter],
     queryFn: () => campService.listCamps(statusFilter ? { status: statusFilter } : undefined),
   });
+  const { data: departments = [] } = useQuery<DepartmentRow[]>({
+    queryKey: ["departments"],
+    queryFn: () => lookupsService.listDepartments(),
+    staleTime: 600_000,
+  });
+  const departmentOptions = useMemo(
+    () =>
+      departments
+        .filter((department) =>
+          ["clinical", "para_clinical", "diagnostic"].includes(department.department_type),
+        )
+        .map((department) => ({ value: department.id, label: department.name })),
+    [departments],
+  );
 
   const createMut = useMutation({
     mutationFn: (data: CreateCampRequest) => campService.createCamp(data),
@@ -238,6 +410,8 @@ function CampsTab() {
     createMut.mutate({
       name: values.name.trim(),
       camp_type: values.camp_type,
+      organizing_department_id: values.organizing_department_id ?? undefined,
+      coordinator_id: values.coordinator_id ?? undefined,
       scheduled_date: values.scheduled_date.trim(),
       start_time: campOptionalText(values.start_time),
       end_time: campOptionalText(values.end_time),
@@ -343,6 +517,22 @@ function CampsTab() {
               <IconPencil size={14} />
             </ActionIcon>
           </Tooltip>
+          {r.status === "active" && (
+            <Tooltip label="Work in this camp" closeDelay={0} withinPortal={false}>
+              <ActionIcon
+                variant="subtle"
+                color="success"
+                size="sm"
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  onWorkCamp(r.id);
+                }}
+                aria-label="Work in this camp"
+              >
+                <IconUsers size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           {canUpdate && r.status === "planned" && (
             <Tooltip label="Approve">
               <ActionIcon
@@ -452,6 +642,34 @@ function CampsTab() {
                 value={field.value}
                 onChange={(value) => field.onChange(value ?? "general_health")}
                 error={errors.camp_type?.message}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="organizing_department_id"
+            render={({ field }) => (
+              <Select
+                label="Organizing department"
+                description="This becomes the OPD department when a camp participant is opened clinically."
+                placeholder="Select service department"
+                data={departmentOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? null)}
+                error={errors.organizing_department_id?.message}
+                searchable
+                required
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="coordinator_id"
+            render={({ field }) => (
+              <EmployeeSearchSelect
+                label="Camp coordinator / attending doctor"
+                value={field.value ?? ""}
+                onChange={(value) => field.onChange(value || null)}
               />
             )}
           />
@@ -1113,11 +1331,26 @@ function StatCard({ label, value, prefix }: { label: string; value: number; pref
 //  Registrations Tab
 // ══════════════════════════════════════════════════════════
 
-function RegistrationsTab() {
+function RegistrationsTab({
+  campId,
+  selectedCamp,
+  onScreenRegistration,
+}: {
+  campId: string | null;
+  selectedCamp: Camp | null;
+  onScreenRegistration: (registrationId: string) => void;
+}) {
   const canCreate = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
+  const canOpenClinicalVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
-  const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
+  const [routeOpen, routeHandlers] = useDisclosure(false);
+  const [clinicalOpen, clinicalHandlers] = useDisclosure(false);
+  const [clinicalContext, setClinicalContext] = useState<CampOpenEncounterResponse | null>(null);
+  const [selectedRegistrationForClinical, setSelectedRegistrationForClinical] =
+    useState<CampRegistration | null>(null);
+  const [statusTab, setStatusTab] = useState<string | null>("all");
+  const [patientSearch, setPatientSearch] = useState("");
   const registrationDefaults: CampRegistrationFormInput = {
     person_name: "",
     age: "",
@@ -1126,8 +1359,15 @@ function RegistrationsTab() {
     address: "",
     id_proof_type: "",
     id_proof_number: "",
+    clinical_department_id: null,
+    attending_doctor_id: null,
+    service_line: "",
     chief_complaint: "",
     is_walk_in: true,
+  };
+  const clinicalVisitDefaults: CampClinicalVisitFormInput = {
+    department_id: null,
+    doctor_id: null,
   };
   const {
     control,
@@ -1139,17 +1379,58 @@ function RegistrationsTab() {
     resolver: zodResolver(campRegistrationFormSchema),
     defaultValues: registrationDefaults,
   });
-
-  const { data: camps = [] } = useQuery({
-    queryKey: ["camps"],
-    queryFn: () => campService.listCamps(),
+  const {
+    control: clinicalControl,
+    reset: resetClinicalVisit,
+    handleSubmit: handleClinicalVisitSubmit,
+    formState: { errors: clinicalErrors },
+  } = useForm<CampClinicalVisitFormInput>({
+    resolver: zodResolver(campClinicalVisitFormSchema),
+    defaultValues: clinicalVisitDefaults,
   });
+
+  const { data: departments = [] } = useQuery<DepartmentRow[]>({
+    queryKey: ["departments"],
+    queryFn: () => lookupsService.listDepartments(),
+    staleTime: 600_000,
+  });
+  const departmentOptions = useMemo(
+    () =>
+      departments
+        .filter((department) =>
+          ["clinical", "para_clinical", "diagnostic"].includes(department.department_type),
+        )
+        .map((department) => ({ value: department.id, label: department.name })),
+    [departments],
+  );
 
   const { data: regs = [], isLoading } = useQuery({
-    queryKey: ["camp-registrations", selectedCampId],
-    queryFn: () => campService.listCampRegistrations({ camp_id: selectedCampId ?? "" }),
-    enabled: !!selectedCampId,
+    queryKey: ["camp-registrations", campId],
+    queryFn: () => campService.listCampRegistrations({ camp_id: campId ?? "" }),
+    enabled: !!campId,
   });
+  const filteredRegs = useMemo(
+    () => {
+      const byStatus = statusTab === "all" ? regs : regs.filter((row) => row.status === statusTab);
+      const needle = patientSearch.trim().toLowerCase();
+      if (!needle) return byStatus;
+
+      return byStatus.filter((row) => {
+        const haystack = [
+          row.registration_number,
+          row.person_name,
+          row.phone,
+          row.id_proof_number,
+          row.patient_id,
+          row.chief_complaint,
+        ]
+          .filter((value): value is string => Boolean(value));
+
+        return haystack.some((value) => value.toLowerCase().includes(needle));
+      });
+    },
+    [patientSearch, regs, statusTab],
+  );
 
   const createMut = useMutation({
     mutationFn: (data: CreateCampRegistrationRequest) => campService.createCampRegistration(data),
@@ -1165,10 +1446,67 @@ function RegistrationsTab() {
     },
   });
 
+  const openClinicalVisitMut = useMutation({
+    mutationFn: ({
+      registrationId,
+      values,
+    }: {
+      registrationId: string;
+      values: CampClinicalVisitFormInput;
+    }) =>
+      campService.openCampRegistrationEncounter(registrationId, {
+        department_id: values.department_id,
+        doctor_id: values.doctor_id,
+      }),
+    onSuccess: (result) => {
+      setClinicalContext(result);
+      routeHandlers.close();
+      setSelectedRegistrationForClinical(null);
+      resetClinicalVisit(clinicalVisitDefaults);
+      clinicalHandlers.open();
+      void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
+      void qc.invalidateQueries({ queryKey: ["opd-queue"] });
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to open clinical drawer",
+        message: "Select a department for the clinical visit and check OPD create permission.",
+        color: "danger",
+      });
+    },
+  });
+
+  const openClinicalRouting = (registration: CampRegistration, forceRoute = false) => {
+    const departmentId =
+      registration.clinical_department_id ?? selectedCamp?.organizing_department_id ?? null;
+    const doctorId = registration.attending_doctor_id ?? null;
+    const values: CampClinicalVisitFormInput = {
+      department_id: departmentId,
+      doctor_id: doctorId,
+    };
+
+    if (!forceRoute && registration.clinical_department_id) {
+      openClinicalVisitMut.mutate({ registrationId: registration.id, values });
+      return;
+    }
+
+    setSelectedRegistrationForClinical(registration);
+    resetClinicalVisit(values);
+    routeHandlers.open();
+  };
+
+  const submitClinicalRouting = (values: CampClinicalVisitFormInput) => {
+    if (!selectedRegistrationForClinical) return;
+    openClinicalVisitMut.mutate({
+      registrationId: selectedRegistrationForClinical.id,
+      values,
+    });
+  };
+
   const handleCreateRegistration = (values: CampRegistrationFormInput) => {
-    if (!selectedCampId) return;
+    if (!campId) return;
     createMut.mutate({
-      camp_id: selectedCampId,
+      camp_id: campId,
       person_name: values.person_name.trim(),
       age: campOptionalInteger(values.age),
       gender: campOptionalText(values.gender),
@@ -1176,6 +1514,9 @@ function RegistrationsTab() {
       address: campOptionalText(values.address),
       id_proof_type: campOptionalText(values.id_proof_type),
       id_proof_number: campOptionalText(values.id_proof_number),
+      clinical_department_id: values.clinical_department_id ?? undefined,
+      attending_doctor_id: values.attending_doctor_id ?? undefined,
+      service_line: campOptionalText(values.service_line),
       chief_complaint: campOptionalText(values.chief_complaint),
       is_walk_in: values.is_walk_in,
     });
@@ -1205,31 +1546,123 @@ function RegistrationsTab() {
       ),
     },
     { key: "chief_complaint", label: "Complaint", render: (r) => r.chief_complaint ?? "—" },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (r) => (
+        <Group gap={4}>
+          <Tooltip label="Record screening / vitals" closeDelay={0} withinPortal={false}>
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              size="sm"
+              onClick={(event) => {
+                event.currentTarget.blur();
+                onScreenRegistration(r.id);
+              }}
+              aria-label="Record screening"
+            >
+              <IconStethoscope size={14} />
+            </ActionIcon>
+          </Tooltip>
+          {canOpenClinicalVisit && (
+            <Tooltip
+              label={r.clinical_department_id ? "Open OPD drawer" : "Select department and open OPD"}
+              closeDelay={0}
+              withinPortal={false}
+            >
+              <ActionIcon
+                variant="subtle"
+                color="success"
+                size="sm"
+                loading={openClinicalVisitMut.isPending}
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  openClinicalRouting(r);
+                }}
+                aria-label="Open OPD drawer"
+              >
+                <IconArrowRight size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {canOpenClinicalVisit && r.clinical_department_id && (
+            <Tooltip label="Change department / doctor" closeDelay={0} withinPortal={false}>
+              <ActionIcon
+                variant="subtle"
+                color="orange"
+                size="sm"
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  openClinicalRouting(r, true);
+                }}
+                aria-label="Change department or doctor"
+              >
+                <IconTransferIn size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      ),
+    },
   ];
 
   return (
     <>
       <Group justify="space-between" mb="md">
-        <Select
-          placeholder="Select Camp"
-          data={camps.map((c) => ({ value: c.id, label: `${c.camp_code} — ${c.name}` }))}
-          value={selectedCampId}
-          onChange={setSelectedCampId}
-          w={400}
-          searchable
-        />
-        {canCreate && selectedCampId && (
+        <Stack gap={2}>
+          <Text fw={600}>{selectedCamp ? selectedCamp.name : "Select an active camp"}</Text>
+          <Text size="xs" c="dimmed">
+            New camp participants are registered against the selected camp context.
+          </Text>
+        </Stack>
+        {canCreate && campId && (
           <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Register Participant
           </Button>
         )}
       </Group>
 
-      {selectedCampId ? (
-        <DataTable columns={columns} data={regs} loading={isLoading} rowKey={(r) => r.id} />
+      {campId ? (
+        <Stack>
+          <TextInput
+            label="Patient search"
+            placeholder="Search name, registration number, phone, ID, complaint"
+            value={patientSearch}
+            onChange={(event) => setPatientSearch(event.currentTarget.value)}
+            leftSection={<IconSearch size={16} />}
+            rightSection={
+              patientSearch ? (
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  aria-label="Clear patient search"
+                  onClick={() => setPatientSearch("")}
+                >
+                  <IconX size={14} />
+                </ActionIcon>
+              ) : null
+            }
+          />
+          <Tabs value={statusTab} onChange={setStatusTab}>
+            <Tabs.List>
+              <Tabs.Tab value="all">All</Tabs.Tab>
+              <Tabs.Tab value="registered">Registered</Tabs.Tab>
+              <Tabs.Tab value="screened">Screened</Tabs.Tab>
+              <Tabs.Tab value="referred">Referred</Tabs.Tab>
+              <Tabs.Tab value="converted">Converted</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+          <DataTable
+            columns={columns}
+            data={filteredRegs}
+            loading={isLoading}
+            rowKey={(r) => r.id}
+          />
+        </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Select a camp to view registrations
+          Select an active camp to view registrations
         </Text>
       )}
 
@@ -1289,6 +1722,52 @@ function RegistrationsTab() {
           <Group grow>
             <Controller
               control={control}
+              name="clinical_department_id"
+              render={({ field }) => (
+                <Select
+                  label="Service department"
+                  placeholder="Optional at registration"
+                  data={departmentOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? null)}
+                  error={errors.clinical_department_id?.message}
+                  clearable
+                  searchable
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="attending_doctor_id"
+              render={({ field }) => (
+                <DoctorSearchSelect
+                  label="Attending doctor"
+                  placeholder="Optional at registration"
+                  value={field.value ?? ""}
+                  onChange={(value) => field.onChange(value || null)}
+                />
+              )}
+            />
+          </Group>
+          <Controller
+            control={control}
+            name="service_line"
+            render={({ field }) => (
+                <Select
+                label="Camp service needed"
+                placeholder="Opinion, X-ray, lab, pharmacy..."
+                data={CAMP_SERVICE_LINE_OPTIONS}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={errors.service_line?.message}
+                clearable
+                searchable
+              />
+            )}
+          />
+          <Group grow>
+            <Controller
+              control={control}
               name="id_proof_type"
               render={({ field }) => (
                 <Select
@@ -1330,6 +1809,106 @@ function RegistrationsTab() {
           </Button>
         </Stack>
       </Drawer>
+
+      <Drawer
+        opened={routeOpen}
+        onClose={() => {
+          routeHandlers.close();
+          setSelectedRegistrationForClinical(null);
+          resetClinicalVisit(clinicalVisitDefaults);
+        }}
+        title={
+          selectedRegistrationForClinical?.clinical_department_id
+            ? "Change department / doctor"
+            : "Open OPD clinical drawer"
+        }
+        position="right"
+        size="md"
+      >
+        <Stack component="form" onSubmit={handleClinicalVisitSubmit(submitClinicalRouting)}>
+          <Stack gap={2}>
+            <Text fw={600}>{selectedRegistrationForClinical?.person_name ?? "Participant"}</Text>
+            <Text size="xs" c="dimmed">
+              Select the department and doctor for this camp participant. Saved values will be reused next time.
+            </Text>
+          </Stack>
+          <Controller
+            control={clinicalControl}
+            name="department_id"
+            render={({ field }) => (
+              <Select
+                label="Department"
+                placeholder="Select department"
+                data={departmentOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? null)}
+                error={clinicalErrors.department_id?.message}
+                searchable
+                required
+              />
+            )}
+          />
+          <Controller
+            control={clinicalControl}
+            name="doctor_id"
+            render={({ field }) => (
+              <DoctorSearchSelect
+                label="Doctor"
+                placeholder="Select doctor if assigned"
+                value={field.value ?? ""}
+                onChange={(value) => field.onChange(value || null)}
+              />
+            )}
+          />
+          <Button type="submit" loading={openClinicalVisitMut.isPending}>
+            Open OPD Drawer
+          </Button>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={clinicalOpen}
+        onClose={() => {
+          clinicalHandlers.close();
+          setClinicalContext(null);
+        }}
+        position="right"
+        size="100%"
+        withCloseButton
+        title={
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => {
+              clinicalHandlers.close();
+              setClinicalContext(null);
+            }}
+            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
+          >
+            Back to Camp Work
+          </Button>
+        }
+        styles={{
+          header: {
+            padding: "6px 12px",
+            minHeight: 36,
+            borderBottom: "1px solid var(--fc-rule, #e7ebe8)",
+          },
+          body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" },
+        }}
+      >
+        {clinicalContext && (
+          <EncounterDetail
+            encounterId={clinicalContext.encounter_id}
+            patientId={clinicalContext.patient_id}
+            patientName={clinicalContext.patient_name}
+            uhid={clinicalContext.uhid}
+            doctorId={clinicalContext.doctor_id ?? null}
+            departmentId={clinicalContext.department_id}
+            canUpdate={canOpenClinicalVisit}
+          />
+        )}
+      </Drawer>
     </>
   );
 }
@@ -1338,45 +1917,157 @@ function RegistrationsTab() {
 //  Screenings & Lab Tab
 // ══════════════════════════════════════════════════════════
 
-function ScreeningsTab() {
+function ScreeningsTab({
+  campId,
+  selectedCamp,
+  focusedRegistrationId,
+  onClearFocusedRegistration,
+}: {
+  campId: string | null;
+  selectedCamp: Camp | null;
+  focusedRegistrationId: string | null;
+  onClearFocusedRegistration: () => void;
+}) {
   const canManageScreenings = useHasPermission(P.CAMP.SCREENINGS_MANAGE);
   const canManageLab = useHasPermission(P.CAMP.LAB_MANAGE);
   const qc = useQueryClient();
-  const [scrOpen, scrHandlers] = useDisclosure(false);
+  const [scrOpen, scrHandlers] = useDisclosure(Boolean(focusedRegistrationId));
   const [labOpen, labHandlers] = useDisclosure(false);
-  const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
-
-  const { data: camps = [] } = useQuery({
-    queryKey: ["camps"],
-    queryFn: () => campService.listCamps(),
-  });
+  const [screeningVitals, setScreeningVitals] = useState<CreateVitalRequest>({});
+  const currentCampId = campId;
 
   const { data: screenings = [], isLoading: scrLoading } = useQuery({
-    queryKey: ["camp-screenings", selectedCampId],
+    queryKey: ["camp-screenings", currentCampId],
     queryFn: () =>
-      campService.listCampScreenings(selectedCampId ? { camp_id: selectedCampId } : undefined),
-    enabled: !!selectedCampId,
+      campService.listCampScreenings(currentCampId ? { camp_id: currentCampId } : undefined),
+    enabled: !!currentCampId,
   });
 
   const { data: labSamples = [], isLoading: labLoading } = useQuery({
-    queryKey: ["camp-lab-samples", selectedCampId],
+    queryKey: ["camp-lab-samples", currentCampId],
     queryFn: () =>
-      campService.listCampLabSamples(selectedCampId ? { camp_id: selectedCampId } : undefined),
-    enabled: !!selectedCampId,
+      campService.listCampLabSamples(currentCampId ? { camp_id: currentCampId } : undefined),
+    enabled: !!currentCampId,
   });
 
-  const [scrForm, setScrForm] = useState<CreateCampScreeningRequest>({ registration_id: "" });
-  const [labForm, setLabForm] = useState<CreateCampLabSampleRequest>({
+  const { data: registrations = [] } = useQuery({
+    queryKey: ["camp-registrations", currentCampId, "screening-selector"],
+    queryFn: () => campService.listCampRegistrations({ camp_id: currentCampId ?? "" }),
+    enabled: !!currentCampId,
+  });
+
+  const screeningDefaults: CampScreeningFormInput = {
+    registration_id: focusedRegistrationId ?? "",
+    bp_systolic: "",
+    bp_diastolic: "",
+    pulse_rate: "",
+    spo2: "",
+    temperature: "",
+    blood_sugar_random: "",
+    bmi: "",
+    height_cm: "",
+    weight_kg: "",
+    visual_acuity_left: "",
+    visual_acuity_right: "",
+    findings: "",
+    diagnosis: "",
+    advice: "",
+    referred_to_hospital: false,
+    referral_department: "",
+    referral_urgency: "",
+  };
+  const labSampleDefaults: CampLabSampleFormInput = {
     registration_id: "",
     sample_type: "blood",
+    test_requested: "",
+    barcode: "",
+  };
+  const {
+    control: screeningControl,
+    register: registerScreening,
+    reset: resetScreening,
+    handleSubmit: handleSubmitScreening,
+    watch: watchScreening,
+    formState: { errors: screeningErrors },
+  } = useForm<CampScreeningFormInput>({
+    resolver: zodResolver(campScreeningFormSchema),
+    defaultValues: screeningDefaults,
   });
+  const {
+    control: labControl,
+    register: registerLab,
+    reset: resetLab,
+    handleSubmit: handleSubmitLab,
+    formState: { errors: labErrors },
+  } = useForm<CampLabSampleFormInput>({
+    resolver: zodResolver(campLabSampleFormSchema),
+    defaultValues: labSampleDefaults,
+  });
+  const referredToHospital = watchScreening("referred_to_hospital");
+  const closeScreeningDrawer = () => {
+    scrHandlers.close();
+    resetScreening(screeningDefaults);
+    setScreeningVitals({});
+    onClearFocusedRegistration();
+  };
+  const openScreeningDrawer = (registrationId?: string) => {
+    resetScreening({ ...screeningDefaults, registration_id: registrationId ?? "" });
+    setScreeningVitals({});
+    scrHandlers.open();
+  };
+  const registrationOptions = useMemo(
+    () =>
+      registrations.map((registration) => ({
+        value: registration.id,
+        label: [
+          registration.registration_number,
+          registration.person_name,
+          registration.status,
+          registration.phone ?? undefined,
+        ]
+          .filter(Boolean)
+          .join(" - "),
+      })),
+    [registrations],
+  );
+  const registrationsById = useMemo(
+    () => new Map(registrations.map((registration) => [registration.id, registration])),
+    [registrations],
+  );
+  const renderRegistrationCell = (registrationId: string) => {
+    const registration = registrationsById.get(registrationId);
+    if (!registration) {
+      return (
+        <Stack gap={2}>
+          <Text size="sm" fw={600}>
+            Unlinked registration
+          </Text>
+          <Text size="xs" c="dimmed">
+            {registrationId.slice(0, 8)}
+          </Text>
+        </Stack>
+      );
+    }
+
+    return (
+      <Stack gap={2}>
+        <Text size="sm" fw={600}>
+          {registration.person_name}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {registration.registration_number}
+          {registration.phone ? ` · ${registration.phone}` : ""}
+        </Text>
+      </Stack>
+    );
+  };
 
   const scrMut = useMutation({
-    mutationFn: () => campService.createCampScreening(scrForm),
+    mutationFn: (data: CreateCampScreeningRequest) => campService.createCampScreening(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
-      scrHandlers.close();
-      setScrForm({ registration_id: "" });
+      void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
+      closeScreeningDrawer();
       notifications.show({
         title: "Screening Recorded",
         message: "Screening saved",
@@ -1386,11 +2077,11 @@ function ScreeningsTab() {
   });
 
   const labMut = useMutation({
-    mutationFn: () => campService.createCampLabSample(labForm),
+    mutationFn: (data: CreateCampLabSampleRequest) => campService.createCampLabSample(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
       labHandlers.close();
-      setLabForm({ registration_id: "", sample_type: "blood" });
+      resetLab(labSampleDefaults);
       notifications.show({
         title: "Sample Recorded",
         message: "Lab sample recorded",
@@ -1399,8 +2090,57 @@ function ScreeningsTab() {
     },
   });
 
+  const handleCreateScreening = (values: CampScreeningFormInput) => {
+    const heightCm = screeningVitals.height_cm ?? campOptionalNumber(values.height_cm);
+    const weightKg = screeningVitals.weight_kg ?? campOptionalNumber(values.weight_kg);
+    const enteredBmi = campOptionalNumber(values.bmi);
+    const calculatedBmi =
+      enteredBmi ??
+      (heightCm && weightKg
+        ? Math.round((weightKg / (heightCm / 100) ** 2) * 100) / 100
+        : undefined);
+
+    scrMut.mutate({
+      registration_id: values.registration_id.trim(),
+      bp_systolic: screeningVitals.systolic_bp ?? campOptionalInteger(values.bp_systolic),
+      bp_diastolic: screeningVitals.diastolic_bp ?? campOptionalInteger(values.bp_diastolic),
+      pulse_rate: screeningVitals.pulse ?? campOptionalInteger(values.pulse_rate),
+      spo2: screeningVitals.spo2 ?? campOptionalInteger(values.spo2),
+      temperature: screeningVitals.temperature ?? campOptionalNumber(values.temperature),
+      blood_sugar_random: campOptionalNumber(values.blood_sugar_random),
+      bmi: calculatedBmi,
+      height_cm: heightCm,
+      weight_kg: weightKg,
+      visual_acuity_left: campOptionalText(values.visual_acuity_left),
+      visual_acuity_right: campOptionalText(values.visual_acuity_right),
+      findings: campOptionalText(values.findings),
+      diagnosis: campOptionalText(values.diagnosis),
+      advice: campOptionalText(values.advice),
+      referred_to_hospital: values.referred_to_hospital,
+      referral_department: values.referred_to_hospital
+        ? campOptionalText(values.referral_department)
+        : undefined,
+      referral_urgency: values.referred_to_hospital
+        ? campOptionalText(values.referral_urgency)
+        : undefined,
+    });
+  };
+
+  const handleCreateLabSample = (values: CampLabSampleFormInput) => {
+    labMut.mutate({
+      registration_id: values.registration_id.trim(),
+      sample_type: values.sample_type.trim(),
+      test_requested: campOptionalText(values.test_requested),
+      barcode: campOptionalText(values.barcode),
+    });
+  };
+
   const scrCols: Column<CampScreening>[] = [
-    { key: "registration_id", label: "Reg ID", render: (r) => r.registration_id.slice(0, 8) },
+    {
+      key: "registration_id",
+      label: "Participant",
+      render: (r) => renderRegistrationCell(r.registration_id),
+    },
     {
       key: "bp",
       label: "BP",
@@ -1432,7 +2172,11 @@ function ScreeningsTab() {
   ];
 
   const labCols: Column<CampLabSample>[] = [
-    { key: "registration_id", label: "Reg ID", render: (r) => r.registration_id.slice(0, 8) },
+    {
+      key: "registration_id",
+      label: "Participant",
+      render: (r) => renderRegistrationCell(r.registration_id),
+    },
     { key: "sample_type", label: "Sample", render: (r) => r.sample_type },
     { key: "test_requested", label: "Test", render: (r) => r.test_requested ?? "—" },
     { key: "barcode", label: "Barcode", render: (r) => r.barcode ?? "—" },
@@ -1455,24 +2199,25 @@ function ScreeningsTab() {
 
   return (
     <>
-      <Select
-        placeholder="Select Camp"
-        data={camps.map((c) => ({ value: c.id, label: `${c.camp_code} — ${c.name}` }))}
-        value={selectedCampId}
-        onChange={setSelectedCampId}
-        w={400}
-        mb="md"
-        searchable
-      />
-
-      {selectedCampId ? (
+      {currentCampId ? (
         <Stack>
           <Group justify="space-between">
-            <Text fw={600} size="lg">
-              Screenings
-            </Text>
+            <Stack gap={2}>
+              <Text fw={600} size="lg">
+                Screenings
+              </Text>
+              <Text size="xs" c="dimmed">
+                {selectedCamp
+                  ? `${selectedCamp.camp_code} · ${selectedCamp.name}`
+                  : "Selected camp"}
+              </Text>
+            </Stack>
             {canManageScreenings && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={scrHandlers.open}>
+              <Button
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => openScreeningDrawer()}
+              >
                 Record Screening
               </Button>
             )}
@@ -1503,167 +2248,99 @@ function ScreeningsTab() {
         </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Select a camp to view screenings and lab samples
+          Select an active camp to view screenings and lab samples
         </Text>
       )}
 
       {/* Screening Drawer */}
       <Drawer
         opened={scrOpen}
-        onClose={scrHandlers.close}
+        onClose={closeScreeningDrawer}
         title="Record Screening"
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Registration ID"
-            required
-            value={scrForm.registration_id}
-            onChange={(e) => setScrForm({ ...scrForm, registration_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmitScreening(handleCreateScreening)}>
+          <Controller
+            control={screeningControl}
+            name="registration_id"
+            render={({ field }) => (
+              <Select
+                label="Camp participant"
+                placeholder="Search registration, name, phone"
+                data={registrationOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                required
+                searchable
+                error={screeningErrors.registration_id?.message}
+              />
+            )}
+          />
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Vitals
+            </Text>
+            <VitalsRecorder onChange={setScreeningVitals} showActions={false} showNotes={false} />
+          </Stack>
+          <Controller
+            control={screeningControl}
+            name="blood_sugar_random"
+            render={({ field }) => (
+              <NumberInput
+                label="Random Blood Sugar"
+                decimalScale={1}
+                value={field.value}
+                onChange={field.onChange}
+                min={0}
+                error={screeningErrors.blood_sugar_random?.message}
+              />
+            )}
           />
           <Group grow>
-            <NumberInput
-              label="BP Systolic"
-              value={scrForm.bp_systolic ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, bp_systolic: typeof v === "number" ? v : undefined })
-              }
-            />
-            <NumberInput
-              label="BP Diastolic"
-              value={scrForm.bp_diastolic ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, bp_diastolic: typeof v === "number" ? v : undefined })
-              }
-            />
+            <TextInput label="Visual Acuity (L)" {...registerScreening("visual_acuity_left")} />
+            <TextInput label="Visual Acuity (R)" {...registerScreening("visual_acuity_right")} />
           </Group>
-          <Group grow>
-            <NumberInput
-              label="Pulse Rate"
-              value={scrForm.pulse_rate ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, pulse_rate: typeof v === "number" ? v : undefined })
-              }
-            />
-            <NumberInput
-              label="SpO2 (%)"
-              value={scrForm.spo2 ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, spo2: typeof v === "number" ? v : undefined })
-              }
-            />
-          </Group>
-          <Group grow>
-            <NumberInput
-              label="Temperature"
-              decimalScale={1}
-              value={scrForm.temperature ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, temperature: typeof v === "number" ? v : undefined })
-              }
-            />
-            <NumberInput
-              label="Blood Sugar (Random)"
-              decimalScale={1}
-              value={scrForm.blood_sugar_random ?? ""}
-              onChange={(v) =>
-                setScrForm({
-                  ...scrForm,
-                  blood_sugar_random: typeof v === "number" ? v : undefined,
-                })
-              }
-            />
-          </Group>
-          <Group grow>
-            <NumberInput
-              label="Height (cm)"
-              decimalScale={1}
-              value={scrForm.height_cm ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, height_cm: typeof v === "number" ? v : undefined })
-              }
-            />
-            <NumberInput
-              label="Weight (kg)"
-              decimalScale={1}
-              value={scrForm.weight_kg ?? ""}
-              onChange={(v) =>
-                setScrForm({ ...scrForm, weight_kg: typeof v === "number" ? v : undefined })
-              }
-            />
-          </Group>
-          <Group grow>
-            <TextInput
-              label="Visual Acuity (L)"
-              value={scrForm.visual_acuity_left ?? ""}
-              onChange={(e) =>
-                setScrForm({ ...scrForm, visual_acuity_left: e.currentTarget.value || undefined })
-              }
-            />
-            <TextInput
-              label="Visual Acuity (R)"
-              value={scrForm.visual_acuity_right ?? ""}
-              onChange={(e) =>
-                setScrForm({ ...scrForm, visual_acuity_right: e.currentTarget.value || undefined })
-              }
-            />
-          </Group>
-          <Textarea
-            label="Findings"
-            value={scrForm.findings ?? ""}
-            onChange={(e) =>
-              setScrForm({ ...scrForm, findings: e.currentTarget.value || undefined })
-            }
+          <Textarea label="Findings" {...registerScreening("findings")} />
+          <Textarea label="Provisional Diagnosis" {...registerScreening("diagnosis")} />
+          <Textarea label="Advice" {...registerScreening("advice")} />
+          <Controller
+            control={screeningControl}
+            name="referred_to_hospital"
+            render={({ field }) => (
+              <Switch
+                label="Refer to hospital / OPD"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Textarea
-            label="Diagnosis"
-            value={scrForm.diagnosis ?? ""}
-            onChange={(e) =>
-              setScrForm({ ...scrForm, diagnosis: e.currentTarget.value || undefined })
-            }
-          />
-          <Textarea
-            label="Advice"
-            value={scrForm.advice ?? ""}
-            onChange={(e) => setScrForm({ ...scrForm, advice: e.currentTarget.value || undefined })}
-          />
-          <Switch
-            label="Referred to Hospital"
-            checked={scrForm.referred_to_hospital === true}
-            onChange={(e) =>
-              setScrForm({ ...scrForm, referred_to_hospital: e.currentTarget.checked })
-            }
-          />
-          {scrForm.referred_to_hospital && (
+          {referredToHospital && (
             <Group grow>
               <TextInput
                 label="Referral Department"
-                value={scrForm.referral_department ?? ""}
-                onChange={(e) =>
-                  setScrForm({
-                    ...scrForm,
-                    referral_department: e.currentTarget.value || undefined,
-                  })
-                }
+                {...registerScreening("referral_department")}
               />
-              <Select
-                label="Urgency"
-                data={[
-                  { value: "routine", label: "Routine" },
-                  { value: "urgent", label: "Urgent" },
-                  { value: "emergency", label: "Emergency" },
-                ]}
-                value={scrForm.referral_urgency ?? null}
-                onChange={(v) => setScrForm({ ...scrForm, referral_urgency: v ?? undefined })}
+              <Controller
+                control={screeningControl}
+                name="referral_urgency"
+                render={({ field }) => (
+                  <Select
+                    label="Urgency"
+                    data={[
+                      { value: "routine", label: "Routine" },
+                      { value: "urgent", label: "Urgent" },
+                      { value: "emergency", label: "Emergency" },
+                    ]}
+                    value={field.value || null}
+                    onChange={(value) => field.onChange(value ?? "")}
+                    clearable
+                  />
+                )}
               />
             </Group>
           )}
-          <Button
-            onClick={() => scrMut.mutate()}
-            loading={scrMut.isPending}
-            disabled={!scrForm.registration_id}
-          >
+          <Button type="submit" loading={scrMut.isPending}>
             Save Screening
           </Button>
         </Stack>
@@ -1677,39 +2354,48 @@ function ScreeningsTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <TextInput
-            label="Registration ID"
-            required
-            value={labForm.registration_id}
-            onChange={(e) => setLabForm({ ...labForm, registration_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmitLab(handleCreateLabSample)}>
+          <Controller
+            control={labControl}
+            name="registration_id"
+            render={({ field }) => (
+              <Select
+                label="Camp participant"
+                placeholder="Search registration, name, phone"
+                data={registrationOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                required
+                searchable
+                error={labErrors.registration_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Sample Type"
-            required
-            data={SAMPLE_TYPES}
-            value={labForm.sample_type}
-            onChange={(v) => setLabForm({ ...labForm, sample_type: v ?? "blood" })}
+          <Controller
+            control={labControl}
+            name="sample_type"
+            render={({ field }) => (
+              <Select
+                label="Sample Type"
+                required
+                data={SAMPLE_TYPES}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "blood")}
+                error={labErrors.sample_type?.message}
+              />
+            )}
           />
           <TextInput
             label="Test Requested"
-            value={labForm.test_requested ?? ""}
-            onChange={(e) =>
-              setLabForm({ ...labForm, test_requested: e.currentTarget.value || undefined })
-            }
+            error={labErrors.test_requested?.message}
+            {...registerLab("test_requested")}
           />
           <TextInput
             label="Barcode"
-            value={labForm.barcode ?? ""}
-            onChange={(e) =>
-              setLabForm({ ...labForm, barcode: e.currentTarget.value || undefined })
-            }
+            error={labErrors.barcode?.message}
+            {...registerLab("barcode")}
           />
-          <Button
-            onClick={() => labMut.mutate()}
-            loading={labMut.isPending}
-            disabled={!labForm.registration_id}
-          >
+          <Button type="submit" loading={labMut.isPending}>
             Save Sample
           </Button>
         </Stack>
@@ -1722,11 +2408,17 @@ function ScreeningsTab() {
 //  Follow-ups & Conversion Tab
 // ══════════════════════════════════════════════════════════
 
-function FollowupsTab() {
+function FollowupsTab({
+  campId,
+  selectedCamp,
+}: {
+  campId: string | null;
+  selectedCamp: Camp | null;
+}) {
   const canManage = useHasPermission(P.CAMP.FOLLOWUPS_MANAGE);
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
-  const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
+  const [statusTab, setStatusTab] = useState<string | null>("all");
   const followupDefaults: CampFollowupFormInput = {
     registration_id: "",
     followup_date: "",
@@ -1744,23 +2436,75 @@ function FollowupsTab() {
     defaultValues: followupDefaults,
   });
 
-  const { data: camps = [] } = useQuery({
-    queryKey: ["camps"],
-    queryFn: () => campService.listCamps(),
-  });
-
   const { data: followups = [], isLoading } = useQuery({
-    queryKey: ["camp-followups", selectedCampId],
-    queryFn: () =>
-      campService.listCampFollowups(selectedCampId ? { camp_id: selectedCampId } : undefined),
-    enabled: !!selectedCampId,
+    queryKey: ["camp-followups", campId],
+    queryFn: () => campService.listCampFollowups(campId ? { camp_id: campId } : undefined),
+    enabled: !!campId,
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["camp-stats", selectedCampId],
-    queryFn: () => campService.getCampStats(selectedCampId ?? ""),
-    enabled: !!selectedCampId,
+    queryKey: ["camp-stats", campId],
+    queryFn: () => campService.getCampStats(campId ?? ""),
+    enabled: !!campId,
   });
+
+  const { data: registrations = [] } = useQuery({
+    queryKey: ["camp-registrations", campId, "followup-selector"],
+    queryFn: () => campService.listCampRegistrations({ camp_id: campId ?? "" }),
+    enabled: !!campId,
+  });
+
+  const registrationOptions = useMemo(
+    () =>
+      registrations.map((registration) => ({
+        value: registration.id,
+        label: [
+          registration.registration_number,
+          registration.person_name,
+          registration.status,
+          registration.phone ?? undefined,
+        ]
+          .filter(Boolean)
+          .join(" - "),
+      })),
+    [registrations],
+  );
+  const registrationsById = useMemo(
+    () => new Map(registrations.map((registration) => [registration.id, registration])),
+    [registrations],
+  );
+  const filteredFollowups = useMemo(
+    () =>
+      statusTab === "all" ? followups : followups.filter((row) => row.status === statusTab),
+    [followups, statusTab],
+  );
+  const renderRegistrationCell = (registrationId: string) => {
+    const registration = registrationsById.get(registrationId);
+    if (!registration) {
+      return (
+        <Stack gap={2}>
+          <Text size="sm" fw={600}>
+            Unlinked registration
+          </Text>
+          <Text size="xs" c="dimmed">
+            {registrationId.slice(0, 8)}
+          </Text>
+        </Stack>
+      );
+    }
+
+    return (
+      <Stack gap={2}>
+        <Text size="sm" fw={600}>
+          {registration.person_name}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {registration.registration_number}
+          {registration.phone ? ` · ${registration.phone}` : ""}
+        </Text>
+      </Stack>
+    );
+  };
 
   const createMut = useMutation({
     mutationFn: (data: CreateCampFollowupRequest) => campService.createCampFollowup(data),
@@ -1796,7 +2540,11 @@ function FollowupsTab() {
   });
 
   const columns: Column<CampFollowup>[] = [
-    { key: "registration_id", label: "Reg ID", render: (r) => r.registration_id.slice(0, 8) },
+    {
+      key: "registration_id",
+      label: "Participant",
+      render: (r) => renderRegistrationCell(r.registration_id),
+    },
     { key: "followup_date", label: "Date", render: (r) => r.followup_date },
     {
       key: "followup_type",
@@ -1864,22 +2612,20 @@ function FollowupsTab() {
   return (
     <>
       <Group justify="space-between" mb="md">
-        <Select
-          placeholder="Select Camp"
-          data={camps.map((c) => ({ value: c.id, label: `${c.camp_code} — ${c.name}` }))}
-          value={selectedCampId}
-          onChange={setSelectedCampId}
-          w={400}
-          searchable
-        />
-        {canManage && selectedCampId && (
+        <Stack gap={2}>
+          <Text fw={600}>{selectedCamp ? selectedCamp.name : "Select an active camp"}</Text>
+          <Text size="xs" c="dimmed">
+            Follow-ups are scheduled from the current camp registration list.
+          </Text>
+        </Stack>
+        {canManage && campId && (
           <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Schedule Follow-up
           </Button>
         )}
       </Group>
 
-      {stats && selectedCampId && (
+      {stats && campId && (
         <SimpleGrid cols={5} mb="md">
           <StatCard label="Total Registrations" value={stats.total_registrations} />
           <StatCard label="Referred" value={stats.referred} />
@@ -1897,11 +2643,27 @@ function FollowupsTab() {
         </SimpleGrid>
       )}
 
-      {selectedCampId ? (
-        <DataTable columns={columns} data={followups} loading={isLoading} rowKey={(r) => r.id} />
+      {campId ? (
+        <Stack>
+          <Tabs value={statusTab} onChange={setStatusTab}>
+            <Tabs.List>
+              <Tabs.Tab value="all">All</Tabs.Tab>
+              <Tabs.Tab value="scheduled">Scheduled</Tabs.Tab>
+              <Tabs.Tab value="completed">Completed</Tabs.Tab>
+              <Tabs.Tab value="missed">Missed</Tabs.Tab>
+              <Tabs.Tab value="cancelled">Cancelled</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+          <DataTable
+            columns={columns}
+            data={filteredFollowups}
+            loading={isLoading}
+            rowKey={(r) => r.id}
+          />
+        </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Select a camp to view follow-ups
+          Open an active camp workspace to view follow-ups
         </Text>
       )}
 
@@ -1916,11 +2678,21 @@ function FollowupsTab() {
         size="sm"
       >
         <Stack component="form" onSubmit={handleSubmit(handleCreateFollowup)}>
-          <TextInput
-            label="Registration ID"
-            required
-            error={errors.registration_id?.message}
-            {...register("registration_id")}
+          <Controller
+            control={control}
+            name="registration_id"
+            render={({ field }) => (
+              <Select
+                label="Camp participant"
+                placeholder="Search registration, name, phone"
+                data={registrationOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                required
+                searchable
+                error={errors.registration_id?.message}
+              />
+            )}
           />
           <Controller
             control={control}
@@ -1964,29 +2736,28 @@ function FollowupsTab() {
 //  Analytics & Reports Tab
 // ══════════════════════════════════════════════════════════
 
-function CampAnalyticsTab() {
-  const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
-
-  const { data: camps = [] } = useQuery({
-    queryKey: ["camps"],
-    queryFn: () => campService.listCamps(),
-  });
-
+function CampAnalyticsTab({
+  campId,
+  selectedCamp,
+}: {
+  campId: string | null;
+  selectedCamp: Camp | null;
+}) {
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ["camp-analytics"],
     queryFn: () => campService.campAnalytics(),
   });
 
   const { data: report } = useQuery({
-    queryKey: ["camp-report", selectedCampId],
-    queryFn: () => campService.campReport(selectedCampId ?? ""),
-    enabled: !!selectedCampId,
+    queryKey: ["camp-report", campId],
+    queryFn: () => campService.campReport(campId ?? ""),
+    enabled: !!campId,
   });
 
   const stats = analytics as CampAnalyticsType | undefined;
   const campReport = report as CampReportType | undefined;
 
-  const chartData = stats
+  const chartData = stats?.by_type
     ? Object.entries(stats.by_type).map(([type, count]) => ({
         type: type.replace(/_/g, " "),
         camps: count,
@@ -2044,17 +2815,13 @@ function CampAnalyticsTab() {
       )}
 
       <Text fw={600} size="lg" mt="lg">
-        Per-Camp Report
+        Camp Report
       </Text>
-      <Select
-        placeholder="Select a camp for detailed report"
-        data={camps.map((c) => ({ value: c.id, label: `${c.camp_code} — ${c.name}` }))}
-        value={selectedCampId}
-        onChange={setSelectedCampId}
-        w={400}
-        searchable
-        clearable
-      />
+      <Text size="xs" c="dimmed">
+        {selectedCamp
+          ? `${selectedCamp.camp_code} · ${selectedCamp.name}`
+          : "Open a camp workspace for the per-camp report."}
+      </Text>
 
       {campReport && (
         <Card withBorder p="md">

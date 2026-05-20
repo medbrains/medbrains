@@ -1,7 +1,7 @@
-//! SpiceDB backend — gRPC client implementation of `AuthzBackend`.
+//! `SpiceDB` backend — gRPC client implementation of `AuthzBackend`.
 //!
 //! Talks to the `authzed/spicedb` sidecar over gRPC. Schema lives in
-//! `infra/spicedb/schema.zed`; tuples are stored in SpiceDB's own
+//! `infra/spicedb/schema.zed`; tuples are stored in `SpiceDB`'s own
 //! Postgres database (NOT our application Postgres). The on-disk
 //! `relation_tuples` table from migration 129 stays around as a
 //! write-ahead audit copy + fallback, but isn't the source of truth
@@ -63,7 +63,7 @@ impl Interceptor for BearerAuth {
 }
 
 impl SpiceDbBackend {
-    /// Connect to a SpiceDB endpoint with a preshared key.
+    /// Connect to a `SpiceDB` endpoint with a preshared key.
     /// `endpoint` should be `http://host:port` (or `https://...` in prod).
     pub async fn connect(endpoint: &str, preshared_key: &str) -> Result<Self, AuthzError> {
         let channel = Endpoint::from_shared(endpoint.to_owned())
@@ -84,9 +84,9 @@ impl SpiceDbBackend {
         })
     }
 
-    /// Build the SubjectReference from an `AuthzContext`. The user is the
+    /// Build the `SubjectReference` from an `AuthzContext`. The user is the
     /// "primary" subject; group / dept / role membership is handled
-    /// inside SpiceDB via the schema's `relation` definitions, so we
+    /// inside `SpiceDB` via the schema's `relation` definitions, so we
     /// only ever pass `user:<uuid>` here.
     fn subject_for(ctx: &AuthzContext) -> v1::SubjectReference {
         v1::SubjectReference {
@@ -98,7 +98,7 @@ impl SpiceDbBackend {
         }
     }
 
-    /// Translate a `Subject` enum into the SpiceDB `SubjectReference`
+    /// Translate a `Subject` enum into the `SpiceDB` `SubjectReference`
     /// shape used in `WriteRelationshipsRequest`.
     fn subject_to_ref(subject: &Subject) -> v1::SubjectReference {
         match subject {
@@ -145,22 +145,22 @@ impl SpiceDbBackend {
         }
     }
 
-    /// Default consistency hint: minimize_latency. Mutations use
-    /// fully_consistent below.
-    fn read_consistency() -> v1::Consistency {
+    /// Default consistency hint: `minimize_latency`. Mutations use
+    /// `fully_consistent` below.
+    const fn read_consistency() -> v1::Consistency {
         v1::Consistency {
             requirement: Some(v1::consistency::Requirement::MinimizeLatency(true)),
         }
     }
 }
 
-/// Map our `Relation` enum to a SpiceDB **permission** name (used by
+/// Map our `Relation` enum to a `SpiceDB` **permission** name (used by
 /// `check_permission` / `lookup_resources`). The schema in
 /// `infra/spicedb/schema.zed` defines `permission view = owner + ...`,
 /// `permission edit = ...`, etc., so a request for `Relation::Viewer`
 /// translates to permission `"view"` and gets the implied-by-owner
 /// resolution for free.
-fn relation_to_permission(rel: Relation) -> &'static str {
+const fn relation_to_permission(rel: Relation) -> &'static str {
     match rel {
         Relation::Owner => "delete",
         Relation::Editor => "edit",
@@ -178,13 +178,13 @@ fn relation_to_permission(rel: Relation) -> &'static str {
     }
 }
 
-/// Map our `Relation` enum to a SpiceDB **relation** name (used by
+/// Map our `Relation` enum to a `SpiceDB` **relation** name (used by
 /// `write_relationships` / `delete_relationships`). These match the
 /// `relation X: user` declarations in `schema.zed`. Note the divergence
 /// from `relation_to_permission` above — `Relation::Viewer` writes a
 /// `viewer` relation tuple, but checks resolve via the `view`
 /// permission expansion.
-fn relation_to_relname(rel: Relation) -> &'static str {
+const fn relation_to_relname(rel: Relation) -> &'static str {
     match rel {
         Relation::Owner => "owner",
         Relation::Editor => "editor",
@@ -574,7 +574,7 @@ impl SpiceDbBackend {
     }
 
     /// SpiceDB-native revoke: matches by (resource, relation, subject)
-    /// rather than by tuple id (which SpiceDB doesn't expose).
+    /// rather than by tuple id (which `SpiceDB` doesn't expose).
     pub async fn revoke_specific(
         &self,
         object_type: &str,
@@ -611,9 +611,9 @@ impl SpiceDbBackend {
     }
 }
 
-/// Convert a SpiceDB `Relationship` into our internal `RelationTuple`.
-/// Loses some metadata (granted_by, granted_reason) that SpiceDB
-/// doesn't track natively — those live in our audit_log.
+/// Convert a `SpiceDB` `Relationship` into our internal `RelationTuple`.
+/// Loses some metadata (`granted_by`, `granted_reason`) that `SpiceDB`
+/// doesn't track natively — those live in our `audit_log`.
 fn relationship_to_tuple(rel: v1::Relationship) -> Option<RelationTuple> {
     let resource = rel.resource?;
     let subject_ref = rel.subject?;
@@ -665,7 +665,7 @@ fn subject_ref_to_subject(object_type: &str, object_id: &str) -> Subject {
     }
 }
 
-/// Stable synthetic UUID derived from the tuple coordinates. SpiceDB
+/// Stable synthetic UUID derived from the tuple coordinates. `SpiceDB`
 /// doesn't assign tuple ids; we derive one client-side so the rest
 /// of the codebase (audit log, share-revoke API) keeps working with
 /// `Uuid` keys.
@@ -693,7 +693,7 @@ fn synthetic_tuple_id(
 
 /// Same hash but takes the relation as a `&str` — convenient when
 /// reading back tuples whose relation is a free-form string from
-/// SpiceDB (some relations may not be in our `Relation` enum).
+/// `SpiceDB` (some relations may not be in our `Relation` enum).
 fn _synthetic_tuple_id_str(
     object_type: &str,
     object_id: Uuid,

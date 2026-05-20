@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::DateTime;
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::consultation::{
     ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket, Icd10Code,
@@ -59,8 +59,10 @@ pub struct CreateEncounterRequest {
     pub patient_id: Uuid,
     pub department_id: Uuid,
     pub doctor_id: Option<Uuid>,
+    pub appointment_id: Option<Uuid>,
     pub notes: Option<String>,
     pub visit_type: Option<String>,
+    pub camp_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,7 +84,9 @@ pub struct ListQueueQuery {
     pub date: Option<NaiveDate>,
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
+    pub visit_type: Option<String>,
     pub status: Option<String>,
+    pub search: Option<String>,
     /// When true, restrict the result to entries where `doctor_id`
     /// equals the calling user's id. Lets a doctor's UI ask for
     /// "my queue today" without having to know the user's own
@@ -105,6 +109,16 @@ pub struct QueueEntry {
     pub patient_id: Uuid,
     pub patient_name: String,
     pub uhid: String,
+    pub visit_type: Option<String>,
+    pub camp_id: Option<Uuid>,
+    pub camp_name: Option<String>,
+    pub appointment_id: Option<Uuid>,
+    pub appointment_type: Option<String>,
+    pub appointment_status: Option<String>,
+    pub appointment_date: Option<NaiveDate>,
+    pub appointment_slot_start: Option<NaiveTime>,
+    pub appointment_slot_end: Option<NaiveTime>,
+    pub appointment_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -457,23 +471,169 @@ pub async fn create_encounter(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let today = Utc::now().date_naive();
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
-    let visit_type = body.visit_type.as_deref().unwrap_or("walk_in");
+    #[derive(sqlx::FromRow)]
+    struct AppointmentLink {
+        patient_id: Uuid,
+        doctor_id: Uuid,
+        department_id: Uuid,
+        appointment_date: NaiveDate,
+        slot_start: NaiveTime,
+        slot_end: NaiveTime,
+        appointment_type: String,
+        status: String,
+        reason: Option<String>,
+        encounter_id: Option<Uuid>,
+    }
+
+    let linked_appointment = if let Some(appointment_id) = body.appointment_id {
+        let appointment = sqlx::query_as::<_, AppointmentLink>(
+            "SELECT patient_id, doctor_id, department_id, appointment_date, slot_start, slot_end, \
+                    appointment_type::text AS appointment_type, status::text AS status, reason, \
+                    encounter_id \
+             FROM appointments \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(appointment_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        if appointment.patient_id != body.patient_id {
+            return Err(AppError::BadRequest(
+                "Appointment patient does not match the OPD visit patient".to_owned(),
+            ));
+        }
+        if appointment.department_id != body.department_id {
+            return Err(AppError::BadRequest(
+                "Appointment department does not match the OPD visit department".to_owned(),
+            ));
+        }
+        if let Some(requested_doctor_id) = body.doctor_id
+            && requested_doctor_id != appointment.doctor_id
+        {
+            return Err(AppError::BadRequest(
+                "Appointment doctor does not match the OPD visit doctor".to_owned(),
+            ));
+        }
+        if matches!(
+            appointment.status.as_str(),
+            "completed" | "cancelled" | "no_show"
+        ) {
+            return Err(AppError::Conflict(
+                "Appointment is already closed and cannot be moved to OPD".to_owned(),
+            ));
+        }
+        if appointment.encounter_id.is_some() {
+            return Err(AppError::Conflict(
+                "Appointment is already linked to an OPD visit".to_owned(),
+            ));
+        }
+
+        Some(appointment)
+    } else {
+        None
+    };
+
+    let department_id = linked_appointment
+        .as_ref()
+        .map_or(body.department_id, |appointment| appointment.department_id);
+    let doctor_id = linked_appointment
+        .as_ref()
+        .map_or(body.doctor_id, |appointment| Some(appointment.doctor_id));
+    let default_visit_type = linked_appointment
+        .as_ref()
+        .map_or("walk_in", |appointment| {
+            if appointment.appointment_type == "follow_up" {
+                "follow_up"
+            } else {
+                "booked"
+            }
+        });
+    let visit_type = match body.visit_type.as_deref() {
+        Some("walk_in") if linked_appointment.is_some() => default_visit_type.to_owned(),
+        Some(value) => value.to_owned(),
+        None => default_visit_type.to_owned(),
+    };
+    if !matches!(
+        visit_type.as_str(),
+        "walk_in" | "booked" | "follow_up" | "referral" | "emergency" | "camp"
+    ) {
+        return Err(AppError::BadRequest(format!(
+            "Unsupported OPD visit type: {visit_type}"
+        )));
+    }
+    if visit_type == "camp" && body.camp_id.is_none() {
+        return Err(AppError::BadRequest(
+            "camp OPD visit requires camp_id".to_owned(),
+        ));
+    }
+    if visit_type != "camp" && body.camp_id.is_some() {
+        return Err(AppError::BadRequest(
+            "camp_id can only be used with camp OPD visit type".to_owned(),
+        ));
+    }
+    #[derive(sqlx::FromRow)]
+    struct CampVisitContext {
+        camp_code: String,
+        name: String,
+    }
+
+    let camp_context = if let Some(camp_id) = body.camp_id {
+        Some(
+            sqlx::query_as::<_, CampVisitContext>(
+                "SELECT camp_code, name FROM camps WHERE tenant_id = $1 AND id = $2",
+            )
+            .bind(claims.tenant_id)
+            .bind(camp_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?,
+        )
+    } else {
+        None
+    };
+    let notes = body.notes.clone().or_else(|| {
+        linked_appointment
+            .as_ref()
+            .and_then(|appointment| appointment.reason.clone())
+    });
+    let mut attributes = linked_appointment.as_ref().map_or_else(
+        || serde_json::json!({}),
+        |appointment| {
+            serde_json::json!({
+                "appointment_id": body.appointment_id,
+                "appointment_type": appointment.appointment_type,
+                "appointment_date": appointment.appointment_date,
+                "appointment_slot_start": appointment.slot_start,
+                "appointment_slot_end": appointment.slot_end,
+            })
+        },
+    );
+    if let Some(camp) = camp_context {
+        attributes["camp_id"] = serde_json::json!(body.camp_id);
+        attributes["source"] = serde_json::json!("camp");
+        attributes["mode"] = serde_json::json!("camp");
+        attributes["camp_code"] = serde_json::json!(camp.camp_code);
+        attributes["camp_name"] = serde_json::json!(camp.name);
+    }
 
     let encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
           encounter_date, notes, attributes, visit_type) \
-         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, '{}', $7) \
+         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
-    .bind(body.department_id)
-    .bind(body.doctor_id)
+    .bind(department_id)
+    .bind(doctor_id)
     .bind(today)
-    .bind(&body.notes)
+    .bind(&notes)
+    .bind(attributes)
     .bind(visit_type)
     .fetch_one(&mut *tx)
     .await?;
@@ -489,12 +649,28 @@ pub async fn create_encounter(
     )
     .bind(claims.tenant_id)
     .bind(encounter.id)
-    .bind(body.department_id)
-    .bind(body.doctor_id)
+    .bind(department_id)
+    .bind(doctor_id)
     .bind(token)
     .bind(today)
     .fetch_one(&mut *tx)
     .await?;
+
+    if let Some(appointment_id) = body.appointment_id {
+        sqlx::query(
+            "UPDATE appointments \
+             SET status = 'checked_in'::appointment_status, \
+                 token_number = $1, checked_in_at = COALESCE(checked_in_at, now()), \
+                 encounter_id = $2, updated_at = now() \
+             WHERE id = $3 AND tenant_id = $4",
+        )
+        .bind(queue.token_number)
+        .bind(encounter.id)
+        .bind(appointment_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
 
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -507,6 +683,7 @@ pub async fn create_encounter(
             "queue_id": queue.id,
             "token_number": queue.token_number,
             "visit_type": &encounter.visit_type,
+            "appointment_id": body.appointment_id,
         }),
     )
     .with_patient(encounter.patient_id)
@@ -667,11 +844,13 @@ pub async fn list_queue(
 ) -> Result<Json<Vec<QueueEntry>>, AppError> {
     require_permission(&claims, permissions::opd::queue::LIST)?;
 
-    let today = Utc::now().date_naive();
-    let queue_date = params.date.unwrap_or(today);
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let queue_date = if let Some(date) = params.date {
+        date
+    } else {
+        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+    };
 
     let mut conditions = vec![
         "q.tenant_id = $1".to_owned(),
@@ -710,13 +889,43 @@ pub async fn list_queue(
         });
         bind_idx += 1;
     }
+    if let Some(visit_type) = params
+        .visit_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        conditions.push(format!("e.visit_type::text = ${bind_idx}"));
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(visit_type.to_owned()),
+        });
+        bind_idx += 1;
+    }
+    if let Some(search) = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        conditions.push(format!(
+            "(q.token_number::text ILIKE ${bind_idx} \
+              OR p.uhid ILIKE ${bind_idx} \
+              OR p.phone ILIKE ${bind_idx} \
+              OR CONCAT(p.first_name, ' ', p.last_name) ILIKE ${bind_idx})"
+        ));
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(format!("%{search}%")),
+        });
+        bind_idx += 1;
+    }
     if let Some(ref status) = params.status {
         conditions.push(format!("q.status::text = ${bind_idx}"));
         binds.push(Bind {
             uuid_val: None,
             string_val: Some(status.clone()),
         });
-        let _ = bind_idx; // suppress unused warning
     }
 
     let where_clause = conditions.join(" AND ");
@@ -726,10 +935,21 @@ pub async fn list_queue(
                 q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
                 e.patient_id, \
                 CONCAT(p.first_name, ' ', p.last_name) AS patient_name, \
-                p.uhid \
+                p.uhid, \
+                e.visit_type::text AS visit_type, \
+                NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
+                e.attributes->>'camp_name' AS camp_name, \
+                a.id AS appointment_id, \
+                a.appointment_type::text AS appointment_type, \
+                a.status::text AS appointment_status, \
+                a.appointment_date, \
+                a.slot_start AS appointment_slot_start, \
+                a.slot_end AS appointment_slot_end, \
+                a.reason AS appointment_reason \
          FROM opd_queues q \
          JOIN encounters e ON e.id = q.encounter_id \
          JOIN patients p ON p.id = e.patient_id \
+         LEFT JOIN appointments a ON a.tenant_id = q.tenant_id AND a.encounter_id = e.id \
          WHERE {where_clause} \
          ORDER BY q.token_number ASC"
     );
@@ -814,6 +1034,21 @@ pub async fn start_consultation(
     .execute(&mut *tx)
     .await?;
 
+    sqlx::query(
+        "UPDATE appointments \
+         SET status = 'in_consultation'::appointment_status, updated_at = now() \
+         WHERE tenant_id = $1 AND encounter_id = $2 \
+           AND status IN ( \
+             'scheduled'::appointment_status, \
+             'confirmed'::appointment_status, \
+             'checked_in'::appointment_status \
+           )",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.encounter_id)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(q))
 }
@@ -848,6 +1083,22 @@ pub async fn complete_queue_entry(
     )
     .bind(q.encounter_id)
     .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE appointments \
+         SET status = 'completed'::appointment_status, \
+             completed_at = COALESCE(completed_at, now()), updated_at = now() \
+         WHERE tenant_id = $1 AND encounter_id = $2 \
+           AND status NOT IN ( \
+             'completed'::appointment_status, \
+             'cancelled'::appointment_status, \
+             'no_show'::appointment_status \
+           )",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.encounter_id)
     .execute(&mut *tx)
     .await?;
 
@@ -965,6 +1216,21 @@ pub async fn mark_no_show(
     )
     .bind(q.encounter_id)
     .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE appointments \
+         SET status = 'no_show'::appointment_status, updated_at = now() \
+         WHERE tenant_id = $1 AND encounter_id = $2 \
+           AND status NOT IN ( \
+             'completed'::appointment_status, \
+             'cancelled'::appointment_status, \
+             'no_show'::appointment_status \
+           )",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.encounter_id)
     .execute(&mut *tx)
     .await?;
 
@@ -2092,10 +2358,13 @@ pub async fn create_certificate(
 ) -> Result<Json<MedicalCertificate>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
 
-    let issued = body.issued_date.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let issued = if let Some(date) = body.issued_date {
+        date
+    } else {
+        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+    };
 
     // Generate certificate number from sequence
     let seq: (i64,) = sqlx::query_as(
@@ -3023,10 +3292,13 @@ pub async fn get_doctor_docket(
 ) -> Result<Json<Option<DoctorDocket>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
 
-    let docket_date = q.date.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let docket_date = if let Some(date) = q.date {
+        date
+    } else {
+        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+    };
 
     let row = sqlx::query_as::<_, DoctorDocket>(
         "SELECT * FROM doctor_dockets \
@@ -3049,10 +3321,13 @@ pub async fn generate_doctor_docket(
 ) -> Result<Json<DoctorDocket>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
 
-    let docket_date = q.date.unwrap_or_else(|| Utc::now().date_naive());
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let docket_date = if let Some(date) = q.date {
+        date
+    } else {
+        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+    };
 
     let row = sqlx::query_as::<_, DoctorDocket>(
         "INSERT INTO doctor_dockets \
@@ -3063,11 +3338,11 @@ pub async fn generate_doctor_docket(
            COUNT(*) FILTER (WHERE e.notes IS NULL OR e.notes = ''), \
            COUNT(*) FILTER (WHERE e.notes IS NOT NULL AND e.notes <> ''), \
            (SELECT COUNT(*) FROM referrals r WHERE r.tenant_id = $1 AND r.from_doctor_id = $2 \
-            AND r.created_at::date = $3), \
+            AND (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), r.created_at))::date = $3), \
            (SELECT COUNT(*) FROM procedure_orders po WHERE po.tenant_id = $1 AND po.ordered_by = $2 \
-            AND po.created_at::date = $3 AND po.status = 'completed') \
+            AND (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), po.created_at))::date = $3 AND po.status = 'completed') \
          FROM encounters e \
-         WHERE e.tenant_id = $1 AND e.doctor_id = $2 AND e.created_at::date = $3 \
+         WHERE e.tenant_id = $1 AND e.doctor_id = $2 AND e.encounter_date = $3 \
          ON CONFLICT (tenant_id, doctor_id, docket_date) DO UPDATE SET \
            total_patients = EXCLUDED.total_patients, \
            new_patients = EXCLUDED.new_patients, \
@@ -3613,11 +3888,11 @@ pub async fn book_appointment_group(
     let mut appointments = Vec::with_capacity(body.slot_requests.len());
 
     for slot in &body.slot_requests {
-        let start: chrono::NaiveTime = slot
+        let start: NaiveTime = slot
             .slot_start
             .parse()
             .map_err(|_| AppError::BadRequest("Invalid slot_start time format".into()))?;
-        let end: chrono::NaiveTime = slot
+        let end: NaiveTime = slot
             .slot_end
             .parse()
             .map_err(|_| AppError::BadRequest("Invalid slot_end time format".into()))?;
@@ -3701,6 +3976,7 @@ pub async fn get_wait_estimate(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     // Count waiting patients in queue
     let waiting: (i64,) = sqlx::query_as(
@@ -3708,11 +3984,12 @@ pub async fn get_wait_estimate(
          WHERE tenant_id = $1 AND status = 'waiting' \
            AND ($2::uuid IS NULL OR department_id = $2) \
            AND ($3::uuid IS NULL OR doctor_id = $3) \
-           AND queue_date = CURRENT_DATE",
+           AND queue_date = $4",
     )
     .bind(claims.tenant_id)
     .bind(q.department_id)
     .bind(q.doctor_id)
+    .bind(today)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3724,11 +4001,12 @@ pub async fn get_wait_estimate(
            AND q.called_at IS NOT NULL AND q.completed_at IS NOT NULL \
            AND ($2::uuid IS NULL OR q.department_id = $2) \
            AND ($3::uuid IS NULL OR q.doctor_id = $3) \
-           AND q.queue_date >= CURRENT_DATE - INTERVAL '7 days'",
+           AND q.queue_date >= $4::date - INTERVAL '7 days'",
     )
     .bind(claims.tenant_id)
     .bind(q.department_id)
     .bind(q.doctor_id)
+    .bind(today)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3789,7 +4067,7 @@ pub async fn admit_from_opd(
             .ok_or_else(|| AppError::NotFound)?;
 
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
-    let today = Utc::now().date_naive();
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     // 2. Create IPD encounter
     let ipd_encounter = sqlx::query_as::<_, Encounter>(
@@ -3830,7 +4108,7 @@ pub async fn admit_from_opd(
     if let Some(bid) = body.bed_id {
         sqlx::query(
             "UPDATE bed_states SET ward_id = $3, admission_id = $4 \
-             WHERE bed_id = $1 AND tenant_id = $2",
+             WHERE location_id = $1 AND tenant_id = $2",
         )
         .bind(bid)
         .bind(claims.tenant_id)
@@ -4077,23 +4355,25 @@ pub async fn followup_compliance(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FollowupComplianceRow>(
         "SELECT e.patient_id, (p.first_name || ' ' || p.last_name) AS patient_name, p.uhid, \
          e.id AS encounter_id, e.department_id, e.doctor_id, \
          a.appointment_date AS follow_up_date, e.encounter_date::date AS visit_date, \
-         (CURRENT_DATE - a.appointment_date)::int AS days_overdue \
+         ($2::date - a.appointment_date)::int AS days_overdue \
          FROM appointments a \
          JOIN encounters e ON e.id = a.encounter_id \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
          WHERE a.tenant_id = $1 \
            AND a.appointment_type = 'follow_up' \
            AND a.status = 'no_show' \
-           AND a.appointment_date < CURRENT_DATE \
+           AND a.appointment_date < $2 \
          ORDER BY a.appointment_date ASC \
          LIMIT 500",
     )
     .bind(claims.tenant_id)
+    .bind(today)
     .fetch_all(&mut *tx)
     .await?;
 

@@ -1,3 +1,5 @@
+#![allow(clippy::needless_pass_by_value)]
+
 //! React Native bridge for the Loro CRDT engine.
 //!
 //! Phase 12 of the hybrid roadmap. Same Rust core that powers the
@@ -6,7 +8,7 @@
 //! conflict-resolution code as web — no JS-side reimplementation
 //! that could drift.
 //!
-//! UniFFI generates Kotlin, Swift, and TypeScript bindings from
+//! `UniFFI` generates Kotlin, Swift, and TypeScript bindings from
 //! `edge_rn.udl`. The TS binding is consumed by React Native via
 //! `uniffi-bindgen-react-native` (deferred to the mobile-app PR).
 //!
@@ -94,7 +96,7 @@ pub struct TextSnapshot {
 }
 
 /// Opaque handle the mobile/TV app holds for the lifetime of a
-/// document mount. UniFFI requires interface impls to be `Send +
+/// document mount. `UniFFI` requires interface impls to be `Send +
 /// Sync`; `LoroDoc` itself is `Send` but not `Sync`, so we wrap in
 /// `Mutex`. Doc updates are short — measured in microseconds at the
 /// CRDT layer — so contention is fine.
@@ -228,7 +230,7 @@ fn value_or_container_as_string(v: &loro::ValueOrContainer) -> Option<String> {
 // ── Phase B: JWT verify ────────────────────────────────────────────
 
 /// Wire-compatible mirror of `medbrains_offline_core::JwtClaims`.
-/// UniFFI requires owned `String`s for UUIDs (no Uuid type bridge).
+/// `UniFFI` requires owned `String`s for UUIDs (no Uuid type bridge).
 #[derive(Debug, Clone)]
 pub struct JwtClaims {
     pub sub: String,
@@ -259,6 +261,7 @@ impl From<offline::JwtClaims> for JwtClaims {
 }
 
 /// UniFFI-friendly mirror of `medbrains_offline_core::JwtOutcome`.
+///
 /// We re-shape Valid(claims) → variant-with-data + the timing failure
 /// modes as separate variants so callers can branch with Swift / Kotlin
 /// pattern-match natively.
@@ -291,16 +294,13 @@ pub fn verify_jwt(
     now_unix: i64,
     clock_skew_secs: u64,
 ) -> JwtOutcome {
-    let key_array = match <[u8; 32]>::try_from(public_key_bytes.as_slice()) {
-        Ok(a) => a,
-        Err(_) => {
-            return JwtOutcome::Malformed {
-                reason: format!(
-                    "public key must be 32 bytes, got {}",
-                    public_key_bytes.len()
-                ),
-            };
-        }
+    let Ok(key_array) = <[u8; 32]>::try_from(public_key_bytes.as_slice()) else {
+        return JwtOutcome::Malformed {
+            reason: format!(
+                "public key must be 32 bytes, got {}",
+                public_key_bytes.len()
+            ),
+        };
     };
     let key = match offline::VerifyingKey::from_bytes(key_array) {
         Ok(k) => k,
@@ -319,7 +319,7 @@ pub fn verify_jwt(
 }
 
 /// Top-level `namespace edge_rn` function. Cheap helper —
-/// short-circuits AuthzCache check on the host side.
+/// short-circuits `AuthzCache` check on the host side.
 pub fn is_action_offline_required(object_type: String, action: String) -> bool {
     offline::ONLINE_REQUIRED_ACTIONS
         .iter()
@@ -360,10 +360,10 @@ pub enum CacheSourceKind {
 impl From<CacheSourceKind> for offline::CacheSource {
     fn from(s: CacheSourceKind) -> Self {
         match s {
-            CacheSourceKind::CloudFresh => offline::CacheSource::CloudFresh,
-            CacheSourceKind::CloudCached => offline::CacheSource::CloudCached,
-            CacheSourceKind::JwtFallback => offline::CacheSource::JwtFallback,
-            CacheSourceKind::OnlineRequiredDeny => offline::CacheSource::OnlineRequiredDeny,
+            CacheSourceKind::CloudFresh => Self::CloudFresh,
+            CacheSourceKind::CloudCached => Self::CloudCached,
+            CacheSourceKind::JwtFallback => Self::JwtFallback,
+            CacheSourceKind::OnlineRequiredDeny => Self::OnlineRequiredDeny,
         }
     }
 }
@@ -427,9 +427,9 @@ pub enum OfflinePolicyKind {
 impl From<OfflinePolicyKind> for offline::OfflinePolicy {
     fn from(p: OfflinePolicyKind) -> Self {
         match p {
-            OfflinePolicyKind::CacheOnly => offline::OfflinePolicy::CacheOnly,
-            OfflinePolicyKind::CacheThenJwt => offline::OfflinePolicy::CacheThenJwt,
-            OfflinePolicyKind::OnlineRequired => offline::OfflinePolicy::OnlineRequired,
+            OfflinePolicyKind::CacheOnly => Self::CacheOnly,
+            OfflinePolicyKind::CacheThenJwt => Self::CacheThenJwt,
+            OfflinePolicyKind::OnlineRequired => Self::OnlineRequired,
         }
     }
 }
@@ -534,6 +534,10 @@ impl RevocationCacheHandle {
 
     pub fn len(&self) -> u32 {
         self.inner.len() as u32
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.len() == 0
     }
 }
 

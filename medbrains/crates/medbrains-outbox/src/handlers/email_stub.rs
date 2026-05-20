@@ -1,4 +1,4 @@
-//! Email handler — real outbound via SendGrid HTTP API (preferred) or
+//! Email handler — real outbound via `SendGrid` HTTP API (preferred) or
 //! AWS SES HTTP API. SMTP-only providers should run their own SES-like
 //! relay; we don't link `lettre` to keep the dep tree small.
 //!

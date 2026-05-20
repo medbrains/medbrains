@@ -4,7 +4,7 @@
 //! `medbrains-archive` binary in `medbrains-server` sweeps records
 //! eligible for tier transition based on these policies.
 //!
-//! Wire shape mirrors migration 0060_object_storage_lifecycle.sql.
+//! Wire shape mirrors migration `0060_object_storage_lifecycle.sql`.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StorageTier {
-    /// Frequent reads. LocalFs / RustFS / AWS S3 standard.
+    /// Frequent reads. `LocalFs` / `RustFS` / AWS S3 standard.
     Hot,
     /// Rare reads. Same store, compressed; restore is instant.
     Cold,
@@ -23,7 +23,7 @@ pub enum StorageTier {
 }
 
 impl StorageTier {
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Hot => "hot",
             Self::Cold => "cold",

@@ -3,7 +3,7 @@
 //! Phase 11 of the hybrid roadmap — first ABDM-certified path that
 //! goes live. Submits a FHIR R4 transaction Bundle (Patient +
 //! Coverage + Encounter + Claim) to the NHCX gateway and records the
-//! ClaimResponse callback against the local claim row.
+//! `ClaimResponse` callback against the local claim row.
 //!
 //! Why this lives in the outbox (vs an inline route call):
 //! - NHCX requires every submission to carry a unique
@@ -13,7 +13,7 @@
 //! - Audit chain — the outbox already journals every attempt.
 //!
 //! Status mapping (mirrors Razorpay / Twilio):
-//!   2xx                   → Ok with NHCX request_id
+//!   2xx                   → Ok with NHCX `request_id`
 //!   400/401/403/404/422   → Permanent (DLQ — operator intervention)
 //!   429 / 5xx / network   → Transient (retry per Worker backoff)
 //!
@@ -25,7 +25,7 @@
 //!              x-hcx-sender-code, x-hcx-correlation-id, x-hcx-timestamp
 //!
 //! The shape is stable enough to lock down at compile time; the
-//! gateway-specific token-issuance flow is handled by SecretResolver.
+//! gateway-specific token-issuance flow is handled by `SecretResolver`.
 
 use async_trait::async_trait;
 use serde_json::Value;

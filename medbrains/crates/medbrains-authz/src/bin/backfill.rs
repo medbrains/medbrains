@@ -1,14 +1,14 @@
-//! ReBAC backfill CLI — emits derived tuples from existing FK columns.
+//! `ReBAC` backfill CLI — emits derived tuples from existing FK columns.
 //!
 //! Usage:
 //!     cargo run -p medbrains-authz --bin rebac-backfill -- \
 //!         --tenant <uuid> [--dry-run]
 //!
-//! Idempotent: SpiceDB `WriteRelationships` with `Touch` operation
+//! Idempotent: `SpiceDB` `WriteRelationships` with `Touch` operation
 //! upserts. Re-runs are safe (no duplicates).
 //!
 //! Streams in batches of `BATCH_SIZE` (5000) to keep wire-time small
-//! and SpiceDB GC manageable. Per-FK tuple counts printed at the end.
+//! and `SpiceDB` GC manageable. Per-FK tuple counts printed at the end.
 
 // CLI binary — println / eprintln are the user-facing UI.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
@@ -73,8 +73,7 @@ async fn main() -> anyhow::Result<()> {
     let backend = SpiceDbBackend::connect(&spicedb_endpoint, &spicedb_token).await?;
 
     println!(
-        "rebac-backfill — tenant={} endpoint={} dry_run={}",
-        tenant, spicedb_endpoint, dry_run
+        "rebac-backfill — tenant={tenant} endpoint={spicedb_endpoint} dry_run={dry_run}"
     );
 
     let mut total_written = 0u64;
@@ -250,8 +249,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     println!(
-        "\n✅ done — total tuples written: {} (dry_run={})",
-        total_written, dry_run
+        "\n✅ done — total tuples written: {total_written} (dry_run={dry_run})"
     );
     Ok(())
 }

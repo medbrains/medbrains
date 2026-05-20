@@ -19,7 +19,7 @@ pub const PERMISSION_COUNT: usize = 661;
 /// TODO above. The CI check `make check-permissions-sync` (planned)
 /// will validate this against `packages/types/src/permissions.ts`.
 #[must_use]
-pub fn all_codes() -> Vec<&'static str> {
+pub const fn all_codes() -> Vec<&'static str> {
     // Placeholder — once the flat array lands this returns &[&str].
     // For now the manifest API just exposes the count.
     Vec::new()
@@ -1356,7 +1356,7 @@ pub mod admin {
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
     }
 
-    /// Sprint A: per-tenant operating mode flip (normal/degraded/read_only).
+    /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
     pub mod system_state {
         pub const VIEW: &str = "admin.system_state.view";
         pub const MANAGE: &str = "admin.system_state.manage";
